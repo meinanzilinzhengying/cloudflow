@@ -1,0 +1,354 @@
+# =============================================================================
+# 告警规则 - CloudFlow 微服务架构
+# =============================================================================
+groups:
+  # ---------------------------------------------------------------------------
+  # 服务可用性告警 - 最优先
+  # ---------------------------------------------------------------------------
+  - name: service-availability
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务 {{ $labels.job }} 不可用"
+          description: "服务实例 {{ $labels.instance }} (job: {{ $labels.job }}) 已离线超过 1 分钟"
+
+      - alert: ServiceProbeFailed
+        expr: probe_success == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务健康检查失败"
+          description: "服务 {{ $labels.instance }} 健康检查已失败超过 2 分钟"
+
+  # ---------------------------------------------------------------------------
+  # Auth Service 告警
+  # ---------------------------------------------------------------------------
+  - name: auth-service
+    rules:
+      - alert: AuthServiceHighErrorRate
+        expr: >
+          sum(rate(http_requests_total{service="auth-service",status=~"5.."}[5m]))
+          / sum(rate(http_requests_total{service="auth-service"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "认证服务错误率过高"
+          description: "Auth Service 5xx 错误率为 {{ $value | humanizePercentage }}"
+
+      - alert: AuthServiceHighLatency
+        expr: >
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket{service="auth-service"}[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "认证服务延迟过高"
+          description: "Auth Service P95 延迟为 {{ $value }}s"
+
+  # ---------------------------------------------------------------------------
+  # Control Plane 告警
+  # ---------------------------------------------------------------------------
+  - name: control-plane
+    rules:
+      - alert: ControlPlaneHighErrorRate
+        expr: >
+          sum(rate(http_requests_total{service="control-plane",status=~"5.."}[5m]))
+          / sum(rate(http_requests_total{service="control-plane"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "控制面服务错误率过高"
+          description: "Control Plane 5xx 错误率为 {{ $value | humanizePercentage }}"
+
+      - alert: ControlPlaneAgentDisconnected
+        expr: >
+          increase(control_plane_agent_disconnects_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent 频繁断开连接"
+          description: "5 分钟内有 {{ $value }} 个 Agent 断开连接"
+
+  # ---------------------------------------------------------------------------
+  # Data Plane 告警
+  # ---------------------------------------------------------------------------
+  - name: data-plane
+    rules:
+      - alert: DataPlaneHighErrorRate
+        expr: >
+          sum(rate(http_requests_total{service="data-plane",status=~"5.."}[5m]))
+          / sum(rate(http_requests_total{service="data-plane"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据面服务错误率过高"
+          description: "Data Plane 5xx 错误率为 {{ $value | humanizePercentage }}"
+
+      - alert: DataPlaneBacklogHigh
+        expr: >
+          data_plane_processing_backlog > 10000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据面处理队列积压"
+          description: "Data Plane 当前积压 {{ $value }} 条待处理消息"
+
+  # ---------------------------------------------------------------------------
+  # Kafka 堆积告警 - 核心需求
+  # ---------------------------------------------------------------------------
+  - name: kafka-metrics
+    rules:
+      - alert: KafkaBrokerDown
+        expr: up{job="kafka"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka Broker 不可用"
+          description: "Kafka Broker {{ $labels.instance }} 已离线"
+
+      - alert: KafkaLagHigh
+        expr: >
+          kafka_consumergroup_lag{topic!=""} > 10000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka 消费者组消费滞后"
+          description: "消费者组 {{ $labels.consumergroup }} 对 Topic {{ $labels.topic }} 滞后 {{ $value }} 条"
+
+      - alert: KafkaLagCritical
+        expr: >
+          kafka_consumergroup_lag{topic!=""} > 100000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka 消费者组消费严重滞后"
+          description: "消费者组 {{ $labels.consumergroup }} 对 Topic {{ $labels.topic }} 滞后 {{ $value }} 条"
+
+      - alert: KafkaMessageRateHigh
+        expr: >
+          rate(kafka_broker_messages_in_total[5m]) > 10000
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "Kafka 消息生产速率高"
+          description: "Broker {{ $labels.instance }} 消息生产速率为 {{ $value }} 条/秒"
+
+  # ---------------------------------------------------------------------------
+  # 系统资源告警 - 核心需求
+  # ---------------------------------------------------------------------------
+  - name: system-resources
+    rules:
+      - alert: HighMemoryUsage
+        expr: >
+          (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "内存使用率过高"
+          description: "节点 {{ $labels.instance }} 内存使用率为 {{ $value }}%"
+
+      - alert: CriticalMemoryUsage
+        expr: >
+          (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 95
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "内存使用率严重过高"
+          description: "节点 {{ $labels.instance }} 内存使用率为 {{ $value }}%"
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU 使用率过高"
+          description: "节点 {{ $labels.instance }} CPU 使用率为 {{ $value }}%"
+
+      - alert: DiskSpaceLow
+        expr: >
+          (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "磁盘空间不足"
+          description: "节点 {{ $labels.instance }} 挂载点 {{ $labels.mountpoint }} 使用率为 {{ $value }}%"
+
+      - alert: DiskSpaceCritical
+        expr: >
+          (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) * 100 > 95
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "磁盘空间严重不足"
+          description: "节点 {{ $labels.instance }} 挂载点 {{ $labels.mountpoint }} 使用率为 {{ $value }}%"
+
+      - alert: FilesystemFillPredict
+        expr: >
+          predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}[6h], 24*3600) < 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "磁盘预计24小时内耗尽"
+          description: "节点 {{ $labels.instance }} 挂载点 {{ $labels.mountpoint }} 预计24小时内耗尽"
+
+  # ---------------------------------------------------------------------------
+  # 数据库告警
+  # ---------------------------------------------------------------------------
+  - name: database
+    rules:
+      - alert: TiDBDown
+        expr: up{job="tidb"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TiDB 数据库不可用"
+          description: "TiDB {{ $labels.instance }} 已离线超过 1 分钟"
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis 不可用"
+          description: "Redis {{ $labels.instance }} 已离线超过 1 分钟"
+
+      - alert: ClickHouseDown
+        expr: up{job="clickhouse"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ClickHouse 不可用"
+          description: "ClickHouse {{ $labels.instance }} 已离线超过 1 分钟"
+
+      - alert: ClickHouseHighQueryTime
+        expr: >
+          rate(clickhouse_query_duration_seconds_sum[5m])
+          / rate(clickhouse_query_duration_seconds_count[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ClickHouse 查询慢"
+          description: "ClickHouse 平均查询时间为 {{ $value }}s"
+
+  # ---------------------------------------------------------------------------
+  # 容器相关告警
+  # ---------------------------------------------------------------------------
+  - name: container
+    rules:
+      - alert: ContainerOOMKilled
+        expr: >
+          increase(container_oom_events_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "容器发生 OOM Kill"
+          description: "容器 {{ $labels.name }} ({{ $labels.id }}) 已发生 OOM Kill"
+
+      - alert: HighContainerRestartCount
+        expr: >
+          increase(container_restarts_total[1h]) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "容器频繁重启"
+          description: "容器 {{ $labels.name }} 在过去 1 小时内重启 {{ $value }} 次"
+
+      - alert: ContainerCpuUsageHigh
+        expr: >
+          (rate(container_cpu_usage_seconds_total[5m]) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "容器 CPU 使用率过高"
+          description: "容器 {{ $labels.name }} CPU 使用率为 {{ $value }}%"
+
+      - alert: ContainerMemoryUsageHigh
+        expr: >
+          (container_memory_usage_bytes{name!=""} / container_spec_memory_limit_bytes{name!=""}) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "容器内存使用率过高"
+          description: "容器 {{ $labels.name }} 内存使用率为 {{ $value }}%"
+
+  # ---------------------------------------------------------------------------
+  # 业务指标告警
+  # ---------------------------------------------------------------------------
+  - name: business-metrics
+    rules:
+      - alert: FlowProcessingDelayHigh
+        expr: >
+          rate(flow_processing_delay_seconds_sum[5m])
+          / rate(flow_processing_delay_seconds_count[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "流量处理延迟过高"
+          description: "平均处理延迟为 {{ $value }}s"
+
+      - alert: FlowsIngestionRateDrop
+        expr: >
+          rate(flows_ingested_total[5m]) < rate(flows_ingested_total[30m] offset 5m) * 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "流量采集速率骤降"
+          description: "当前采集速率较过去半小时下降超过 50%"
+
+  # ---------------------------------------------------------------------------
+  # 告警系统健康性
+  # ---------------------------------------------------------------------------
+  - name: monitoring-health
+    rules:
+      - alert: PrometheusTargetScrapeError
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus 采集失败"
+          description: "Prometheus 无法采集目标 {{ $labels.instance }} (job: {{ $labels.job }})"
+
+      - alert: AlertmanagerNotificationFailures
+        expr: >
+          rate(alertmanager_notifications_failed_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager 发送告警失败"
+          description: "告警通知失败率上升，{{ $value }} 失败/秒"

@@ -1,0 +1,61 @@
+center:
+    alerting:
+        check_interval: 30
+        email:
+            enabled: false
+            from: alerts@example.com
+            smtp_host: smtp.example.com
+            smtp_password: ""
+            smtp_port: 587
+            smtp_username: user@example.com
+            to:
+                - admin@example.com
+        rules_path: ""
+        webhook:
+            enabled: false
+            headers:
+                authorization: ""
+            url: http://localhost:8080/webhook
+    api_key: ef1a6aca1e43ff5d1c4e85845281153f
+    cluster:
+        enabled: false
+        etcd_endpoints:
+            - localhost:2379
+        lease_ttl: 30
+        node_addr: ""
+        node_id: ""
+    data_dir: ./data
+    grpc_listen_port: 9090
+    jwt:
+        secret_key: test-secret-1234567890123456
+        token_duration: 24
+    log:
+        format: json
+        level: info
+        log_dir: ./logs
+        max_age: 7
+        max_backups: 10
+        max_size: 100
+        output: stdout
+    mixserver:
+        auth_pass: ""
+        auth_user: ""
+        port: 8081
+    portal:
+        auth_pass: ""
+        auth_user: ""
+        port: 8080
+        redis_addr: ""
+    rate_limit:
+        bucket_size: 100
+        enabled: true
+        refill_rate: 50
+    retention_days: 7
+    storage:
+        dsn: root:@tcp(127.0.0.1:4000)/cloud_flow?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin
+        retention_days: 7
+    tls:
+        ca_cert: ""
+        enabled: true
+        server_cert: ""
+        server_key: ""

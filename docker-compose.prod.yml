@@ -1,0 +1,987 @@
+# CloudFlow 生产环境 Docker Compose 配置
+#
+# 架构：高可用微服务架构
+# 版本：v3.0
+# 日期：2026-05-29
+#
+# ⚠️  生产环境重要说明：
+#    本配置提供了基础高可用能力，但对于真正的生产环境，建议：
+#    - TiDB：使用 TiDB Cloud (Managed Service) 或部署 TiDB Operator
+#    - ClickHouse：使用 ClickHouse Cloud 或集群模式
+#    - Redis：使用 Redis Sentinel 或 Redis Cluster
+#    - Kafka：扩展为 3 节点 KRaft 集群
+#
+# 启动：docker-compose -f docker-compose.prod.yml up -d
+# 查看服务状态：docker-compose -f docker-compose.prod.yml ps
+# 查看日志：docker-compose -f docker-compose.prod.yml logs -f [service]
+# 扩展服务：docker-compose -f docker-compose.prod.yml up -d --scale auth-service=3
+# 停止：docker-compose -f docker-compose.prod.yml down
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # 1. 认证服务 (Auth Service) - 多实例高可用
+  # ============================================================================
+  auth-service:
+    image: ${DOCKER_REGISTRY:-}cloudflow-auth-service:${VERSION:-latest}
+    deploy:
+      replicas: ${AUTH_REPLICAS:-2}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - SERVICE_NAME=auth-service
+      - GRPC_ADDR=:9006
+      - HTTP_ADDR=:8006
+      - JWT_ISSUER=cloudflow
+      - JWT_EXPIRE_SEC=86400
+      - JWT_REFRESH_SEC=604800
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY:?JWT_PRIVATE_KEY is required}
+      - SUPER_ADMIN_ROLE=super_admin
+      - TIDB_ADDR=${TIDB_ADDR:-tidb:4000}
+      - TIDB_USER=root
+      - TIDB_PASSWORD=${CLOUD_FLOW_DB_PASSWORD:?CLOUD_FLOW_DB_PASSWORD is required}
+      - TIDB_DATABASE=cloudflow_auth
+      - OIDC_ISSUER=${OIDC_ISSUER:-}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ============================================================================
+  # 2. 租户服务 (Tenant Service) - 多实例高可用
+  # ============================================================================
+  tenant-service:
+    image: ${DOCKER_REGISTRY:-}cloudflow-tenant-service:${VERSION:-latest}
+    deploy:
+      replicas: ${TENANT_REPLICAS:-2}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - SERVICE_NAME=tenant-service
+      - GRPC_ADDR=:9010
+      - HTTP_ADDR=:8010
+      - TIDB_ADDR=${TIDB_ADDR:-tidb:4000}
+      - TIDB_USER=root
+      - TIDB_PASSWORD=${CLOUD_FLOW_DB_PASSWORD:?CLOUD_FLOW_DB_PASSWORD is required}
+      - TIDB_DATABASE=cloudflow_tenant
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ============================================================================
+  # 3. 控制面服务 (Control Plane) - 多实例高可用
+  # ============================================================================
+  control-plane:
+    image: ${DOCKER_REGISTRY:-}cloudflow-control-plane:${VERSION:-latest}
+    deploy:
+      replicas: ${CONTROL_REPLICAS:-2}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - SERVICE_NAME=control-plane
+      - GRPC_ADDR=:9001
+      - HTTP_ADDR=:8001
+      - ETCD_ENDPOINTS=${ETCD_ENDPOINTS:-etcd:2379}
+      - ETCD_PREFIX=/cloudflow/services/
+      - AGENT_TTL=90s
+      - HEARTBEAT_TIMEOUT=60s
+      - DATA_PLANE_ADDR=data-plane:9001
+      - AUTH_ADDR=auth-service:9006
+      - TENANT_ADDR=tenant-service:9010
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ============================================================================
+  # 4. 数据面服务 (Data Plane) - 多实例高可用
+  # ============================================================================
+  data-plane:
+    image: ${DOCKER_REGISTRY:-}cloudflow-data-plane:${VERSION:-latest}
+    deploy:
+      replicas: ${DATA_REPLICAS:-2}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    environment:
+      - SERVICE_NAME=data-plane
+      - GRPC_ADDR=:9001
+      - HTTP_ADDR=:8001
+      - BATCH_SIZE=10000
+      - FLUSH_INTERVAL=1s
+      - QUEUE_SIZE=100000
+      - WORKER_COUNT=4
+      - CLICKHOUSE_ADDR=${CLICKHOUSE_ADDR:-clickhouse:9000}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
+      - CLICKHOUSE_DATABASE=cloudflow
+      - VICTORIA_METRICS_ADDR=${VICTORIA_METRICS_ADDR:-http://victoriametrics:8428}
+      - LOKI_ADDR=${LOKI_ADDR:-http://loki:3100}
+      - CONTROL_PLANE_ADDR=control-plane:9001
+      - TOPOLOGY_ADDR=topology-engine:8008
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ============================================================================
+  # 5. 查询服务 (Query Service) - 多实例高可用
+  # ============================================================================
+  query-service:
+    image: ${DOCKER_REGISTRY:-}cloudflow-query-service:${VERSION:-latest}
+    deploy:
+      replicas: ${QUERY_REPLICAS:-2}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    environment:
+      - SERVICE_NAME=query-service
+      - GRPC_ADDR=:9007
+      - HTTP_ADDR=:8007
+      - CLICKHOUSE_ADDR=${CLICKHOUSE_ADDR:-clickhouse:9000}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
+      - CLICKHOUSE_DATABASE=cloudflow
+      - CACHE_ENABLED=true
+      - CACHE_TTL=300s
+      - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      - AUTH_ADDR=auth-service:9006
+      - TENANT_ADDR=tenant-service:9010
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ============================================================================
+  # 6. 拓扑引擎 (Topology Engine) - 多实例高可用
+  # ============================================================================
+  topology-engine:
+    image: ${DOCKER_REGISTRY:-}cloudflow-topology-engine:${VERSION:-latest}
+    deploy:
+      replicas: ${TOPOLOGY_REPLICAS:-2}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - SERVICE_NAME=topology-engine
+      - GRPC_ADDR=:9008
+      - HTTP_ADDR=:8008
+      - CLICKHOUSE_ADDR=${CLICKHOUSE_ADDR:-clickhouse:9000}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
+      - CLICKHOUSE_DATABASE=cloudflow
+      - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      - AUTH_ADDR=auth-service:9006
+      - DATA_PLANE_ADDR=data-plane:9001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ============================================================================
+  # 7. 告警引擎 (Alert Engine) - 多实例高可用
+  # ============================================================================
+  alert-engine:
+    image: ${DOCKER_REGISTRY:-}cloudflow-alert-engine:${VERSION:-latest}
+    deploy:
+      replicas: ${ALERT_REPLICAS:-2}
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - SERVICE_NAME=alert-engine
+      - GRPC_ADDR=:9009
+      - HTTP_ADDR=:8009
+      - TIDB_ADDR=${TIDB_ADDR:-tidb:4000}
+      - TIDB_USER=root
+      - TIDB_PASSWORD=${CLOUD_FLOW_DB_PASSWORD:?CLOUD_FLOW_DB_PASSWORD is required}
+      - TIDB_DATABASE=cloudflow_alert
+      - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      - CLICKHOUSE_ADDR=${CLICKHOUSE_ADDR:-clickhouse:9000}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
+      - MOCK_METRICS_ENABLED=${MOCK_METRICS_ENABLED:-false}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SLACK_WEBHOOK=${SLACK_WEBHOOK:-}
+      - DINGTALK_WEBHOOK=${DINGTALK_WEBHOOK:-}
+      - AUTH_ADDR=auth-service:9006
+      - TENANT_ADDR=tenant-service:9010
+      - DATA_PLANE_ADDR=data-plane:9001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8009/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ============================================================================
+  # 8. Nginx 负载均衡器 - 高可用入口
+  # ============================================================================
+  nginx:
+    image: nginx:1.25-alpine
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployments/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deployments/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - auth-service
+      - tenant-service
+      - query-service
+      - topology-engine
+      - alert-engine
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ============================================================================
+  # 数据存储层 - 生产级配置
+  # ============================================================================
+
+  # TiDB（结构化数据）- ⚠️ 生产环境建议使用 TiDB Cloud
+  # 本配置使用 mocktikv，仅适合开发/测试
+  # 生产环境应使用：TiDB Cloud / TiDB Operator
+  tidb:
+    image: pingcap/tidb:v7.5.0
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    ports:
+      - "127.0.0.1:4000:4000"
+      - "127.0.0.1:10080:10080"
+    command:
+      - --store=mocktikv
+      - --path=/tmp/tidb
+      - --log-file=/tmp/tidb.log
+    volumes:
+      - tidb-data:/tmp/tidb
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -h 127.0.0.1 -P 4000 -u root -e 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ClickHouse（时序数据）- 配置副本和高可用
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    ports:
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9009:9009"  # Keeper protocol
+    environment:
+      - CLICKHOUSE_DB=cloudflow
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD is required}
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./deployments/clickhouse/config.d:/etc/clickhouse-server/config.d:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # etcd（服务发现和配置）- 3 节点集群
+  etcd-1:
+    image: quay.io/coreos/etcd:v3.5.12
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - ETCD_NAME=etcd-1
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd-1:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=cloudflow-etcd-cluster
+      - ETCD_INITIAL_CLUSTER=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+    ports:
+      - "127.0.0.1:2379:2379"
+      - "127.0.0.1:2380:2380"
+    volumes:
+      - etcd-1-data:/etcd-data
+    healthcheck:
+      test: ["CMD-SHELL", "ETCDCTL_API=3 etcdctl --endpoints=http://127.0.0.1:2379 endpoint health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  etcd-2:
+    image: quay.io/coreos/etcd:v3.5.12
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - ETCD_NAME=etcd-2
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd-2:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=cloudflow-etcd-cluster
+      - ETCD_INITIAL_CLUSTER=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+    volumes:
+      - etcd-2-data:/etcd-data
+    healthcheck:
+      test: ["CMD-SHELL", "ETCDCTL_API=3 etcdctl --endpoints=http://127.0.0.1:2379 endpoint health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  etcd-3:
+    image: quay.io/coreos/etcd:v3.5.12
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - ETCD_NAME=etcd-3
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd-3:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=cloudflow-etcd-cluster
+      - ETCD_INITIAL_CLUSTER=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+    volumes:
+      - etcd-3-data:/etcd-data
+    healthcheck:
+      test: ["CMD-SHELL", "ETCDCTL_API=3 etcdctl --endpoints=http://127.0.0.1:2379 endpoint health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # Redis（缓存和消息）- Sentinel 高可用模式
+  redis-primary:
+    image: redis:7.2-alpine
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required} --appendonly yes
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-primary-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+    profiles:
+      - redis-ha
+
+  redis-replica:
+    image: redis:7.2-alpine
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required} --appendonly yes --replicaof redis-primary 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+    profiles:
+      - redis-ha
+    depends_on:
+      - redis-primary
+
+  # Kafka（消息队列）- KRaft 模式 3 节点集群
+  kafka-1:
+    image: apache/kafka:3.6.0
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-1:9092,EXTERNAL://localhost:9094
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+      - KAFKA_LOG_DIRS=/var/lib/kafka/logs
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+    ports:
+      - "127.0.0.1:9094:9094"
+    volumes:
+      - kafka-1-data:/var/lib/kafka/logs
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  kafka-2:
+    image: apache/kafka:3.6.0
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    environment:
+      - KAFKA_NODE_ID=2
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-2:9092,EXTERNAL://localhost:9095
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+      - KAFKA_LOG_DIRS=/var/lib/kafka/logs
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+    ports:
+      - "127.0.0.1:9095:9094"
+    volumes:
+      - kafka-2-data:/var/lib/kafka/logs
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  kafka-3:
+    image: apache/kafka:3.6.0
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    environment:
+      - KAFKA_NODE_ID=3
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-3:9092,EXTERNAL://localhost:9096
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+      - KAFKA_LOG_DIRS=/var/lib/kafka/logs
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+    ports:
+      - "127.0.0.1:9096:9094"
+    volumes:
+      - kafka-3-data:/var/lib/kafka/logs
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # VictoriaMetrics（指标存储）
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.96.0
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    ports:
+      - "8428:8428"
+      - "2003:2003"
+      - "8089:8089"  # Remote write
+    command:
+      - --storageDataPath=/var/lib/victoriametrics
+      - --retentionPeriod=30d
+      - --replicationFactor=2
+      - --vmalerts.disabled=false
+    volumes:
+      - vm-data:/var/lib/victoriametrics
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:8428/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # Loki（日志存储）
+  loki:
+    image: grafana/loki:2.9.0
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    ports:
+      - "3100:3100"
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+      - -target=all
+    volumes:
+      - loki-data:/loki
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # ============================================================================
+  # 监控和可观测性
+  # ============================================================================
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      # FIX: 移除重复的 --config.file，告警规则应通过 prometheus.yml 的 rule_files 字段加载
+      # - '--web.enable-admin-api'  # FIX: 生产环境禁用 admin API，防止安全风险
+    restart: always
+    networks:
+      - cloudflow-network
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://${GRAFANA_DOMAIN:-localhost}
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # Jaeger（分布式追踪）
+  jaeger-collector:
+    image: jaegertracing/jaeger-collector:1.52
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      - "14268:14268"
+      - "14250:14250"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://elasticsearch:9200
+    restart: always
+    networks:
+      - cloudflow-network
+
+  jaeger-query:
+    image: jaegertracing/jaeger-query:1.52
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      - "16686:16686"
+      - "16687:16687"
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://elasticsearch:9200
+    restart: always
+    networks:
+      - cloudflow-network
+
+  # Elasticsearch（Jaeger 追踪存储）
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?ELASTIC_PASSWORD is required}
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+    ports:
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+    networks:
+      - cloudflow-network
+
+# ============================================================================
+# 网络配置
+# ============================================================================
+networks:
+  cloudflow-network:
+    driver: overlay
+    attachable: true
+    name: cloudflow-network
+
+# ============================================================================
+# 存储卷
+# ============================================================================
+volumes:
+  tidb-data:
+    name: cloudflow-tidb-data
+  clickhouse-data:
+    name: cloudflow-clickhouse-data
+  etcd-1-data:
+    name: cloudflow-etcd-1-data
+  etcd-2-data:
+    name: cloudflow-etcd-2-data
+  etcd-3-data:
+    name: cloudflow-etcd-3-data
+  redis-primary-data:
+    name: cloudflow-redis-primary-data
+  kafka-1-data:
+    name: cloudflow-kafka-1-data
+  kafka-2-data:
+    name: cloudflow-kafka-2-data
+  kafka-3-data:
+    name: cloudflow-kafka-3-data
+  vm-data:
+    name: cloudflow-victoriametrics-data
+  loki-data:
+    name: cloudflow-loki-data
+  prometheus-data:
+    name: cloudflow-prometheus-data
+  grafana-data:
+    name: cloudflow-grafana-data
+  es-data:
+    name: cloudflow-elasticsearch-data

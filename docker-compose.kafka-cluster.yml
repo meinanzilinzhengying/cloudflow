@@ -1,0 +1,135 @@
+# =============================================================================
+# Kafka 多 Broker 集群部署配置 (P2: Flow Ingest Pipeline 高可用)
+# =============================================================================
+# 使用方式:
+#   docker compose -f docker-compose.yml -f docker-compose.kafka-cluster.yml up -d
+#
+# 此配置将单节点 Kafka 扩展为 3 节点集群，提供:
+#   - 数据冗余: 每个分区有 3 个副本
+#   - 故障容忍: 可容忍最多 2 个 broker 故障
+#   - 高可用: 自动 leader 选举
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Kafka Broker 2
+  # ---------------------------------------------------------------------------
+  kafka-2:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cloud-flow-kafka-2
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:9093,PLAINTEXT_HOST://localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_COMPRESSION_TYPE: snappy
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_NUM_PARTITIONS: 12
+      KAFKA_LOG_CLEANUP_POLICY: delete
+      KAFKA_HEAP_OPTS: "-Xmx1G -Xms512M"
+      KAFKA_JMX_PORT: 9999
+    volumes:
+      - kafka-2-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9093"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - cloud-flow-net
+
+  # ---------------------------------------------------------------------------
+  # Kafka Broker 3
+  # ---------------------------------------------------------------------------
+  kafka-3:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cloud-flow-kafka-3
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9094:9094"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:9094,PLAINTEXT_HOST://localhost:9094
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_COMPRESSION_TYPE: snappy
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_NUM_PARTITIONS: 12
+      KAFKA_LOG_CLEANUP_POLICY: delete
+      KAFKA_HEAP_OPTS: "-Xmx1G -Xms512M"
+      KAFKA_JMX_PORT: 9999
+    volumes:
+      - kafka-3-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9094"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - cloud-flow-net
+
+  # ---------------------------------------------------------------------------
+  # 更新 Edge 配置以使用多 Broker
+  # ---------------------------------------------------------------------------
+  edge:
+    environment:
+      # P2: 配置多 Broker 地址
+      KAFKA_BROKERS: "kafka:9092,kafka-2:9093,kafka-3:9094"
+      KAFKA_ENABLED: "true"
+
+  # ---------------------------------------------------------------------------
+  # 更新 Center 配置以使用多 Broker
+  # ---------------------------------------------------------------------------
+  center:
+    environment:
+      # P2: 配置多 Broker 地址
+      KAFKA_CONSUMER_BROKERS: "kafka:9092,kafka-2:9093,kafka-3:9094"
+      KAFKA_CONSUMER_ENABLED: "true"
+      KAFKA_CONSUMER_TOPICS: "flow.raw,metrics,traces,logs,profiling"
+
+  # ---------------------------------------------------------------------------
+  # 更新 Kafka Exporter 以监控多 Broker
+  # ---------------------------------------------------------------------------
+  kafka-exporter:
+    command:
+      - '--kafka.server=kafka:9092'
+      - '--kafka.server=kafka-2:9093'
+      - '--kafka.server=kafka-3:9094'
+      - '--topic.filter=.*'
+      - '--group.filter=.*'
+      - '--log.enable-sarama'
+
+volumes:
+  kafka-2-data:
+    driver: local
+  kafka-3-data:
+    driver: local

@@ -1,0 +1,81 @@
+# =============================================================================
+# Docker 构建排除文件 - 云内流量监测系统 Agent
+# =============================================================================
+
+# Go 构建输出
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+*.test
+*.out
+
+# 依赖缓存
+vendor/
+
+# 测试文件
+*_test.go
+coverage.out
+coverage.html
+*.cover
+
+# IDE 和编辑器
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 版本控制
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# 文档
+*.md
+docs
+README*
+CHANGELOG*
+LICENSE*
+
+# 开发配置
+.golangci.yml
+.air.toml
+
+# 环境文件（安全）
+.env
+.env.*
+!.env.example
+
+# 日志
+logs
+*.log
+
+# 临时文件
+tmp
+temp
+*.tmp
+
+# eBPF 编译输出（在容器内重新编译）
+*.o
+*.bpf.o
+
+# 部署文件（不需要打包到镜像）
+deployments/
+!deployments/Dockerfile
+!deployments/nginx.conf
+
+# 监控配置
+monitoring
+
+# 其他
+.editorconfig
+Makefile

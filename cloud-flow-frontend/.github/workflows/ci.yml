@@ -1,0 +1,229 @@
+# =============================================================================
+# Cloud Flow Frontend CI Workflow
+# =============================================================================
+# Triggers on push/PR to main/master when cloud-flow-frontend/ changes
+# =============================================================================
+
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'cloud-flow-frontend/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'cloud-flow-frontend/**'
+
+# Cancel duplicate runs on the same branch
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  WORKING_DIRECTORY: cloud-flow-frontend
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint Job - ESLint check
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run lint
+
+      - name: Lint Summary
+        if: always()
+        run: |
+          echo "## Lint Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ ESLint check passed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ ESLint check failed. Please fix the linting errors." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Type Check Job - Vue TypeScript check
+  # ---------------------------------------------------------------------------
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Run TypeScript type check
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npx vue-tsc --noEmit
+
+      - name: Type Check Summary
+        if: always()
+        run: |
+          echo "## Type Check Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ TypeScript type check passed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ TypeScript type check failed. Please fix the type errors." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Test Job - Vitest unit tests
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run test
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ All tests passed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some tests failed. Please review the test output." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Security Job - Dependency audit + secret scan
+  # ---------------------------------------------------------------------------
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          echo "## 🔒 Dependency Audit" >> $GITHUB_STEP_SUMMARY
+          npm audit --omit=dev --audit-level=high 2>&1 | tee audit-report.txt || true
+          HIGH=$(grep -c '"severity": "high"' audit-report.txt 2>/dev/null || echo "0")
+          CRITICAL=$(grep -c '"severity": "critical"' audit-report.txt 2>/dev/null || echo "0")
+          echo "- Critical: ${CRITICAL}" >> $GITHUB_STEP_SUMMARY
+          echo "- High: ${HIGH}" >> $GITHUB_STEP_SUMMARY
+          if [ "${CRITICAL}" -gt 0 ] || [ "${HIGH}" -gt 0 ]; then
+            echo "❌ 发现高危漏洞，请修复后再合并" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "✅ 无高危及以上漏洞" >> $GITHUB_STEP_SUMMARY
+
+      - name: Secret detection
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        continue-on-error: true
+
+      - name: Security Summary
+        if: always()
+        run: |
+          echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Security scan passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Security scan found issues. Review before merging." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Build Job - Vite production build
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, type-check, test, security]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Build production
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: ${{ env.WORKING_DIRECTORY }}/dist/
+          retention-days: 7
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## Build Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Production build completed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "- Build artifacts uploaded to workflow" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Build failed. Please check the build logs." >> $GITHUB_STEP_SUMMARY
+          fi

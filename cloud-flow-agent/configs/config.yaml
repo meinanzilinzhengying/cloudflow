@@ -1,0 +1,410 @@
+# 探针配置
+#
+# ⚠️ 安全警告：API Key 安全加载方式（按优先级排序）
+# 1. CLOUD_FLOW_API_KEY_FILE - 从文件读取（推荐用于 Docker Secrets / K8s Secrets）
+#    示例: export CLOUD_FLOW_API_KEY_FILE=/run/secrets/api-key
+# 2. CLOUD_FLOW_API_KEY - 直接环境变量（适合 CI/CD）
+#    示例: export CLOUD_FLOW_API_KEY=your-secret-key
+# 3. 本配置文件 - 仅用于开发环境，生产环境请勿在配置文件中写入明文 API Key
+# 4. 空值 - 如果以上都未配置，系统会尝试连接，但可能因认证失败被拒绝
+
+probe_id: ""                  # 留空则自动生成
+edge_addr: "edge:50051"
+metrics_port: "9090"           # Prometheus 指标端口（可通过 METRICS_PORT 环境变量覆盖）
+health_port: "8080"            # 健康检查端口
+collect_interval: 10          # 采集间隔（秒）
+batch_size: 10                # 批量发送阈值（降低以减少首次发送等待时间）
+
+# ⚠️ 安全警告：以下 API Key 配置仅用于开发环境
+# 生产环境请使用环境变量加载
+# 详见文件顶部注释
+
+# API Key 认证（必须与边缘节点配置的 api_key 一致）
+# 建议通过 CLOUD_FLOW_API_KEY_FILE 或 CLOUD_FLOW_API_KEY 环境变量设置
+api_key: ""
+
+# TLS 配置（默认关闭，生产环境建议启用；留空证书路径则自动使用内置自签名证书）
+tls:
+  enabled: false
+  server_name: ""
+  ca_cert: ""
+  client_cert: ""
+  client_key: ""
+
+# 连接配置
+#max_retries: 3              # 最大重试次数（0 = 无限重试，默认 0）
+#connect_timeout: 30         # 连接超时时间（秒，默认 30）
+
+# 网络配置
+network:
+  # 管理网卡配置 - 指定用于数据传输的管理网卡，确保数据走管理网，不占业务网
+  # 留空则采集所有网卡流量，但建议生产环境明确指定管理网卡
+  # 示例: mgmt_iface: "eth0" 或 mgmt_iface: "ens192"
+  mgmt_iface: ""
+  
+  # 本地地址绑定 - 指定gRPC客户端绑定的本地IP地址，确保使用管理网IP连接Edge
+  # 示例: local_addr: "192.168.1.100:0" (0表示让系统自动选择端口)
+  local_addr: ""
+  
+  # 数据发送网卡优先级（多网卡环境下）
+  # 如果系统有多张网卡，优先使用此网卡发送监控数据
+  preferred_source_iface: ""
+
+# eBPF 采集配置
+ebpf:
+  enabled: true               # 启用eBPF采集
+  
+  # TCP深度指标采集配置
+  tcp_metrics:
+    enabled: true             # 启用TCP深度指标采集
+    
+    # TCP建连时延采集
+    # 跟踪TCP三次握手过程，计算建连时延
+    connect_latency: true
+    
+    # TCP重传率采集
+    # 跟踪tcp_retransmit_skb内核函数，统计重传次数
+    retransmit: true
+    
+    # 零窗口事件采集
+    # 检测TCP零窗口通告事件
+    zero_window: true
+    
+    # 队列溢出事件采集
+    # 检测SYN队列/Accept队列溢出
+    queue_overflow: true
+    
+    # 连接失败次数采集
+    # 统计TCP连接失败事件
+    connection_fail: true
+  
+  # HTTP应用层指标采集配置
+  http_metrics:
+    enabled: true             # 启用HTTP应用层指标采集
+    
+    # 请求成功率采集
+    # 统计HTTP 2xx响应占总响应的比例
+    success_rate: true
+    
+    # 响应时延采集
+    # 跟踪HTTP请求-响应时间，计算平均时延和最大时延
+    response_latency: true
+    
+    # 异常比例采集
+    # 统计HTTP 4xx/5xx响应占总响应的比例
+    error_rate: true
+    
+    # 请求数采集
+    # 保留：统计HTTP请求总数
+    request_count: true
+    
+    # 响应数采集
+    # 保留：统计HTTP响应总数
+    response_count: true
+  
+  # 保留的基础流量采集（吞吐量、带宽占用）
+  # 这些指标通过TC类型eBPF程序采集
+  base_traffic:
+    enabled: true             # 启用基础流量采集
+    collect_bytes: true       # 采集字节数（带宽占用）
+    collect_packets: true     # 采集包数
+
+  # 协议全字段解析配置
+  # 启用后可采集HTTP/DNS/MySQL等协议的完整字段信息
+  protocol_parsing:
+    enabled: false            # 启用协议全字段解析（默认关闭，需要较高性能开销）
+    
+    # HTTP全字段解析
+    # 采集HTTP请求的方法、路径、Host、Cookie、User-Agent、状态码等完整信息
+    http_full: false
+    
+    # DNS全字段解析
+    # 采集DNS查询的域名、记录类型、TTL、响应码等完整信息
+    dns_full: false
+    
+    # MySQL全字段解析
+    # 采集MySQL命令、SQL语句、错误码、影响行数等完整信息
+    mysql_full: false
+
+  # 资源限制配置
+  # 用于控制Agent的资源使用，确保在峰值700Mbps、RPS1400下
+  # CPU≤1核、内存≤1G
+  resource_limit:
+    enabled: true             # 启用资源限制
+    max_cpu_core: 1.0         # 最大CPU核心数
+    max_memory_mb: 1024       # 最大内存使用(MB)
+    max_goroutines: 10000     # 最大协程数
+    use_cgroup: true          # 启用cgroup v2系统级限制
+
+  # 过载熔断配置
+  # 基于资源使用率的三级熔断机制，保护Agent在峰值负载下稳定运行
+  # 状态: Normal(全量采集) → Degraded(仅核心指标) → Silent(完全静默)
+  # 核心指标: 基础流量(TC) + TCP深度指标
+  # 非核心指标: HTTP/DNS/MySQL全字段解析 + SQL聚合 + 传统采集(CPU/Memory/Disk)
+  circuit_breaker:
+    enabled: true                        # 启用过载熔断
+    max_failures: 3                      # gRPC熔断: 最大连续失败次数
+    reset_timeout: 30                    # gRPC熔断: 恢复超时(秒)
+    silent_duration: 60                  # gRPC熔断: 静默持续时间(秒)
+
+    # 过载熔断阈值
+    check_interval: "3s"                 # 资源检查间隔
+    cpu_degraded_threshold: 80.0         # CPU降级阈值(%): 连续超过此值触发降级
+    cpu_silent_threshold: 95.0           # CPU静默阈值(%): 超过此值进入完全静默
+    mem_degraded_threshold: 90.0         # 内存降级阈值(%): 超过此值触发降级
+    mem_silent_threshold: 95.0           # 内存静默阈值(%): 超过此值进入完全静默
+    cpu_degraded_duration: "30s"         # CPU持续超限触发降级的持续时间
+    cpu_recover_threshold: 80.0          # CPU恢复阈值(%): 低于此值从降级恢复
+    mem_recover_threshold: 85.0          # 内存恢复阈值(%): 低于此值从降级恢复
+    silent_cpu_recover_threshold: 70.0   # 静默恢复CPU阈值(%): 需降到更低才恢复
+    silent_mem_recover_threshold: 80.0   # 静默恢复内存阈值(%): 需降到更低才恢复
+
+  # 自监控配置
+  # 采集Agent自身运行状态，每10秒上报至Center，异常状态触发告警
+  self_monitor:
+    enabled: true                        # 启用自监控
+    collect_interval: "10s"              # 采集间隔
+    report_interval: "10s"               # 上报间隔
+    heartbeat_timeout: "5s"              # 心跳超时判定
+    # 告警阈值
+    alert_heartbeat_fail_count: 3        # 连续心跳失败次数触发告警
+    alert_cpu_percent: 80.0              # CPU使用率告警阈值(%)
+    alert_memory_percent: 90.0           # 内存使用率告警阈值(%)
+    alert_packet_drop_rate: 5.0          # 丢包率告警阈值(%)
+    alert_report_success_rate_min: 95.0  # 上报成功率最低阈值(%)
+
+  # 性能优化配置
+  # 针对高负载场景(700Mbps, RPS1400)的性能优化
+  perf_optimizer:
+    enabled: true             # 启用性能优化
+    sample_rate: 1.0          # 采样率(0.0-1.0, 1.0表示全量)
+    batch_size: 100           # 批处理大小
+    max_events_per_sec: 10000 # 每秒最大事件数
+    high_load_mode: false     # 高负载模式(700Mbps, RPS1400)
+    enable_adaptive: true     # 启用自适应采样
+
+  # ON-CPU剖析配置
+  # 基于perf_event实现无侵入、无需重启的连续性能剖析
+  # 支持C/C++/Golang/Java多语言符号解析，输出火焰图+热点函数
+  cpu_profiler:
+    enabled: false            # 启用ON-CPU剖析（默认关闭）
+    sample_freq: 99           # 采样频率(Hz)，推荐99或199
+    target_pid: 0             # 目标进程ID，0=全部进程
+    max_stack_depth: 127      # 最大栈深度
+    duration_sec: 0           # 单次剖析持续时间(秒)，0=连续模式
+    output_dir: "/var/log/cloud-flow-agent/profiler"  # 火焰图输出目录
+    auto_detect: true         # 自动检测进程语言类型
+
+  # SQL聚合分析配置
+  # 按SQL语句聚合: 请求数、成功率、平均时延、异常统计
+  # 关联数据库进程性能: CPU时间、内存、连接数、每秒查询数
+  sql_aggregator:
+    enabled: false            # 启用SQL聚合分析（默认关闭）
+    slow_query_threshold_ms: 1000  # 慢SQL阈值(毫秒)
+    enable_correlation: true # 启用进程性能关联分析
+    max_snapshots: 60        # 最大性能快照数
+    cpu_max_threshold: 80.0  # CPU告警阈值(%)
+    memory_max_mb: 1024.0    # 内存告警阈值(MB)
+    latency_max_ms: 1000.0   # 延迟告警阈值(ms)
+    slow_query_max: 10       # 慢查询告警阈值
+    conn_max: 100             # 连接数告警阈值
+
+  # VXLAN隧道解封装配置
+  # 支持解析华为云虚拟机VXLAN流量
+  # 提取内层五元组、协议信息
+  # 支持将解封装后的流量镜像至云下TAP设备
+  vxlan:
+    enabled: false              # 启用VXLAN解封装
+    enable_tap_mirror: false    # 启用TAP设备镜像
+    tap_device_name: "vxlan-tap0"  # TAP设备名称
+    parse_inner_protocol: true  # 解析内层协议(HTTP/DNS/MySQL)
+
+  # 插件化协议解析框架配置
+  # 支持动态加载Oracle/PostgreSQL/Redis/Kafka/Dubbo协议解析插件
+  # 插件与主程序通过gRPC进程间通信，完全解耦，可独立升级
+  plugin_framework:
+    enabled: false                        # 启用插件框架（默认关闭）
+    plugin_dir: "/opt/cloud-flow-agent/plugins"  # 插件目录路径
+    auto_discovery: true                  # 自动发现并加载插件目录中的插件
+    check_interval: "30s"                 # 插件健康检查间隔
+    max_memory_mb: 256                    # 单插件内存限制(MB)
+    grpc_timeout: "5s"                    # gRPC通信超时
+    enable_builtin: true                  # 启用内置插件(Oracle/PostgreSQL/Redis/Kafka/Dubbo)
+
+  # 丢包监控配置
+  # 监控内核态丢包（kfree_skb）和用户态丢包（采集器内部各阶段）
+  # 支持按原因、按流统计丢包，丢包率告警
+  drop_monitor:
+    enabled: false                        # 启用丢包监控（默认关闭）
+    enable_kernel_drop: true              # 启用内核态丢包监控
+    enable_user_drop: true                # 启用用户态丢包监控
+    ringbuf_size: 262144                  # Ring Buffer大小(256KB)
+    sample_rate: 1.0                      # 采样率(0-1)
+    snapshot_interval: "10s"              # 快照间隔
+    alert_threshold: 1.0                  # 丢包率告警阈值(%)
+
+  # NTP时钟校准配置
+  # 以Center时间为准同步采集器时钟，误差控制在100ms以内
+  # 支持gRPC时间同步、标准NTP协议、自动选择
+  ntp:
+    enabled: false                        # 启用NTP校准（默认关闭）
+    mode: "auto"                          # 同步模式: auto/grpc/ntp
+    ntp_servers:                          # NTP服务器列表（NTP模式使用）
+      - "pool.ntp.org"
+      - "time.windows.com"
+    sync_interval: "5m"                   # 同步间隔
+    max_offset: "100ms"                   # 最大允许偏差（超过则调整）
+    adjust_step: true                     # 支持步进调整（settimeofday）
+    adjust_slew: true                     # 支持渐进调整（adjtime）
+
+# 历史数据存储配置
+# 支持: 历史数据默认存60天, 结构化压缩≥20:1, 日志≥6:1, 写入≥5万条/秒, 1亿行查询≤1秒
+storage:
+  enabled: false              # 启用历史数据存储（默认关闭）
+  base_dir: "/var/lib/cloud-flow-agent/storage"  # 存储目录
+  retention_days: 60          # 默认保留天数(60天)
+  chunk_size: 10000          # 数据块大小(条数)
+  write_buffer_size: 50000    # 写缓冲区大小
+  compression_type: "zstd"    # 压缩类型: zstd(高压缩率), lz4(高速度), delta(增量)
+  enable_index: true         # 启用索引加速查询
+  retention_interval_min: 60 # 保留期检查间隔(分钟)
+  
+  # 自定义数据类型保留天数
+  metric_retention_days: 60   # 指标数据: 60天
+  log_retention_days: 30      # 日志数据: 30天
+  trace_retention_days: 7     # 追踪数据: 7天
+  event_retention_days: 90    # 事件数据: 90天
+  
+  # 性能目标
+  write_rate_min: 50000       # 写入速率目标(≥5万条/秒)
+  query_latency_max_ms: 1000  # 查询延迟目标(1亿行≤1秒)
+
+# 告警配置
+# 内置时延/丢包/重传模板；支持自定义规则（指标/等级/阈值）；Kafka/API推送、自动消警
+alert:
+  enabled: false              # 启用告警系统（默认关闭）
+  evaluation_interval: "1m"   # 评估间隔
+  resolve_timeout: "5m"       # 自动消警超时
+  enable_auto_resolve: true   # 启用自动消警
+  max_active_alerts: 1000     # 最大活跃告警数
+  
+  # 内置模板开关
+  enable_latency_alert: true     # 时延告警
+  enable_packet_loss_alert: true # 丢包告警
+  enable_retransmit_alert: true  # 重传告警
+  enable_cpu_alert: true         # CPU告警
+  enable_memory_alert: true      # 内存告警
+  enable_error_rate_alert: true  # 错误率告警
+  
+  # Kafka推送配置
+  notify_kafka:
+    enabled: false
+    brokers:
+      - "localhost:9092"
+    topic: "alerts"
+  
+  # API推送配置
+  notify_api:
+    enabled: false
+    url: ""
+    headers: {}
+    auth_type: ""      # none, basic, bearer, apikey
+    auth_token: ""
+  
+  # Webhook推送配置
+  notify_webhook:
+    enabled: false
+    url: ""
+    secret: ""
+    headers: {}
+
+# 网络全栈拓扑配置
+# Pod/Node/VM/物理设备层级；告警高亮、下钻指标；横向/纵向布局、业务分组
+topology:
+  enabled: false              # 启用拓扑（默认关闭）
+  refresh_interval: "5m"      # 刷新间隔
+  auto_discovery: true        # 自动发现
+  default_layout: "vertical"  # 默认布局: vertical, horizontal, radial
+  max_nodes: 1000             # 最大节点数
+  
+  # 层级开关
+  include_pods: true          # 包含Pod层
+  include_vms: true           # 包含VM层
+  include_physical: true      # 包含物理设备层
+  
+  # 告警集成
+  enable_alert_integration: true  # 启用告警高亮
+
+# 多租户配置
+# 管理员/租户视图：汇总资产数、告警数；单资产下钻网络/应用指标
+tenant:
+  enabled: false              # 启用多租户（默认关闭）
+  multi_tenant: false         # 多租户模式
+  max_tenants: 100            # 最大租户数
+  max_users_per_tenant: 50    # 每租户最大用户数
+
+# 仪表盘配置
+# 管理员视图汇总所有资产和告警；租户视图仅显示所属资产
+dashboard:
+  enabled: true               # 启用仪表盘
+  refresh_interval: "30s"     # 刷新间隔
+  enable_drill_down: true     # 启用资产下钻
+  max_assets_per_page: 100    # 每页最大资产数
+
+# 指标模块配置
+# 网络：流量分布/时延/重传趋势；应用：请求/时延/异常环比；SQL：聚合指标检索
+metrics:
+  enabled: true               # 启用指标模块
+  network_enabled: true       # 启用网络指标
+  app_enabled: true           # 启用应用指标
+  sql_enabled: true           # 启用SQL指标
+  max_data_points: 1440       # 最大数据点数(默认24小时，1分钟间隔)
+  retention_time: "24h"       # 数据保留时间
+
+# CMDB对接配置
+# 对接CMDB，同步配置、业务属性标签
+cmdb:
+  enabled: false              # 启用CMDB对接（默认关闭）
+  type: "http"                # 数据源类型: http/api
+  endpoint: ""                # CMDB服务地址，如 http://cmdb.internal:8080
+  auth_type: "none"           # 认证方式: none/bearer/token/apikey/basic
+  auth_token: ""              # Bearer/Token认证令牌
+  api_key: ""                 # API Key认证
+  username: ""                # Basic认证用户名
+  password: ""                # Basic认证密码
+  sync_interval: "5m"         # 同步间隔
+  full_sync_on_start: true    # 启动时执行全量同步
+  incremental_sync: true      # 启用增量同步
+  label_sync: true            # 启用标签同步
+  config_sync: true           # 启用配置同步
+  relation_sync: true         # 启用关联关系同步
+  conflict_policy: "cmdb_wins" # 冲突策略: cmdb_wins/agent_wins/merge
+  timeout: "30s"              # 请求超时
+  batch_size: 100             # 批量查询大小
+
+# 追踪和火焰图配置
+# TraceID双向关联；支持火焰图集成
+trace:
+  enabled: false              # 启用追踪（默认关闭）
+  sample_rate: 1.0            # 采样率(0.0-1.0, 1.0=全量)
+  max_traces: 10000           # 最大存储追踪数
+  max_spans_per_trace: 1000   # 每追踪最大Span数
+  retention_time: "24h"       # 追踪保留时间
+  enable_correlation: true    # 启用关联(追踪↔指标/日志/告警)
+  flamegraph_enabled: false   # 启用火焰图（默认关闭）
+  flame_sample_freq: 99       # 火焰图采样频率(Hz)
+  flame_max_depth: 127        # 火焰图最大栈深度
+  flame_duration_sec: 30      # 火焰图采集时长(秒)
+  flame_output_dir: "/var/log/cloud-flow-agent/flamegraph"  # 火焰图输出目录
+  flame_max_stored: 100       # 最大存储火焰图数
+
+# 采集开关
+collect:
+  cpu: true
+  memory: true
+  network: true
+  disk: false
+
+log:
+  level: info
+  format: json

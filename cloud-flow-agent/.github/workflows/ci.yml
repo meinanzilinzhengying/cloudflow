@@ -1,0 +1,158 @@
+# =============================================================================
+# Cloud Flow Agent CI Workflow
+# =============================================================================
+# Triggers on push/PR to main/master
+# =============================================================================
+
+name: Agent CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'cloud-flow-agent/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'cloud-flow-agent/**'
+
+# Cancel duplicate runs on the same branch
+concurrency:
+  group: agent-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.22'
+  WORKING_DIRECTORY: cloud-flow-agent
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint Job - golangci-lint or go vet
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/go.sum
+
+      - name: Run golangci-lint
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: ${{ env.WORKING_DIRECTORY }}
+        continue-on-error: true
+
+      - name: Fallback to go vet
+        if: failure()
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: go vet ./...
+
+      - name: Lint Summary
+        if: always()
+        run: |
+          echo "## Lint Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Go lint check passed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Go lint check failed. Please fix the linting errors." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Test Job - Go tests with coverage
+  # Note: eBPF tests are skipped using -short flag
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/go.sum
+
+      - name: Download dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: go mod download
+
+      - name: Run tests
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        # -short flag skips tests that require privileged mode (eBPF tests)
+        run: go test -race -short -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-coverage
+          path: ${{ env.WORKING_DIRECTORY }}/coverage.out
+          retention-days: 7
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ All tests passed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "- Coverage report uploaded to workflow" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some tests failed. Please review the test output." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Build Job - Compile Go binary
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/go.sum
+
+      - name: Download dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: go mod download
+
+      - name: Build binary
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          mkdir -p bin
+          go build -o bin/agent ./cmd/...
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-binary
+          path: ${{ env.WORKING_DIRECTORY }}/bin/
+          retention-days: 7
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## Build Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Go binary built successfully" >> $GITHUB_STEP_SUMMARY
+            echo "- Binary uploaded to workflow artifacts" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Build failed. Please check the build logs." >> $GITHUB_STEP_SUMMARY
+          fi

@@ -1,0 +1,183 @@
+version: "3.8"
+
+# ClickHouse 高可用集群部署配置
+# 包含 2 个分片，每个分片 2 个副本
+# 依赖 ZooKeeper 用于协调
+
+services:
+  # ZooKeeper 用于 ClickHouse 集群协调
+  zookeeper:
+    image: zookeeper:3.8
+    container_name: cloudflow-zookeeper
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "zkServer.sh", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - zookeeper-data:/data
+      - zookeeper-logs:/datalog
+    networks:
+      - cloudflow-net
+
+  # ClickHouse 分片 0 - 副本 0
+  clickhouse-0-0:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: cloudflow-clickhouse-0-0
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8123:8123"  # HTTP 端口
+      - "127.0.0.1:9000:9000"  # Native 端口
+    environment:
+      TZ: Asia/Shanghai
+      CLICKHOUSE_DB: cloudflow
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-ClickHouse2024Secure}
+      CLICKHOUSE_SHARD: "0"
+      CLICKHOUSE_REPLICA: "0"
+    volumes:
+      - ./deployments/clickhouse/config.xml:/etc/clickhouse-server/config.d/cluster-config.xml:ro
+      - ./deployments/clickhouse/users.xml:/etc/clickhouse-server/users.d/users-config.xml:ro
+      - clickhouse-0-0-data:/var/lib/clickhouse
+      - clickhouse-0-0-cold:/var/lib/clickhouse/cold
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cloudflow-net
+
+  # ClickHouse 分片 0 - 副本 1
+  clickhouse-0-1:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: cloudflow-clickhouse-0-1
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      clickhouse-0-0:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Shanghai
+      CLICKHOUSE_DB: cloudflow
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-ClickHouse2024Secure}
+      CLICKHOUSE_SHARD: "0"
+      CLICKHOUSE_REPLICA: "1"
+    volumes:
+      - ./deployments/clickhouse/config.xml:/etc/clickhouse-server/config.d/cluster-config.xml:ro
+      - ./deployments/clickhouse/users.xml:/etc/clickhouse-server/users.d/users-config.xml:ro
+      - clickhouse-0-1-data:/var/lib/clickhouse
+      - clickhouse-0-1-cold:/var/lib/clickhouse/cold
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cloudflow-net
+
+  # ClickHouse 分片 1 - 副本 0
+  clickhouse-1-0:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: cloudflow-clickhouse-1-0
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      clickhouse-0-0:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Shanghai
+      CLICKHOUSE_DB: cloudflow
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-ClickHouse2024Secure}
+      CLICKHOUSE_SHARD: "1"
+      CLICKHOUSE_REPLICA: "0"
+    volumes:
+      - ./deployments/clickhouse/config.xml:/etc/clickhouse-server/config.d/cluster-config.xml:ro
+      - ./deployments/clickhouse/users.xml:/etc/clickhouse-server/users.d/users-config.xml:ro
+      - clickhouse-1-0-data:/var/lib/clickhouse
+      - clickhouse-1-0-cold:/var/lib/clickhouse/cold
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cloudflow-net
+
+  # ClickHouse 分片 1 - 副本 1
+  clickhouse-1-1:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: cloudflow-clickhouse-1-1
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      clickhouse-1-0:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Shanghai
+      CLICKHOUSE_DB: cloudflow
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-ClickHouse2024Secure}
+      CLICKHOUSE_SHARD: "1"
+      CLICKHOUSE_REPLICA: "1"
+    volumes:
+      - ./deployments/clickhouse/config.xml:/etc/clickhouse-server/config.d/cluster-config.xml:ro
+      - ./deployments/clickhouse/users.xml:/etc/clickhouse-server/users.d/users-config.xml:ro
+      - clickhouse-1-1-data:/var/lib/clickhouse
+      - clickhouse-1-1-cold:/var/lib/clickhouse/cold
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cloudflow-net
+
+networks:
+  cloudflow-net:
+    driver: bridge
+    name: cloudflow-net
+
+volumes:
+  zookeeper-data:
+    name: cloudflow-zookeeper-data
+  zookeeper-logs:
+    name: cloudflow-zookeeper-logs
+  
+  # ClickHouse 数据卷 (热存储)
+  clickhouse-0-0-data:
+    name: cloudflow-clickhouse-0-0-data
+  clickhouse-0-1-data:
+    name: cloudflow-clickhouse-0-1-data
+  clickhouse-1-0-data:
+    name: cloudflow-clickhouse-1-0-data
+  clickhouse-1-1-data:
+    name: cloudflow-clickhouse-1-1-data
+  
+  # ClickHouse 冷存储卷
+  clickhouse-0-0-cold:
+    name: cloudflow-clickhouse-0-0-cold
+  clickhouse-0-1-cold:
+    name: cloudflow-clickhouse-0-1-cold
+  clickhouse-1-0-cold:
+    name: cloudflow-clickhouse-1-0-cold
+  clickhouse-1-1-cold:
+    name: cloudflow-clickhouse-1-1-cold

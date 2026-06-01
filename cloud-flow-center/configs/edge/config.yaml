@@ -1,0 +1,23 @@
+# 边缘节点服务配置
+edge_node_id: ""            # 留空则自动使用 hostname
+grpc_listen_port: 9091
+metrics_port: 9092
+center_addr: "backend:9090"
+cloud_platform: "default"
+region: "default"
+batch_size: 100
+flush_interval: 5
+
+# TLS 配置（留空则使用明文连接）
+tls:
+  enabled: false
+  ca_cert: ""               # CA 证书路径
+  client_cert: ""           # 客户端证书路径（mTLS 可选）
+  client_key: ""            # 客户端私钥路径（mTLS 可选）
+  server_cert: ""           # 服务端证书路径（边缘节点作为服务端）
+  server_key: ""            # 服务端私钥路径
+  server_name: ""           # 用于 TLS 握时验证的域名
+
+log:
+  level: info
+  format: json

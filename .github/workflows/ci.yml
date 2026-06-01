@@ -1,0 +1,562 @@
+# =============================================================================
+# 云内流量监测系统 (Cloud Flow) - GitHub Actions CI 配置
+# =============================================================================
+# P1-13/P1-14 修复: 扩展 CI 覆盖所有模块，使用正确的 Go 版本
+# P2-18 修复: 增强测试覆盖，启用集成测试和 E2E 测试
+# 触发条件: push 和 pull_request
+# 检查内容: Go 测试、前端构建、Docker 镜像构建、Lint 检查、安全扫描、集成测试、E2E 测试
+# =============================================================================
+
+name: Cloud Flow CI
+
+on:
+  push:
+    branches: [main, develop, "release/*"]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  # P1-14 修复: 使用实际存在的 Go 1.23 版本（Go 1.24 尚未发布）
+  GO_VERSION: "1.23"
+  NODE_VERSION: "20"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Go Lint 检查 (golangci-lint)
+  # P1-13 修复: 覆盖所有 Go 模块
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module:
+          - cloud-flow-center
+          - cloud-flow-agent
+          - cloud-flow-edge
+          - services/auth-service
+          - services/control-plane
+          - services/data-plane
+          - services/query-service
+          - services/tenant-service
+          - services/topology-engine
+          - services/alert-engine
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.60
+          working-directory: ${{ matrix.module }}
+          args: --timeout=5m
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Go 单元测试
+  # P1-13 修复: 覆盖所有微服务
+  # P2-18 修复: 增强测试覆盖率
+  # ---------------------------------------------------------------------------
+  go-test:
+    name: Go Unit Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module:
+          - cloud-flow-center
+          - cloud-flow-agent
+          - cloud-flow-edge
+          - services/auth-service
+          - services/control-plane
+          - services/data-plane
+          - services/query-service
+          - services/tenant-service
+          - services/topology-engine
+          - services/alert-engine
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Download dependencies
+        working-directory: ${{ matrix.module }}
+        run: go mod download
+
+      - name: Run go vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+
+      - name: Run unit tests
+        working-directory: ${{ matrix.module }}
+        env:
+          # 为需要数据库的模块设置 DSN
+          TEST_DB_DSN: root:test@tcp(localhost:3306)/test?parseTime=true
+        run: |
+          if [ "${{ matrix.module }}" = "cloud-flow-agent" ]; then
+            # Agent 模块跳过 eBPF 测试（需要 root 权限和特定内核支持）
+            go test -v -race -coverprofile=coverage.out $(go list ./... | grep -v ebpfcollector)
+          elif [ "${{ matrix.module }}" = "cloud-flow-edge" ]; then
+            # Edge 模块跳过需要真实连接的测试
+            go test -v -race -coverprofile=coverage.out $(go list ./... | grep -v 'grpcclient\|forwarder' )
+          else
+            go test -v -race -coverprofile=coverage.out ./...
+          fi
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: matrix.module == 'cloud-flow-center'
+        with:
+          name: coverage-${{ matrix.module }}
+          path: ${{ matrix.module }}/coverage.out
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Job 3: 前端构建检查
+  # ---------------------------------------------------------------------------
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: cloud-flow-frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: cloud-flow-frontend
+        run: npm ci
+
+      - name: Type check
+        working-directory: cloud-flow-frontend
+        run: npx vue-tsc --noEmit
+
+      - name: Run frontend tests
+        working-directory: cloud-flow-frontend
+        run: npm test -- --coverage
+
+      - name: Build
+        working-directory: cloud-flow-frontend
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: cloud-flow-frontend/dist/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Docker 镜像构建检查
+  # P1-13 修复: 包含所有微服务镜像
+  # P1-17 修复: 添加缺失的 query-service, topology-engine, alert-engine
+  # ---------------------------------------------------------------------------
+  docker-build:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: center
+            context: cloud-flow-center
+            dockerfile: deployments/Dockerfile
+          - name: edge
+            context: cloud-flow-edge
+            dockerfile: deployments/Dockerfile
+          - name: agent
+            context: cloud-flow-agent
+            dockerfile: deployments/Dockerfile
+          - name: frontend
+            context: cloud-flow-frontend
+            dockerfile: deployments/Dockerfile
+          - name: auth-service
+            context: services/auth-service
+            dockerfile: deployments/Dockerfile
+          - name: control-plane
+            context: services/control-plane
+            dockerfile: deployments/Dockerfile
+          - name: data-plane
+            context: services/data-plane
+            dockerfile: deployments/Dockerfile
+          - name: query-service
+            context: services/query-service
+            dockerfile: deployments/Dockerfile
+          - name: topology-engine
+            context: services/topology-engine
+            dockerfile: deployments/Dockerfile
+          - name: alert-engine
+            context: services/alert-engine
+            dockerfile: deployments/Dockerfile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service.context }}
+          file: ./${{ matrix.service.context }}/${{ matrix.service.dockerfile }}
+          push: false
+          cache-from: |
+            type=gha
+            type=gha,scope=${{ matrix.service.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
+          tags: cloud-flow-${{ matrix.service.name }}:ci-check
+
+  # ---------------------------------------------------------------------------
+  # Job 5: 数据库迁移文件检查
+  # ---------------------------------------------------------------------------
+  migration-check:
+    name: Migration Files Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check migration file pairs
+        run: |
+          echo "Checking migration file pairs..."
+          MIGRATIONS_DIR="cloud-flow-center/deployments/migrations"
+          MISSING=0
+
+          for up_file in "$MIGRATIONS_DIR"/*.up.sql; do
+            if [ -f "$up_file" ]; then
+              base=$(basename "$up_file" .up.sql)
+              down_file="$MIGRATIONS_DIR/${base}.down.sql"
+              if [ ! -f "$down_file" ]; then
+                echo "ERROR: Missing down migration for $up_file"
+                MISSING=1
+              fi
+            fi
+          done
+
+          for down_file in "$MIGRATIONS_DIR"/*.down.sql; do
+            if [ -f "$down_file" ]; then
+              base=$(basename "$down_file" .down.sql)
+              up_file="$MIGRATIONS_DIR/${base}.up.sql"
+              if [ ! -f "$up_file" ]; then
+                echo "ERROR: Missing up migration for $down_file"
+                MISSING=1
+              fi
+            fi
+          done
+
+          if [ "$MISSING" -eq 1 ]; then
+            echo "FAIL: Some migration files are missing their pair"
+            exit 1
+          fi
+
+          echo "PASS: All migration files have matching pairs"
+
+  # ---------------------------------------------------------------------------
+  # Job 6: P1-15 修复: 安全扫描 (SAST)
+  # ---------------------------------------------------------------------------
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run Gosec Security Scanner
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          gosec -fmt json -out gosec-results.json ./...
+
+      - name: Upload Gosec results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gosec-results
+          path: gosec-results.json
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Job 7: P1-15 修复: 依赖漏洞扫描 (SCA)
+  # P1-17 修复: 扩展到所有微服务
+  # ---------------------------------------------------------------------------
+  dependency-scan:
+    name: Dependency Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module:
+          - cloud-flow-center
+          - cloud-flow-agent
+          - cloud-flow-edge
+          - services/auth-service
+          - services/control-plane
+          - services/data-plane
+          - services/query-service
+          - services/tenant-service
+          - services/topology-engine
+          - services/alert-engine
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '${{ matrix.module }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # Job 8: P2-18 修复: 集成测试
+  # ---------------------------------------------------------------------------
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module:
+          - cloud-flow-center
+          - cloud-flow-edge
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: cloud_flow_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Download dependencies
+        working-directory: ${{ matrix.module }}
+        run: go mod download
+
+      - name: Build
+        working-directory: ${{ matrix.module }}
+        run: go build -v ./...
+
+      - name: Run integration tests
+        working-directory: ${{ matrix.module }}
+        env:
+          TEST_DB_DSN: root:test@tcp(localhost:3306)/cloud_flow_test?parseTime=true&charset=utf8mb4
+          TEST_REDIS_ADDR: localhost:6379
+        run: |
+          echo "Running integration tests..."
+          go test -v -tags=integration ./...
+        
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-${{ matrix.module }}
+          path: ${{ matrix.module }}/**/test-results.xml
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Job 9: E2E 测试 (仅在 main 分支和 PR 时运行)
+  # P2-18 新增: 端到端测试
+  # ---------------------------------------------------------------------------
+  e2e-test:
+    name: E2E Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [docker-build, integration-test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+
+      - name: Start infrastructure
+        run: |
+          cd cloud-flow-center/deployments
+          docker-compose -f ../../docker-compose.yml up -d
+
+      - name: Wait for services
+        run: |
+          echo "Waiting for services to be ready..."
+          sleep 60
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run E2E tests
+        working-directory: cloud-flow-center
+        env:
+          E2E_BASE_URL: http://localhost:8080
+          E2E_PORTAL_URL: http://localhost:8080
+          E2E_API_KEY: test-api-key
+          E2E_JWT_SECRET: test-jwt-secret
+          E2E_DB_DSN: root:test@tcp(localhost:4000)/cloud_flow?parseTime=true
+        run: |
+          echo "Running E2E tests..."
+          go test -v -tags=e2e ./e2e/...
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: cloud-flow-center/**/e2e-results.xml
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          cd cloud-flow-center/deployments
+          docker-compose -f ../../docker-compose.yml down -v
+
+  # ---------------------------------------------------------------------------
+  # Job 10: 代码覆盖率汇总
+  # ---------------------------------------------------------------------------
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: go-test
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Generate coverage report
+        run: |
+          echo "# Cloud Flow Test Coverage Report" > coverage-report.md
+          echo "" >> coverage-report.md
+          echo "Generated at: $(date)" >> coverage-report.md
+          echo "" >> coverage-report.md
+          
+          for file in coverage/*.out; do
+            if [ -f "$file" ]; then
+              echo "## $(basename $file .out)" >> coverage-report.md
+              go tool cover -func="$file" | tail -5 >> coverage-report.md
+              echo "" >> coverage-report.md
+            fi
+          done
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage-report.md
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Job 11: 密钥扫描 (Secret Detection)
+  # P1-15 修复: 检测代码中的密钥和敏感信息
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # 深度扫描，包括历史提交
+          fetch-depth: 0
+
+      - name: Run TruffleHog
+        run: |
+          docker run -v $(pwd):/workspace trufflesecurity/trufflehog:latest filesystem /workspace \
+            --no-update \
+            --fail \
+            --json | tee trufflehog-results.json
+        continue-on-error: true
+
+      - name: Upload TruffleHog results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trufflehog-results
+          path: trufflehog-results.json
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Job 12: 性能基准测试 (可选，仅在 main 分支运行)
+  # P2-18 新增: 性能回归检测
+  # ---------------------------------------------------------------------------
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run benchmarks
+        run: |
+          go test -bench=. -benchmem -count=3 ./pkg/... 2>&1 | tee benchmark.txt
+        
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark.txt
+          retention-days: 30

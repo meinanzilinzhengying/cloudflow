@@ -1,0 +1,73 @@
+# 依赖
+node_modules/
+vendor/
+
+# 构建产物
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+obj/
+
+# 环境变量（包含密钥，绝不能提交）
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+
+# 敏感配置文件
+*.pem
+*.key
+*.crt
+*.cert
+id_rsa
+id_dsa
+id_ed25519
+secrets.yaml
+secrets.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+*.test
+*.out
+*.prof
+coverage.out
+
+# eBPF 编译产物
+*.o
+*.bpf.o
+
+# 日志
+*.log
+
+# 临时文件
+/tmp/
+*.tmp
+*.bak
+
+# H5 修复: 构建产物和分发包（应使用 GitHub Releases 或制品仓库）
+*.tar.gz
+*.tar
+*.zip
+*.rar
+*.7z
+*.gz
+# 特定构建产物
+cloud-flow-*.tar.gz
+cloud-flow-*.zip
+云内流量监测系统*.zip

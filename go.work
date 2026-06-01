@@ -1,0 +1,19 @@
+go 1.24.0
+
+use (
+	./cloud-flow-agent
+	./cloud-flow-center
+	./cloud-flow-edge
+	./pkg
+	./proto
+	./services/alert-engine
+	./services/auth-service
+	./services/control-plane
+	./services/data-plane
+	./services/query-service
+	./services/shared
+	./services/shared/auth
+	./services/shared/resilience
+	./services/tenant-service
+	./services/topology-engine
+)

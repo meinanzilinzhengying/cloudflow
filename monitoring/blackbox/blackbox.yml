@@ -1,0 +1,10 @@
+# =============================================================================
+# Blackbox Exporter 配置 - CloudFlow
+# =============================================================================
+modules:
+  http_2xx:
+    prober: http
+    http:
+      valid_status_codes: [200, 201, 204]
+      preferred_ip_protocol: ip4
+      timeout: 5s

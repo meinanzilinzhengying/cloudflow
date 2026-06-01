@@ -1,0 +1,209 @@
+# =============================================================================
+# Prometheus 配置 - CloudFlow 微服务架构
+# =============================================================================
+global:
+  scrape_interval: 15s          # 默认采集间隔
+  evaluation_interval: 15s      # 告警规则评估间隔
+  scrape_timeout: 10s           # 采集超时
+  external_labels:
+    cluster: 'cloud-flow'
+    env: 'production'
+
+# 告警规则文件
+rule_files:
+  - 'rules/*.yml'
+
+# Alertmanager 配置
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+# 采集配置
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # Prometheus 自身监控
+  # ---------------------------------------------------------------------------
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # ---------------------------------------------------------------------------
+  # Node Exporter (宿主机指标)
+  # ---------------------------------------------------------------------------
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 15s
+
+  # ---------------------------------------------------------------------------
+  # cAdvisor (容器指标)
+  # ---------------------------------------------------------------------------
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 15s
+
+  # ---------------------------------------------------------------------------
+  # Auth Service (认证服务)
+  # ---------------------------------------------------------------------------
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:9101']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    relabel_configs:
+      - target_label: service
+        replacement: 'auth-service'
+
+  # ---------------------------------------------------------------------------
+  # Control Plane (控制面)
+  # ---------------------------------------------------------------------------
+  - job_name: 'control-plane'
+    static_configs:
+      - targets: ['control-plane:9101']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    relabel_configs:
+      - target_label: service
+        replacement: 'control-plane'
+
+  # ---------------------------------------------------------------------------
+  # Data Plane (数据面)
+  # ---------------------------------------------------------------------------
+  - job_name: 'data-plane'
+    static_configs:
+      - targets: ['data-plane:9102']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    relabel_configs:
+      - target_label: service
+        replacement: 'data-plane'
+
+  # ---------------------------------------------------------------------------
+  # Query Service (查询服务)
+  # ---------------------------------------------------------------------------
+  - job_name: 'query-service'
+    static_configs:
+      - targets: ['query-service:9101']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    relabel_configs:
+      - target_label: service
+        replacement: 'query-service'
+
+  # ---------------------------------------------------------------------------
+  # Topology Engine (拓扑引擎)
+  # ---------------------------------------------------------------------------
+  - job_name: 'topology-engine'
+    static_configs:
+      - targets: ['topology-engine:9101']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    relabel_configs:
+      - target_label: service
+        replacement: 'topology-engine'
+
+  # ---------------------------------------------------------------------------
+  # Alert Engine (告警引擎)
+  # ---------------------------------------------------------------------------
+  - job_name: 'alert-engine'
+    static_configs:
+      - targets: ['alert-engine:9101']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    relabel_configs:
+      - target_label: service
+        replacement: 'alert-engine'
+
+  # ---------------------------------------------------------------------------
+  # TiDB (数据库)
+  # ---------------------------------------------------------------------------
+  - job_name: 'tidb'
+    static_configs:
+      - targets: ['tidb:10080']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    relabel_configs:
+      - target_label: service
+        replacement: 'tidb'
+
+  # ---------------------------------------------------------------------------
+  # ClickHouse (时序数据库)
+  # ---------------------------------------------------------------------------
+  - job_name: 'clickhouse'
+    static_configs:
+      - targets: ['clickhouse:9363']
+    scrape_interval: 15s
+    relabel_configs:
+      - target_label: service
+        replacement: 'clickhouse'
+
+  # ---------------------------------------------------------------------------
+  # Kafka Exporter (Kafka 指标)
+  # ---------------------------------------------------------------------------
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+    scrape_interval: 15s
+    relabel_configs:
+      - target_label: service
+        replacement: 'kafka'
+
+  # ---------------------------------------------------------------------------
+  # Kafka Broker (JMX 指标)
+  # ---------------------------------------------------------------------------
+  - job_name: 'kafka-jmx'
+    static_configs:
+      - targets: ['kafka-jmx-exporter:5556']
+    scrape_interval: 15s
+    relabel_configs:
+      - target_label: service
+        replacement: 'kafka-jmx'
+
+  # ---------------------------------------------------------------------------
+  # Loki (日志存储)
+  # ---------------------------------------------------------------------------
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+    scrape_interval: 15s
+    relabel_configs:
+      - target_label: service
+        replacement: 'loki'
+
+  # ---------------------------------------------------------------------------
+  # VictoriaMetrics (指标存储)
+  # ---------------------------------------------------------------------------
+  - job_name: 'victoriametrics'
+    static_configs:
+      - targets: ['victoriametrics:8428']
+    scrape_interval: 15s
+    relabel_configs:
+      - target_label: service
+        replacement: 'victoriametrics'
+
+  # ---------------------------------------------------------------------------
+  # 服务健康检查 - 使用 probe
+  # ---------------------------------------------------------------------------
+  - job_name: 'service-health'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://auth-service:8006/healthz
+          - http://control-plane:8001/healthz
+          - http://data-plane:9102/health
+          - http://query-service:8007/healthz
+          - http://topology-engine:8008/healthz
+          - http://alert-engine:8009/healthz
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

@@ -1,0 +1,249 @@
+# =============================================================================
+# CloudFlow Kafka 高可用集群部署配置
+# =============================================================================
+# 架构: 3 Broker 集群，副本因子 3，最小 ISR 2
+# 特点:
+#   - 多副本复制，数据不丢失
+#   - 自动故障转移
+#   - 消费者组重平衡优化
+#   - Dead Letter Queue 支持
+# =============================================================================
+
+services:
+  # ZooKeeper（Kafka 集群协调）
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: cloudflow-zookeeper
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:2181:2181"
+    environment:
+      TZ: Asia/Shanghai
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD", "zookeeper-shell", "localhost:2181", "ls", "/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cloudflow-net
+
+  # Kafka Broker 1
+  kafka-1:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cloudflow-kafka-1
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9092:9092"  # 外部访问
+      - "127.0.0.1:9093:9093"  # 内部访问
+    environment:
+      TZ: Asia/Shanghai
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      
+      # 副本配置 - 高可用
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_NUM_PARTITIONS: 6
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      
+      # 日志配置
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_LOG_CLEANER_ENABLE: "true"
+      KAFKA_LOG_CLEANER_DELETE_RETENTION_MS: 86400000
+      KAFKA_LOG_CLEANER_MIN_COMPACTION_LAG_MS: 0
+      KAFKA_LOG_CLEANER_MAX_COMPACTION_LAG_MS: 604800000
+      
+      # 网络和性能
+      KAFKA_LISTENER_BACKLOG_MS: 1000
+      KAFKA_MAX_INCREMENTAL_FETCH_SESSION_CACHE_SLOTS: 1000
+      KAFKA_NUM_NETWORK_THREADS: 8
+      KAFKA_NUM_IO_THREADS: 16
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 104857600
+      
+      # 连接和超时
+      KAFKA_CONNECTIONS_MAX_IDLE_MS: 300000
+      KAFKA_REQUEST_TIMEOUT_MS: 30000
+      KAFKA_SESSION_TIMEOUT_MS: 30000
+      KAFKA_HEARTBEAT_INTERVAL_MS: 10000
+      
+      # 消费者组重平衡
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 3000
+      KAFKA_GROUP_MAX_SESSION_TIMEOUT_MS: 180000
+      KAFKA_GROUP_MIN_SESSION_TIMEOUT_MS: 6000
+      
+      # 自动创建 Topic
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      
+      # 压缩
+      KAFKA_COMPRESSION_TYPE: "producer"
+      
+      # 故障检测
+      KAFKA_REPLICA_LAG_TIME_MAX_MS: 30000
+      KAFKA_REPLICA_SOCKET_TIMEOUT_MS: 30000
+      KAFKA_REPLICA_SOCKET_RECEIVE_BUFFER_BYTES: 65536
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 1048576
+      KAFKA_REPLICA_FETCH_WAIT_MAX_MS: 500
+      KAFKA_REPLICA_FETCH_BACKOFF_MS: 1000
+    volumes:
+      - kafka-1-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - cloudflow-net
+
+  # Kafka Broker 2
+  kafka-2:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cloudflow-kafka-2
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9094:9092"  # 外部访问
+      - "127.0.0.1:9095:9093"  # 内部访问
+    environment:
+      TZ: Asia/Shanghai
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-2:29092,PLAINTEXT_HOST://localhost:9094"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      
+      # 副本配置 - 高可用
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_NUM_PARTITIONS: 6
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      
+      # 日志配置
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_LOG_CLEANER_ENABLE: "true"
+      
+      # 网络和性能
+      KAFKA_NUM_NETWORK_THREADS: 8
+      KAFKA_NUM_IO_THREADS: 16
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 104857600
+      
+      # 消费者组重平衡
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 3000
+      KAFKA_GROUP_MAX_SESSION_TIMEOUT_MS: 180000
+      KAFKA_GROUP_MIN_SESSION_TIMEOUT_MS: 6000
+      KAFKA_HEARTBEAT_INTERVAL_MS: 10000
+      
+      # 自动创建 Topic
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_COMPRESSION_TYPE: "producer"
+    volumes:
+      - kafka-2-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - cloudflow-net
+
+  # Kafka Broker 3
+  kafka-3:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cloudflow-kafka-3
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9096:9092"  # 外部访问
+      - "127.0.0.1:9097:9093"  # 内部访问
+    environment:
+      TZ: Asia/Shanghai
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-3:29092,PLAINTEXT_HOST://localhost:9096"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      
+      # 副本配置 - 高可用
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_NUM_PARTITIONS: 6
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      
+      # 日志配置
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_LOG_CLEANER_ENABLE: "true"
+      
+      # 网络和性能
+      KAFKA_NUM_NETWORK_THREADS: 8
+      KAFKA_NUM_IO_THREADS: 16
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 102400
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 104857600
+      
+      # 消费者组重平衡
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 3000
+      KAFKA_GROUP_MAX_SESSION_TIMEOUT_MS: 180000
+      KAFKA_GROUP_MIN_SESSION_TIMEOUT_MS: 6000
+      KAFKA_HEARTBEAT_INTERVAL_MS: 10000
+      
+      # 自动创建 Topic
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_COMPRESSION_TYPE: "producer"
+    volumes:
+      - kafka-3-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - cloudflow-net
+
+networks:
+  cloudflow-net:
+    driver: bridge
+    name: cloudflow-net
+
+volumes:
+  zookeeper-data:
+    name: cloudflow-zookeeper-data
+  zookeeper-logs:
+    name: cloudflow-zookeeper-logs
+  kafka-1-data:
+    name: cloudflow-kafka-1-data
+  kafka-2-data:
+    name: cloudflow-kafka-2-data
+  kafka-3-data:
+    name: cloudflow-kafka-3-data

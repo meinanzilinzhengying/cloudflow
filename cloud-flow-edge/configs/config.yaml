@@ -1,0 +1,119 @@
+# 边缘节点服务配置
+# 
+# ⚠️ 安全警告：API Key 安全加载方式（按优先级排序）
+# 1. CLOUD_FLOW_API_KEY_FILE - 从文件读取（推荐用于 Docker Secrets / K8s Secrets）
+#    示例: export CLOUD_FLOW_API_KEY_FILE=/run/secrets/api-key
+# 2. CLOUD_FLOW_API_KEY - 直接环境变量（适合 CI/CD）
+#    示例: export CLOUD_FLOW_API_KEY=your-secret-key
+# 3. VAULT_ADDR + VAULT_PATH - 从 HashiCorp Vault 读取（企业级方案）
+#    示例: export VAULT_ADDR=https://vault.example.com && export VAULT_PATH=secret/data/cloud-flow/api-key
+# 4. 本配置文件 - 仅用于开发环境，生产环境请勿在配置文件中写入明文 API Key
+# 5. 自动生成 - 如果以上都未配置，系统会自动生成一个随机 API Key（仅开发环境）
+
+edge_node_id: ""            # 留空则自动使用 hostname
+grpc_listen_port: 50051
+metrics_port: 9092
+health_port: 8081
+center_addr: "center:50052"
+
+# 服务发现配置
+service_discovery:
+  enabled: false
+  type: "etcd"  # etcd, consul, dns
+  endpoints: ["localhost:2379"]
+  service_name: "cloud-flow-center"
+  refresh_interval: 30
+  port: 9090
+# 云平台和区域配置
+# 云平台示例值: aws, azure, gcp, onprem, kubernetes
+# 区域示例值: us-east-1, eastus, us-central1, local
+cloud_platform: "onprem"
+region: "local"
+batch_size: 100
+flush_interval: 5
+
+# ⚠️ 安全警告：以下 API Key 配置仅用于开发环境
+# 生产环境请使用环境变量或 Vault 等安全方式加载
+# 详见文件顶部注释
+
+# API Key 认证（探针注册到本节点时必须携带此 key）
+# 建议通过 CLOUD_FLOW_API_KEY_FILE 或 CLOUD_FLOW_API_KEY 环境变量设置
+api_key: ""
+
+# 中心服务认证（连接中心服务时使用的 API Key，必须与 center 配置的 api_key 一致）
+# 建议通过 CLOUD_FLOW_CENTER_API_KEY 环境变量设置
+center_api_key: ""
+
+# 限流配置（全局限流）
+rate_limit:
+  enabled: true
+  bucket_size: 100  # 令牌桶容量
+  refill_rate: 50    # 每秒填充令牌数
+
+# 连接池配置（支持5000+ Agent同时接入）
+connection_pool:
+  max_connections: 10000     # 最大连接数
+  stale_timeout: "5m"        # 连接过期超时（无心跳则移除）
+  cleanup_interval: "1m"     # 过期连接清理间隔
+
+# 单IP限流配置（防止单Agent异常占用资源）
+ip_limit:
+  max_qps_per_ip: 100        # 每IP最大QPS
+  burst_size: 200            # 突发大小
+  cleanup_interval: "1m"     # IP记录清理间隔
+  stale_duration: "10m"      # IP无活动过期时间
+
+# goroutine池配置（防止OOM）
+go_pool:
+  workers: 500               # worker数量
+  queue_cap: 10000           # 任务队列容量
+
+# 熔断器配置（保护服务稳定性）
+circuit_breaker:
+  failure_threshold: 0.5     # 失败率阈值（50%触发熔断）
+  min_requests: 100          # 最小请求数（达到后才计算失败率）
+  recovery_timeout: "30s"    # 熔断恢复超时
+  half_open_max_requests: 10 # 半开状态试探请求数
+
+# 数据聚合配置（减少向Center上报的数据量）
+aggregator:
+  enabled: true              # 启用数据聚合
+  window_size: "1m"          # 聚合窗口大小（1分钟）
+  max_window_count: 10       # 最大窗口数量
+  deduplication: true        # 启用去重
+  filter_invalid: true       # 启用无效数据过滤
+  min_compression: 0.5       # 最小压缩率要求（50%）
+
+# Agent接入鉴权配置（Token + 证书双向认证 + 白名单）
+auth:
+  enabled: true              # 启用鉴权
+  require_mtls: false        # 要求mTLS双向证书认证（需配置TLS CA证书）
+  require_token: true        # 要求Agent Token认证
+  require_whitelist: false   # 要求白名单校验（需Center端配置白名单）
+  token_header: "x-agent-token"  # Token metadata header键名
+  reject_log: true           # 记录被拒绝连接的详细日志
+  whitelist_sync_interval: "30s"  # Center白名单同步间隔
+
+# Edge集群配置（多节点部署 + 服务发现 + 负载均衡）
+cluster:
+  enabled: false             # 启用集群模式（多Edge节点部署时启用）
+  node_id: ""                # 当前节点ID（留空则使用hostname）
+  service_name: "cloud-flow-edge"  # 集群服务名称（用于服务发现注册）
+  heartbeat_interval: "5s"   # 心跳间隔
+  health_check_timeout: "3s" # 健康检查超时
+  load_balance_strategy: "least-connections"  # 负载均衡策略
+  max_connections_per_node: 10000  # 每个节点最大连接数
+
+# TLS 配置（默认启用，留空证书路径则自动使用内置自签名证书）
+tls:
+  enabled: true
+  ca_cert: ""               # CA 证书路径
+  client_cert: ""           # 客户端证书路径（mTLS 可选）
+  client_key: ""            # 客户端私钥路径（mTLS 可选）
+  server_cert: ""           # 服务端证书路径（边缘节点作为服务端）
+  server_key: ""            # 服务端私钥路径
+  server_name: ""           # 用于 TLS 握手验证的域名
+
+log:
+  level: info
+  format: json
