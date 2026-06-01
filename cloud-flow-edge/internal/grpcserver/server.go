@@ -360,6 +360,7 @@ func BuildServerOpts(
 	goPoolCfg config.GoPoolConfig,
 	breakerCfg config.CircuitBreakerConfig,
 	log *logger.Logger,
+	getAuthInterceptor func() *AgentAuthInterceptor,
 ) ([]grpc.ServerOption, *connpool.Pool, *iplimiter.Limiter, *gopool.Pool, *circuitbreaker.Manager, error) {
 
 	var opts []grpc.ServerOption
@@ -454,7 +455,7 @@ func BuildServerOpts(
 		return goPoolInterceptor(ctx, req, info, func(ctx context.Context, req interface{}) (interface{}, error) {
 			// H1 修复: 使用 GetAuthInterceptor() 方法读取，确保线程安全
 			// Agent鉴权拦截器（如果启用）
-			authInterceptor := s.GetAuthInterceptor()
+			authInterceptor := getAuthInterceptor()
 			if authInterceptor != nil {
 				return authInterceptor.UnaryServerInterceptor()(ctx, req, info, func(ctx context.Context, req interface{}) (interface{}, error) {
 					return traceInterceptor(ctx, req, info, func(ctx context.Context, req interface{}) (interface{}, error) {

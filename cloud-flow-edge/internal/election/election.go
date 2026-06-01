@@ -211,9 +211,18 @@ func (r *RedisElection) renewLeadership(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			ok, err := r.client.SetNX(ctx, r.electionKey, r.nodeID, r.ttl).Result()
-			if err != nil || !ok {
-				// 续约失败，不再是 Leader
+			// 使用 Lua 脚本原子检查并续约：
+			// 仅当 key 的值等于当前节点 ID 时才续约，防止脑裂
+			script := `
+				if redis.call("GET", KEYS[1]) == ARGV[1] then
+					return redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
+				else
+					return nil
+				end
+			`
+			result, err := r.client.Eval(ctx, script, []string{r.electionKey}, r.nodeID, int(r.ttl.Seconds())).Result()
+			if err != nil || result == nil {
+				// 续约失败（key 不存在或值不匹配），不再是 Leader
 				r.mu.Lock()
 				r.state = StateFollower
 				r.leaderID = ""

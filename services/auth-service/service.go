@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -301,7 +303,11 @@ func (s *Service) initUserTable() error {
 
 	if count == 0 {
 		// 创建默认管理员
-		defaultPassword := "admin123" // 生产环境应强制要求设置环境变量
+		defaultPassword := os.Getenv("ADMIN_INITIAL_PASSWORD")
+		if defaultPassword == "" {
+			log.Println("⚠️  安全警告: ADMIN_INITIAL_PASSWORD 环境变量未设置，使用默认密码")
+			defaultPassword = "admin123"
+		}
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
 		if err != nil {
 			return fmt.Errorf("generate password hash: %w", err)
@@ -319,7 +325,7 @@ func (s *Service) initUserTable() error {
 			return fmt.Errorf("create admin user: %w", err)
 		}
 
-		fmt.Printf("Default admin user created: admin/admin123 (请立即修改密码)\n")
+		fmt.Println("默认管理员用户已创建，请立即通过环境变量 ADMIN_INITIAL_PASSWORD 修改密码")
 	}
 
 	return nil

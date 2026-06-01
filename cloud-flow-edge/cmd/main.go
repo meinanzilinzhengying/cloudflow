@@ -208,6 +208,7 @@ func main() {
 		localCfg.TLS, localCfg.RateLimit, localCfg.APIKey,
 		localCfg.ConnectionPool, localCfg.IPLimit, localCfg.GoPool, localCfg.CircuitBreaker,
 		log,
+		srv.GetAuthInterceptor,
 	)
 	if err != nil {
 		log.Errorf("构建 gRPC 服务端选项失败: %v", err)
