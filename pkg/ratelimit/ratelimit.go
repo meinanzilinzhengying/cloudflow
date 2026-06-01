@@ -33,8 +33,8 @@ func (tb *TokenBucket) Allow() bool {
 	elapsed := now.Sub(tb.lastRefill)
 	tb.lastRefill = now
 
-	// 按时间比例填充令牌
-	refillTokens := int(elapsed.Seconds()) * tb.refillRate
+	// 按时间比例填充令牌 (使用 float 避免截断)
+	refillTokens := int(elapsed.Seconds() * float64(tb.refillRate))
 	if refillTokens > 0 {
 		tb.tokens += refillTokens
 		if tb.tokens > tb.bucketSize {

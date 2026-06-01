@@ -262,7 +262,7 @@ func TestError_Unwrap(t *testing.T) {
 
 // TestError_MultipleWrapping 测试多层错误包装
 func TestError_MultipleWrapping(t *testing.T) {
-	err1 := errors.New("error 1")
+	err1 := New("code1", "error 1")
 	err2 := Wrap(err1, "code2", "message 2")
 	err3 := Wrap(err2, "code3", "message 3")
 

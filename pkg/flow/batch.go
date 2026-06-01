@@ -149,8 +149,8 @@ func (c *Converter) ParsedFlowToUnified(data *ParsedFlowData) *UnifiedFlow {
 	copy(dstIP[:], data.DstIP.AsSlice())
 	f.SetL3IPv4(srcIP, dstIP)
 
-	// L4
-	f.SetL4(data.SrcPort, data.DstPort, Protocol(data.Protocol), data.TCPFlags)
+	// L4 - 使用 FromIPProtocol 转换 IP 协议号
+	f.SetL4(data.SrcPort, data.DstPort, FromIPProtocol(data.Protocol), data.TCPFlags)
 
 	// L7: 根据端口推断应用协议
 	dstPort := data.DstPort

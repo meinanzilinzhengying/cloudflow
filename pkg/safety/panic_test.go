@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestPanicRecovery 测试 panic 恢复功能
@@ -67,6 +68,7 @@ func TestGo(t *testing.T) {
 			break
 		}
 		mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	mu.Lock()
@@ -110,6 +112,7 @@ func TestSafeGo(t *testing.T) {
 		if executed {
 			break
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	if !executed {
@@ -214,12 +217,24 @@ type mockLogger struct {
 	mu         sync.Mutex
 	errCalled  bool
 	warnCalled bool
+	errFunc    func(format string, args ...interface{})
+}
+
+func (l *mockLogger) Lock() {
+	l.mu.Lock()
+}
+
+func (l *mockLogger) Unlock() {
+	l.mu.Unlock()
 }
 
 func (l *mockLogger) Errorf(format string, args ...interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.errCalled = true
+	if l.errFunc != nil {
+		l.errFunc(format, args...)
+	}
 }
 
 func (l *mockLogger) Warnf(format string, args ...interface{}) {

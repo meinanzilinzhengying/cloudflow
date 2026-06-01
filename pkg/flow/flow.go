@@ -774,7 +774,7 @@ func (f *UnifiedFlow) Serialize() []byte {
 	binary.BigEndian.PutUint16(buf[8:10], f.Presence[2])
 
 	offset := 10
-	offset = f.serializeBody(buf[offset:])
+	offset += f.serializeBody(buf[offset:])
 
 	return buf[:offset]
 }
