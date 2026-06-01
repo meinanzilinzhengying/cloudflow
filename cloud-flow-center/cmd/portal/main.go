@@ -83,7 +83,13 @@ func main() {
 	}
 
 	secureCookie := cfg.TLS.Enabled
-	srv := portal.NewServer(store, jwtSecret, auditLogger, alertMgr, log, secureCookie, cfg.RateLimit, time.Duration(cfg.JWT.TokenDuration)*time.Hour, cfg.Portal.RedisAddr, cfg)
+	configMgr := config.NewConfigManager(log.Infof)
+	if err := configMgr.LoadAndWatch(); err != nil {
+		log.Warnf("配置监听初始化失败: %v", err)
+	}
+	defer configMgr.Stop()
+	
+	srv := portal.NewServer(store, jwtSecret, auditLogger, alertMgr, log, secureCookie, cfg.RateLimit, time.Duration(cfg.JWT.TokenDuration)*time.Hour, cfg.Portal.RedisAddr, cfg, configMgr)
 
 	httpServer := &http.Server{
 		Addr:         ":" + fmt.Sprintf("%d", port),

@@ -28,7 +28,7 @@ type Storage interface {
 // Processor 数据处理管道
 type Processor struct {
 	storage Storage
-	dlq     *sarama.SyncProducer // 死信队列 Producer
+	dlq     sarama.SyncProducer // 死信队列 Producer
 
 	// 统计
 	totalProcessed atomic.Int64
@@ -43,7 +43,7 @@ type Processor struct {
 }
 
 // New 创建 Processor
-func New(storage Storage, dlqProducer *sarama.SyncProducer, workers int) *Processor {
+func New(storage Storage, dlqProducer sarama.SyncProducer, workers int) *Processor {
 	if workers <= 0 {
 		workers = 4
 	}

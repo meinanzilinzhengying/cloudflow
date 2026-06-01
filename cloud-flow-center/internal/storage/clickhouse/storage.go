@@ -19,8 +19,8 @@ import (
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 
-	"cloud-flow/cloud-flow-center/internal/storage"
-	"cloud-flow/cloud-flow-center/internal/storage/clickhouse/schema"
+	"cloud-flow-center/internal/storage"
+	"cloud-flow-center/internal/storage/clickhouse/schema"
 	"cloud-flow/pkg/flow"
 )
 
@@ -217,7 +217,7 @@ func (s *Storage) connect() error {
 		var primaryDb *sql.DB
 		var alts []*sql.DB
 		
-		for i, addr := range s.config.Addrs {
+		for _, addr := range s.config.Addrs {
 			dsn := fmt.Sprintf("clickhouse://%s:%s@%s/%s?dial_timeout=%s",
 				s.config.Username,
 				s.config.Password,
@@ -668,7 +668,7 @@ func (s *Storage) queryFlows(ctx context.Context, req *storage.QueryRequest) (*s
 			timestamp, reqSize, respSize, bytes, packets, latencyNs uint64
 			flowID, schemaVersion, pid                               uint32
 			srcPort, dstPort, statusCode                             uint16
-			ipVersion, protocol, tcpFlags, l7Protocol, method, direction uint8
+			protocol, tcpFlags, l7Protocol, method, direction uint8
 			srcIP, dstIP, path, grpcService, grpcMethod               string
 			grpcStatus                                                uint32
 			processName, comm, containerID, containerName, image      string
@@ -730,8 +730,6 @@ func (s *Storage) queryEvents(ctx context.Context, req *storage.QueryRequest) (*
 
 // QueryTopology 查询拓扑
 func (s *Storage) QueryTopology(ctx context.Context, req *storage.QueryRequest) (*storage.TopologyResult, error) {
-	start := time.Now()
-
 	if req.Topology == nil {
 		return nil, errors.New("topology config required")
 	}

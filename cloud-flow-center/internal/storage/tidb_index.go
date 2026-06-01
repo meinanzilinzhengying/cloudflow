@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"cloud-flow-center/pkg/logger"
 )
 
 // ==================== 表结构初始化（含索引） ====================

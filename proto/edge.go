@@ -584,6 +584,33 @@ func (m *MetricsBatch) GetEndTime() int64                { return m.EndTime }
 func (m *MetricsBatch) GetAggregation() string           { return m.Aggregation }
 func (m *MetricsBatch) GetInterval() int32               { return m.Interval }
 
+// FlowBatch 流数据批次
+type FlowBatch struct {
+	ProbeId     string        `json:"probe_id,omitempty"`    // 探针ID
+	AssetId     string        `json:"asset_id,omitempty"`    // 资产ID
+	Flows       []*MetricData `json:"flows,omitempty"`       // 流数据列表
+	Count       int32         `json:"count,omitempty"`       // 数量
+	Checksum    string        `json:"checksum,omitempty"`    // 校验和(SHA256)
+	SeqId       int64         `json:"seq_id,omitempty"`      // 序列号
+	Timestamp   int64         `json:"timestamp,omitempty"`   // 批次时间戳
+	FlowType    string        `json:"flow_type,omitempty"`   // 流类型: raw/l4/l7
+}
+
+func (f *FlowBatch) Reset()         { *f = FlowBatch{} }
+func (f *FlowBatch) String() string { return fmt.Sprintf("%+v", f) }
+func (f *FlowBatch) ProtoMessage()  {}
+
+func (f *FlowBatch) Marshal() ([]byte, error)         { return json.Marshal(f) }
+func (f *FlowBatch) Unmarshal(data []byte) error      { return json.Unmarshal(data, f) }
+func (f *FlowBatch) GetProbeId() string               { return f.ProbeId }
+func (f *FlowBatch) GetAssetId() string               { return f.AssetId }
+func (f *FlowBatch) GetFlows() []*MetricData          { return f.Flows }
+func (f *FlowBatch) GetCount() int32                  { return f.Count }
+func (f *FlowBatch) GetChecksum() string              { return f.Checksum }
+func (f *FlowBatch) GetSeqId() int64                  { return f.SeqId }
+func (f *FlowBatch) GetTimestamp() int64              { return f.Timestamp }
+func (f *FlowBatch) GetFlowType() string              { return f.FlowType }
+
 // TraceSpanData 链路追踪Span数据
 type TraceSpanData struct {
 	TraceId         string            `json:"trace_id,omitempty"`           // Trace ID

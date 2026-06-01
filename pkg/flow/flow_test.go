@@ -1,10 +1,10 @@
 package flow
 
 import (
+	"net/netip"
 	"testing"
 	"unsafe"
 
-	"cloud-flow-agent/internal/ebpfconsumer/pool"
 	edge "cloud-flow/proto"
 )
 
@@ -189,9 +189,9 @@ func TestUnifiedFlow_SerializationRoundTrip(t *testing.T) {
 func TestConverter_ParsedFlowToUnified(t *testing.T) {
 	c := NewConverter()
 
-	parsed := &pool.ParsedFlow{
-		SrcIP:     [4]byte{192, 168, 1, 100},
-		DstIP:     [4]byte{10, 0, 0, 1},
+	data := &ParsedFlowData{
+		SrcIP:     netip.MustParseAddr("192.168.1.100"),
+		DstIP:     netip.MustParseAddr("10.0.0.1"),
 		SrcPort:   54321,
 		DstPort:   80,
 		Protocol:  6, // TCP
@@ -203,12 +203,7 @@ func TestConverter_ParsedFlowToUnified(t *testing.T) {
 		CPU:       2,
 	}
 
-	raw := &pool.RawEvent{
-		Type: pool.EventTypeTCP,
-		CPU:  2,
-	}
-
-	f := c.ParsedFlowToUnified(raw, parsed)
+	f := c.ParsedFlowToUnified(data)
 
 	if f.SrcIP.String() != "192.168.1.100" {
 		t.Fatalf("src_ip: %s", f.SrcIP.String())
@@ -414,9 +409,9 @@ func BenchmarkUnifiedFlow_Deserialization(b *testing.B) {
 
 func BenchmarkConverter_ParsedFlowToUnified(b *testing.B) {
 	c := NewConverter()
-	parsed := &pool.ParsedFlow{
-		SrcIP:     [4]byte{192, 168, 1, 100},
-		DstIP:     [4]byte{10, 0, 0, 1},
+	data := &ParsedFlowData{
+		SrcIP:     netip.MustParseAddr("192.168.1.100"),
+		DstIP:     netip.MustParseAddr("10.0.0.1"),
 		SrcPort:   54321,
 		DstPort:   80,
 		Protocol:  6,
@@ -424,11 +419,10 @@ func BenchmarkConverter_ParsedFlowToUnified(b *testing.B) {
 		Packets:   10,
 		LatencyNs: 5000000,
 	}
-	raw := &pool.RawEvent{Type: pool.EventTypeTCP}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c.ParsedFlowToUnified(raw, parsed)
+		c.ParsedFlowToUnified(data)
 	}
 }
 

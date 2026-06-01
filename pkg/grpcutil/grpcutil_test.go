@@ -8,10 +8,10 @@ import (
 )
 
 func TestCheckAPIKey_EmptyExpected(t *testing.T) {
-	// 空 expected key 应跳过验证
+	// 空 expected key 应拒绝所有请求（安全设计：API Key 未配置时不应允许任何请求通过）
 	ctx := context.Background()
-	if !CheckAPIKey(ctx, "") {
-		t.Fatal("should return true when expected key is empty")
+	if CheckAPIKey(ctx, "") {
+		t.Fatal("should return false when expected key is empty (security design)")
 	}
 }
 

@@ -118,8 +118,8 @@ func BuildServerOpts(tlsCfg config.TLSConfig, rateLimit config.RateLimitConfig, 
 	// 添加限流拦截器
 	var rateLimiter *ratelimit.TokenBucket
 	if rateLimit.Enabled {
-		rateLimiter = ratelimit.NewTokenBucket(rateLimit.BucketSize, rateLimit.RefillRate)
-		log.Infof("Center gRPC 服务端启用速率限制: 桶容量=%d, 填充速率=%d/秒", rateLimit.BucketSize, rateLimit.RefillRate)
+		rateLimiter = ratelimit.NewTokenBucket(rateLimit.API.BucketSize, rateLimit.API.RefillRate)
+		log.Infof("Center gRPC 服务端启用速率限制: 桶容量=%d, 填充速率=%d/秒", rateLimit.API.BucketSize, rateLimit.API.RefillRate)
 	} else {
 		log.Info("Center gRPC 服务端未启用速率限制")
 	}

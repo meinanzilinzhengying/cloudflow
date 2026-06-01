@@ -3,7 +3,6 @@
 package producer
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -67,14 +66,12 @@ func New(cfg kafkapkg.Config, logger Logger) (*Producer, error) {
 	saramaCfg.Producer.RequiredAcks = parseAcks(cfg.Acks)
 	saramaCfg.Producer.Retry.Max = cfg.Retries
 	saramaCfg.Producer.Retry.Backoff = time.Duration(cfg.RetryBackoffMs) * time.Millisecond
-	saramaCfg.Producer.Retry.BackoffMax = time.Duration(cfg.RetryMaxBackoffMs) * time.Millisecond
 	saramaCfg.Producer.Return.Successes = true
 	saramaCfg.Producer.Return.Errors = true
 	saramaCfg.Producer.MaxMessageBytes = cfg.MaxMessageBytes
 	saramaCfg.Producer.Flush.Bytes = cfg.BatchSize
 	saramaCfg.Producer.Flush.Frequency = time.Duration(cfg.LingerMs) * time.Millisecond
 	saramaCfg.Producer.Flush.Messages = 1000
-	saramaCfg.Producer.BufferMemory = cfg.BufferMemory
 	saramaCfg.Producer.Idempotent = cfg.EnableIdempotent
 	saramaCfg.ClientID = cfg.ClientID
 	saramaCfg.ChannelBufferSize = cfg.ChannelBufferSize

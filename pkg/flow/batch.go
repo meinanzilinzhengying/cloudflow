@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
+	"net/netip"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
-	"cloud-flow-agent/internal/ebpfconsumer/pool"
 	edge "cloud-flow/proto"
 )
 
@@ -118,26 +118,47 @@ func NewConverter() *Converter {
 	return &Converter{}
 }
 
-// ParsedFlowToUnified 将 eBPF ParsedFlow 转换为 UnifiedFlow
-func (c *Converter) ParsedFlowToUnified(raw *pool.RawEvent, parsed *pool.ParsedFlow) *UnifiedFlow {
+// ParsedFlowData 通用的解析流数据接口
+type ParsedFlowData struct {
+	Timestamp   uint64
+	SrcIP       netip.Addr
+	DstIP       netip.Addr
+	SrcPort     uint16
+	DstPort     uint16
+	Protocol    uint8
+	TCPFlags    uint8
+	HTTPMethod  uint8
+	HTTPStatus  uint16
+	Bytes       uint64
+	Packets     uint64
+	LatencyNs   uint64
+	Direction   uint8
+	CPU         int
+}
+
+// ParsedFlowToUnified 将解析的流数据转换为 UnifiedFlow
+func (c *Converter) ParsedFlowToUnified(data *ParsedFlowData) *UnifiedFlow {
 	f := New()
 
 	// Timestamp
-	f.Timestamp = int64(parsed.Timestamp)
+	f.Timestamp = int64(data.Timestamp)
 
-	// L3: IPv4 (eBPF 层仅支持 IPv4)
-	f.SetL3IPv4(parsed.SrcIP, parsed.DstIP)
+	// L3: IPv4 - 转换 netip.Addr 为 [4]byte
+	var srcIP, dstIP [4]byte
+	copy(srcIP[:], data.SrcIP.AsSlice())
+	copy(dstIP[:], data.DstIP.AsSlice())
+	f.SetL3IPv4(srcIP, dstIP)
 
 	// L4
-	f.SetL4(parsed.SrcPort, parsed.DstPort, Protocol(parsed.Protocol), parsed.TCPFlags)
+	f.SetL4(data.SrcPort, data.DstPort, Protocol(data.Protocol), data.TCPFlags)
 
 	// L7: 根据端口推断应用协议
-	dstPort := parsed.DstPort
+	dstPort := data.DstPort
 	switch {
 	case dstPort == 80 || dstPort == 8080 || dstPort == 8000:
-		f.SetL7(ProtoHTTP, parsed.HTTPMethod, "", parsed.HTTPStatus)
+		f.SetL7(ProtoHTTP, data.HTTPMethod, "", data.HTTPStatus)
 	case dstPort == 443:
-		f.SetL7(ProtoHTTP2, parsed.HTTPMethod, "", parsed.HTTPStatus)
+		f.SetL7(ProtoHTTP2, data.HTTPMethod, "", data.HTTPStatus)
 	case dstPort == 3306:
 		f.SetL7(ProtoMySQL, 0, "", 0)
 	case dstPort == 53:
@@ -149,10 +170,10 @@ func (c *Converter) ParsedFlowToUnified(raw *pool.RawEvent, parsed *pool.ParsedF
 	}
 
 	// Metrics
-	f.SetMetrics(parsed.Bytes, parsed.Packets, parsed.LatencyNs, Direction(parsed.Direction))
+	f.SetMetrics(data.Bytes, data.Packets, data.LatencyNs, Direction(data.Direction))
 
 	// CPU tag
-	f.SetTag("cpu", fmt.Sprintf("%d", parsed.CPU))
+	f.SetTag("cpu", fmt.Sprintf("%d", data.CPU))
 
 	return f
 }
@@ -435,14 +456,14 @@ func ComputeFlowID(srcIP, dstIP string, srcPort, dstPort uint16, proto Protocol)
 	return h.Sum32()
 }
 
-// ComputeFlowIDFromParsed 从 ParsedFlow 计算流 ID
-func ComputeFlowIDFromParsed(parsed *pool.ParsedFlow) uint32 {
+// ComputeFlowIDFromParsed 从 ParsedFlowData 计算流 ID
+func ComputeFlowIDFromParsed(data *ParsedFlowData) uint32 {
 	return ComputeFlowID(
-		parsed.SrcIP.String(),
-		parsed.DstIP.String(),
-		parsed.SrcPort,
-		parsed.DstPort,
-		Protocol(parsed.Protocol),
+		data.SrcIP.String(),
+		data.DstIP.String(),
+		data.SrcPort,
+		data.DstPort,
+		Protocol(data.Protocol),
 	)
 }
 

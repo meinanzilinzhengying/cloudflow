@@ -91,7 +91,6 @@ func (m *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
 			return []byte(m.secretKey), nil
 		},
 		jwt.WithIssuer(m.issuer),
-		jwt.WithAudience(m.audience...),
 	)
 
 	if err != nil {

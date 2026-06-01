@@ -1965,10 +1965,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// 记录当前检查时的失败计数，用于后续 CAS 式更新
-		checkCount := 0
-		if exists {
-			checkCount = failureInfo.count
-		}
+		s.loginFailures[loginData.Username] = failureInfo
 		s.loginFailuresMutex.Unlock()
 	}
 
@@ -1990,13 +1987,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 				s.logger.Warnf("Redis 增加登录失败计数失败: %v", err)
 			}
 		} else {
-			// CAS 式更新：只在计数未变化时才更新，防止竞态条件
+			// 更新登录失败计数
 			s.loginFailuresMutex.Lock()
 			info, ok := s.loginFailures[loginData.Username]
-			if ok && time.Since(info.lastFailure) <= 30*time.Minute && info.count == checkCount {
+			if ok && time.Since(info.lastFailure) <= 30*time.Minute {
 				info.count++
 				info.lastFailure = time.Now()
-			} else if !ok || time.Since(info.lastFailure) > 30*time.Minute {
+			} else {
 				info = loginFailureInfo{count: 1, lastFailure: time.Now()}
 			}
 			s.loginFailures[loginData.Username] = info
@@ -3273,8 +3270,12 @@ func (s *Server) handleGetSystemConfig(w http.ResponseWriter, r *http.Request) {
 		cfg["tls_enabled"] = s.centerConfig.TLS.Enabled
 		cfg["rate_limit_enabled"] = s.centerConfig.RateLimit.Enabled
 		if s.centerConfig.RateLimit.Enabled {
-			cfg["rate_limit_bucket_size"] = s.centerConfig.RateLimit.BucketSize
-			cfg["rate_limit_refill_rate"] = s.centerConfig.RateLimit.RefillRate
+			cfg["rate_limit_login_bucket_size"] = s.centerConfig.RateLimit.Login.BucketSize
+			cfg["rate_limit_login_refill_rate"] = s.centerConfig.RateLimit.Login.RefillRate
+			cfg["rate_limit_query_bucket_size"] = s.centerConfig.RateLimit.Query.BucketSize
+			cfg["rate_limit_query_refill_rate"] = s.centerConfig.RateLimit.Query.RefillRate
+			cfg["rate_limit_api_bucket_size"] = s.centerConfig.RateLimit.API.BucketSize
+			cfg["rate_limit_api_refill_rate"] = s.centerConfig.RateLimit.API.RefillRate
 		}
 		if s.centerConfig.Alerting.CheckInterval > 0 {
 			cfg["alert_check_interval"] = fmt.Sprintf("%ds", s.centerConfig.Alerting.CheckInterval)

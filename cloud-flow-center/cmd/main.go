@@ -23,9 +23,9 @@ import (
 	"cloud-flow-center/internal/kafkaconsumer"
 	"cloud-flow-center/internal/portal"
 	"cloud-flow-center/internal/storage"
-	"cloud-flow/pkg/audit"
-	"cloud-flow/pkg/logger"
-	"cloud-flow/pkg/metrics"
+	"cloud-flow-center/pkg/audit"
+	"cloud-flow-center/pkg/logger"
+	"cloud-flow-center/pkg/metrics"
 	"cloud-flow/pkg/safety"
 	edge "cloud-flow/proto"
 )

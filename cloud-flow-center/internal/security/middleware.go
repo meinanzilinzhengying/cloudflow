@@ -134,7 +134,7 @@ func (sm *SecurityMiddleware) validateMapRecursive(data map[string]interface{}, 
 		case map[string]interface{}:
 			errors = append(errors, sm.validateMapRecursive(v, fullKey)...)
 		case []interface{}:
-			for i, item := range v {
+			for _, item := range v {
 				if str, ok := item.(string); ok {
 					if err := sm.validateInput(str, fullKey); err != nil {
 						errors = append(errors, err.(validator.ValidationError))

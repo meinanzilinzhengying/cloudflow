@@ -647,7 +647,7 @@ func (s *TiDBStorage) CreateService(data map[string]interface{}) error {
 	if id == "" || name == "" {
 		return fmt.Errorf("服务 ID 和名称不能为空")
 	}
-	_, err := s.db.Exec("INSERT INTO services (id, business_id, name, description, endpoints) VALUES (?, ?, ?, ?, ?)",
+	_, err = s.db.Exec("INSERT INTO services (id, business_id, name, description, endpoints) VALUES (?, ?, ?, ?, ?)",
 		id, bizID, name, desc, string(endpoints))
 	return err
 }
@@ -2272,20 +2272,20 @@ func (s *TiDBStorage) GetRecentMetrics(metricType string, limit int, timeWindow 
 		}
 
 		metric := &edge.MetricData{
-			ProbeId:    probeID,
-			Timestamp:  timestamp,
-			SrcIp:      srcIP,
-			DstIp:      dstIP,
-			SrcPort:    int32(srcPort),
-			DstPort:    int32(dstPort),
-			Protocol:   protocol,
-			Bytes:      bytes,
-			Packets:    packets,
-			Latency:    latency,
-			CpuUsage:   cpuUsage,
-			MemoryUsage: memoryUsage,
-			DiskUsage:  diskUsage,
-			Tags:       tags,
+			ProbeId:      probeID,
+			Timestamp:    timestamp,
+			SrcIp:        srcIP,
+			DstIp:        dstIP,
+			SrcPort:      int32(srcPort),
+			DstPort:      int32(dstPort),
+			Protocol:     edge.ProtocolType(protocol),
+			Bytes:        bytes,
+			Packets:      packets,
+			Latency:      latency,
+			CpuUsage:     cpuUsage,
+			MemoryUsage:  memoryUsage,
+			DiskUsage:    diskUsage,
+			Tags:         tags,
 		}
 
 		metrics = append(metrics, metric)
