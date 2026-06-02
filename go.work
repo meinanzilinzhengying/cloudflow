@@ -1,0 +1,20 @@
+go 1.25.0
+
+use (
+	./pkg
+	./proto
+	./services/auth-service
+	./services/shared
+	./services/shared/auth
+	./services/shared/resilience
+)
+
+replace cloud-flow/pkg => ./pkg
+
+replace cloud-flow/proto => ./proto
+
+replace cloud-flow/services/shared => ./services/shared
+
+replace cloud-flow/services/shared/auth => ./services/shared/auth
+
+replace cloud-flow/services/shared/resilience => ./services/shared/resilience

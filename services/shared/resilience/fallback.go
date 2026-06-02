@@ -12,12 +12,12 @@ type FallbackFunc func(err error) interface{}
 type FallbackFuncWithContext func(ctx context.Context, err error) interface{}
 
 type FallbackHandler struct {
-	fallbacks map[string]FallbackFunc
-	mu        sync.RWMutex
+	fallbacks    map[string]FallbackFunc
+	mu           sync.RWMutex
 
-	timeout       time.Duration
-	fallbackCache map[string]*cachedFallback
-	cacheMu       sync.RWMutex
+	timeout        time.Duration
+	fallbackCache  map[string]*cachedFallback
+	cacheMu        sync.RWMutex
 }
 
 type cachedFallback struct {
@@ -37,7 +37,7 @@ func DefaultFallbackConfig() FallbackConfig {
 }
 
 func NewFallbackHandler(config FallbackConfig) *FallbackHandler {
-	return &FallbackHandler{
+	return &amp;FallbackHandler{
 		fallbacks:    make(map[string]FallbackFunc),
 		timeout:      config.Timeout,
 		fallbackCache: make(map[string]*cachedFallback),
@@ -104,7 +104,7 @@ func (h *FallbackHandler) setCachedFallback(name string, value interface{}, ttl 
 	h.cacheMu.Lock()
 	defer h.cacheMu.Unlock()
 
-	h.fallbackCache[name] = &cachedFallback{
+	h.fallbackCache[name] = &amp;cachedFallback{
 		value:  value,
 		expiry: time.Now().Add(ttl),
 	}
@@ -162,16 +162,16 @@ type DegradationHandler struct {
 }
 
 func NewDegradationHandler() *DegradationHandler {
-	return &DegradationHandler{
+	return &amp;DegradationHandler{
 		level: DegradationNone,
 	}
 }
 
-func (h *DegradationHandler) SetThresholds(errorRate, latencyMs int64, timeoutRatio float64) {
+func (h *DegradationHandler) SetThresholds(errorRate float64, latencyMs int64, timeoutRatio float64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	h.thresholds.ErrorRate = float64(errorRate) / 100
+	h.thresholds.ErrorRate = errorRate
 	h.thresholds.LatencyMs = latencyMs
 	h.thresholds.TimeoutRatio = timeoutRatio
 }
@@ -197,7 +197,7 @@ func (h *DegradationHandler) SetLevel(level DegradationLevel) {
 	oldLevel := h.level
 	h.level = level
 
-	if oldLevel != level && h.onLevelChange != nil {
+	if oldLevel != level &amp;&amp; h.onLevelChange != nil {
 		go h.onLevelChange(oldLevel, level)
 	}
 }
@@ -209,11 +209,11 @@ func (h *DegradationHandler) Evaluate(errorRate float64, avgLatencyMs int64, tim
 	var newLevel DegradationLevel
 
 	switch {
-	case errorRate >= 0.5 || timeoutRatio >= 0.3:
+	case errorRate &gt;= 0.5 || timeoutRatio &gt;= 0.3:
 		newLevel = DegradationFallback
-	case errorRate >= 0.2 || avgLatencyMs >= h.thresholds.LatencyMs*2:
+	case errorRate &gt;= 0.2 || avgLatencyMs &gt;= h.thresholds.LatencyMs*2:
 		newLevel = DegradationMinimal
-	case errorRate >= 0.1 || avgLatencyMs >= h.thresholds.LatencyMs:
+	case errorRate &gt;= 0.1 || avgLatencyMs &gt;= h.thresholds.LatencyMs:
 		newLevel = DegradationGraceful
 	default:
 		newLevel = DegradationNone
@@ -250,10 +250,10 @@ func DefaultBulkheadConfig() BulkheadConfig {
 }
 
 func NewBulkhead(config BulkheadConfig) *Bulkhead {
-	return &Bulkhead{
+	return &amp;Bulkhead{
 		maxConcurrent: config.MaxConcurrent,
 		semaphore:     make(chan struct{}, config.MaxConcurrent),
-		maxWaitTime:  config.MaxWaitTime,
+		maxWaitTime:   config.MaxWaitTime,
 	}
 }
 
@@ -264,22 +264,22 @@ func (b *Bulkhead) Execute(fn func() error) error {
 }
 
 func (b *Bulkhead) ExecuteWithContext(ctx context.Context, fn func(ctx context.Context) error) error {
-	atomic.AddInt64(&b.activeCount, 1)
-	defer atomic.AddInt64(&b.activeCount, -1)
+	atomic.AddInt64(&amp;b.activeCount, 1)
+	defer atomic.AddInt64(&amp;b.activeCount, -1)
 
 	select {
-	case b.semaphore <- struct{}{}:
-		defer func() { <-b.semaphore }()
+	case b.semaphore &lt;- struct{}{}:
+		defer func() { &lt;-b.semaphore }()
 		return fn(ctx)
-	case <-ctx.Done():
+	case &lt;-ctx.Done():
 		return fmt.Errorf("bulkhead: context cancelled while waiting for semaphore: %w", ctx.Err())
-	case <-time.After(b.maxWaitTime):
+	case &lt;-time.After(b.maxWaitTime):
 		return fmt.Errorf("bulkhead: timeout while waiting for semaphore after %v", b.maxWaitTime)
 	}
 }
 
 func (b *Bulkhead) GetActiveCount() int64 {
-	return atomic.LoadInt64(&b.activeCount)
+	return atomic.LoadInt64(&amp;b.activeCount)
 }
 
 func (b *Bulkhead) GetMaxConcurrent() int {
@@ -290,19 +290,19 @@ func (b *Bulkhead) IsAvailable() bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	active := atomic.LoadInt64(&b.activeCount)
-	return int(active) < b.maxConcurrent
+	active := atomic.LoadInt64(&amp;b.activeCount)
+	return int(active) &lt; b.maxConcurrent
 }
 
 func (b *Bulkhead) GetUtilization() float64 {
-	active := atomic.LoadInt64(&b.activeCount)
+	active := atomic.LoadInt64(&amp;b.activeCount)
 	return float64(active) / float64(b.maxConcurrent) * 100
 }
 
 type BulkheadMetrics struct {
-	MaxConcurrent   int     `json:"max_concurrent"`
-	ActiveCount     int64   `json:"active_count"`
-	Utilization     float64 `json:"utilization_percent"`
-	IsAvailable     bool    `json:"is_available"`
-	MaxWaitTimeMs   int64   `json:"max_wait_time_ms"`
+	MaxConcurrent int     `json:"max_concurrent"`
+	ActiveCount   int64   `json:"active_count"`
+	Utilization   float64 `json:"utilization_percent"`
+	IsAvailable   bool    `json:"is_available"`
+	MaxWaitTimeMs int64   `json:"max_wait_time_ms"`
 }

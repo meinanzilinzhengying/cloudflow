@@ -31,7 +31,6 @@ import (
 	"os"
 	"net/http"
 	"strings"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -207,7 +206,8 @@ func (a *Authenticator) ValidateRequest(r *http.Request) (*ValidateResult, error
 func (a *Authenticator) HTTPHandler(mux *http.ServeMux) *http.ServeMux {
 	protectedMux := http.NewServeMux()
 
-	protectedMux.HandleFunc("/healthz", mux.HandlerFunc("/healthz"))
+	// 直接传递健康检查请求
+	protectedMux.Handle("/healthz", mux)
 
 	protectedMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/healthz" {
@@ -319,7 +319,7 @@ func MustFromContext(ctx context.Context) *AuthContext {
 func (a *Authenticator) InjectToMetadata(ctx context.Context, result *ValidateResult) context.Context {
 	md, ok := metadata.FromOutgoingContext(ctx)
 	if !ok {
-		md = metadata.New()
+		md = metadata.New(map[string]string{})
 	}
 
 	md.Set("x-user-id", result.UserID)

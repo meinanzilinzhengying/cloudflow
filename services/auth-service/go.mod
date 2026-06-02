@@ -38,6 +38,10 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace cloud-flow/pkg => ../../../pkg
-
-replace cloud-flow/services/proto => ../../../proto
+// replace (
+// 	cloud-flow/pkg => ../../../pkg
+// 	cloud-flow/services/proto => ../../../proto
+// 	cloud-flow/services/shared => ../../../services/shared
+// 	cloud-flow/services/shared/auth => ../../../services/shared/auth
+// 	cloud-flow/services/shared/resilience => ../../../services/shared/resilience
+// )

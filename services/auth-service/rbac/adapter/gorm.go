@@ -17,10 +17,10 @@ import (
 
 // GormAdapter Gorm 持久化适配器
 type GormAdapter struct {
-	db                *gorm.DB
-	isFiltered        bool
-	autoFlush        bool
-	tableName         string
+	db        *gorm.DB
+	isFiltered bool
+	autoFlush bool
+	tableName string
 }
 
 // GormAdapterOption GormAdapter 配置选项
@@ -66,14 +66,14 @@ func NewGormAdapter(db *gorm.DB, opts ...GormAdapterOption) (*GormAdapter, error
 // autoMigrate 自动迁移表结构
 func (a *GormAdapter) autoMigrate() error {
 	type CasbinRule struct {
-		ID    uint   `gorm:"primaryKey;autoIncrement"`
-		PType string `gorm:"size:100;index;uniqueIndex:idx_p_type_v0_v1_v2"`
-		V0    string `gorm:"size:100;index"`
-		V1    string `gorm:"size:100;index"`
-		V2    string `gorm:"size:100;index"`
-		V3    string `gorm:"size:100;index"`
-		V4    string `gorm:"size:100;index"`
-		V5    string `gorm:"size:100;index"`
+		ID      uint   `gorm:"primaryKey;autoIncrement"`
+		PType   string `gorm:"size:100;index;uniqueIndex:idx_p_type_v0_v1_v2"`
+		V0      string `gorm:"size:100;index"`
+		V1      string `gorm:"size:100;index"`
+		V2      string `gorm:"size:100;index"`
+		V3      string `gorm:"size:100;index"`
+		V4      string `gorm:"size:100;index"`
+		V5      string `gorm:"size:100;index"`
 	}
 
 	if a.tableName != "" {
@@ -125,14 +125,14 @@ func (a *GormAdapter) LoadPolicy(model model.Model) error {
 // SavePolicy 将 Casbin model 中的策略保存到数据库
 func (a *GormAdapter) SavePolicy(model model.Model) error {
 	type CasbinRule struct {
-		ID    uint   `gorm:"primaryKey"`
-		PType string `gorm:"size:100;uniqueIndex:idx_p_type_v0_v1_v2"`
-		V0    string `gorm:"size:100;index"`
-		V1    string `gorm:"size:100;index"`
-		V2    string `gorm:"size:100;index"`
-		V3    string `gorm:"size:100;index"`
-		V4    string `gorm:"size:100;index"`
-		V5    string `gorm:"size:100;index"`
+		ID      uint   `gorm:"primaryKey"`
+		PType   string `gorm:"size:100;uniqueIndex:idx_p_type_v0_v1_v2"`
+		V0      string `gorm:"size:100;index"`
+		V1      string `gorm:"size:100;index"`
+		V2      string `gorm:"size:100;index"`
+		V3      string `gorm:"size:100;index"`
+		V4      string `gorm:"size:100;index"`
+		V5      string `gorm:"size:100;index"`
 	}
 
 	if a.tableName != "" {
@@ -146,49 +146,47 @@ func (a *GormAdapter) SavePolicy(model model.Model) error {
 	}
 
 	// 保存 p 策略
-	for _, ptype := range model["p"] {
-		for _, rule := range ptype.Policy {
-			cr := CasbinRule{
-				PType: "p",
-				V0:    getRuleValue(rule, 0),
-				V1:    getRuleValue(rule, 1),
-				V2:    getRuleValue(rule, 2),
-				V3:    getRuleValue(rule, 3),
-				V4:    getRuleValue(rule, 4),
-				V5:    getRuleValue(rule, 5),
+	policy := model.GetPolicy("p", "p")
+	for _, rule := range policy {
+		cr := CasbinRule{
+			PType: "p",
+			V0:    getRuleValue(rule, 0),
+			V1:    getRuleValue(rule, 1),
+			V2:    getRuleValue(rule, 2),
+			V3:    getRuleValue(rule, 3),
+			V4:    getRuleValue(rule, 4),
+			V5:    getRuleValue(rule, 5),
+		}
+		if a.tableName != "" {
+			if err := a.db.Table(a.tableName).Create(&cr).Error; err != nil {
+				return fmt.Errorf("save policy rule: %w", err)
 			}
-			if a.tableName != "" {
-				if err := a.db.Table(a.tableName).Create(&cr).Error; err != nil {
-					return fmt.Errorf("save policy rule: %w", err)
-				}
-			} else {
-				if err := a.db.Create(&cr).Error; err != nil {
-					return fmt.Errorf("save policy rule: %w", err)
-				}
+		} else {
+			if err := a.db.Create(&cr).Error; err != nil {
+				return fmt.Errorf("save policy rule: %w", err)
 			}
 		}
 	}
 
 	// 保存 g 策略
-	for _, ptype := range model["g"] {
-		for _, rule := range ptype.Policy {
-			cr := CasbinRule{
-				PType: "g",
-				V0:    getRuleValue(rule, 0),
-				V1:    getRuleValue(rule, 1),
-				V2:    getRuleValue(rule, 2),
-				V3:    getRuleValue(rule, 3),
-				V4:    getRuleValue(rule, 4),
-				V5:    getRuleValue(rule, 5),
+	grouping := model.GetPolicy("g", "g")
+	for _, rule := range grouping {
+		cr := CasbinRule{
+			PType: "g",
+			V0:    getRuleValue(rule, 0),
+			V1:    getRuleValue(rule, 1),
+			V2:    getRuleValue(rule, 2),
+			V3:    getRuleValue(rule, 3),
+			V4:    getRuleValue(rule, 4),
+			V5:    getRuleValue(rule, 5),
+		}
+		if a.tableName != "" {
+			if err := a.db.Table(a.tableName).Create(&cr).Error; err != nil {
+				return fmt.Errorf("save grouping policy rule: %w", err)
 			}
-			if a.tableName != "" {
-				if err := a.db.Table(a.tableName).Create(&cr).Error; err != nil {
-					return fmt.Errorf("save grouping policy rule: %w", err)
-				}
-			} else {
-				if err := a.db.Create(&cr).Error; err != nil {
-					return fmt.Errorf("save grouping policy rule: %w", err)
-				}
+		} else {
+			if err := a.db.Create(&cr).Error; err != nil {
+				return fmt.Errorf("save grouping policy rule: %w", err)
 			}
 		}
 	}
@@ -484,22 +482,16 @@ func getRuleValue(rule []string, index int) string {
 // loadPolicyRule 加载策略规则到 model
 func loadPolicyRule(m model.Model, ptype string, v0 string, v1 string, v2 string, v3 string, v4 string, v5 string) {
 	if strings.HasPrefix(ptype, "p") {
-		if _, ok := m["p"]; !ok {
-			m["p"] = model.NewPolicy()
-		}
 		rule := []string{v0, v1, v2, v3, v4}
 		rule = filterEmptyStrings(rule)
 		if len(rule) > 0 {
-			m["p"].AddPolicy(rule)
+			m.AddPolicy("p", "p", rule)
 		}
 	} else if strings.HasPrefix(ptype, "g") {
-		if _, ok := m["g"]; !ok {
-			m["g"] = model.NewPolicy()
-		}
 		rule := []string{v0, v1, v2}
 		rule = filterEmptyStrings(rule)
 		if len(rule) > 0 {
-			m["g"].AddPolicy(rule)
+			m.AddPolicy("g", "g", rule)
 		}
 	}
 }
