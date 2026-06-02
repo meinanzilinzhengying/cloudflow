@@ -33,49 +33,6 @@ import (
 )
 
 // =============================================================================
-// 安全配置
-// =============================================================================
-
-// SecurityConfig 安全配置
-type SecurityConfig struct {
-	// mTLS 配置
-	MTLSEnabled bool
-	CAFile      string
-	CertFile    string
-	KeyFile     string
-	ClientAuth  bool
-	InsecureSkip bool
-
-	// JWT 配置
-	JWTEnabled   bool
-	JWTSecret    string
-	JWTIssuer    string
-	JWTExpiry    time.Duration
-
-	// 白名单配置
-	WhitelistEnabled bool
-	Whitelist        []string // 允许的服务名或 IP
-	IPWhitelist      []string // 允许的 IP 地址
-
-	// API 权限
-	APIAuthEnabled bool
-}
-
-// DefaultConfig 返回默认配置
-func DefaultConfig() *SecurityConfig {
-	return &SecurityConfig{
-		MTLSEnabled:      false,
-		ClientAuth:       false,
-		JWTEnabled:       false,
-		JWTSecret:        "change-me-in-production",
-		JWTIssuer:        "cloudflow",
-		JWTExpiry:        24 * time.Hour,
-		WhitelistEnabled: false,
-		APIAuthEnabled:   false,
-	}
-}
-
-// =============================================================================
 // 服务身份与 JWT 令牌
 // =============================================================================
 
@@ -651,8 +608,8 @@ func (hm *HTTPMiddleware) checkHTTPWhitelist(r *http.Request, identity *ServiceI
 // 安全管理器 - 统一入口
 // =============================================================================
 
-// SecurityManager 安全管理器
-type SecurityManager struct {
+// ServiceSecurityManager 服务安全管理器
+type ServiceSecurityManager struct {
 	Config          *SecurityConfig
 	TokenManager    *TokenManager
 	WhitelistManager *WhitelistManager
@@ -660,10 +617,10 @@ type SecurityManager struct {
 	HTTPMiddleware  *HTTPMiddleware
 }
 
-// NewSecurityManager 创建安全管理器
-func NewSecurityManager(cfg *SecurityConfig) *SecurityManager {
+// NewServiceSecurityManager 创建服务安全管理器
+func NewServiceSecurityManager(cfg *SecurityConfig) *ServiceSecurityManager {
 	if cfg == nil {
-		cfg = DefaultConfig()
+		cfg = &SecurityConfig{}
 	}
 
 	tokenMgr := NewTokenManager(cfg)
@@ -671,7 +628,7 @@ func NewSecurityManager(cfg *SecurityConfig) *SecurityManager {
 	interceptorMgr := NewInterceptorManager(cfg, tokenMgr, whitelistMgr)
 	httpMiddleware := NewHTTPMiddleware(cfg, tokenMgr, whitelistMgr)
 
-	return &SecurityManager{
+	return &ServiceSecurityManager{
 		Config:          cfg,
 		TokenManager:    tokenMgr,
 		WhitelistManager: whitelistMgr,

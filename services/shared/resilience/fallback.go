@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -90,7 +91,7 @@ func (h *FallbackHandler) getCachedFallback(name string) *cachedFallback {
 	h.cacheMu.RLock()
 	defer h.cacheMu.RUnlock()
 
-	if cached, exists := h.cacheCache[name]; exists {
+	if cached, exists := h.fallbackCache[name]; exists {
 		if time.Now().Before(cached.expiry) {
 			return cached
 		}
@@ -103,7 +104,7 @@ func (h *FallbackHandler) setCachedFallback(name string, value interface{}, ttl 
 	h.cacheMu.Lock()
 	defer h.cacheMu.Unlock()
 
-	h.cacheCache[name] = &cachedFallback{
+	h.fallbackCache[name] = &cachedFallback{
 		value:  value,
 		expiry: time.Now().Add(ttl),
 	}
@@ -113,14 +114,14 @@ func (h *FallbackHandler) InvalidateCache(name string) {
 	h.cacheMu.Lock()
 	defer h.cacheMu.Unlock()
 
-	delete(h.cacheCache, name)
+	delete(h.fallbackCache, name)
 }
 
 func (h *FallbackHandler) ClearCache() {
 	h.cacheMu.Lock()
 	defer h.cacheMu.Unlock()
 
-	h.cacheCache = make(map[string]*cachedFallback)
+	h.fallbackCache = make(map[string]*cachedFallback)
 }
 
 type DegradationLevel int

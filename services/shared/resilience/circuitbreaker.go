@@ -218,7 +218,7 @@ func (cb *CircuitBreaker) RecordSuccessWithLatency(latency time.Duration) {
 
 	case StateHalfOpen:
 		consecutiveSuccesses := atomic.LoadInt64(&cb.consecutiveSuccesses)
-		if consecutiveSuccesses >= cb.config.SuccessThreshold {
+		if consecutiveSuccesses >= int64(cb.config.SuccessThreshold) {
 			cb.mu.Lock()
 			if cb.getState() == StateHalfOpen {
 				atomic.StoreInt64(&cb.successCount, 0)

@@ -21,6 +21,28 @@ import (
 
 // SecurityConfig 安全配置
 type SecurityConfig struct {
+	// mTLS 配置
+	MTLSEnabled bool
+	CAFile      string
+	CertFile    string
+	KeyFile     string
+	ClientAuth  bool
+	InsecureSkip bool
+
+	// JWT 配置
+	JWTEnabled   bool
+	JWTSecret    string
+	JWTIssuer    string
+	JWTExpiry    time.Duration
+
+	// 白名单配置
+	WhitelistEnabled bool
+	Whitelist        []string // 允许的服务名或 IP
+	IPWhitelist      []string // 允许的 IP 地址
+
+	// API 权限
+	APIAuthEnabled bool
+
 	// 黑名单配置
 	BlacklistEnabled bool
 	BlacklistTTL     time.Duration
