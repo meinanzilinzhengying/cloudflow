@@ -734,7 +734,11 @@ func (e *RBACEngine) DeleteTenant(tenantID string) {
 	policies := e.enforcer.GetPolicy()
 	for _, policy := range policies {
 		if len(policy) > 1 && strings.HasPrefix(policy[1], tenantID+":") {
-			_, _ = e.enforcer.RemovePolicy(policy...)
+			args := make([]interface{}, len(policy))
+			for i, v := range policy {
+				args[i] = v
+			}
+			_, _ = e.enforcer.RemovePolicy(args...)
 		}
 	}
 
@@ -742,7 +746,11 @@ func (e *RBACEngine) DeleteTenant(tenantID string) {
 	groupingPolicies := e.enforcer.GetGroupingPolicy()
 	for _, gp := range groupingPolicies {
 		if len(gp) > 2 && strings.HasPrefix(gp[2], tenantID+":") {
-			_, _ = e.enforcer.RemoveGroupingPolicy(gp...)
+			args := make([]interface{}, len(gp))
+			for i, v := range gp {
+				args[i] = v
+			}
+			_, _ = e.enforcer.RemoveGroupingPolicy(args...)
 		}
 	}
 }
