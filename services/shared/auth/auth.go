@@ -27,13 +27,16 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"net/http"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
@@ -55,6 +58,7 @@ type Authenticator struct {
 }
 
 // NewAuthenticator 创建认证器
+// P1-03 修复: 添加超时，使用 insecure.NewCredentials() 替代已废弃的 WithInsecure()
 func NewAuthenticator(config Config) (*Authenticator, error) {
 	if config.AuthAddr == "" {
 		return nil, fmt.Errorf("auth address is required")
@@ -70,10 +74,15 @@ func NewAuthenticator(config Config) (*Authenticator, error) {
 		creds := credentials.NewTLS(tlsConfig)
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(creds))
 	} else {
-		dialOpts = append(dialOpts, grpc.WithInsecure())
+		// P1-03 修复: 使用新的 insecure 包替代已废弃的 WithInsecure()
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.Dial(config.AuthAddr, dialOpts...)
+	// P1-03 修复: 添加连接超时
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, config.AuthAddr, dialOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial auth service: %w", err)
 	}
@@ -130,13 +139,13 @@ type ValidateResult struct {
 // ValidateToken 验证 Token
 func (a *Authenticator) ValidateToken(ctx context.Context, token string) (*ValidateResult, error) {
 	if a.authConn == nil {
-		return nil, fmt.Errorf("auth connection not initialized")
+		return nil, ErrNotInitialized
 	}
 
 	client := svcproto.NewAuthServiceClient(a.authConn)
 	resp, err := client.ValidateToken(ctx, &svcproto.ValidateTokenRequest{Token: token})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth service call failed: %w", err)
 	}
 
 	return &ValidateResult{
@@ -152,13 +161,13 @@ func (a *Authenticator) ValidateToken(ctx context.Context, token string) (*Valid
 // ValidateAPIKey 验证 API Key
 func (a *Authenticator) ValidateAPIKey(ctx context.Context, apiKey string) (*ValidateResult, error) {
 	if a.authConn == nil {
-		return nil, fmt.Errorf("auth connection not initialized")
+		return nil, ErrNotInitialized
 	}
 
 	client := svcproto.NewAuthServiceClient(a.authConn)
 	resp, err := client.ValidateAPIKey(ctx, &svcproto.ValidateAPIKeyRequest{ApiKey: apiKey})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth service call failed: %w", err)
 	}
 
 	return &ValidateResult{
@@ -173,6 +182,7 @@ func (a *Authenticator) ValidateAPIKey(ctx context.Context, apiKey string) (*Val
 
 // ValidateRequest 验证 HTTP 请求
 // 优先级: X-API-Key > Bearer Token
+// P1-03 修复: 使用 errors.Is() 和错误类型判断，而非字符串匹配
 func (a *Authenticator) ValidateRequest(r *http.Request) (*ValidateResult, error) {
 	ctx := r.Context()
 
@@ -180,7 +190,11 @@ func (a *Authenticator) ValidateRequest(r *http.Request) (*ValidateResult, error
 	if apiKey != "" {
 		result, err := a.ValidateAPIKey(ctx, apiKey)
 		if err != nil {
-			return nil, err
+			// P1-03 修复: 检查是否为未初始化错误
+			if errors.Is(err, ErrNotInitialized) || strings.Contains(err.Error(), "not initialized") {
+				return nil, ErrServiceUnavailable
+			}
+			return nil, fmt.Errorf("api key validation failed: %w", err)
 		}
 		if result.Valid {
 			return result, nil
@@ -192,14 +206,18 @@ func (a *Authenticator) ValidateRequest(r *http.Request) (*ValidateResult, error
 		token := authHeader[7:]
 		result, err := a.ValidateToken(ctx, token)
 		if err != nil {
-			return nil, err
+			// P1-03 修复: 检查是否为未初始化错误
+			if errors.Is(err, ErrNotInitialized) || strings.Contains(err.Error(), "not initialized") {
+				return nil, ErrServiceUnavailable
+			}
+			return nil, fmt.Errorf("token validation failed: %w", err)
 		}
 		if result.Valid {
 			return result, nil
 		}
 	}
 
-	return nil, fmt.Errorf("missing authentication")
+	return nil, ErrMissingAuthentication
 }
 
 // HTTPHandler HTTP 认证中间件处理器
@@ -217,11 +235,12 @@ func (a *Authenticator) HTTPHandler(mux *http.ServeMux) *http.ServeMux {
 
 		result, err := a.ValidateRequest(r)
 		if err != nil {
-			if strings.Contains(err.Error(), "missing authentication") {
+			// P1-03 修复: 使用错误类型判断
+			if errors.Is(err, ErrMissingAuthentication) {
 				http.Error(w, "Missing authentication", http.StatusUnauthorized)
 				return
 			}
-			if strings.Contains(err.Error(), "not initialized") {
+			if errors.Is(err, ErrServiceUnavailable) || errors.Is(err, ErrNotInitialized) {
 				http.Error(w, "Auth service unavailable", http.StatusServiceUnavailable)
 				return
 			}
@@ -255,11 +274,12 @@ func (a *Authenticator) Middleware(publicPaths ...string) func(http.Handler) htt
 
 			result, err := a.ValidateRequest(r)
 			if err != nil {
-				if strings.Contains(err.Error(), "missing authentication") {
+				// P1-03 修复: 使用错误类型判断
+				if errors.Is(err, ErrMissingAuthentication) {
 					http.Error(w, "Missing authentication", http.StatusUnauthorized)
 					return
 				}
-				if strings.Contains(err.Error(), "not initialized") {
+				if errors.Is(err, ErrServiceUnavailable) || errors.Is(err, ErrNotInitialized) {
 					http.Error(w, "Auth service unavailable", http.StatusServiceUnavailable)
 					return
 				}
@@ -276,6 +296,13 @@ func (a *Authenticator) Middleware(publicPaths ...string) func(http.Handler) htt
 // ============================================================================
 // Context 管理
 // ============================================================================
+
+// 定义标准错误类型，避免字符串匹配
+var (
+	ErrMissingAuthentication = errors.New("missing authentication")
+	ErrServiceUnavailable    = errors.New("auth service unavailable")
+	ErrNotInitialized        = errors.New("auth connection not initialized")
+)
 
 type authCtxKey struct{}
 
@@ -303,12 +330,14 @@ func FromContext(ctx context.Context) (*AuthContext, bool) {
 	return authCtx, ok
 }
 
-func MustFromContext(ctx context.Context) *AuthContext {
+// MustFromContext 从上下文获取认证信息
+// P1-03 修复: 返回错误而不是 panic，避免整个请求处理崩溃
+func MustFromContext(ctx context.Context) (*AuthContext, error) {
 	authCtx, ok := FromContext(ctx)
 	if !ok {
-		panic("auth: context does not contain AuthContext")
+		return nil, errors.New("auth: context does not contain AuthContext; ensure authentication middleware is properly configured")
 	}
-	return authCtx
+	return authCtx, nil
 }
 
 // ============================================================================

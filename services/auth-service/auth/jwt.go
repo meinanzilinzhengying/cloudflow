@@ -109,16 +109,16 @@ func LoadRSAKeyPairFromPEM(privateKeyPEM, publicKeyPEM string) (*RSAKeyPair, err
 }
 
 // PublicKeyToPEM 将公钥转换为 PEM 格式
-func (k *RSAKeyPair) PublicKeyToPEM() string {
+func (k *RSAKeyPair) PublicKeyToPEM() (string, error) {
 	pubASN1, err := x509.MarshalPKIXPublicKey(k.PublicKey)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("marshal public key: %w", err)
 	}
 	pubBytes := pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: pubASN1,
 	})
-	return string(pubBytes)
+	return string(pubBytes), nil
 }
 
 // PrivateKeyToPEM 将私钥转换为 PEM 格式
@@ -317,6 +317,34 @@ func NewJWTManager(secret, issuer string, expireSec, refreshSec int64) *JWTManag
 		expireDuration:  time.Duration(expireSec) * time.Second,
 		refreshDuration: time.Duration(refreshSec) * time.Second,
 	}
+}
+
+// NewJWTManagerAutoKey 自动创建或加载 RSA 密钥对的 JWT 管理器
+// P1-03 修复: 如果未提供密钥，返回错误而不是自动生成（避免多实例密钥不一致）
+func NewJWTManagerAutoKey(privateKeyPEM, publicKeyPEM, keyID, issuer string, expireDuration, refreshDuration time.Duration, blacklist TokenBlacklist) (*JWTManager, error) {
+	if privateKeyPEM == "" {
+		return nil, errors.New("RSA private key is required for RS256 mode; please provide it via environment variable or config file")
+	}
+
+	keyPair, err := LoadRSAKeyPairFromPEM(privateKeyPEM, publicKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("load RSA key pair: %w", err)
+	}
+
+	if keyID == "" {
+		keyID = "default"
+	}
+
+	m := &JWTManager{
+		keyPair:         keyPair,
+		keyID:           keyID,
+		issuer:          issuer,
+		expireDuration:  expireDuration,
+		refreshDuration: refreshDuration,
+		blacklist:       blacklist,
+	}
+
+	return m, nil
 }
 
 // GenerateJTI 生成唯一的 JWT ID
@@ -518,9 +546,9 @@ func (m *JWTManager) GetJWKS() *JWKS {
 }
 
 // GetPublicKeyPEM 获取公钥 PEM 格式
-func (m *JWTManager) GetPublicKeyPEM() string {
+func (m *JWTManager) GetPublicKeyPEM() (string, error) {
 	if m.keyPair == nil {
-		return ""
+		return "", errors.New("key pair not initialized")
 	}
 	return m.keyPair.PublicKeyToPEM()
 }
@@ -775,15 +803,16 @@ func NewAuthenticatorWithConfig(config *JWTConfig) (*Authenticator, error) {
 
 // NewAuthenticator 创建统一认证器 (RS256 模式)
 //
-// P1-01 修复: 默认使用 RS256
-func NewAuthenticator(jwtSecret, jwtIssuer string, jwtExpireSec, jwtRefreshSec int64, oidcConfig *OIDCConfig) *Authenticator {
+// P1-01/P1-03 修复: 必须提供 RSA 私钥，否则返回错误
+func NewAuthenticator(jwtSecret, jwtIssuer string, jwtExpireSec, jwtRefreshSec int64, oidcConfig *OIDCConfig) (*Authenticator, error) {
 	var jwtManager *JWTManager
+	var err error
 	
 	if jwtSecret != "" {
 		// 尝试作为 PEM 私钥加载
-		if keyPair, err := LoadRSAKeyPairFromPEM(jwtSecret, ""); err == nil {
+		if keyPair, loadErr := LoadRSAKeyPairFromPEM(jwtSecret, ""); loadErr == nil {
 			// 是 PEM 格式，使用 RS256
-			jwtManager, _ = NewJWTManagerWithConfig(&JWTConfig{
+			jwtManager, err = NewJWTManagerWithConfig(&JWTConfig{
 				PrivateKey:      jwtSecret,
 				KeyID:           "default",
 				Issuer:          jwtIssuer,
@@ -791,20 +820,17 @@ func NewAuthenticator(jwtSecret, jwtIssuer string, jwtExpireSec, jwtRefreshSec i
 				RefreshDuration: time.Duration(jwtRefreshSec) * time.Second,
 				Blacklist:       NewInMemoryBlacklist(time.Duration(jwtRefreshSec) * time.Second),
 			})
+			if err != nil {
+				return nil, fmt.Errorf("create JWT manager with RSA key: %w", err)
+			}
 			_ = keyPair // 忽略未使用的变量
 		} else {
-			// 不是 PEM 格式，使用 HS256（向后兼容）
-			jwtManager = NewJWTManager(jwtSecret, jwtIssuer, jwtExpireSec, jwtRefreshSec)
+			// 不是 PEM 格式，返回错误（不再支持 HS256）
+			return nil, fmt.Errorf("JWT secret must be a valid RSA private key in PEM format (HS256 is deprecated): %w", loadErr)
 		}
 	} else {
-		// 生成新的 RSA 密钥对
-		jwtManager, _ = NewJWTManagerWithConfig(&JWTConfig{
-			KeyID:           "default",
-			Issuer:          jwtIssuer,
-			ExpireDuration:  time.Duration(jwtExpireSec) * time.Second,
-			RefreshDuration: time.Duration(jwtRefreshSec) * time.Second,
-			Blacklist:       NewInMemoryBlacklist(time.Duration(jwtRefreshSec) * time.Second),
-		})
+		// 未提供密钥，返回错误而不是自动生成
+		return nil, errors.New("JWT private key is required; please set CLOUDFLOW_JWT_PRIVATE_KEY environment variable")
 	}
 
 	a := &Authenticator{
@@ -813,12 +839,12 @@ func NewAuthenticator(jwtSecret, jwtIssuer string, jwtExpireSec, jwtRefreshSec i
 	}
 
 	if oidcConfig != nil && oidcConfig.Issuer != "" {
-		if provider, err := NewOIDCProvider(oidcConfig); err == nil {
+		if provider, oidcErr := NewOIDCProvider(oidcConfig); oidcErr == nil {
 			a.oidcProvider = provider
 		}
 	}
 
-	return a
+	return a, nil
 }
 
 // Authenticate 统一认证方法，自动检测认证方式
@@ -876,9 +902,35 @@ func (a *Authenticator) GetJWKS() *JWKS {
 }
 
 // isThreePartToken 检查 token 是否为三段式格式 (xxx.yyy.zzz)
+// P1-03 修复: 增强验证逻辑，确保每段都是有效的 base64url 编码
 func isThreePartToken(token string) bool {
 	parts := strings.Split(token, ".")
-	return len(parts) == 3
+	if len(parts) != 3 {
+		return false
+	}
+
+	// 验证每段都非空且包含有效的 base64url 字符
+	for _, part := range parts {
+		if len(part) == 0 {
+			return false
+		}
+		// JWT 使用 base64url 编码，允许字符: A-Za-z0-9-_=
+		for _, c := range part {
+			if !isValidBase64URLChar(c) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// isValidBase64URLChar 检查字符是否为有效的 base64url 字符
+func isValidBase64URLChar(c rune) bool {
+	return (c >= 'A' && c <= 'Z') ||
+		(c >= 'a' && c <= 'z') ||
+		(c >= '0' && c <= '9') ||
+		c == '-' || c == '_' || c == '='
 }
 
 // ==================== JWKS HTTP Handler ====================
