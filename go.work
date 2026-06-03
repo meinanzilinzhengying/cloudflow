@@ -18,12 +18,3 @@ use (
 	./services/shared/auth
 	./services/shared/resilience
 )
-
-replace (
-	github.com/meinanzilinzhengying/cloudflow/pkg => ./pkg
-	github.com/meinanzilinzhengying/cloudflow/proto => ./proto
-	github.com/meinanzilinzhengying/cloudflow/services/proto => ./services/proto
-	github.com/meinanzilinzhengying/cloudflow/services/shared => ./services/shared
-	github.com/meinanzilinzhengying/cloudflow/services/shared/auth => ./services/shared/auth
-	github.com/meinanzilinzhengying/cloudflow/services/shared/resilience => ./services/shared/resilience
-)
