@@ -125,11 +125,18 @@ func (api *DashboardAPI) handleAdminDashboard(w http.ResponseWriter, r *http.Req
 	for _, t := range tenants {
 		stats := api.tenantManager.GetTenantStats(t.ID)
 		
+		// 安全获取 user_count，避免 panic
+		userCount, ok := stats["user_count"].(int)
+		if !ok {
+			api.log.Warnf("[DashboardAPI] 租户 %s 的 user_count 类型异常或缺失，使用默认值 0", t.ID)
+			userCount = 0
+		}
+		
 		tenantInfos = append(tenantInfos, TenantInfo{
 			ID:         t.ID,
 			Name:       t.Name,
 			AssetCount: api.assetManager.CountAssets(t.ID),
-			UserCount:  stats["user_count"].(int),
+			UserCount:  userCount,
 			AlertCount: 0, // 需要从告警模块获取
 			Status:     string(t.Status),
 		})

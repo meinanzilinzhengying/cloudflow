@@ -2,9 +2,10 @@
 # 云内流量监测系统 (Cloud Flow Agent) - 优化版多阶段构建 Dockerfile
 # 优化点:
 #   - BuildKit 缓存挂载加速 go mod download
-#   - 静态链接 CGO 禁用
-#   - 使用 scratch 最小化镜像
+#   - 支持 CGO 启用/禁用（eBPF 需要 CGO_ENABLED=1）
+#   - 使用 alpine:3.20 作为生产镜像（提供必要的基础库）
 #   - 多架构支持 (amd64/arm64)
+#   - eBPF 功能需要 root 权限和 CAP_SYS_ADMIN/CAP_BPF capabilities
 # =============================================================================
 
 # syntax=docker/dockerfile:1.7
@@ -31,9 +32,11 @@ RUN sed -i 's|../pkg|/build/pkg|g' go.mod && \
     sed -i 's|../proto|/build/proto|g' go.mod
 
 # 构建参数
+# 注意：如果启用 eBPF 功能，需要设置 CGO_ENABLED=1
+# 如果只需要指标采集（无 eBPF），可以设置 CGO_ENABLED=0 以减小镜像体积
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
-ARG CGO_ENABLED=0
+ARG CGO_ENABLED=1
 
 # 下载依赖并构建
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -76,7 +79,12 @@ RUN addgroup -g 1000 -S agent && \
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# eBPF 需要特权模式运行
+# eBPF 采集器需要 root 权限和以下 capabilities:
+# - CAP_SYS_ADMIN: 加载 eBPF 程序
+# - CAP_BPF: BPF 相关操作
+# - CAP_NET_ADMIN: 网络监控
+# - CAP_PERFMON: 性能监控
+# 在生产环境中，建议使用 Linux capabilities 而不是全 root 权限
 USER root
 
 ENTRYPOINT ["./cloud-flow-agent"]
