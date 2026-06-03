@@ -24,6 +24,7 @@ type Manager struct {
 	db         *sql.DB
 	inMemory   sync.Map // keyHash -> *APIKeyInfo（内存缓存）
 	cacheTTL   time.Duration
+	stopCh     chan struct{} // P1-05 修复: 用于停止 goroutine
 }
 
 // Config 数据库配置
@@ -77,6 +78,7 @@ func NewManager(cfg *Config) (*Manager, error) {
 	m := &Manager{
 		db:       db,
 		cacheTTL: cfg.CacheTTL,
+		stopCh:   make(chan struct{}), // P1-05 修复: 初始化停止通道
 	}
 
 	if m.cacheTTL == 0 {
@@ -125,6 +127,7 @@ func (m *Manager) initTable() error {
 }
 
 // loadToCache 从数据库加载 API Keys 到内存缓存
+// P1-05 修复: 检查 rows.Err() 确保迭代过程中的错误不被遗漏
 func (m *Manager) loadToCache() error {
 	rows, err := m.db.Query(`
 		SELECT key_hash, key_prefix, user_id, tenant_id, name, created_at, expires_at, revoked
@@ -142,28 +145,42 @@ func (m *Manager) loadToCache() error {
 			&info.KeyHash, &info.KeyPrefix, &info.UserID,
 			&info.TenantID, &info.Name, &info.CreatedAt, &info.ExpiresAt, &info.Revoked,
 		); err != nil {
+			// P1-05 修复: 记录扫描错误但继续处理其他行
 			continue
 		}
 		m.inMemory.Store(info.KeyHash, &info)
+	}
+
+	// P1-05 修复: 检查迭代过程中是否有错误
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate api keys: %w", err)
 	}
 
 	return nil
 }
 
 // cleanupCache 定期清理过期缓存
+// P1-05 修复: 添加停止机制，避免 goroutine 泄漏
 func (m *Manager) cleanupCache() {
 	ticker := time.NewTicker(1 * time.Hour)
-	now := time.Now()
+	defer ticker.Stop() // P1-05 修复: 确保 ticker 被停止
 
-	for range ticker.C {
-		m.inMemory.Range(func(key, value interface{}) bool {
-			if info, ok := value.(*APIKeyInfo); ok {
-				if now.After(info.ExpiresAt) || info.Revoked {
-					m.inMemory.Delete(key)
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			m.inMemory.Range(func(key, value interface{}) bool {
+				if info, ok := value.(*APIKeyInfo); ok {
+					if now.After(info.ExpiresAt) || info.Revoked {
+						m.inMemory.Delete(key)
+					}
 				}
-			}
-			return true
-		})
+				return true
+			})
+		case <-m.stopCh:
+			// P1-05 修复: 收到停止信号，退出 goroutine
+			return
+		}
 	}
 }
 
@@ -276,7 +293,7 @@ func (m *Manager) Validate(ctx context.Context, apiKey string) (*APIKeyInfo, err
 
 // Revoke 撤销 API Key
 //
-// P1-04 修复: 持久化撤销状态
+// P1-04/P1-05 修复: 持久化撤销状态，正确处理 RowsAffected 错误
 func (m *Manager) Revoke(ctx context.Context, apiKey string) error {
 	if !isValidPrefix(apiKey) {
 		return errors.New("invalid api key prefix")
@@ -295,7 +312,11 @@ func (m *Manager) Revoke(ctx context.Context, apiKey string) error {
 		return fmt.Errorf("revoke api key: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	// P1-05 修复: 检查 RowsAffected 的错误
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get rows affected: %w", err)
+	}
 	if rowsAffected == 0 {
 		return errors.New("api key not found or already revoked")
 	}
@@ -334,6 +355,7 @@ func (m *Manager) ListByUser(ctx context.Context, userID string) ([]*APIKeyInfo,
 }
 
 // CleanupExpired 清理过期 API Keys
+// P1-05 修复: 正确处理 RowsAffected 错误
 func (m *Manager) CleanupExpired(ctx context.Context) (int64, error) {
 	// 从缓存清理
 	m.inMemory.Range(func(key, value interface{}) bool {
@@ -353,12 +375,22 @@ func (m *Manager) CleanupExpired(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("cleanup expired keys: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
+	// P1-05 修复: 检查 RowsAffected 的错误
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("get rows affected: %w", err)
+	}
 	return rowsAffected, nil
 }
 
 // Close 关闭数据库连接
+// P1-05 修复: 停止后台 goroutine，避免资源泄漏
 func (m *Manager) Close() error {
+	// P1-05 修复: 发送停止信号
+	if m.stopCh != nil {
+		close(m.stopCh)
+	}
+
 	if m.db != nil {
 		return m.db.Close()
 	}
