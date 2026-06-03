@@ -10,7 +10,6 @@ require (
 	google.golang.org/grpc/health/grpc_health_v1 v0.0.0
 )
 
-replace (
 	cloudflow/proto => ../../proto
 	cloudflow/services/shared/auth => ../shared/auth
 )

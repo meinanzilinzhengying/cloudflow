@@ -7,6 +7,5 @@ require (
 	google.golang.org/grpc v1.80.0
 )
 
-replace (
 	cloudflow/services/proto => ../../proto
 )

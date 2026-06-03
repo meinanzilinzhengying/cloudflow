@@ -19,9 +19,7 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-replace cloudflow/pkg => ../pkg
 
-replace cloudflow/proto => ../proto
 
 require (
 	github.com/armon/go-metrics v0.4.1 // indirect

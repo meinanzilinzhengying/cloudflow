@@ -3,6 +3,7 @@ go 1.22
 use (
 	./pkg
 	./proto
+	./services/proto
 	./cloud-flow-center
 	./cloud-flow-edge
 	./cloud-flow-agent
@@ -18,12 +19,11 @@ use (
 	./services/shared/resilience
 )
 
-replace cloudflow/pkg => ./pkg
-
-replace cloudflow/proto => ./proto
-
-replace cloudflow/services/shared => ./services/shared
-
-replace cloudflow/services/shared/auth => ./services/shared/auth
-
-replace cloudflow/services/shared/resilience => ./services/shared/resilience
+replace (
+	cloudflow/pkg => ./pkg
+	cloudflow/proto => ./proto
+	cloudflow/services/proto => ./services/proto
+	cloudflow/services/shared => ./services/shared
+	cloudflow/services/shared/auth => ./services/shared/auth
+	cloudflow/services/shared/resilience => ./services/shared/resilience
+)
