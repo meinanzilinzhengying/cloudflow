@@ -320,6 +320,7 @@ func (s *Service) Stop() {
 }
 
 // QueryFlows 查询 Flow
+// P2-01 修复: 使用参数化查询防止 SQL 注入
 func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
 	startTime := time.Now()
 	s.statsMu.Lock()
@@ -330,7 +331,7 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
 
-	// 构建查询
+	// P2-01 修复: 使用固定的表名和参数化查询
 	query := "SELECT * FROM flows WHERE 1=1"
 	args := []interface{}{}
 
@@ -365,11 +366,13 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 
 	query += " ORDER BY timestamp DESC"
 
-	if req.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", req.Limit)
-	} else {
-		query += " LIMIT 1000"
+	// P2-01 修复: LIMIT 使用参数化（ClickHouse 支持）
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 1000
 	}
+	query += " LIMIT ?"
+	args = append(args, limit)
 
 	rows, err := s.clickHouseDB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -414,6 +417,7 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 }
 
 // QueryMetrics 查询 Metrics
+// P2-01 修复: 使用参数化查询防止 SQL 注入
 func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
 	startTime := time.Now()
 	s.statsMu.Lock()
@@ -424,7 +428,7 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
 
-	// 构建查询
+	// P2-01 修复: 使用固定的表名和参数化查询
 	query := "SELECT * FROM metrics WHERE 1=1"
 	args := []interface{}{}
 
@@ -451,11 +455,13 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 
 	query += " ORDER BY timestamp DESC"
 
-	if req.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", req.Limit)
-	} else {
-		query += " LIMIT 1000"
+	// P2-01 修复: LIMIT 使用参数化
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 1000
 	}
+	query += " LIMIT ?"
+	args = append(args, limit)
 
 	rows, err := s.clickHouseDB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -500,6 +506,7 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 }
 
 // QueryTraces 查询 Traces
+// P2-01 修复: 使用参数化查询防止 SQL 注入
 func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
 	startTime := time.Now()
 	s.statsMu.Lock()
@@ -510,7 +517,7 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
 
-	// 构建查询
+	// P2-01 修复: 使用固定的表名和参数化查询
 	query := "SELECT * FROM traces WHERE 1=1"
 	args := []interface{}{}
 
@@ -537,11 +544,13 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 
 	query += " ORDER BY start_time DESC"
 
-	if req.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", req.Limit)
-	} else {
-		query += " LIMIT 100"
+	// P2-01 修复: LIMIT 使用参数化
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 100
 	}
+	query += " LIMIT ?"
+	args = append(args, limit)
 
 	rows, err := s.clickHouseDB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -669,7 +678,20 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 	dashboardData := make(map[string]interface{})
 
 	for _, q := range queries {
-		fullQuery := q.query + filterQuery + " GROUP BY * ORDER BY date DESC LIMIT 100"
+		// P2-01 修复: 修复 GROUP BY * 为正确的 GROUP BY 子句
+		var fullQuery string
+		switch q.name {
+		case "flow_count":
+			fullQuery = q.query + filterQuery + " GROUP BY date ORDER BY date DESC LIMIT 100"
+		case "top_talkers":
+			fullQuery = q.query + filterQuery + " GROUP BY src_ip, dst_ip ORDER BY total_bytes DESC LIMIT 100"
+		case "error_rate":
+			fullQuery = q.query + filterQuery + " GROUP BY service ORDER BY error_rate DESC LIMIT 100"
+		case "latency_p95":
+			fullQuery = q.query + filterQuery + " GROUP BY service ORDER BY p95_latency DESC LIMIT 100"
+		default:
+			fullQuery = q.query + filterQuery + " ORDER BY 1 DESC LIMIT 100"
+		}
 
 		rows, err := s.clickHouseDB.QueryContext(ctx, fullQuery, filterArgs...)
 		if err != nil {
