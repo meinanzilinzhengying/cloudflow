@@ -1,6 +1,63 @@
 # CloudFlow 云原生网络流量分析平台
 
+<div align="center">
+
+![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
+![Go Version](https://img.shields.io/badge/go-1.22+-00ADD8.svg?logo=go)
+![GitHub release](https://img.shields.io/github/release/meinanzilinzhengying/cloudflow.svg)
+![GitHub stars](https://img.shields.io/github/stars/meinanzilinzhengying/cloudflow.svg?style=social)
+![GitHub forks](https://img.shields.io/github/forks/meinanzilinzhengying/cloudflow.svg?style=social)
+![GitHub issues](https://img.shields.io/github/issues/meinanzilinzhengying/cloudflow.svg)
+![GitHub pull requests](https://img.shields.io/github/prs/meinanzilinzhengying/cloudflow.svg)
+![Contributors](https://img.shields.io/github/contributors/meinanzilinzhengying/cloudflow.svg)
+![Last Commit](https://img.shields.io/github/last-commit/meinanzilinzhengying/cloudflow.svg)
+
+**高性能云原生网络流量分析平台 | 基于 eBPF 实现 L3-L7 全栈可观测性**
+
+[English](README.md) | [中文文档](README.md)
+
+</div>
+
+---
+
 CloudFlow 是一个高性能的云原生网络流量分析平台，专注于 Kubernetes 环境下的网络可观测性。支持 L3-L7 全栈流量采集、分析和可视化。
+
+## 🌟 核心优势
+
+- 🚀 **超高性能**: 支持 100K flows/sec 采集，<1% CPU 开销
+- 🔍 **全栈可视**: L3-L7 协议全覆盖，从网络层到应用层
+- 🏗️ **分布式架构**: Agent → Edge → Center 三层设计，水平扩展
+- 🛡️ **可靠保障**: 熔断器保护、断网缓存、自动重传
+- 📊 **统一模型**: UnifiedFlow 整合 metrics/logs/traces
+- 🔔 **智能告警**: 多通道通知，HMAC-SHA256 签名保证安全
+
+## 📸 项目截图
+
+<div align="center">
+
+### Dashboard 概览
+
+![Dashboard](docs/images/dashboard-overview.png)
+*实时流量监控和关键指标展示*
+
+### 服务拓扑图
+
+![Topology](docs/images/service-topology.png)
+*自动发现的服务依赖关系图*
+
+### L7 协议分析
+
+![L7 Analysis](docs/images/l7-protocol-analysis.png)
+*HTTP/gRPC/MySQL 等应用层协议详细分析*
+
+### 告警管理
+
+![Alerts](docs/images/alert-management.png)
+*智能告警规则配置和通知管理*
+
+</div>
+
+> 💡 **提示**: 如果您想贡献截图，请参考 [CONTRIBUTING.md](CONTRIBUTING.md) 中的文档规范。
 
 ## 架构概览
 
@@ -486,27 +543,103 @@ SELECT query, elapsed, memory_usage FROM system.processes;
 SELECT table, partition, rows FROM system.parts WHERE table = 'flows';
 ```
 
-## 贡献指南
+## 🤝 贡献指南
+
+我们欢迎所有形式的贡献！无论是 Bug 修复、功能增强、文档改进还是问题报告。
+
+### 快速开始
 
 1. Fork 本仓库
 2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add amazing feature'`)
+3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
 4. Push 到分支 (`git push origin feature/amazing-feature`)
 5. 创建 Pull Request
 
+### 详细指南
+
+请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解：
+- 📋 开发环境设置
+- 🧪 测试要求和运行方法
+- 📝 Commit 规范（Conventional Commits）
+- 🔍 Code Review 流程
+- 💬 社区行为准则
+
 ### 代码规范
 
-- 使用 `gofmt` 格式化代码
-- 遵循 Go 官方命名规范
-- 所有公共 API 必须有文档注释
-- 新功能需要添加单元测试
+- ✅ 使用 `gofmt` 格式化代码
+- ✅ 遵循 Go 官方命名规范
+- ✅ 所有公共 API 必须有文档注释
+- ✅ 新功能需要添加单元测试
+- ✅ 运行 `golangci-lint` 通过静态检查
 
-## 许可证
+```bash
+# 运行测试
+go test ./...
 
-Apache License 2.0 - 详见 [LICENSE](LICENSE) 文件
+# 运行 linter
+golangci-lint run
 
-## 联系方式
+# 检查代码格式
+gofmt -s -w .
+```
 
-- 邮件: support@cloudflow.io
-- Slack: https://cloudflow-io.slack.com
-- 官网: https://cloudflow.io
+## 📊 项目状态
+
+<div align="center">
+
+![GitHub stars](https://img.shields.io/github/stars/meinanzilinzhengying/cloudflow?style=social)
+![GitHub forks](https://img.shields.io/github/forks/meinanzilinzhengying/cloudflow?style=social)
+![GitHub watchers](https://img.shields.io/github/watchers/meinanzilinzhengying/cloudflow?style=social)
+
+![GitHub issues](https://img.shields.io/github/issues/meinanzilinzhengying/cloudflow)
+![GitHub closed issues](https://img.shields.io/github/issues-closed/meinanzilinzhengying/cloudflow)
+![GitHub pull requests](https://img.shields.io/github/prs/meinanzilinzhengying/cloudflow)
+![GitHub closed PRs](https://img.shields.io/github/issues-pr-closed/meinanzilinzhengying/cloudflow)
+
+![GitHub contributors](https://img.shields.io/github/contributors/meinanzilinzhengying/cloudflow)
+![GitHub last commit](https://img.shields.io/github/last-commit/meinanzilinzhengying/cloudflow)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/meinanzilinzhengying/cloudflow)
+
+</div>
+
+## 📜 许可证
+
+本项目采用 **Apache License 2.0** 开源许可证。
+
+- ✅ 允许商业使用
+- ✅ 允许修改和分发
+- ✅ 允许专利使用
+- ⚠️ 需要保留版权声明
+- ⚠️ 需要说明重大修改
+
+详见 [LICENSE](LICENSE) 文件。
+
+## 🙏 致谢
+
+感谢以下开源项目的支持：
+
+- [cilium/ebpf](https://github.com/cilium/ebpf) - eBPF Go 库
+- [ClickHouse](https://clickhouse.com/) - 高性能列式数据库
+- [TiDB](https://tidb.io/) - 分布式 NewSQL 数据库
+- [Kafka](https://kafka.apache.org/) - 分布式流处理平台
+- [Prometheus](https://prometheus.io/) - 监控系统
+- [Grafana](https://grafana.com/) - 可视化平台
+
+感谢所有为 CloudFlow 做出贡献的开发者！❤️
+
+## 📞 联系我们
+
+- 📧 邮件: [cloudflow@meinanzilinzhengying.com](mailto:cloudflow@meinanzilinzhengying.com)
+- 💬 Issues: [GitHub Issues](https://github.com/meinanzilinzhengying/cloudflow/issues)
+- 🌐 官网: https://cloudflow.io (建设中)
+- 📖 文档: [Wiki](https://github.com/meinanzilinzhengying/cloudflow/wiki) (建设中)
+
+---
+
+<div align="center">
+
+**如果 CloudFlow 对您有帮助，请给我们一个 ⭐ Star！**
+
+Made with ❤️ by CloudFlow Team
+
+</div>
