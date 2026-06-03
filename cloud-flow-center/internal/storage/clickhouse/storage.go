@@ -718,14 +718,244 @@ func (s *Storage) queryFlows(ctx context.Context, req *storage.QueryRequest) (*s
 
 // queryTraces 查询 Trace
 func (s *Storage) queryTraces(ctx context.Context, req *storage.QueryRequest) (*storage.QueryResult, error) {
-	// TODO: 实现 trace 查询
-	return &storage.QueryResult{}, nil
+	start := time.Now()
+
+	// 构建查询条件
+	whereClauses := []string{"tenant_id = ?"}
+	args := []interface{}{req.TenantID}
+
+	if !req.StartTime.IsZero() {
+		whereClauses = append(whereClauses, "timestamp >= ?")
+		args = append(args, req.StartTime.UnixNano())
+	}
+	if !req.EndTime.IsZero() {
+		whereClauses = append(whereClauses, "timestamp <= ?")
+		args = append(args, req.EndTime.UnixNano())
+	}
+	if req.TraceID != "" {
+		whereClauses = append(whereClauses, "trace_id = ?")
+		args = append(args, req.TraceID)
+	}
+	if req.ServiceName != "" {
+		whereClauses = append(whereClauses, "service_name = ?")
+		args = append(args, req.ServiceName)
+	}
+
+	whereSQL := strings.Join(whereClauses, " AND ")
+
+	// 构建 ORDER BY
+	orderBy := "timestamp DESC"
+	if req.OrderBy != "" {
+		validFields := map[string]bool{
+			"timestamp": true,
+			"duration":  true,
+			"service_name": true,
+		}
+		if validFields[req.OrderBy] {
+			orderBy = req.OrderBy
+			if req.OrderDesc {
+				orderBy += " DESC"
+			} else {
+				orderBy += " ASC"
+			}
+		}
+	}
+
+	// 限制返回数量
+	limit := req.Limit
+	if limit == 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	// 执行查询
+	query := fmt.Sprintf(`
+		SELECT
+			trace_id, span_id, parent_span_id,
+			service_name, operation, kind,
+			timestamp, duration,
+			status_code, status_message,
+			attributes
+		FROM traces
+		WHERE %s
+		ORDER BY %s
+		LIMIT ?
+	`, whereSQL, orderBy)
+
+	args = append(args, limit)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query traces failed: %w", err)
+	}
+	defer rows.Close()
+
+	// 解析结果
+	var records []map[string]interface{}
+	for rows.Next() {
+		var (
+			traceID, spanID, parentSpanID string
+			serviceName, operation, kind  string
+			timestamp                     int64
+			duration                      int64
+			statusCode                    int32
+			statusMessage                 string
+			attributes                    string
+		)
+
+		err := rows.Scan(
+			&traceID, &spanID, &parentSpanID,
+			&serviceName, &operation, &kind,
+			&timestamp, &duration,
+			&statusCode, &statusMessage,
+			&attributes,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan trace row failed: %w", err)
+		}
+
+		record := map[string]interface{}{
+			"trace_id":       traceID,
+			"span_id":        spanID,
+			"parent_span_id": parentSpanID,
+			"service_name":   serviceName,
+			"operation":      operation,
+			"kind":           kind,
+			"timestamp":      timestamp,
+			"duration":       duration,
+			"status_code":    statusCode,
+			"status_message": statusMessage,
+			"attributes":     attributes,
+		}
+		records = append(records, record)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate traces failed: %w", err)
+	}
+
+	return &storage.QueryResult{
+		Records: records,
+		Total:   int64(len(records)),
+		TookMs:  time.Since(start).Milliseconds(),
+	}, nil
 }
 
 // queryEvents 查询 Event
 func (s *Storage) queryEvents(ctx context.Context, req *storage.QueryRequest) (*storage.QueryResult, error) {
-	// TODO: 实现 event 查询
-	return &storage.QueryResult{}, nil
+	start := time.Now()
+
+	// 构建查询条件
+	whereClauses := []string{"tenant_id = ?"}
+	args := []interface{}{req.TenantID}
+
+	if !req.StartTime.IsZero() {
+		whereClauses = append(whereClauses, "timestamp >= ?")
+		args = append(args, req.StartTime.UnixNano())
+	}
+	if !req.EndTime.IsZero() {
+		whereClauses = append(whereClauses, "timestamp <= ?")
+		args = append(args, req.EndTime.UnixNano())
+	}
+	if req.Level != "" {
+		whereClauses = append(whereClauses, "level = ?")
+		args = append(args, req.Level)
+	}
+	if req.EventType != "" {
+		whereClauses = append(whereClauses, "event_type = ?")
+		args = append(args, req.EventType)
+	}
+
+	whereSQL := strings.Join(whereClauses, " AND ")
+
+	// 构建 ORDER BY
+	orderBy := "timestamp DESC"
+	if req.OrderBy != "" {
+		validFields := map[string]bool{
+			"timestamp": true,
+			"level":     true,
+		}
+		if validFields[req.OrderBy] {
+			orderBy = req.OrderBy
+			if req.OrderDesc {
+				orderBy += " DESC"
+			} else {
+				orderBy += " ASC"
+			}
+		}
+	}
+
+	// 限制返回数量
+	limit := req.Limit
+	if limit == 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	// 执行查询
+	query := fmt.Sprintf(`
+		SELECT
+			event_id, event_type, level,
+			timestamp, message,
+			source, attributes
+		FROM events
+		WHERE %s
+		ORDER BY %s
+		LIMIT ?
+	`, whereSQL, orderBy)
+
+	args = append(args, limit)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query events failed: %w", err)
+	}
+	defer rows.Close()
+
+	// 解析结果
+	var records []map[string]interface{}
+	for rows.Next() {
+		var (
+			eventID, eventType, level string
+			timestamp                 int64
+			message, source           string
+			attributes                string
+		)
+
+		err := rows.Scan(
+			&eventID, &eventType, &level,
+			&timestamp, &message,
+			&source, &attributes,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan event row failed: %w", err)
+		}
+
+		record := map[string]interface{}{
+			"event_id":   eventID,
+			"event_type": eventType,
+			"level":      level,
+			"timestamp":  timestamp,
+			"message":    message,
+			"source":     source,
+			"attributes": attributes,
+		}
+		records = append(records, record)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate events failed: %w", err)
+	}
+
+	return &storage.QueryResult{
+		Records: records,
+		Total:   int64(len(records)),
+		TookMs:  time.Since(start).Milliseconds(),
+	}, nil
 }
 
 // QueryTopology 查询拓扑
