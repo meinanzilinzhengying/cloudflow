@@ -4,7 +4,7 @@ package storage
 import (
 	"time"
 
-	edge "cloud-flow/proto"
+	edge "cloudflow/proto"
 )
 
 // StorageEngine 统一存储接口

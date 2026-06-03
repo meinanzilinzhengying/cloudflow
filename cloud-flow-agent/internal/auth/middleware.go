@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	"cloud-flow-agent/internal/tenant"
-	"cloud-flow-agent/pkg/logger"
+	"cloudflow-agent/internal/tenant"
+	"cloudflow-agent/pkg/logger"
 )
 
 // Middleware 认证中间件

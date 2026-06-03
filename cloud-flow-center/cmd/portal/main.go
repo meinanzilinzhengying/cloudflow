@@ -11,12 +11,12 @@ import (
 	"syscall"
 	"time"
 
-	"cloud-flow-center/internal/alerting"
-	"cloud-flow-center/internal/config"
-	"cloud-flow-center/internal/portal"
-	"cloud-flow-center/internal/storage"
-	"cloud-flow-center/pkg/audit"
-	"cloud-flow-center/pkg/logger"
+	"cloudflow-center/internal/alerting"
+	"cloudflow-center/internal/config"
+	"cloudflow-center/internal/portal"
+	"cloudflow-center/internal/storage"
+	"cloudflow-center/pkg/audit"
+	"cloudflow-center/pkg/logger"
 )
 
 func main() {

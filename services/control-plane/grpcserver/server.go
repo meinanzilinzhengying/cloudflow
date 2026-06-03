@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	svcproto "cloud-flow/services/proto"
+	svcproto "cloudflow/services/proto"
 )
 
 // ============================================================================

@@ -18,8 +18,8 @@ import (
 	"strconv"
 	"time"
 
-	graph "cloud-flow/services/topology-engine/graph"
-	svcproto "cloud-flow/services/proto"
+	graph "cloudflow/services/topology-engine/graph"
+	svcproto "cloudflow/services/proto"
 )
 
 // ---------------------------------------------------------------------------

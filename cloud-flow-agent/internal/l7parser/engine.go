@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cloud-flow/cloud-flow-agent/internal/l7parser/stream"
+	"cloudflow-agent/internal/l7parser/stream"
 )
 
 // Engine L7 协议解析引擎

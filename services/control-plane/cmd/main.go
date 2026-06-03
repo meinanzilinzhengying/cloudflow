@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"cloud-flow/services/control-plane"
+	"cloudflow/services/control-plane"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"cloud-flow/services/shared/resilience"
+	"cloudflow/services/shared/resilience"
 )
 
 type ResilienceConfig struct {

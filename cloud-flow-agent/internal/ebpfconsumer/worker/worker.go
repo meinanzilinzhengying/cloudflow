@@ -19,8 +19,8 @@ import (
 	"time"
 	"unsafe"
 
-	"cloud-flow-agent/internal/ebpfconsumer/pool"
-	"cloud-flow-agent/internal/ebpfconsumer/ringbuffer"
+	"cloudflow-agent/internal/ebpfconsumer/pool"
+	"cloudflow-agent/internal/ebpfconsumer/ringbuffer"
 )
 
 // Handler 是 worker 处理函数类型

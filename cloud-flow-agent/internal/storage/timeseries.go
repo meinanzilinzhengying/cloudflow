@@ -17,7 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cloud-flow-agent/pkg/logger"
+	"cloudflow-agent/pkg/logger"
 )
 
 // DataType 数据类型
@@ -189,7 +189,7 @@ type WriteBuffer struct {
 // NewTimeSeriesStore 创建时序数据存储
 func NewTimeSeriesStore(opts *StorageOptions, log *logger.Logger) (*TimeSeriesStore, error) {
 	if opts == nil {
-		opts = DefaultStorageOptions("/var/lib/cloud-flow-agent/storage")
+		opts = DefaultStorageOptions("/var/lib/cloudflow-agent/storage")
 	}
 	
 	// 确保目录存在

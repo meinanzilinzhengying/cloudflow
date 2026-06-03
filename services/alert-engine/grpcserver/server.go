@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	svcproto "cloud-flow/services/proto"
+	svcproto "cloudflow/services/proto"
 )
 
 func RegisterAlertService(s *grpc.Server, svc *Service) {

@@ -18,7 +18,7 @@ import (
 	"errors"
 	"strings"
 
-	"cloud-flow/cloud-flow-agent/internal/l7parser"
+	"cloudflow-agent/internal/l7parser"
 )
 
 var (

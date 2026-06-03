@@ -18,8 +18,8 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 
-	"cloud-flow-agent/internal/config"
-	edge "cloud-flow/proto"
+	"cloudflow-agent/internal/config"
+	edge "cloudflow/proto"
 )
 
 // SQLType SQL语句类型

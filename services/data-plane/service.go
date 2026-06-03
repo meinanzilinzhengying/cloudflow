@@ -32,12 +32,12 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"cloud-flow/pkg/flow"
-	svcproto "cloud-flow/services/proto"
-	"cloud-flow/services/data-plane/sampling"
-	"cloud-flow/services/shared/auth"
-	"cloud-flow/services/shared/tenant"
-	"cloud-flow/services/shared/tlsutil"
+	"cloudflow/pkg/flow"
+	svcproto "cloudflow/services/proto"
+	"cloudflow/services/data-plane/sampling"
+	"cloudflow/services/shared/auth"
+	"cloudflow/services/shared/tenant"
+	"cloudflow/services/shared/tlsutil"
 )
 
 // ============================================================================

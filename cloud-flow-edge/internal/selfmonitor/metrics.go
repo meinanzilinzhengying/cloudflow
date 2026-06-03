@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cloud-flow-edge/internal/config"
-	"cloud-flow-edge/pkg/logger"
-	edge "cloud-flow/proto"
+	"cloudflow-edge/internal/config"
+	"cloudflow-edge/pkg/logger"
+	edge "cloudflow/proto"
 )
 
 // MetricsCollector Edge自监控指标采集器

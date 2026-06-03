@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unsafe"
 
-	edge "cloud-flow/proto"
+	edge "cloudflow/proto"
 )
 
 func TestUnifiedFlow_BasicCreation(t *testing.T) {

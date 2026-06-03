@@ -22,10 +22,10 @@ import (
 	"sync"
 	"time"
 
-	flow "cloud-flow/pkg/flow"
-	graph "cloud-flow/services/topology-engine/graph"
-	"cloud-flow/services/topology-engine/cache"
-	"cloud-flow/services/topology-engine/heatmap"
+	flow "cloudflow/pkg/flow"
+	graph "cloudflow/services/topology-engine/graph"
+	"cloudflow/services/topology-engine/cache"
+	"cloudflow/services/topology-engine/heatmap"
 )
 
 // ---------------------------------------------------------------------------

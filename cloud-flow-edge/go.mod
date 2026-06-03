@@ -1,6 +1,6 @@
 module cloudflow-edge
 
-go 1.25.0
+go 1.22
 
 require (
 	cloudflow/pkg v0.0.0

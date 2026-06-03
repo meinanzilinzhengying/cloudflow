@@ -22,8 +22,8 @@ import (
 
 	"github.com/cilium/ebpf/perf"
 
-	"cloud-flow-agent/internal/ebpfconsumer/pool"
-	"cloud-flow-agent/internal/ebpfconsumer/ringbuffer"
+	"cloudflow-agent/internal/ebpfconsumer/pool"
+	"cloudflow-agent/internal/ebpfconsumer/ringbuffer"
 )
 
 // PerfRingBuffer 接口 (适配不同的 perf buffer 实现)

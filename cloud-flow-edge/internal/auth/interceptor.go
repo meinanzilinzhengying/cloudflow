@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"cloud-flow-edge/internal/whitelist"
-	"cloud-flow/proto"
+	"cloudflow-edge/internal/whitelist"
+	"cloudflow/proto"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"

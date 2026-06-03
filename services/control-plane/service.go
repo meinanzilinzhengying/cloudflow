@@ -31,7 +31,7 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	svcproto "cloud-flow/services/proto"
+	svcproto "cloudflow/services/proto"
 )
 
 // ============================================================================

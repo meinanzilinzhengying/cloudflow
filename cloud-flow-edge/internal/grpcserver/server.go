@@ -27,24 +27,24 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	"cloud-flow-edge/internal/auth"
-	"cloud-flow-edge/internal/circuitbreaker"
-	"cloud-flow-edge/internal/config"
-	"cloud-flow-edge/internal/connpool"
-	"cloud-flow-edge/internal/forwarder"
-	"cloud-flow-edge/internal/gopool"
-	"cloud-flow-edge/internal/iplimiter"
-	"cloud-flow-edge/internal/probemgr"
-	"cloud-flow-edge/internal/session"
-	"cloud-flow-edge/internal/whitelist"
-	"cloud-flow-edge/pkg/logger"
-	"cloud-flow-edge/pkg/metrics"
-	"cloud-flow-edge/pkg/tlsutil"
-	"cloud-flow-edge/pkg/validate"
-	"cloud-flow/pkg/grpcutil"
-	"cloud-flow/pkg/ratelimit"
-	"cloud-flow/pkg/trace"
-	edge "cloud-flow/proto"
+	"cloudflow-edge/internal/auth"
+	"cloudflow-edge/internal/circuitbreaker"
+	"cloudflow-edge/internal/config"
+	"cloudflow-edge/internal/connpool"
+	"cloudflow-edge/internal/forwarder"
+	"cloudflow-edge/internal/gopool"
+	"cloudflow-edge/internal/iplimiter"
+	"cloudflow-edge/internal/probemgr"
+	"cloudflow-edge/internal/session"
+	"cloudflow-edge/internal/whitelist"
+	"cloudflow-edge/pkg/logger"
+	"cloudflow-edge/pkg/metrics"
+	"cloudflow-edge/pkg/tlsutil"
+	"cloudflow-edge/pkg/validate"
+	"cloudflow/pkg/grpcutil"
+	"cloudflow/pkg/ratelimit"
+	"cloudflow/pkg/trace"
+	edge "cloudflow/proto"
 )
 
 // Server gRPC 服务端
@@ -360,7 +360,7 @@ func BuildServerOpts(
 	goPoolCfg config.GoPoolConfig,
 	breakerCfg config.CircuitBreakerConfig,
 	log *logger.Logger,
-	getAuthInterceptor func() *AgentAuthInterceptor,
+	getAuthInterceptor func() *auth.AuthInterceptor,
 ) ([]grpc.ServerOption, *connpool.Pool, *iplimiter.Limiter, *gopool.Pool, *circuitbreaker.Manager, error) {
 
 	var opts []grpc.ServerOption

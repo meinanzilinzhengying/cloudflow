@@ -15,19 +15,19 @@ import (
 
 	"google.golang.org/grpc"
 
-	"cloud-flow-center/internal/alerting"
-	"cloud-flow-center/internal/cluster"
-	"cloud-flow-center/internal/config"
-	"cloud-flow-center/internal/edgeregistry"
-	"cloud-flow-center/internal/grpcserver"
-	"cloud-flow-center/internal/kafkaconsumer"
-	"cloud-flow-center/internal/portal"
-	"cloud-flow-center/internal/storage"
-	"cloud-flow-center/pkg/audit"
-	"cloud-flow-center/pkg/logger"
-	"cloud-flow-center/pkg/metrics"
-	"cloud-flow/pkg/safety"
-	edge "cloud-flow/proto"
+	"cloudflow-center/internal/alerting"
+	"cloudflow-center/internal/cluster"
+	"cloudflow-center/internal/config"
+	"cloudflow-center/internal/edgeregistry"
+	"cloudflow-center/internal/grpcserver"
+	"cloudflow-center/internal/kafkaconsumer"
+	"cloudflow-center/internal/portal"
+	"cloudflow-center/internal/storage"
+	"cloudflow-center/pkg/audit"
+	"cloudflow-center/pkg/logger"
+	"cloudflow-center/pkg/metrics"
+	"cloudflow/pkg/safety"
+	edge "cloudflow/proto"
 )
 
 func main() {

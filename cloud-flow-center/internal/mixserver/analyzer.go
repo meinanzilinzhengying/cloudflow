@@ -12,8 +12,8 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"cloud-flow-center/internal/storage"
-	"cloud-flow-center/pkg/logger"
+	"cloudflow-center/internal/storage"
+	"cloudflow-center/pkg/logger"
 )
 
 // Analyzer 数据分析器

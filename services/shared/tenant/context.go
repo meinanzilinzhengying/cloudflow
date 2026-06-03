@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"strings"
 
-	"cloud-flow/services/shared/auth"
+	"cloudflow/services/shared/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"

@@ -19,7 +19,7 @@ import (
 	"regexp"
 	"strings"
 
-	tenant "cloud-flow/services/shared/tenant"
+	tenant "cloudflow/services/shared/tenant"
 )
 
 // ---------------------------------------------------------------------------

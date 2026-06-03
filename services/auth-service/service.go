@@ -22,13 +22,13 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"cloud-flow/services/auth-service/auth"
-	"cloud-flow/services/auth-service/rbac"
-	rbacadapter "cloud-flow/services/auth-service/rbac/adapter"
-	svcproto "cloud-flow/services/proto"
-	"cloud-flow/services/shared/tenant"
-	"cloud-flow/services/shared/tlsutil"
-	"cloud-flow/services/shared/security"
+	"cloudflow/services/auth-service/auth"
+	"cloudflow/services/auth-service/rbac"
+	rbacadapter "cloudflow/services/auth-service/rbac/adapter"
+	svcproto "cloudflow/services/proto"
+	"cloudflow/services/shared/tenant"
+	"cloudflow/services/shared/tlsutil"
+	"cloudflow/services/shared/security"
 )
 
 // ============================================================================
@@ -305,8 +305,7 @@ func (s *Service) initUserTable() error {
 		// 创建默认管理员
 		defaultPassword := os.Getenv("ADMIN_INITIAL_PASSWORD")
 		if defaultPassword == "" {
-			log.Println("⚠️  安全警告: ADMIN_INITIAL_PASSWORD 环境变量未设置，使用默认密码")
-			defaultPassword = "admin123"
+			return fmt.Errorf("ADMIN_INITIAL_PASSWORD 环境变量未设置，禁止使用默认密码创建管理员用户")
 		}
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
 		if err != nil {
@@ -325,7 +324,7 @@ func (s *Service) initUserTable() error {
 			return fmt.Errorf("create admin user: %w", err)
 		}
 
-		fmt.Println("默认管理员用户已创建，请立即通过环境变量 ADMIN_INITIAL_PASSWORD 修改密码")
+		fmt.Println("默认管理员用户已创建")
 	}
 
 	return nil

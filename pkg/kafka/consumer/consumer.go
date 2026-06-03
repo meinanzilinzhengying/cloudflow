@@ -10,7 +10,7 @@ import (
 
 	"github.com/IBM/sarama"
 
-	kafkapkg "cloud-flow/pkg/kafka"
+	kafkapkg "cloudflow/pkg/kafka"
 )
 
 // Handler 消息处理函数

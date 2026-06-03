@@ -11,8 +11,8 @@ import (
 	"go.etcd.io/etcd/client/v3"
 	"github.com/hashicorp/consul/api"
 
-	"cloud-flow-edge/internal/config"
-	"cloud-flow-edge/pkg/logger"
+	"cloudflow-edge/internal/config"
+	"cloudflow-edge/pkg/logger"
 )
 
 // Discovery 服务发现接口

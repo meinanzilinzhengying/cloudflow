@@ -15,9 +15,9 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"cloud-flow-center/internal/config"
-	"cloud-flow-center/internal/mixserver"
-	"cloud-flow-center/pkg/logger"
+	"cloudflow-center/internal/config"
+	"cloudflow-center/internal/mixserver"
+	"cloudflow-center/pkg/logger"
 )
 
 func main() {

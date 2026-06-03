@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"cloud-flow-edge/pkg/testutil"
+	"cloudflow-edge/pkg/testutil"
 )
 
 func TestStartServerReturnsServerAndErrorChannel(t *testing.T) {

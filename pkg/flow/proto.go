@@ -13,7 +13,7 @@ import (
 // syntax = "proto3";
 // package cloudflow.flow;
 //
-// option go_package = "cloud-flow/pkg/flow";
+// option go_package = "cloudflow/pkg/flow";
 // option java_package = "com.cloudflow.flow";
 //
 // import "google/protobuf/timestamp.proto";
@@ -502,7 +502,7 @@ func ProtoSchema() string {
 	b.WriteString(`syntax = "proto3";
 package cloudflow.flow;
 
-option go_package = "cloud-flow/pkg/flow";
+option go_package = "cloudflow/pkg/flow";
 option java_package = "com.cloudflow.flow";
 option csharp_namespace = "CloudFlow.Flow";
 

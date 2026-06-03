@@ -1,20 +1,29 @@
-go 1.25.0
+go 1.22
 
 use (
 	./pkg
 	./proto
+	./cloud-flow-center
+	./cloud-flow-edge
+	./cloud-flow-agent
 	./services/auth-service
+	./services/control-plane
+	./services/data-plane
+	./services/query-service
+	./services/alert-engine
+	./services/tenant-service
+	./services/topology-engine
 	./services/shared
 	./services/shared/auth
 	./services/shared/resilience
 )
 
-replace cloud-flow/pkg => ./pkg
+replace cloudflow/pkg => ./pkg
 
-replace cloud-flow/proto => ./proto
+replace cloudflow/proto => ./proto
 
-replace cloud-flow/services/shared => ./services/shared
+replace cloudflow/services/shared => ./services/shared
 
-replace cloud-flow/services/shared/auth => ./services/shared/auth
+replace cloudflow/services/shared/auth => ./services/shared/auth
 
-replace cloud-flow/services/shared/resilience => ./services/shared/resilience
+replace cloudflow/services/shared/resilience => ./services/shared/resilience

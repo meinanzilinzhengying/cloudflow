@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"cloud-flow-agent/pkg/logger"
-	edge "cloud-flow/proto"
+	"cloudflow-agent/pkg/logger"
+	edge "cloudflow/proto"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"cloud-flow-center/pkg/logger"
+	"cloudflow-center/pkg/logger"
 )
 
 // Duration 对 time.Duration 的封装，支持 JSON 序列化/反序列化

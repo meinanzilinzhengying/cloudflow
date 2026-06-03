@@ -12,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"cloud-flow-edge/internal/localcache"
-	"cloud-flow-edge/internal/persistence"
-	"cloud-flow-edge/internal/resender"
-	"cloud-flow-edge/pkg/logger"
-	edge "cloud-flow/proto"
+	"cloudflow-edge/internal/localcache"
+	"cloudflow-edge/internal/persistence"
+	"cloudflow-edge/internal/resender"
+	"cloudflow-edge/pkg/logger"
+	edge "cloudflow/proto"
 )
 
 // ForwardClient 转发目标接口

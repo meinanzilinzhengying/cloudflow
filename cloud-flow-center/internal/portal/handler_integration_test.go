@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"cloud-flow-center/internal/config"
-	"cloud-flow-center/internal/validator"
-	"cloud-flow/pkg/mock"
+	"cloudflow-center/internal/config"
+	"cloudflow-center/internal/validator"
+	"cloudflow/pkg/mock"
 )
 
 // TestHandleLogin_ValidCredentials 测试有效凭证的登录

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"cloud-flow/cloud-flow-center/internal/storage/clickhouse"
-	"cloud-flow/cloud-flow-center/internal/storage/clickhouse/schema"
+	"cloudflow-center/internal/storage/clickhouse"
+	"cloudflow-center/internal/storage/clickhouse/schema"
 )
 
 // ============================================================================

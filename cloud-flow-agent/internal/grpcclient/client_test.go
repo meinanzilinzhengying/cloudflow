@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"cloud-flow-agent/pkg/logger"
-	edge "cloud-flow/proto"
+	"cloudflow-agent/pkg/logger"
+	edge "cloudflow/proto"
 )
 
 func TestClientReconnect(t *testing.T) {

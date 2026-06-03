@@ -12,7 +12,7 @@ import (
 	"sync"
 	"syscall"
 
-	"cloud-flow-agent/pkg/logger"
+	"cloudflow-agent/pkg/logger"
 )
 
 // Arch 架构类型

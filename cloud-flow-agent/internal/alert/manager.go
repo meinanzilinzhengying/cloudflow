@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cloud-flow-agent/pkg/logger"
+	"cloudflow-agent/pkg/logger"
 )
 
 // AlertManager 告警管理器

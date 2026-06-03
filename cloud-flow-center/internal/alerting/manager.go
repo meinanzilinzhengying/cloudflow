@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"cloud-flow-center/pkg/logger"
-	"cloud-flow-center/internal/storage"
-	"cloud-flow/pkg/utils"
-	edge "cloud-flow/proto"
+	"cloudflow-center/pkg/logger"
+	"cloudflow-center/internal/storage"
+	"cloudflow/pkg/utils"
+	edge "cloudflow/proto"
 )
 
 // Alert 告警信息

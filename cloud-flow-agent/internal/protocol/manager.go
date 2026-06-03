@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"cloud-flow-agent/pkg/logger"
-	edge "cloud-flow/proto"
+	"cloudflow-agent/pkg/logger"
+	edge "cloudflow/proto"
 )
 
 // ============================================================================
@@ -53,7 +53,7 @@ type ManagerConfig struct {
 // DefaultManagerConfig 默认管理器配置
 func DefaultManagerConfig() ManagerConfig {
 	return ManagerConfig{
-		PluginDir:     "/opt/cloud-flow-agent/plugins",
+		PluginDir:     "/opt/cloudflow-agent/plugins",
 		AutoDiscovery: true,
 		CheckInterval: 30 * time.Second,
 		MaxMemoryMB:   256,

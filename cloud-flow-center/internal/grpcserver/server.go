@@ -16,13 +16,13 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"cloud-flow-center/internal/config"
-	"cloud-flow-center/internal/edgeregistry"
-	"cloud-flow-center/internal/storage"
-	"cloud-flow-center/pkg/logger"
-	"cloud-flow/pkg/ratelimit"
-	"cloud-flow/pkg/trace"
-	edge "cloud-flow/proto"
+	"cloudflow-center/internal/config"
+	"cloudflow-center/internal/edgeregistry"
+	"cloudflow-center/internal/storage"
+	"cloudflow-center/pkg/logger"
+	"cloudflow/pkg/ratelimit"
+	"cloudflow/pkg/trace"
+	edge "cloudflow/proto"
 )
 
 // Server 中心服务 gRPC 服务端

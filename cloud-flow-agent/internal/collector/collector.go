@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	edge "cloud-flow/proto"
+	edge "cloudflow/proto"
 )
 
 // nvmePartitionRegex 预编译 NVMe 分区正则表达式，避免每次调用 isPartition 时重复编译

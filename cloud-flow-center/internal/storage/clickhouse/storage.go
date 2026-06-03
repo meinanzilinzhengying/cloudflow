@@ -19,9 +19,9 @@ import (
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 
-	"cloud-flow-center/internal/storage"
-	"cloud-flow-center/internal/storage/clickhouse/schema"
-	"cloud-flow/pkg/flow"
+	"cloudflow-center/internal/storage"
+	"cloudflow-center/internal/storage/clickhouse/schema"
+	"cloudflow/pkg/flow"
 )
 
 // ============================================================================

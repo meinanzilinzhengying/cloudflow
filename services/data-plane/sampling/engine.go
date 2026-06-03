@@ -29,7 +29,7 @@ import (
 	"time"
 	"unsafe"
 
-	flow "cloud-flow/pkg/flow"
+	flow "cloudflow/pkg/flow"
 )
 
 // ---------------------------------------------------------------------------

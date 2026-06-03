@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"cloud-flow/cloud-flow-agent/internal/l7parser/parsers"
+	"cloudflow-agent/internal/l7parser/parsers"
 )
 
 // ============================================================================

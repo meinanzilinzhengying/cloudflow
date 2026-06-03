@@ -17,10 +17,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	_ "github.com/go-sql-driver/mysql"
 
-	edge "cloud-flow/proto"
-	"cloud-flow-center/pkg/logger"
-	"cloud-flow/pkg/safety"
-	"cloud-flow/pkg/storage"
+	edge "cloudflow/proto"
+	"cloudflow-center/pkg/logger"
+	"cloudflow/pkg/safety"
+	"cloudflow/pkg/storage"
 )
 
 // 随机数生成器在 Go 1.20+ 中自动种子化，不需要手动调用 Seed

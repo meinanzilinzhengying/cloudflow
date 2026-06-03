@@ -1,6 +1,6 @@
 module cloudflow/pkg
 
-go 1.25.0
+go 1.22
 
 require (
 	cloudflow/proto v0.0.0

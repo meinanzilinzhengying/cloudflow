@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"cloud-flow/services/alert-engine"
+	"cloudflow/services/alert-engine"
 )
 
 func main() {

@@ -15,8 +15,8 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 
-	"cloud-flow-edge/pkg/logger"
-	"cloud-flow/pkg/utils"
+	"cloudflow-edge/pkg/logger"
+	"cloudflow/pkg/utils"
 )
 
 // LogConfig 日志配置

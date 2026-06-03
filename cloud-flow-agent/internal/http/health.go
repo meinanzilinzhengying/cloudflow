@@ -9,11 +9,11 @@ import (
 
 	"google.golang.org/grpc/connectivity"
 
-	"cloud-flow-agent/internal/collector"
-	"cloud-flow-agent/internal/ebpfcollector"
-	"cloud-flow-agent/internal/grpcclient"
-	"cloud-flow-agent/internal/sqlaggregator"
-	"cloud-flow-agent/pkg/logger"
+	"cloudflow-agent/internal/collector"
+	"cloudflow-agent/internal/ebpfcollector"
+	"cloudflow-agent/internal/grpcclient"
+	"cloudflow-agent/internal/sqlaggregator"
+	"cloudflow-agent/pkg/logger"
 )
 
 var Version = "dev"

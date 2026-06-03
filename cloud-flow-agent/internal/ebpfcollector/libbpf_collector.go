@@ -27,9 +27,9 @@ import (
 	"time"
 	"unsafe"
 
-	"cloud-flow-agent/internal/ebpfcollector/parser"
-	"cloud-flow-agent/internal/kernel"
-	edge "cloud-flow/proto"
+	"cloudflow-agent/internal/ebpfcollector/parser"
+	"cloudflow-agent/internal/kernel"
+	edge "cloudflow/proto"
 )
 
 // LibbpfCollector 基于 libbpf 的 eBPF 采集器

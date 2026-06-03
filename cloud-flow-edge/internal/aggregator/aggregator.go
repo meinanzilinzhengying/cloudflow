@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"cloud-flow-edge/pkg/logger"
-	edge "cloud-flow/proto"
+	"cloudflow-edge/pkg/logger"
+	edge "cloudflow/proto"
 )
 
 // ============================================================================

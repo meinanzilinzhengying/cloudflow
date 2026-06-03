@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"cloud-flow-edge/pkg/logger"
+	"cloudflow-edge/pkg/logger"
 )
 
 // ============================================================================

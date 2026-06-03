@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"cloud-flow-center/pkg/logger"
+	"cloudflow-center/pkg/logger"
 )
 
 type UserVerifier interface {

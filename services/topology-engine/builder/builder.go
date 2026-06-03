@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"strconv"
 
-	flow "cloud-flow/pkg/flow"
-	graph "cloud-flow/services/topology-engine/graph"
+	flow "cloudflow/pkg/flow"
+	graph "cloudflow/services/topology-engine/graph"
 )
 
 // ============================================================================

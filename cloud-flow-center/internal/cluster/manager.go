@@ -14,7 +14,7 @@ import (
 	"go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 
-	"cloud-flow-center/pkg/logger"
+	"cloudflow-center/pkg/logger"
 )
 
 // Manager 集群管理器
@@ -235,7 +235,7 @@ func (m *Manager) attemptLeaderElection() {
 func (m *Manager) serviceRegistrationLoop() {
 	defer m.wg.Done()
 
-	serviceKey := fmt.Sprintf("/cloud-flow/services/%s", m.nodeID)
+	serviceKey := fmt.Sprintf("/cloudflow/services/%s", m.nodeID)
 	serviceValue := m.nodeAddr
 
 	m.registerService(serviceKey, serviceValue)
@@ -266,7 +266,7 @@ func (m *Manager) registerService(key, value string) {
 
 // GetServices 获取所有服务节点
 func (m *Manager) GetServices() ([]string, error) {
-	resp, err := m.client.Get(context.Background(), "/cloud-flow/services/", clientv3.WithPrefix())
+	resp, err := m.client.Get(context.Background(), "/cloudflow/services/", clientv3.WithPrefix())
 	if err != nil {
 		return nil, fmt.Errorf("获取服务列表失败: %w", err)
 	}

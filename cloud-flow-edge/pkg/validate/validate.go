@@ -5,7 +5,7 @@ package validate
 import (
 	"fmt"
 
-	edge "cloud-flow/proto"
+	edge "cloudflow/proto"
 )
 
 const (

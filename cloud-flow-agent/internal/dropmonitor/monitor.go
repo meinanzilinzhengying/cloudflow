@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cloud-flow-agent/pkg/logger"
+	"cloudflow-agent/pkg/logger"
 )
 
 // ============================================================================

@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"cloud-flow-edge/internal/forwarder"
-	"cloud-flow-edge/internal/localcache"
-	"cloud-flow-edge/pkg/logger"
-	edge "cloud-flow/proto"
+	"cloudflow-edge/internal/forwarder"
+	"cloudflow-edge/internal/localcache"
+	"cloudflow-edge/pkg/logger"
+	edge "cloudflow/proto"
 )
 
 // NetworkStatus 网络状态

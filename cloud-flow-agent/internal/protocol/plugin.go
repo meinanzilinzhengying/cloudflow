@@ -31,7 +31,7 @@ import (
 	"sync"
 	"time"
 
-	edge "cloud-flow/proto"
+	edge "cloudflow/proto"
 )
 
 // ============================================================================

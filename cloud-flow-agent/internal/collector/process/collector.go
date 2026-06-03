@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"cloud-flow-agent/pkg/logger"
-	edge "cloud-flow/proto"
+	"cloudflow-agent/pkg/logger"
+	edge "cloudflow/proto"
 )
 
 // ProcessEventType 进程事件类型

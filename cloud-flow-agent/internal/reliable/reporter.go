@@ -20,8 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cloud-flow-agent/pkg/logger"
-	edge "cloud-flow/proto"
+	"cloudflow-agent/pkg/logger"
+	edge "cloudflow/proto"
 )
 
 // Sender 数据发送接口
