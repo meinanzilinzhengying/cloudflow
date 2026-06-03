@@ -81,20 +81,20 @@ func main() {
 		defer tsStore.Close()
 	}
 
-	client, err := connectToEdge(cfg, log, mgmtIP)
+	grpcClient, err := connectToEdge(cfg, log, mgmtIP)
 	if err != nil {
 		log.Errorf("连接边缘节点失败: %v", err)
 		return
 	}
-	defer client.Close()
+	defer grpcClient.Close()
 
-	reporter, err := setupReliableReporter(cfg, log, client, netMonitor)
+	reporter, err := setupReliableReporter(cfg, log, grpcClient, netMonitor)
 	if err != nil {
 		log.Warnf("[可靠上报] 初始化失败: %v", err)
 		reporter = nil
 	}
 
-	collector, ebpfCollector, sqlAggregator, err := setupCollectors(cfg, log)
+	legacyCollector, ebpfCollector, sqlAggregator, err := setupCollectors(cfg, log)
 	if err != nil {
 		log.Warnf("采集器初始化失败: %v", err)
 	}
@@ -106,7 +106,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		mainLoop(ctx, cfg, log, client, metricCollector, netMonitor, tsStore, collector, ebpfCollector, breaker, selfMonitor, reporter, sqlAggregator)
+		mainLoop(ctx, cfg, log, grpcClient, metricCollector, netMonitor, tsStore, legacyCollector, ebpfCollector, breaker, selfMonitor, reporter, sqlAggregator)
 	}()
 
 	sigCh := make(chan os.Signal, 1)
@@ -124,11 +124,11 @@ func mainLoop(
 	ctx context.Context,
 	cfg *config.Config,
 	log *logger.Logger,
-	client *grpcclient.Client,
+	grpcClient *grpcclient.Client,
 	metricCollector *metrics.Metrics,
 	netMonitor *network.Monitor,
 	tsStore *storage.TimeSeriesStore,
-	collector *collector.Collector,
+	legacyCollector *collector.Collector,
 	ebpfCollector *ebpfcollector.Collector,
 	breaker *circuitbreaker.Breaker,
 	selfMonitor *selfmonitor.Collector,
@@ -144,8 +144,7 @@ func mainLoop(
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// 采集和上报逻辑
-			collectAndReport(ctx, cfg, log, client, metricCollector, netMonitor, tsStore, collector, ebpfCollector, breaker, selfMonitor, reporter, sqlAggregator)
+			collectAndReport(ctx, cfg, log, grpcClient, metricCollector, netMonitor, tsStore, legacyCollector, ebpfCollector, breaker, selfMonitor, reporter, sqlAggregator)
 		}
 	}
 }
@@ -155,11 +154,11 @@ func collectAndReport(
 	ctx context.Context,
 	cfg *config.Config,
 	log *logger.Logger,
-	client *grpcclient.Client,
+	grpcClient *grpcclient.Client,
 	metricCollector *metrics.Metrics,
 	netMonitor *network.Monitor,
 	tsStore *storage.TimeSeriesStore,
-	collector *collector.Collector,
+	legacyCollector *collector.Collector,
 	ebpfCollector *ebpfcollector.Collector,
 	breaker *circuitbreaker.Breaker,
 	selfMonitor *selfmonitor.Collector,
@@ -167,5 +166,4 @@ func collectAndReport(
 	sqlAggregator *sqlaggregator.SQLAggregator,
 ) {
 	// 实现采集和上报逻辑
-	// 这部分是从原始 main.go 的主循环中提取的
 }
