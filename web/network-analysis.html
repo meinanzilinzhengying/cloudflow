@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Flow - 网络分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#0a0e1a;color:#e0e6ed;overflow:hidden}
+        .container{width:100vw;height:100vh;display:flex;flex-direction:column}
+
+        /* 顶部工具栏 */
+        .toolbar{height:56px;background:linear-gradient(135deg,#1a1f2e,#0d1117);border-bottom:1px solid #2d3748;display:flex;align-items:center;padding:0 20px;gap:12px;z-index:100}
+        .toolbar h1{font-size:17px;font-weight:600;color:#63b3ed;margin-right:auto}
+
+        .tb-section{display:flex;align-items:center;gap:8px;padding:0 12px;border-right:1px solid #2d3748}
+        .tb-section:last-child{border-right:none}
+
+        .tb-select{padding:7px 10px;background:#1a202c;border:1px solid #2d3748;border-radius:6px;color:#e0e6ed;font-size:13px;cursor:pointer}
+        .tb-select:focus{outline:none;border-color:#63b3ed}
+
+        .time-btns{display:flex;gap:3px;background:#1a202c;padding:3px;border-radius:6px}
+        .time-btn{padding:5px 12px;background:transparent;border:none;border-radius:4px;color:#9ca3af;font-size:12px;cursor:pointer;transition:all .2s}
+        .time-btn:hover{color:#e0e6ed}
+        .time-btn.active{background:#3182ce;color:#fff}
+
+        .tb-btn{padding:7px 14px;background:#2d3748;border:1px solid #4a5568;border-radius:6px;color:#e0e6ed;cursor:pointer;font-size:13px;transition:all .2s}
+        .tb-btn:hover{background:#4a5568;border-color:#63b3ed}
+
+        .search-box{position:relative;width:200px}
+        .search-box input{width:100%;padding:7px 10px 7px 30px;background:#1a202c;border:1px solid #2d3748;border-radius:6px;color:#e0e6ed;font-size:13px}
+        .search-box input:focus{outline:none;border-color:#63b3ed}
+        .search-box::before{content:'🔍';position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11px}
+
+        /* 主内容 */
+        .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+        /* 对比摘要栏 */
+        .compare-bar{padding:12px 20px;background:#111827;border-bottom:1px solid #2d3748;display:none;align-items:center;gap:16px}
+        .compare-bar.visible{display:flex}
+        .compare-summary{font-size:13px;padding:8px 16px;border-radius:6px;font-weight:500}
+        .compare-changes{display:flex;gap:12px;flex:1}
+        .change-item{display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;background:#1a202c;border-radius:4px}
+        .change-item .name{color:#9ca3af}
+        .change-item .val{font-weight:600}
+        .change-item .pct{font-size:11px}
+        .trend-up{color:#e53e3e}.trend-down{color:#48bb78}.trend-stable{color:#718096}
+
+        /* 图表网格 */
+        .charts-area{flex:1;overflow-y:auto;padding:20px}
+        .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+
+        .chart-card{background:#111827;border:1px solid #2d3748;border-radius:10px;padding:20px;position:relative}
+        .chart-card.full{grid-column:1/-1}
+        .chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+        .chart-title{font-size:14px;font-weight:600;color:#e0e6ed}
+        .chart-subtitle{font-size:11px;color:#718096;margin-top:2px}
+        .chart-legend{display:flex;gap:12px;font-size:11px;color:#a0aec0}
+        .chart-legend span{display:flex;align-items:center;gap:4px}
+        .legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+
+        .chart-container{position:relative;width:100%;height:280px}
+        .chart-container.tall{height:320px}
+
+        /* 统计摘要卡片 */
+        .stat-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
+        .stat-card{background:#111827;border:1px solid #2d3748;border-radius:8px;padding:14px;text-align:center}
+        .stat-card .val{font-size:22px;font-weight:700;margin-bottom:2px}
+        .stat-card .lbl{font-size:10px;color:#718096;text-transform:uppercase;letter-spacing:.5px}
+        .val-blue{color:#63b3ed}.val-green{color:#48bb78}.val-yellow{color:#f1c40f}.val-red{color:#e53e3e}.val-purple{color:#9f7aea}.val-cyan{color:#22d3ee}
+
+        /* 加载 */
+        .loading{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,14,26,.85);display:none;align-items:center;justify-content:center;z-index:200;flex-direction:column}
+        .loading.visible{display:flex}
+        .spinner{width:40px;height:40px;border:3px solid #2d3748;border-top-color:#63b3ed;border-radius:50%;animation:spin 1s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .loading-text{margin-top:12px;color:#9ca3af;font-size:13px}
+
+        /* Chart.js 全局覆盖 */
+        canvas{max-width:100%}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="toolbar">
+        <h1>📡 网络分析</h1>
+        <div class="tb-section">
+            <select class="tb-select" id="assetSelect"><option value="">全部资产</option></select>
+            <select class="tb-select" id="probeSelect"><option value="">全部探针</option></select>
+            <select class="tb-select" id="linkSelect"><option value="">全部链路</option></select>
+        </div>
+        <div class="tb-section">
+            <div class="time-btns">
+                <button class="time-btn" data-range="5m">5分钟</button>
+                <button class="time-btn" data-range="15m">15分钟</button>
+                <button class="time-btn" data-range="1h">1小时</button>
+                <button class="time-btn active" data-range="6h">6小时</button>
+                <button class="time-btn" data-range="1d">1天</button>
+                <button class="time-btn" data-range="7d">7天</button>
+            </div>
+        </div>
+        <div class="tb-section">
+            <select class="tb-select" id="compareSelect">
+                <option value="none">无对比</option>
+                <option value="qoq">环比（上一周期）</option>
+                <option value="yoy">同比（上周同期）</option>
+            </select>
+        </div>
+        <button class="tb-btn" id="analyzeBtn">🔍 分析</button>
+    </div>
+
+    <div class="main">
+        <!-- 对比摘要 -->
+        <div class="compare-bar" id="compareBar">
+            <div class="compare-summary" id="compareSummary"></div>
+            <div class="compare-changes" id="compareChanges"></div>
+        </div>
+
+        <div class="charts-area">
+            <!-- 统计摘要 -->
+            <div class="stat-row" id="statRow"></div>
+
+            <!-- 趋势图（全宽） -->
+            <div class="charts-grid">
+                <div class="chart-card full">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">历史趋势</div>
+                            <div class="chart-subtitle">重传率 / 丢包率 / 建连失败率</div>
+                        </div>
+                        <div class="chart-legend">
+                            <span><span class="legend-dot" style="background:#e53e3e"></span>重传率</span>
+                            <span><span class="legend-dot" style="background:#f1c40f"></span>丢包率</span>
+                            <span><span class="legend-dot" style="background:#9f7aea"></span>建连失败率</span>
+                        </div>
+                    </div>
+                    <div class="chart-container tall"><canvas id="trendChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- 分布图 -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">数据包大小分布</div>
+                            <div class="chart-subtitle" id="pktSizeSubtitle"></div>
+                        </div>
+                    </div>
+                    <div class="chart-container"><canvas id="pktSizeChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">协议分布</div>
+                            <div class="chart-subtitle" id="protoSubtitle"></div>
+                        </div>
+                    </div>
+                    <div class="chart-container"><canvas id="protoChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- 建连时延 -->
+            <div class="charts-grid">
+                <div class="chart-card full">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">建连时延分布</div>
+                            <div class="chart-subtitle" id="latencySubtitle"></div>
+                        </div>
+                    </div>
+                    <div class="chart-container"><canvas id="latencyChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- 流量趋势 -->
+            <div class="charts-grid">
+                <div class="chart-card full">
+                    <div class="chart-header">
+                        <div>
+                            <div class="chart-title">流量趋势</div>
+                            <div class="chart-subtitle">总包量 / 总流量 / 活跃连接</div>
+                        </div>
+                        <div class="chart-legend">
+                            <span><span class="legend-dot" style="background:#63b3ed"></span>总包量</span>
+                            <span><span class="legend-dot" style="background:#48bb78"></span>总流量(GB)</span>
+                            <span><span class="legend-dot" style="background:#ed8936"></span>活跃连接</span>
+                        </div>
+                    </div>
+                    <div class="chart-container tall"><canvas id="trafficChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="loading" id="loading"><div class="spinner"></div><div class="loading-text">正在分析网络数据...</div></div>
+
+<script>
+// ==================== 状态 ====================
+const S = {
+    timeRange: '6h',
+    compareMode: 'none',
+    assetId: '',
+    probeId: '',
+    linkId: '',
+    data: null,
+    charts: {}
+};
+
+// Chart.js 全局配置
+Chart.defaults.color = '#a0aec0';
+Chart.defaults.borderColor = '#2d3748';
+Chart.defaults.font.family = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+Chart.defaults.font.size = 11;
+Chart.defaults.plugins.legend.display = false;
+Chart.defaults.animation.duration = 600;
+
+// ==================== 初始化 ====================
+document.addEventListener('DOMContentLoaded', () => {
+    initEvents();
+    loadAnalysis();
+});
+
+function initEvents() {
+    // 时间范围
+    document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            S.timeRange = btn.dataset.range;
+            loadAnalysis();
+        });
+    });
+
+    // 对比模式
+    document.getElementById('compareSelect').addEventListener('change', e => {
+        S.compareMode = e.target.value;
+        loadAnalysis();
+    });
+
+    // 分析按钮
+    document.getElementById('analyzeBtn').addEventListener('click', loadAnalysis);
+
+    // 筛选器
+    ['assetSelect','probeSelect','linkSelect'].forEach(id => {
+        document.getElementById(id).addEventListener('change', e => {
+            S[id.replace('Select','Id')] = e.target.value;
+        });
+    });
+}
+
+// ==================== 数据加载 ====================
+async function loadAnalysis() {
+    showLoading(true);
+    try {
+        const params = new URLSearchParams({
+            time_range: S.timeRange,
+            compare: S.compareMode,
+            asset_id: S.assetId,
+            probe_id: S.probeId,
+            link_id: S.linkId
+        });
+        const res = await fetch(`/api/v1/network/analysis?${params}`);
+        S.data = await res.json();
+        renderAll();
+    } catch(e) {
+        console.error('加载失败', e);
+    } finally {
+        showLoading(false);
+    }
+}
+
+// ==================== 渲染 ====================
+function renderAll() {
+    if (!S.data) return;
+    renderStats();
+    renderTrendChart();
+    renderPktSizeChart();
+    renderProtoChart();
+    renderLatencyChart();
+    renderTrafficChart();
+    renderCompare();
+}
+
+function renderStats() {
+    const t = S.data.trend;
+    if (!t || !t.points.length) return;
+    const last = t.points[t.points.length-1];
+    const ps = S.data.packet_size;
+    const cl = S.data.connect_latency;
+
+    document.getElementById('statRow').innerHTML = `
+        <div class="stat-card"><div class="val val-red">${(last.retrans_rate*100).toFixed(3)}%</div><div class="lbl">重传率</div></div>
+        <div class="stat-card"><div class="val val-yellow">${(last.packet_loss*100).toFixed(3)}%</div><div class="lbl">丢包率</div></div>
+        <div class="stat-card"><div class="val val-purple">${(last.conn_fail_rate*100).toFixed(3)}%</div><div class="lbl">建连失败率</div></div>
+        <div class="stat-card"><div class="val val-blue">${fmtNum(last.total_packets)}</div><div class="lbl">总包量/s</div></div>
+        <div class="stat-card"><div class="val val-green">${fmtBytes(last.total_bytes)}/s</div><div class="lbl">总流量</div></div>
+        <div class="stat-card"><div class="val val-cyan">${last.active_conns}</div><div class="lbl">活跃连接</div></div>
+    `;
+}
+
+function renderTrendChart() {
+    const t = S.data.trend;
+    if (!t || !t.points.length) return;
+
+    const labels = t.points.map(p => p.timestamp.slice(11));
+    const datasets = [
+        { label: '重传率', data: t.points.map(p => p.retrans_rate*100), borderColor: '#e53e3e', backgroundColor: 'rgba(229,62,62,.1)', fill: true, tension: .4, borderWidth: 2, pointRadius: 0 },
+        { label: '丢包率', data: t.points.map(p => p.packet_loss*100), borderColor: '#f1c40f', backgroundColor: 'rgba(241,196,15,.1)', fill: true, tension: .4, borderWidth: 2, pointRadius: 0 },
+        { label: '建连失败率', data: t.points.map(p => p.conn_fail_rate*100), borderColor: '#9f7aea', backgroundColor: 'rgba(159,122,234,.1)', fill: true, tension: .4, borderWidth: 2, pointRadius: 0 },
+    ];
+
+    // 对比数据
+    if (S.data.compare && S.data.compare.current) {
+        const cp = S.data.compare.current.points;
+        if (cp.length) {
+            const cpLabels = cp.map(p => p.timestamp.slice(11));
+            // 添加对比数据集（虚线）
+            datasets.push(
+                { label: '重传率(对比)', data: cp.map(p => p.retrans_rate*100), borderColor: 'rgba(229,62,62,.4)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 0, tension: .4 },
+                { label: '丢包率(对比)', data: cp.map(p => p.packet_loss*100), borderColor: 'rgba(241,196,15,.4)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 0, tension: .4 },
+            );
+        }
+    }
+
+    createOrUpdateChart('trendChart', {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 12, maxRotation: 0 } },
+                y: { title: { display: true, text: '%' }, grid: { color: '#1f2937' }, ticks: { callback: v => v.toFixed(2)+'%' } }
+            },
+            plugins: { tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)}%` } } }
+        }
+    });
+}
+
+function renderPktSizeChart() {
+    const ps = S.data.packet_size;
+    if (!ps) return;
+
+    document.getElementById('pktSizeSubtitle').textContent = `总计 ${fmtNum(ps.total)} 包 | 平均 ${fmtBytes(ps.avgSize)} | P95 ${fmtBytes(ps.p95_size)}`;
+
+    const colors = ['#3182ce','#4299e1','#63b3ed','#90cdf4','#bee3f8','#ed8936','#f6ad55','#fbd38d','#fc8181','#feb2b2','#e53e3e'];
+
+    createOrUpdateChart('pktSizeChart', {
+        type: 'bar',
+        data: {
+            labels: ps.buckets.map(b => b.range),
+            datasets: [{
+                label: '包数量',
+                data: ps.buckets.map(b => b.count),
+                backgroundColor: ps.buckets.map((_,i) => colors[i % colors.length]),
+                borderRadius: 4,
+                barPercentage: .7
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { grid: { display: false } },
+                y: { title: { display: true, text: '包数量' }, grid: { color: '#1f2937' }, ticks: { callback: v => fmtNum(v) } }
+            },
+            plugins: { tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()} 包 (${ps.buckets[ctx.dataIndex].percent.toFixed(1)}%)` } } }
+        }
+    });
+}
+
+function renderProtoChart() {
+    const pr = S.data.protocol;
+    if (!pr) return;
+
+    document.getElementById('protoSubtitle').textContent = `总计 ${fmtNum(pr.total)} 包 | ${fmtBytes(pr.total_bytes)}`;
+
+    const top8 = pr.protocols.slice(0, 8);
+    const colors = ['#3182ce','#48bb78','#ed8936','#9f7aea','#e53e3e','#f1c40f','#22d3ee','#fc8181'];
+
+    createOrUpdateChart('protoChart', {
+        type: 'doughnut',
+        data: {
+            labels: top8.map(p => p.name),
+            datasets: [{
+                data: top8.map(p => p.packets),
+                backgroundColor: colors,
+                borderWidth: 0,
+                hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '55%',
+            plugins: {
+                legend: { display: true, position: 'right', labels: { boxWidth: 12, padding: 10, font: { size: 11 } } },
+                tooltip: { callbacks: {
+                    label: ctx => {
+                        const p = top8[ctx.dataIndex];
+                        return `${p.name}: ${fmtNum(p.packets)} 包 (${p.percent.toFixed(1)}%) | ${fmtBytes(p.bytes)}`;
+                    }
+                } }
+            }
+        }
+    });
+}
+
+function renderLatencyChart() {
+    const cl = S.data.connect_latency;
+    if (!cl) return;
+
+    document.getElementById('latencySubtitle').textContent = `总计 ${fmtNum(cl.total)} 次建连 | 平均 ${cl.avg_ms.toFixed(1)}ms | P95 ${cl.p95_ms.toFixed(1)}ms | 失败率 ${(cl.failed_rate*100).toFixed(2)}%`;
+
+    const colors = cl.buckets.map(b => {
+        if (b.maxMs > 200) return '#e53e3e';
+        if (b.maxMs > 50) return '#f1c40f';
+        if (b.maxMs > 10) return '#ed8936';
+        return '#48bb78';
+    });
+
+    createOrUpdateChart('latencyChart', {
+        type: 'bar',
+        data: {
+            labels: cl.buckets.map(b => b.range),
+            datasets: [{
+                label: '建连次数',
+                data: cl.buckets.map(b => b.count),
+                backgroundColor: colors,
+                borderRadius: 4,
+                barPercentage: .7
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { grid: { display: false } },
+                y: { title: { display: true, text: '建连次数' }, grid: { color: '#1f2937' }, ticks: { callback: v => fmtNum(v) } }
+            },
+            plugins: { tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()} 次 (${cl.buckets[ctx.dataIndex].percent.toFixed(1)}%)` } } }
+        }
+    });
+}
+
+function renderTrafficChart() {
+    const t = S.data.trend;
+    if (!t || !t.points.length) return;
+
+    const labels = t.points.map(p => p.timestamp.slice(11));
+    const datasets = [
+        { label: '总包量', data: t.points.map(p => p.total_packets), borderColor: '#63b3ed', backgroundColor: 'rgba(99,179,237,.08)', fill: true, tension: .4, borderWidth: 2, pointRadius: 0, yAxisID: 'y' },
+        { label: '总流量(GB)', data: t.points.map(p => +(p.total_bytes/1e9).toFixed(2)), borderColor: '#48bb78', backgroundColor: 'rgba(72,187,120,.08)', fill: true, tension: .4, borderWidth: 2, pointRadius: 0, yAxisID: 'y1' },
+        { label: '活跃连接', data: t.points.map(p => p.active_conns), borderColor: '#ed8936', backgroundColor: 'rgba(237,137,54,.08)', fill: true, tension: .4, borderWidth: 2, pointRadius: 0, yAxisID: 'y2' },
+    ];
+
+    // 对比数据
+    if (S.data.compare && S.data.compare.current) {
+        const cp = S.data.compare.current.points;
+        if (cp.length) {
+            datasets.push(
+                { label: '总包量(对比)', data: cp.map(p => p.total_packets), borderColor: 'rgba(99,179,237,.3)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 0, tension: .4, yAxisID: 'y' },
+                { label: '总流量(对比)', data: cp.map(p => +(p.total_bytes/1e9).toFixed(2)), borderColor: 'rgba(72,187,120,.3)', borderDash: [5,5], borderWidth: 1.5, pointRadius: 0, tension: .4, yAxisID: 'y1' },
+            );
+        }
+    }
+
+    createOrUpdateChart('trafficChart', {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 12, maxRotation: 0 } },
+                y: { type: 'linear', position: 'left', title: { display: true, text: '包量' }, grid: { color: '#1f2937' }, ticks: { callback: v => fmtNum(v) } },
+                y1: { type: 'linear', position: 'right', title: { display: true, text: 'GB' }, grid: { display: false }, ticks: { callback: v => v+' GB' } },
+                y2: { type: 'linear', position: 'right', title: { display: true, text: '连接数' }, grid: { display: false }, ticks: { display: false } }
+            }
+        }
+    });
+}
+
+function renderCompare() {
+    const bar = document.getElementById('compareBar');
+    if (!S.data.compare || S.data.compareMode === 'none') {
+        bar.classList.remove('visible');
+        return;
+    }
+
+    bar.classList.add('visible');
+    const cmp = S.data.compare;
+
+    document.getElementById('compareSummary').textContent = cmp.summary;
+    document.getElementById('compareSummary').style.background =
+        cmp.summary.includes('下降') || cmp.summary.includes('恶化') ? 'rgba(229,62,62,.15)' :
+        cmp.summary.includes('改善') || cmp.summary.includes('向好') ? 'rgba(72,187,120,.15)' : 'rgba(113,128,150,.15)';
+
+    document.getElementById('compareChanges').innerHTML = cmp.changes.map(c => {
+        const trendCls = c.trend === 'up' ? 'trend-up' : c.trend === 'down' ? 'trend-down' : 'trend-stable';
+        const arrow = c.trend === 'up' ? '↑' : c.trend === 'down' ? '↓' : '→';
+        return `<div class="change-item">
+            <span class="name">${c.name}</span>
+            <span class="val">${formatMetricValue(c.metric, c.current)}</span>
+            <span class="pct ${trendCls}">${arrow} ${Math.abs(c.change_pct).toFixed(1)}%</span>
+        </div>`;
+    }).join('');
+}
+
+// ==================== 图表工具 ====================
+function createOrUpdateChart(canvasId, config) {
+    if (S.charts[canvasId]) {
+        S.charts[canvasId].data = config.data;
+        S.charts[canvasId].options = config.options;
+        S.charts[canvasId].update();
+        return;
+    }
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    S.charts[canvasId] = new Chart(ctx, config);
+}
+
+// ==================== 工具函数 ====================
+function fmtNum(n) {
+    if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+    if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+    return n.toString();
+}
+
+function fmtBytes(b) {
+    if (!b) return '0 B';
+    const u = ['B','KB','MB','GB','TB'];
+    let i = 0;
+    while (b >= 1024 && i < u.length-1) { b /= 1024; i++; }
+    return b.toFixed(1)+' '+u[i];
+}
+
+function formatMetricValue(metric, val) {
+    if (metric.includes('rate')) return (val*100).toFixed(3)+'%';
+    if (metric.includes('bytes')) return fmtBytes(val);
+    if (metric.includes('packets') || metric.includes('conns')) return fmtNum(Math.round(val));
+    return val.toFixed(4);
+}
+
+function showLoading(v) { document.getElementById('loading').classList.toggle('visible', v); }
+</script>
+</body>
+</html>
