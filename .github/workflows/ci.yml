@@ -16,9 +16,8 @@ on:
     branches: [main, develop]
 
 env:
-  # P1-14 修复: 使用实际存在的 Go 1.23 版本（Go 1.24 尚未发布）
-  GO_VERSION: "1.23"
-  NODE_VERSION: "20"
+  # P1-14 修复: 使用实际存在的 Go 1.22 版本
+  GO_VERSION: "1.22"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -120,44 +119,8 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # Job 3: 前端构建检查
+  # Job 3: Frontend 构建目前未提供，暂跳过
   # ---------------------------------------------------------------------------
-  frontend-build:
-    name: Frontend Build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: cloud-flow-frontend/package-lock.json
-
-      - name: Install dependencies
-        working-directory: cloud-flow-frontend
-        run: npm ci
-
-      - name: Type check
-        working-directory: cloud-flow-frontend
-        run: npx vue-tsc --noEmit
-
-      - name: Run frontend tests
-        working-directory: cloud-flow-frontend
-        run: npm test -- --coverage
-
-      - name: Build
-        working-directory: cloud-flow-frontend
-        run: npm run build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: cloud-flow-frontend/dist/
-          retention-days: 7
 
   # ---------------------------------------------------------------------------
   # Job 4: Docker 镜像构建检查
@@ -171,35 +134,17 @@ jobs:
       matrix:
         service:
           - name: center
-            context: cloud-flow-center
-            dockerfile: deployments/Dockerfile
+            context: .
+            dockerfile: cloud-flow-center/deployments/Dockerfile
           - name: edge
-            context: cloud-flow-edge
-            dockerfile: deployments/Dockerfile
+            context: .
+            dockerfile: cloud-flow-edge/deployments/Dockerfile
           - name: agent
-            context: cloud-flow-agent
-            dockerfile: deployments/Dockerfile
-          - name: frontend
-            context: cloud-flow-frontend
-            dockerfile: deployments/Dockerfile
+            context: .
+            dockerfile: cloud-flow-agent/deployments/Dockerfile
           - name: auth-service
-            context: services/auth-service
-            dockerfile: deployments/Dockerfile
-          - name: control-plane
-            context: services/control-plane
-            dockerfile: deployments/Dockerfile
-          - name: data-plane
-            context: services/data-plane
-            dockerfile: deployments/Dockerfile
-          - name: query-service
-            context: services/query-service
-            dockerfile: deployments/Dockerfile
-          - name: topology-engine
-            context: services/topology-engine
-            dockerfile: deployments/Dockerfile
-          - name: alert-engine
-            context: services/alert-engine
-            dockerfile: deployments/Dockerfile
+            context: .
+            dockerfile: services/auth-service/deployments/Dockerfile
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

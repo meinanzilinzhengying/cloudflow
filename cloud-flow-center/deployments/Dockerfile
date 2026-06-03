@@ -1,11 +1,20 @@
 FROM golang:1.22-alpine AS builder
-RUN apk add --no-cache git
+RUN apk add --no-cache git sed
 ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /build
-COPY go.mod go.sum ./
-COPY proto ../proto
-RUN go mod download
+
+# Copy entire project
 COPY . .
+
+# Fix replace directives in go.mod for Docker build environment
+WORKDIR /build/cloud-flow-center
+RUN sed -i 's|../pkg|/build/pkg|g' go.mod && \
+    sed -i 's|../proto|/build/proto|g' go.mod
+
+# Run go mod tidy to resolve all dependencies
+RUN go mod tidy
+
+# Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /build/cloud-flow-center ./cmd/main.go
 
@@ -14,7 +23,7 @@ RUN apk add --no-cache ca-certificates tzdata
 ENV TZ=Asia/Shanghai
 WORKDIR /app
 COPY --from=builder /build/cloud-flow-center .
-COPY configs/ ./configs/
+COPY --from=builder /build/cloud-flow-center/configs/ ./configs/
 RUN adduser -D -u 1000 appuser
 USER appuser
 EXPOSE 9090

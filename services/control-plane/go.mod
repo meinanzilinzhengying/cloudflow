@@ -14,4 +14,4 @@ require (
 )
 
 replace cloudflow/pkg => ../../../pkg
-replace cloudflow/services/proto => ../../../proto
+replace cloudflow/services/proto => ../../../services/proto

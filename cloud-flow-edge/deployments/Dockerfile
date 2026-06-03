@@ -3,21 +3,25 @@
 FROM golang:1.22-alpine AS builder
 
 # 安装必要工具
-RUN apk add --no-cache git
+RUN apk add --no-cache git sed
 
 # 配置国内 Go 代理
 ENV GOPROXY=https://goproxy.cn,direct
 
 WORKDIR /build
 
-# 先复制依赖文件，利用 Docker 缓存
-COPY go.mod go.sum ./
-RUN go mod download
-
-# 复制源码并编译
+# 复制整个项目
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-s -w" -o /build/edge-node ./cmd/main.go
+
+# Fix replace directives in go.mod for Docker build environment
+WORKDIR /build/cloud-flow-edge
+RUN sed -i 's|../pkg|/build/pkg|g' go.mod && \
+    sed -i 's|../proto|/build/proto|g' go.mod
+
+# Run go mod tidy and compile
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /build/cloud-flow-edge ./cmd/main.go
 
 # 第二阶段：运行
 FROM alpine:3.20
@@ -31,10 +35,10 @@ ENV TZ=Asia/Shanghai
 WORKDIR /app
 
 # 从编译阶段复制二进制
-COPY --from=builder /build/edge-node .
+COPY --from=builder /build/cloud-flow-edge .
 
 # 复制配置文件
-COPY configs/ ./configs/
+COPY --from=builder /build/cloud-flow-edge/configs/ ./configs/
 
 # 非 root 用户运行
 RUN adduser -D -u 1000 appuser
@@ -46,4 +50,4 @@ EXPOSE 9091 9092
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD wget -qO- http://localhost:9092/metrics || exit 1
 
-ENTRYPOINT ["./edge-node"]
+ENTRYPOINT ["./cloud-flow-edge"]

@@ -11,4 +11,4 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-replace cloudflow/services/proto => ../../../proto
+replace cloudflow/services/proto => ../../../services/proto

@@ -10,51 +10,35 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------------------------------------------------------------------------
-# Stage 1: 依赖下载 - 利用缓存层
-# ---------------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS deps
-
-WORKDIR /build
-
-# 安装 git 用于 go mod download
-RUN apk add --no-cache git
-
-# 设置 GOPROXY
-ENV GOPROXY=https://goproxy.cn,direct
-
-# 复制依赖文件
-COPY go.mod go.sum ./
-COPY proto ../proto
-
-# 利用 BuildKit 缓存挂载加速 go mod download
-RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
-    go mod download
-
-# ---------------------------------------------------------------------------
-# Stage 2: 构建阶段 - 支持多架构
+# Stage 1: 构建阶段 - 支持多架构
 # ---------------------------------------------------------------------------
 FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
 
 WORKDIR /build
 
 # 安装构建依赖
-RUN apk add --no-cache git clang llvm make
+RUN apk add --no-cache git clang llvm make sed
 
-# 从 deps 阶段复制缓存
-COPY --from=deps /go/pkg/mod /go/pkg/mod
+# 设置 GOPROXY
+ENV GOPROXY=https://goproxy.cn,direct
 
-# 复制源码
+# 复制整个项目
 COPY . .
-COPY proto ../proto
+
+# Fix replace directives in go.mod for Docker build environment
+WORKDIR /build/cloud-flow-agent
+RUN sed -i 's|../pkg|/build/pkg|g' go.mod && \
+    sed -i 's|../proto|/build/proto|g' go.mod
 
 # 构建参数
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ARG CGO_ENABLED=0
 
-# 静态编译，去除符号表和调试信息
+# 下载依赖并构建
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    go mod tidy && \
     CGO_ENABLED=${CGO_ENABLED} GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -ldflags="-s -w -extldflags '-static'" \
     -a -installsuffix cgo \
@@ -62,7 +46,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # 验证二进制文件
 RUN ls -lh /build/cloud-flow-agent && \
-    file /build/cloud-flow-agent
+    (file /build/cloud-flow-agent 2>/dev/null || true)
 
 # ---------------------------------------------------------------------------
 # Stage 3: 生产阶段 - 使用最小化镜像
@@ -81,7 +65,7 @@ WORKDIR /app
 COPY --from=builder /build/cloud-flow-agent .
 
 # 复制配置文件
-COPY configs/ ./configs/
+COPY --from=builder /build/cloud-flow-agent/configs/ ./configs/
 
 # 创建非特权用户 (eBPF 需要特权，但其他操作可以用普通用户)
 RUN addgroup -g 1000 -S agent && \

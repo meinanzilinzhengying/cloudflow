@@ -13,6 +13,6 @@ require (
 
 replace (
 	cloudflow/pkg => ../../../pkg
-	cloudflow/services/proto => ../../../proto
+	cloudflow/services/proto => ../../../services/proto
 	cloudflow/services/shared/auth => ../shared/auth
 )
