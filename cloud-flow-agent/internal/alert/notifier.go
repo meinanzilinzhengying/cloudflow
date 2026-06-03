@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,6 +50,14 @@ type KafkaConfig struct {
 }
 
 func NewKafkaNotifier(config KafkaConfig, log *logger.Logger) *KafkaNotifier {
+	if config.SASLEnabled {
+		if envPass := os.Getenv("CLOUD_FLOW_KAFKA_SASL_PASS"); envPass != "" {
+			config.SASLPass = envPass
+		} else if config.SASLPass != "" {
+			log.Warnf("[KafkaNotifier] 警告: SASL密码从配置文件加载，建议使用环境变量 CLOUD_FLOW_KAFKA_SASL_PASS")
+		}
+	}
+	
 	return &KafkaNotifier{
 		config: config,
 		client: &http.Client{Timeout: 10 * time.Second},
