@@ -32,6 +32,15 @@ func NewDashboardAPI(tenantManager *tenant.TenantManager, assetManager *asset.As
 	}
 }
 
+// jsonResponse 辅助函数：发送JSON响应并处理错误
+func (api *DashboardAPI) jsonResponse(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		api.log.Errorf("[DashboardAPI] JSON 序列化失败: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
 // RegisterRoutes 注册路由
 func (api *DashboardAPI) RegisterRoutes(mux *http.ServeMux) {
 	// 管理员视图
@@ -138,8 +147,7 @@ func (api *DashboardAPI) handleAdminDashboard(w http.ResponseWriter, r *http.Req
 		Alerts:  alertSummary,
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	api.jsonResponse(w, response)
 }
 
 // TenantDashboardResponse 租户仪表盘响应
@@ -252,8 +260,7 @@ func (api *DashboardAPI) handleTenantDashboard(w http.ResponseWriter, r *http.Re
 		Trends:      trends,
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	api.jsonResponse(w, response)
 }
 
 // handleListTenants 处理列出租户请求
@@ -271,8 +278,7 @@ func (api *DashboardAPI) handleListTenants(w http.ResponseWriter, r *http.Reques
 	
 	tenants := api.tenantManager.ListTenants()
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tenants)
+	api.jsonResponse(w, tenants)
 }
 
 // handleListAllAssets 处理列出所有资产请求
@@ -290,8 +296,7 @@ func (api *DashboardAPI) handleListAllAssets(w http.ResponseWriter, r *http.Requ
 	
 	assets := api.assetManager.ListAssets(asset.AssetFilter{})
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(assets)
+	api.jsonResponse(w, assets)
 }
 
 // handleListTenantAssets 处理列出租户资产请求
@@ -327,8 +332,7 @@ func (api *DashboardAPI) handleListTenantAssets(w http.ResponseWriter, r *http.R
 	
 	assets := api.assetManager.ListAssets(filter)
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(assets)
+	api.jsonResponse(w, assets)
 }
 
 // handleAssetDetail 处理资产详情请求
@@ -359,8 +363,7 @@ func (api *DashboardAPI) handleAssetDetail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(a)
+	api.jsonResponse(w, a)
 }
 
 // handleAssetDrillDown 处理资产下钻请求
@@ -398,8 +401,7 @@ func (api *DashboardAPI) handleAssetDrillDown(w http.ResponseWriter, r *http.Req
 		return
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(drillDown)
+	api.jsonResponse(w, drillDown)
 }
 
 // handleNetworkMetrics 处理网络指标请求
@@ -445,8 +447,7 @@ func (api *DashboardAPI) handleNetworkMetrics(w http.ResponseWriter, r *http.Req
 		networkMetrics = append(networkMetrics, m.NetworkMetrics)
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(networkMetrics)
+	api.jsonResponse(w, networkMetrics)
 }
 
 // handleApplicationMetrics 处理应用指标请求
@@ -492,8 +493,7 @@ func (api *DashboardAPI) handleApplicationMetrics(w http.ResponseWriter, r *http
 		appMetrics = append(appMetrics, m.ApplicationMetrics)
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(appMetrics)
+	api.jsonResponse(w, appMetrics)
 }
 
 // calculateAlertSummary 计算告警汇总

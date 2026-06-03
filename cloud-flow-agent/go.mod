@@ -15,7 +15,10 @@ require (
 	google.golang.org/grpc v1.80.0
 )
 
-
+replace (
+	github.com/meinanzilinzhengying/cloudflow/pkg => ../pkg
+	github.com/meinanzilinzhengying/cloudflow/proto => ../proto
+)
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
