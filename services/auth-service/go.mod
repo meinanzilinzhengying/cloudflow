@@ -4,7 +4,7 @@ go 1.22
 
 require (
         cloudflow/pkg v0.0.0
-        cloudflow/services/proto v0.0.0
+        cloudflow/proto v0.0.0
         github.com/go-sql-driver/mysql v1.8.1
         github.com/golang-jwt/jwt/v5 v5.2.0
         github.com/google/uuid v1.6.0
@@ -40,7 +40,7 @@ require (
 
 replace (
         cloudflow/pkg => ../../../pkg
-        cloudflow/services/proto => ../../../proto
+        cloudflow/proto => ../../../proto
         cloudflow/services/shared => ../../../services/shared
         cloudflow/services/shared/auth => ../../../services/shared/auth
         cloudflow/services/shared/resilience => ../../../services/shared/resilience
