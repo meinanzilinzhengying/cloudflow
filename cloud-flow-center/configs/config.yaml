@@ -16,7 +16,9 @@ center:
             headers:
                 authorization: ""
             url: http://localhost:8080/webhook
-    api_key: ef1a6aca1e43ff5d1c4e85845281153f
+    # ️ 安全警告：请勿在此文件中硬编码 API Key
+    # 请使用环境变量 CLOUDFLOW_CENTER_API_KEY 或在启动时通过命令行参数传入
+    api_key: "${CLOUDFLOW_CENTER_API_KEY}"  # 从环境变量读取
     cluster:
         enabled: false
         etcd_endpoints:
@@ -27,7 +29,10 @@ center:
     data_dir: ./data
     grpc_listen_port: 9090
     jwt:
-        secret_key: test-secret-1234567890123456
+        # ⚠️ 安全警告：请使用至少 64 字节的强随机密钥
+        # 生成方法：openssl rand -base64 64
+        # 或使用环境变量 CLOUDFLOW_JWT_SECRET_KEY
+        secret_key: "${CLOUDFLOW_JWT_SECRET_KEY}"  # 从环境变量读取
         token_duration: 24
     log:
         format: json
