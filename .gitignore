@@ -4,6 +4,7 @@ vendor/
 
 # 构建产物
 dist/
+build/
 *.exe
 *.exe~
 *.dll
@@ -11,6 +12,7 @@ dist/
 *.dylib
 bin/
 obj/
+out/
 
 # 环境变量（包含密钥，绝不能提交）
 .env
@@ -47,10 +49,30 @@ Thumbs.db
 *.out
 *.prof
 coverage.out
+coverage.html
+*.coverprofile
 
 # eBPF 编译产物
 *.o
 *.bpf.o
+*.bpf
+
+# Kubernetes
+*.kubeconfig
+kubeconfig*
+
+# Docker
+.docker/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache
+.cache/
+__pycache__/
+*.pyc
 
 # 日志
 *.log
