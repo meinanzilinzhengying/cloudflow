@@ -6,7 +6,10 @@ package alert
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -322,7 +325,15 @@ func (n *WebhookNotifier) Notify(ctx context.Context, event *AlertEvent) error {
 }
 
 func (n *WebhookNotifier) sign(event *AlertEvent) string {
-	return fmt.Sprintf("%x", len(event.ID)+len(n.config.Secret))
+	data, err := json.Marshal(event.ToMap())
+	if err != nil {
+		n.log.Errorf("[Webhook] 签名序列化失败: %v", err)
+		return ""
+	}
+	
+	h := hmac.New(sha256.New, []byte(n.config.Secret))
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (n *WebhookNotifier) GetStats() map[string]interface{} {
