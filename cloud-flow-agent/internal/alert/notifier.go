@@ -168,6 +168,10 @@ func NewAPINotifier(config APINotifierConfig, log *logger.Logger) *APINotifier {
 		client.Transport = &http.Transport{
 			TLSClientConfig: tlsConfig,
 		}
+		
+		if config.SkipTLSVerify {
+			log.Warnf("[APINotifier] 警告: TLS证书验证已禁用，这会使连接容易受到中间人攻击")
+		}
 	}
 	
 	return &APINotifier{
