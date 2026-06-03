@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"cloudflow/services/auth-service"
+	"github.com/meinanzilinzhengying/cloudflow/services/auth-service"
 )
 
 func main() {

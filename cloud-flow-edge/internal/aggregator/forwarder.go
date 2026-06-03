@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-edge/internal/forwarder"
-	"cloudflow-edge/pkg/logger"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/edge/internal/forwarder"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // AggregatedForwarder 聚合转发器

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	edge "cloudflow/proto"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 func TestRegisterProbeRequest_Valid(t *testing.T) {

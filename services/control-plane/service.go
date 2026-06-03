@@ -31,7 +31,7 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	svcproto "cloudflow/services/proto"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 )
 
 // ============================================================================
@@ -80,7 +80,7 @@ func DefaultConfig() *Config {
 		GrpcAddr:         ":9001",
 		HttpAddr:         ":8001",
 		EtcdEndpoints:    []string{"localhost:2379"},
-		EtcdPrefix:       "cloudflow/services/",
+		EtcdPrefix:       "github.com/meinanzilinzhengying/cloudflow/services/",
 		AgentTTL:         90 * time.Second,
 		HeartbeatTimeout: 60 * time.Second,
 		TLSEnabled:       false, // 默认禁用 TLS

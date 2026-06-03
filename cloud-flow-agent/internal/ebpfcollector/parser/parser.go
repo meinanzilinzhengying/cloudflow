@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	edge "cloudflow/proto"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // Parser 协议解析器接口

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"cloudflow-agent/internal/ebpfconsumer/pool"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfconsumer/pool"
 )
 
 func TestRingBuffer_Basic(t *testing.T) {

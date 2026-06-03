@@ -1,10 +1,10 @@
-module cloudflow-agent
+module github.com/meinanzilinzhengying/cloudflow/agent
 
 go 1.22
 
 require (
-	cloudflow/pkg v0.0.0
-	cloudflow/proto v0.0.0
+	github.com/meinanzilinzhengying/cloudflow/pkg v0.0.0
+	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/cilium/ebpf v0.11.0
 	github.com/prometheus/client_golang v1.20.4
 	github.com/prometheus/client_model v0.6.2

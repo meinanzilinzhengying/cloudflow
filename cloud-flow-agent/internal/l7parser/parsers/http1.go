@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"cloudflow-agent/internal/l7parser"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/l7parser"
 )
 
 var (

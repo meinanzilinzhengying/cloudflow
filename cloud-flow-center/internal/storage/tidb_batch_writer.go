@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cloudflow-center/pkg/logger"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // ==================== 批量写入配置 ====================

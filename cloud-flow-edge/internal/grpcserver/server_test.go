@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/grpc/peer"
 
-	edge "cloudflow/proto"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // TestExtractIP 测试 IP 提取函数

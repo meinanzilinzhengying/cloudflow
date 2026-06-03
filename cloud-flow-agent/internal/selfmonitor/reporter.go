@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"cloudflow-agent/pkg/logger"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // MetricsSender 指标发送接口（适配grpcclient.Client）

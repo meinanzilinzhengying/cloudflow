@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	"cloudflow/services/shared/logger"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/logger"
 )
 
 // ==============================

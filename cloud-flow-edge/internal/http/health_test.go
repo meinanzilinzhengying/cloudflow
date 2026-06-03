@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"cloudflow-edge/internal/probemgr"
-	"cloudflow-edge/pkg/testutil"
+	"github.com/meinanzilinzhengying/cloudflow/edge/internal/probemgr"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/testutil"
 )
 
 func TestStartHealthServer(t *testing.T) {

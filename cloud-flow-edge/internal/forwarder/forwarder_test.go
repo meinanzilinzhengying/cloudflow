@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"cloudflow-edge/pkg/logger"
-	"cloudflow-edge/pkg/testutil"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/testutil"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // mockClient 模拟中心服务客户端，记录转发调用

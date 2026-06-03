@@ -15,19 +15,19 @@ import (
 
 	"google.golang.org/grpc"
 
-	"cloudflow-center/internal/alerting"
-	"cloudflow-center/internal/cluster"
-	"cloudflow-center/internal/config"
-	"cloudflow-center/internal/edgeregistry"
-	"cloudflow-center/internal/grpcserver"
-	"cloudflow-center/internal/kafkaconsumer"
-	"cloudflow-center/internal/portal"
-	"cloudflow-center/internal/storage"
-	"cloudflow-center/pkg/audit"
-	"cloudflow-center/pkg/logger"
-	"cloudflow-center/pkg/metrics"
-	"cloudflow/pkg/safety"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/alerting"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/cluster"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/config"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/edgeregistry"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/grpcserver"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/kafkaconsumer"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/portal"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/storage"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/audit"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/metrics"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/safety"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 func main() {

@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-edge/internal/kafkafwd"
-	"cloudflow-edge/pkg/logger"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/edge/internal/kafkafwd"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // KafkaAdapter 将 KafkaForwarder 适配为 ForwardClient 接口

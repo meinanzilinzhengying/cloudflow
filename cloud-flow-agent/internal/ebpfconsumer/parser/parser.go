@@ -16,7 +16,7 @@ import (
 	"encoding/binary"
 	"unsafe"
 
-	"cloudflow-agent/internal/ebpfconsumer/pool"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfconsumer/pool"
 )
 
 // Protocol 协议类型

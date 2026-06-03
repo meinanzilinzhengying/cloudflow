@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"cloudflow-center/pkg/logger"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // mockStorage 模拟存储引擎，记录调用并支持错误注入

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-agent/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 )
 
 // Visualizer 可视化器

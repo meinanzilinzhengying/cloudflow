@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cloudflow-agent/internal/l7parser"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/l7parser"
 )
 
 // WorkerPool Parser Worker Pool

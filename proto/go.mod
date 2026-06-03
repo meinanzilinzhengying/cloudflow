@@ -1,4 +1,4 @@
-module cloudflow/proto
+module github.com/meinanzilinzhengying/cloudflow/proto
 
 go 1.22
 

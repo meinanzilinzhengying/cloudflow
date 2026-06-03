@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"cloudflow-edge/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
 )
 
 // Metrics 指标收集器

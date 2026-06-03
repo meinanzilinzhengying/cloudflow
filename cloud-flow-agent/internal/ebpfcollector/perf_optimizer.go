@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-agent/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 )
 
 // PerfConfig 性能优化配置

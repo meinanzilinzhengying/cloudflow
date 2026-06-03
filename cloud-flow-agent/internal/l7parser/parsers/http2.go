@@ -14,7 +14,7 @@ import (
 	"errors"
 	"fmt"
 
-	"cloudflow-agent/internal/l7parser"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/l7parser"
 )
 
 var (

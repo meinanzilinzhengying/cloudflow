@@ -32,12 +32,12 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"cloudflow/pkg/flow"
-	svcproto "cloudflow/services/proto"
-	"cloudflow/services/data-plane/sampling"
-	"cloudflow/services/shared/auth"
-	"cloudflow/services/shared/tenant"
-	"cloudflow/services/shared/tlsutil"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/flow"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
+	"github.com/meinanzilinzhengying/cloudflow/services/data-plane/sampling"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
 
 // ============================================================================

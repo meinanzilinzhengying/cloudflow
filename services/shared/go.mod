@@ -1,4 +1,4 @@
-module cloudflow/services/shared
+module github.com/meinanzilinzhengying/cloudflow/services/shared
 
 go 1.22
 

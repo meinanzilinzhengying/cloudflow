@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	graph "cloudflow/services/topology-engine/graph"
+	graph "github.com/meinanzilinzhengying/cloudflow/services/topology-engine/graph"
 )
 
 // CacheKey 缓存键，按租户 + 图类型隔离

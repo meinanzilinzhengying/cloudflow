@@ -26,12 +26,12 @@ import (
 
 	"github.com/cilium/ebpf/perf"
 
-	"cloudflow-agent/internal/ebpfconsumer/dispatcher"
-	"cloudflow-agent/internal/ebpfconsumer/parser"
-	"cloudflow-agent/internal/ebpfconsumer/pool"
-	"cloudflow-agent/internal/ebpfconsumer/ringbuffer"
-	"cloudflow-agent/internal/ebpfconsumer/worker"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfconsumer/dispatcher"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfconsumer/parser"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfconsumer/pool"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfconsumer/ringbuffer"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfconsumer/worker"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // Config consumer 配置

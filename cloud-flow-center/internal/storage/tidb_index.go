@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"cloudflow-center/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
 )
 
 // ==================== 表结构初始化（含索引） ====================

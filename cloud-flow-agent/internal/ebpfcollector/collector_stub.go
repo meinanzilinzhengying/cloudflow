@@ -3,7 +3,7 @@
 package ebpfcollector
 
 import (
-	edge "cloudflow/proto"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // Collector eBPF 采集器 (stub implementation for non-CGO builds)

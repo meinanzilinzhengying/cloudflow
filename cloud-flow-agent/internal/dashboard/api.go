@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"time"
 
-	"cloudflow-agent/internal/asset"
-	"cloudflow-agent/internal/tenant"
-	"cloudflow-agent/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/asset"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/tenant"
+	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 )
 
 // DashboardAPI 仪表盘API

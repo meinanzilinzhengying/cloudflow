@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"cloudflow/pkg/utils"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/utils"
 )
 
 // loadAPIKey 从环境变量或配置文件加载 API Key
@@ -460,7 +460,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("ebpf.vxlan.tap_device_name", "vxlan-tap0")
 	viper.SetDefault("ebpf.vxlan.parse_inner_protocol", true)
 	viper.SetDefault("ebpf.plugin_framework.enabled", false)
-	viper.SetDefault("ebpf.plugin_framework.plugin_dir", "/opt/cloudflow-agent/plugins")
+	viper.SetDefault("ebpf.plugin_framework.plugin_dir", "/opt/github.com/meinanzilinzhengying/cloudflow/agent/plugins")
 	viper.SetDefault("ebpf.plugin_framework.auto_discovery", true)
 	viper.SetDefault("ebpf.plugin_framework.check_interval", "30s")
 	viper.SetDefault("ebpf.plugin_framework.max_memory_mb", 256)
@@ -491,7 +491,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("ebpf.cpu_profiler.target_pid", 0)
 	viper.SetDefault("ebpf.cpu_profiler.max_stack_depth", 127)
 	viper.SetDefault("ebpf.cpu_profiler.duration_sec", 0)
-	viper.SetDefault("ebpf.cpu_profiler.output_dir", "/var/log/cloudflow-agent/profiler")
+	viper.SetDefault("ebpf.cpu_profiler.output_dir", "/var/log/github.com/meinanzilinzhengying/cloudflow/agent/profiler")
 	viper.SetDefault("ebpf.cpu_profiler.auto_detect", true)
 	viper.SetDefault("ebpf.sql_aggregator.enabled", false)
 	viper.SetDefault("ebpf.sql_aggregator.slow_query_threshold_ms", 1000)
@@ -503,7 +503,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("ebpf.sql_aggregator.slow_query_max", 10)
 	viper.SetDefault("ebpf.sql_aggregator.conn_max", 100)
 	viper.SetDefault("storage.enabled", false)
-	viper.SetDefault("storage.base_dir", "/var/lib/cloudflow-agent/storage")
+	viper.SetDefault("storage.base_dir", "/var/lib/github.com/meinanzilinzhengying/cloudflow/agent/storage")
 	viper.SetDefault("storage.retention_days", 60)
 	viper.SetDefault("storage.chunk_size", 10000)
 	viper.SetDefault("storage.write_buffer_size", 50000)
@@ -581,7 +581,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("trace.flame_sample_freq", 99)
 	viper.SetDefault("trace.flame_max_depth", 127)
 	viper.SetDefault("trace.flame_duration_sec", 30)
-	viper.SetDefault("trace.flame_output_dir", "/var/log/cloudflow-agent/flamegraph")
+	viper.SetDefault("trace.flame_output_dir", "/var/log/github.com/meinanzilinzhengying/cloudflow/agent/flamegraph")
 	viper.SetDefault("trace.flame_max_stored", 100)
 
 	if *configFile != "" {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"cloudflow-center/internal/validator"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/validator"
 )
 
 type SecurityConfig struct {

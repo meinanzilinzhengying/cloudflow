@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-agent/internal/alert"
-	"cloudflow-agent/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/alert"
+	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 )
 
 // AlertIntegrator 告警集成器

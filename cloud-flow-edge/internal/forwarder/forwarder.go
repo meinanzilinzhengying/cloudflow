@@ -12,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-edge/internal/localcache"
-	"cloudflow-edge/internal/persistence"
-	"cloudflow-edge/internal/resender"
-	"cloudflow-edge/pkg/logger"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/edge/internal/localcache"
+	"github.com/meinanzilinzhengying/cloudflow/edge/internal/persistence"
+	"github.com/meinanzilinzhengying/cloudflow/edge/internal/resender"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // ForwardClient 转发目标接口

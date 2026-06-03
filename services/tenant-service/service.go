@@ -31,10 +31,10 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	svcproto "cloudflow/services/proto"
-	"cloudflow/services/shared/auth"
-	"cloudflow/services/shared/tenant"
-	"cloudflow/services/shared/tlsutil"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
 
 // ============================================================================

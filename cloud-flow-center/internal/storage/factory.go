@@ -4,8 +4,8 @@ package storage
 import (
 	"fmt"
 
-	"cloudflow-center/internal/config"
-	"cloudflow-center/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/config"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
 )
 
 // NewStorageEngine 创建 TiDB 存储引擎

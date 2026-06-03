@@ -22,13 +22,13 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"cloudflow/services/auth-service/auth"
-	"cloudflow/services/auth-service/rbac"
-	rbacadapter "cloudflow/services/auth-service/rbac/adapter"
-	svcproto "cloudflow/services/proto"
-	"cloudflow/services/shared/tenant"
-	"cloudflow/services/shared/tlsutil"
-	"cloudflow/services/shared/security"
+	"github.com/meinanzilinzhengying/cloudflow/services/auth-service/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/auth-service/rbac"
+	rbacadapter "github.com/meinanzilinzhengying/cloudflow/services/auth-service/rbac/adapter"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/security"
 )
 
 // ============================================================================

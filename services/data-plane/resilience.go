@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"cloudflow/services/shared/resilience"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/resilience"
 )
 
 type ResilienceConfig struct {

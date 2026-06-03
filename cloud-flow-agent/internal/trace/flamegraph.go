@@ -97,7 +97,7 @@ func DefaultFlameGraphConfig() *FlameGraphConfig {
 		SampleFreq:    99,
 		MaxStackDepth: 127,
 		DurationSec:   30,
-		OutputDir:     "/var/log/cloudflow-agent/flamegraph",
+		OutputDir:     "/var/log/github.com/meinanzilinzhengying/cloudflow/agent/flamegraph",
 		MaxStored:     100,
 		MinSamples:    5,
 	}

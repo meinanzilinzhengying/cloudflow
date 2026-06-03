@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"cloudflow/services/query-service"
+	"github.com/meinanzilinzhengying/cloudflow/services/query-service"
 )
 
 func main() {

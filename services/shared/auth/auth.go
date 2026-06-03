@@ -36,7 +36,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
-	svcproto "cloudflow/services/proto"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 )
 
 // Config 认证器配置

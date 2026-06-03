@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-agent/internal/topology"
-	"cloudflow-agent/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/topology"
+	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 )
 
 // AssetType 资产类型

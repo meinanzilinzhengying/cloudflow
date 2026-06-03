@@ -11,9 +11,9 @@ import (
 
 	"github.com/IBM/sarama"
 
-	"cloudflow-center/internal/storage"
-	"cloudflow-center/pkg/logger"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/storage"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // Consumer Kafka 消费者

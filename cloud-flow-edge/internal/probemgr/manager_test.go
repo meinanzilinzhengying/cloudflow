@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"cloudflow-edge/pkg/testutil"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/testutil"
 )
 
 func TestRegister(t *testing.T) {

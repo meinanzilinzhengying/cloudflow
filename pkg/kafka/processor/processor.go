@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	kafkapkg "cloudflow/pkg/kafka"
+	kafkapkg "github.com/meinanzilinzhengying/cloudflow/pkg/kafka"
 	"github.com/IBM/sarama"
 )
 

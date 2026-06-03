@@ -32,10 +32,10 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	svcproto "cloudflow/services/proto"
-	"cloudflow/services/query-service/correlation"
-	"cloudflow/services/query-service/otel"
-	"cloudflow/services/shared/tlsutil"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
+	"github.com/meinanzilinzhengying/cloudflow/services/query-service/correlation"
+	"github.com/meinanzilinzhengying/cloudflow/services/query-service/otel"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
 
 // Config 服务配置

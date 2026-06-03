@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-agent/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/client_golang/prometheus"
 )

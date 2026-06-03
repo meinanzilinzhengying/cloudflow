@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"cloudflow/services/data-plane"
+	"github.com/meinanzilinzhengying/cloudflow/services/data-plane"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	svcproto "cloudflow/services/proto"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 )
 
 // RegisterTopologyService 注册 topology gRPC 服务

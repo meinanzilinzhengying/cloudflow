@@ -1,10 +1,10 @@
-module cloudflow-edge
+module github.com/meinanzilinzhengying/cloudflow/edge
 
 go 1.22
 
 require (
-	cloudflow/pkg v0.0.0
-	cloudflow/proto v0.0.0
+	github.com/meinanzilinzhengying/cloudflow/pkg v0.0.0
+	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/IBM/sarama v1.50.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/protobuf v1.5.4

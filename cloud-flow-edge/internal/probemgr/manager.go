@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-edge/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
 )
 
 // Probe 探针信息

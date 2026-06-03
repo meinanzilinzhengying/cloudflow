@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"cloudflow-agent/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 )
 
 // ResourceLimit 资源限制配置

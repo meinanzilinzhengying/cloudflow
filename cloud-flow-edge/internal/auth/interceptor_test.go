@@ -7,7 +7,7 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	edge "cloudflow/proto"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // TestHashToken 测试 Token 哈希函数

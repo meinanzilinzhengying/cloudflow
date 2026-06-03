@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"cloudflow-edge/pkg/testutil"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/testutil"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 func TestCreateSnapshotDeepCopy(t *testing.T) {

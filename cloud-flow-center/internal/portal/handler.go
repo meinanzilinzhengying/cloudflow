@@ -17,15 +17,15 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-center/internal/alerting"
-	"cloudflow-center/internal/config"
-	"cloudflow-center/internal/security"
-	"cloudflow-center/internal/storage"
-	"cloudflow-center/pkg/audit"
-	"cloudflow-center/pkg/auth"
-	"cloudflow-center/pkg/logger"
-	"cloudflow/pkg/ratelimit"
-	"cloudflow/pkg/safety"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/alerting"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/config"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/security"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/storage"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/audit"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/auth"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/ratelimit"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/safety"
 )
 
 //go:embed static/*

@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-center/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
 )
 
 // Notifier 告警通知器接口

@@ -30,10 +30,10 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	svcproto "cloudflow/proto"
-	"cloudflow/services/shared/auth"
-	"cloudflow/services/shared/tenant"
-	"cloudflow/services/shared/tlsutil"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
 
 // Config 服务配置

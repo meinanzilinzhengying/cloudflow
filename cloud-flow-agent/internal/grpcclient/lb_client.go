@@ -18,9 +18,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"cloudflow-agent/pkg/logger"
-	"cloudflow/pkg/grpcutil"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/grpcutil"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 const (

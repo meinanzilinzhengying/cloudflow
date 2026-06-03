@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	graph "cloudflow/services/topology-engine/graph"
-	svcproto "cloudflow/services/proto"
+	graph "github.com/meinanzilinzhengying/cloudflow/services/topology-engine/graph"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 )
 
 // ---------------------------------------------------------------------------

@@ -16,13 +16,13 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"cloudflow-center/internal/config"
-	"cloudflow-center/internal/edgeregistry"
-	"cloudflow-center/internal/storage"
-	"cloudflow-center/pkg/logger"
-	"cloudflow/pkg/ratelimit"
-	"cloudflow/pkg/trace"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/config"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/edgeregistry"
+	"github.com/meinanzilinzhengying/cloudflow/center/internal/storage"
+	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/ratelimit"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/trace"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // Server 中心服务 gRPC 服务端

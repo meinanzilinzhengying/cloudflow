@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"cloudflow-edge/internal/probemgr"
-	"cloudflow-edge/pkg/logger"
+	"github.com/meinanzilinzhengying/cloudflow/edge/internal/probemgr"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
 )
 
-// Version 版本号，可在编译时通过 -ldflags "-X cloudflow-edge/internal/http.Version=x.y.z" 注入
+// Version 版本号，可在编译时通过 -ldflags "-X github.com/meinanzilinzhengying/cloudflow/edge/internal/http.Version=x.y.z" 注入
 var Version = "dev"
 
 type HealthHandler struct {

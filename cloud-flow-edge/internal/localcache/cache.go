@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"cloudflow-edge/pkg/logger"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // DataType 数据类型

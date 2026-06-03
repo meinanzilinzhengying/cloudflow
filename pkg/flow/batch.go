@@ -11,7 +11,7 @@ import (
 	"time"
 	"unsafe"
 
-	edge "cloudflow/proto"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // ============================================================================

@@ -20,9 +20,9 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 
-	"cloudflow-agent/internal/ebpfcollector/bpf"
-	"cloudflow-agent/internal/ebpfcollector/parser"
-	edge "cloudflow/proto"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfcollector/bpf"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfcollector/parser"
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 // 注意：eBPF 程序需要先编译，使用 `make ebpf` 命令
@@ -1109,8 +1109,8 @@ func findEBPFFile() string {
 	searchPaths := []string{
 		"bpf/tc.bpf.o",
 		"internal/ebpfcollector/bpf/tc.bpf.o",
-		"/etc/cloudflow-agent/bpf/tc.bpf.o",
-		"/usr/share/cloudflow-agent/bpf/tc.bpf.o",
+		"/etc/github.com/meinanzilinzhengying/cloudflow/agent/bpf/tc.bpf.o",
+		"/usr/share/github.com/meinanzilinzhengying/cloudflow/agent/bpf/tc.bpf.o",
 	}
 
 	for _, path := range searchPaths {

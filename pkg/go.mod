@@ -1,9 +1,9 @@
-module cloudflow/pkg
+module github.com/meinanzilinzhengying/cloudflow/pkg
 
 go 1.22
 
 require (
-	cloudflow/proto v0.0.0
+	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/IBM/sarama v1.50.1
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.80.0
