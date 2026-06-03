@@ -9,20 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/cgroup"
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/circuitbreaker"
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/collector"
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/config"
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfcollector"
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/grpcclient"
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/network"
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/reliable"
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/selfmonitor"
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/sqlaggregator"
-	"github.com/meinanzilinzhengying/cloudflow/agent/internal/storage"
 	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
-	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/metrics"
-	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
 var Version = "dev"
@@ -34,70 +22,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	log := logger.New(logger.Config{Level: cfg.Log.Level, Format: cfg.Log.Format})
-	defer log.Sync()
-
-	setupRuntime(cfg, log)
-	cgroupMgr := setupCgroup(cfg, log)
-	if cgroupMgr != nil {
-		defer cgroupMgr.Close()
-	}
-
-	breaker := setupCircuitBreaker(cfg, log)
-	if breaker != nil {
-		defer breaker.Stop()
-	}
-
-	selfMonitor, err := setupSelfMonitor(cfg, log)
+	provider := NewProvider(cfg)
+	deps, err := provider.Provide()
 	if err != nil {
-		log.Warnf("[自监控] 初始化失败: %v", err)
-	}
-	if selfMonitor != nil {
-		defer selfMonitor.Stop()
-	}
-
-	metricCollector, _ := setupMetrics(cfg, log, selfMonitor)
-
-	log.Infof("探针启动中... 配置: %s", cfg.Summary())
-
-	netMonitor, err := setupNetwork(cfg, log)
-	if err != nil {
-		log.Errorf("管理IP配置无效: %v", err)
+		fmt.Fprintf(os.Stderr, "初始化依赖失败: %v\n", err)
 		os.Exit(1)
 	}
-	defer netMonitor.Stop()
-
-	mgmtIP := netMonitor.GetMgmtIP()
-	if mgmtIP != "" {
-		log.Infof("使用管理IP: %s", mgmtIP)
-	}
-
-	tsStore, err := setupStorage(cfg, log)
-	if err != nil {
-		log.Warnf("时序存储初始化失败: %v", err)
-		tsStore = nil
-	}
-	if tsStore != nil {
-		defer tsStore.Close()
-	}
-
-	grpcClient, err := connectToEdge(cfg, log, mgmtIP)
-	if err != nil {
-		log.Errorf("连接边缘节点失败: %v", err)
-		return
-	}
-	defer grpcClient.Close()
-
-	reporter, err := setupReliableReporter(cfg, log, grpcClient, netMonitor)
-	if err != nil {
-		log.Warnf("[可靠上报] 初始化失败: %v", err)
-		reporter = nil
-	}
-
-	legacyCollector, ebpfCollector, sqlAggregator, err := setupCollectors(cfg, log)
-	if err != nil {
-		log.Warnf("采集器初始化失败: %v", err)
-	}
+	defer deps.Logger.Sync()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -106,35 +37,21 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		mainLoop(ctx, cfg, log, grpcClient, metricCollector, netMonitor, tsStore, legacyCollector, ebpfCollector, breaker, selfMonitor, reporter, sqlAggregator)
+		mainLoop(ctx, deps)
 	}()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigCh
-	log.Infof("收到信号 %v，正在退出...", sig)
+	deps.Logger.Infof("收到信号 %v，正在退出...", sig)
 	cancel()
 	wg.Wait()
 
-	log.Info("探针已安全退出")
+	deps.Logger.Info("探针已安全退出")
 }
 
 // mainLoop 主采集循环
-func mainLoop(
-	ctx context.Context,
-	cfg *config.Config,
-	log *logger.Logger,
-	grpcClient *grpcclient.Client,
-	metricCollector *metrics.Metrics,
-	netMonitor *network.Monitor,
-	tsStore *storage.TimeSeriesStore,
-	legacyCollector *collector.Collector,
-	ebpfCollector *ebpfcollector.Collector,
-	breaker *circuitbreaker.Breaker,
-	selfMonitor *selfmonitor.Collector,
-	reporter *reliable.Reporter,
-	sqlAggregator *sqlaggregator.SQLAggregator,
-) {
+func mainLoop(ctx context.Context, deps *Dependencies) {
 	heartbeatInterval := 30 * time.Second
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
@@ -144,26 +61,12 @@ func mainLoop(
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			collectAndReport(ctx, cfg, log, grpcClient, metricCollector, netMonitor, tsStore, legacyCollector, ebpfCollector, breaker, selfMonitor, reporter, sqlAggregator)
+			collectAndReport(ctx, deps)
 		}
 	}
 }
 
 // collectAndReport 采集并上报数据
-func collectAndReport(
-	ctx context.Context,
-	cfg *config.Config,
-	log *logger.Logger,
-	grpcClient *grpcclient.Client,
-	metricCollector *metrics.Metrics,
-	netMonitor *network.Monitor,
-	tsStore *storage.TimeSeriesStore,
-	legacyCollector *collector.Collector,
-	ebpfCollector *ebpfcollector.Collector,
-	breaker *circuitbreaker.Breaker,
-	selfMonitor *selfmonitor.Collector,
-	reporter *reliable.Reporter,
-	sqlAggregator *sqlaggregator.SQLAggregator,
-) {
+func collectAndReport(ctx context.Context, deps *Dependencies) {
 	// 实现采集和上报逻辑
 }
