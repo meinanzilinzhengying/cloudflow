@@ -1,4 +1,4 @@
-module cloud-flow/services/shared/resilience
+module cloudflow/services/shared/resilience
 
 go 1.21
 

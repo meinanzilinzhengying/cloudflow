@@ -1,4 +1,4 @@
-module cloud-flow/proto
+module cloudflow/proto
 
 go 1.24.0
 

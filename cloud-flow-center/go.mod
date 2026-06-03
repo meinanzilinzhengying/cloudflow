@@ -1,10 +1,10 @@
-module cloud-flow-center
+module cloudflow-center
 
 go 1.25.0
 
 require (
-	cloud-flow/pkg v0.0.0-00010101000000-000000000000
-	cloud-flow/proto v0.0.0
+	cloudflow/pkg v0.0.0-00010101000000-000000000000
+	cloudflow/proto v0.0.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/IBM/sarama v1.50.1
 	github.com/fsnotify/fsnotify v1.7.0
@@ -20,9 +20,9 @@ require (
 	google.golang.org/grpc v1.80.0
 )
 
-replace cloud-flow/pkg => ../pkg
+replace cloudflow/pkg => ../pkg
 
-replace cloud-flow/proto => ../proto
+replace cloudflow/proto => ../proto
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect

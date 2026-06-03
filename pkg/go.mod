@@ -1,15 +1,15 @@
-module cloud-flow/pkg
+module cloudflow/pkg
 
 go 1.25.0
 
 require (
-	cloud-flow/proto v0.0.0
+	cloudflow/proto v0.0.0
 	github.com/IBM/sarama v1.50.1
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.80.0
 )
 
-replace cloud-flow/proto => ../proto
+replace cloudflow/proto => ../proto
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

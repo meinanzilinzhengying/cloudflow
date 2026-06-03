@@ -1,4 +1,4 @@
-module cloud-flow/services/shared
+module cloudflow/services/shared
 
 go 1.25
 

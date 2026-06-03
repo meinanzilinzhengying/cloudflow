@@ -1,10 +1,10 @@
-module cloud-flow-edge
+module cloudflow-edge
 
 go 1.25.0
 
 require (
-	cloud-flow/pkg v0.0.0
-	cloud-flow/proto v0.0.0
+	cloudflow/pkg v0.0.0
+	cloudflow/proto v0.0.0
 	github.com/IBM/sarama v1.50.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/protobuf v1.5.4
@@ -19,9 +19,9 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-replace cloud-flow/pkg => ../pkg
+replace cloudflow/pkg => ../pkg
 
-replace cloud-flow/proto => ../proto
+replace cloudflow/proto => ../proto
 
 require (
 	github.com/armon/go-metrics v0.4.1 // indirect
