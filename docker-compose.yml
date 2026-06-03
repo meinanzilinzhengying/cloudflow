@@ -191,8 +191,8 @@ services:
   # Auth Service（认证服务）
   auth-service:
     build:
-      context: ./services/auth-service
-      dockerfile: deployments/Dockerfile
+      context: .
+      dockerfile: services/auth-service/deployments/Dockerfile
     container_name: cloudflow-auth
     restart: unless-stopped
     depends_on:
@@ -229,8 +229,8 @@ services:
   # Tenant Service（租户服务）
   tenant-service:
     build:
-      context: ./services/tenant-service
-      dockerfile: deployments/Dockerfile
+      context: .
+      dockerfile: services/tenant-service/deployments/Dockerfile
     container_name: cloudflow-tenant
     restart: unless-stopped
     depends_on:
@@ -263,8 +263,8 @@ services:
   # Control Plane（控制面）
   control-plane:
     build:
-      context: ./services/control-plane
-      dockerfile: deployments/Dockerfile
+      context: .
+      dockerfile: services/control-plane/deployments/Dockerfile
     container_name: cloudflow-control-plane
     restart: unless-stopped
     depends_on:
@@ -309,8 +309,8 @@ services:
   # Data Plane（数据面）
   data-plane:
     build:
-      context: ./services/data-plane
-      dockerfile: deployments/Dockerfile
+      context: .
+      dockerfile: services/data-plane/deployments/Dockerfile
     container_name: cloudflow-data-plane
     restart: unless-stopped
     depends_on:
@@ -353,8 +353,8 @@ services:
   # Query Service（查询服务）
   query-service:
     build:
-      context: ./services/query-service
-      dockerfile: deployments/Dockerfile
+      context: .
+      dockerfile: services/query-service/deployments/Dockerfile
     container_name: cloudflow-query
     restart: unless-stopped
     depends_on:
@@ -389,8 +389,8 @@ services:
   # Topology Engine（拓扑引擎）
   topology-engine:
     build:
-      context: ./services/topology-engine
-      dockerfile: deployments/Dockerfile
+      context: .
+      dockerfile: services/topology-engine/deployments/Dockerfile
     container_name: cloudflow-topology
     restart: unless-stopped
     depends_on:
@@ -426,8 +426,8 @@ services:
   # Alert Engine（告警引擎）
   alert-engine:
     build:
-      context: ./services/alert-engine
-      dockerfile: deployments/Dockerfile
+      context: .
+      dockerfile: services/alert-engine/deployments/Dockerfile
     container_name: cloudflow-alert
     restart: unless-stopped
     depends_on:
