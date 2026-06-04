@@ -741,6 +741,42 @@ func (s *Server) Handler() http.Handler {
 		}
 	})))
 	
+	// 可视化增强 - 多维度筛选
+	mux.HandleFunc("/api/traffic/advanced", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleTrafficAdvanced))))
+	mux.HandleFunc("/api/filters/protocols", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleProtocolFilter))))
+	mux.HandleFunc("/api/filters/k8s/namespaces", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleK8sNamespaces))))
+	mux.HandleFunc("/api/filters/k8s/services", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleK8sServices))))
+	
+	// 可视化增强 - 高级导出
+	mux.HandleFunc("/api/export/advanced", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleExportAdvanced))))
+	
+	// 可视化增强 - 自定义仪表盘 CRUD
+	mux.HandleFunc("/api/dashboard", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.handleDashboardList(w, r)
+		case http.MethodPost:
+			s.csrfMiddleware(s.handleDashboardCreate)(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+	mux.HandleFunc("/api/dashboard/", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.handleDashboardDetail(w, r)
+		case http.MethodPut:
+			s.csrfMiddleware(s.handleDashboardUpdate)(w, r)
+		case http.MethodDelete:
+			s.csrfMiddleware(s.handleDashboardDelete)(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+	
+	// 可视化增强 - 大屏展示
+	mux.HandleFunc("/api/screen/display", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleScreenDisplay))))
+	
 	// Swagger 文档（带认证）
 	RegisterSwaggerRoutes(mux, s.authMiddleware)
 	
@@ -3346,13 +3382,576 @@ func (s *Server) handleReportGenerate(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, r, successResponse(reportData, "报表生成任务已提交"))
 }
 
-// handleReportDownload 下载报表（GET /api/report/{id}/download）
-func (s *Server) handleReportDownload(w http.ResponseWriter, r *http.Request) {
-	id := extractPathID(r.URL.Path, "/api/report/")
-	s.writeJSON(w, r, successResponse(map[string]interface{}{
-		"report_id":    id,
-		"download_url": "",
-		"status":       "ready",
-	}, "报表下载准备就绪"))
+// ==================== 10. 可视化增强 - 多维度筛选与仪表盘 ====================
+
+// ==================== 10.1 流量查询增强 ====================
+
+// handleTrafficAdvanced 高级流量查询（支持 K8s 资源/协议/时间筛选）
+func (s *Server) handleTrafficAdvanced(w http.ResponseWriter, r *http.Request) {
+	if s.store == nil {
+		s.writeJSONWithStatus(w, r, http.StatusServiceUnavailable, map[string]interface{}{"success": false, "message": "存储服务不可用"})
+		return
+	}
+
+	// 获取查询参数
+	startTime := r.URL.Query().Get("start_time")
+	endTime := r.URL.Query().Get("end_time")
+	protocol := r.URL.Query().Get("protocol")
+	k8sNamespace := r.URL.Query().Get("k8s_namespace")
+	k8sService := r.URL.Query().Get("k8s_service")
+	k8sPod := r.URL.Query().Get("k8s_pod")
+	srcIP := r.URL.Query().Get("src_ip")
+	dstIP := r.URL.Query().Get("dst_ip")
+	page, pageSize := parsePagination(r)
+
+	day := today()
+	results, err := s.store.QueryMetrics(day, "", page*pageSize)
+	if err != nil {
+		s.logger.Errorf("查询流量数据失败: %v", err)
+		s.writeJSONWithStatus(w, r, http.StatusInternalServerError, map[string]interface{}{"success": false, "message": "查询失败"})
+		return
+	}
+
+	// 多维度筛选
+	filtered := make([]map[string]interface{}, 0)
+	for _, metric := range results {
+		// 协议筛选
+		if protocol != "" {
+			if p, ok := metric["protocol"].(string); !ok || p != protocol {
+				continue
+			}
+		}
+		// K8s Namespace 筛选
+		if k8sNamespace != "" {
+			if ns, ok := metric["k8s_namespace"].(string); !ok || ns != k8sNamespace {
+				continue
+			}
+		}
+		// K8s Service 筛选
+		if k8sService != "" {
+			if svc, ok := metric["k8s_service"].(string); !ok || svc != k8sService {
+				continue
+			}
+		}
+		// K8s Pod 筛选
+		if k8sPod != "" {
+			if pod, ok := metric["k8s_pod"].(string); !ok || pod != k8sPod {
+				continue
+			}
+		}
+		// 源IP筛选
+		if srcIP != "" {
+			if sip, ok := metric["src_ip"].(string); !ok || sip != srcIP {
+				continue
+			}
+		}
+		// 目的IP筛选
+		if dstIP != "" {
+			if dip, ok := metric["dst_ip"].(string); !ok || dip != dstIP {
+				continue
+			}
+		}
+		filtered = append(filtered, metric)
+	}
+
+	// 分页
+	total := len(filtered)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+	items := filtered[start:end]
+	if items == nil {
+		items = []map[string]interface{}{}
+	}
+
+	s.writeJSON(w, r, paginatedResponse(items, total, page, pageSize))
+}
+
+// handleProtocolFilter 获取支持的协议列表（用于下拉筛选）
+func (s *Server) handleProtocolFilter(w http.ResponseWriter, r *http.Request) {
+	protocols := []map[string]interface{}{
+		{"value": "tcp", "label": "TCP"},
+		{"value": "udp", "label": "UDP"},
+		{"value": "http", "label": "HTTP"},
+		{"value": "https", "label": "HTTPS"},
+		{"value": "dns", "label": "DNS"},
+		{"value": "icmp", "label": "ICMP"},
+		{"value": "grpc", "label": "gRPC"},
+		{"value": "kafka", "label": "Kafka"},
+	}
+	s.writeJSON(w, r, successResponse(protocols, "获取协议列表成功"))
+}
+
+// handleK8sNamespaces 获取 K8s Namespace 列表（用于下拉筛选）
+func (s *Server) handleK8sNamespaces(w http.ResponseWriter, r *http.Request) {
+	namespaces := []map[string]interface{}{
+		{"value": "default", "label": "default"},
+		{"value": "kube-system", "label": "kube-system"},
+		{"value": "kube-public", "label": "kube-public"},
+		{"value": "monitoring", "label": "monitoring"},
+		{"value": "istio-system", "label": "istio-system"},
+	}
+	if s.store != nil {
+		// 从存储获取实际的 namespace 列表
+		if nsList, err := s.store.GetK8sNamespaces(); err == nil && nsList != nil {
+			namespaces = nsList
+		}
+	}
+	s.writeJSON(w, r, successResponse(namespaces, "获取 Namespace 列表成功"))
+}
+
+// handleK8sServices 获取指定 Namespace 的 K8s Service 列表
+func (s *Server) handleK8sServices(w http.ResponseWriter, r *http.Request) {
+	namespace := r.URL.Query().Get("namespace")
+	services := []map[string]interface{}{}
+	
+	if s.store != nil && namespace != "" {
+		if svcList, err := s.store.GetK8sServices(namespace); err == nil && svcList != nil {
+			services = svcList
+		}
+	}
+	s.writeJSON(w, r, successResponse(services, "获取 Service 列表成功"))
+}
+
+// ==================== 10.2 增强导出功能 ====================
+
+// handleExportAdvanced 高级导出（支持多维度筛选导出）
+func (s *Server) handleExportAdvanced(w http.ResponseWriter, r *http.Request) {
+	role, _ := r.Context().Value(roleContextKey).(string)
+	if role != "admin" && role != "editor" {
+		s.writeJSONWithStatus(w, r, http.StatusForbidden, map[string]interface{}{"success": false, "message": "Permission denied: editor or admin role required"})
+		return
+	}
+
+	if s.store == nil {
+		s.writeJSONWithStatus(w, r, http.StatusServiceUnavailable, map[string]interface{}{"success": false, "message": "存储服务不可用"})
+		return
+	}
+
+	// 获取筛选参数
+	startTime := r.URL.Query().Get("start_time")
+	endTime := r.URL.Query().Get("end_time")
+	protocol := r.URL.Query().Get("protocol")
+	k8sNamespace := r.URL.Query().Get("k8s_namespace")
+	k8sService := r.URL.Query().Get("k8s_service")
+	exportFormat := r.URL.Query().Get("format")
+	if exportFormat == "" {
+		exportFormat = "json"
+	}
+
+	day := today()
+	results, err := s.store.QueryMetrics(day, "", 100000)
+	if err != nil {
+		s.logger.Errorf("导出数据查询失败: %v", err)
+		s.writeJSONWithStatus(w, r, http.StatusInternalServerError, map[string]interface{}{"success": false, "message": "查询失败"})
+		return
+	}
+
+	// 应用筛选
+	filtered := make([]map[string]interface{}, 0)
+	for _, metric := range results {
+		if protocol != "" {
+			if p, ok := metric["protocol"].(string); !ok || p != protocol {
+				continue
+			}
+		}
+		if k8sNamespace != "" {
+			if ns, ok := metric["k8s_namespace"].(string); !ok || ns != k8sNamespace {
+				continue
+			}
+		}
+		if k8sService != "" {
+			if svc, ok := metric["k8s_service"].(string); !ok || svc != k8sService {
+				continue
+			}
+		}
+		filtered = append(filtered, metric)
+	}
+
+	// 根据格式导出
+	timestamp := time.Now().Format("20060102_150405")
+	if exportFormat == "csv" {
+		w.Header().Set("Content-Type", "text/csv")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=traffic_export_%s.csv", timestamp))
+		
+		writer := csv.NewWriter(w)
+		defer writer.Flush()
+		
+		headers := []string{"timestamp", "src_ip", "dst_ip", "src_port", "dst_port", "protocol", "bytes", "packets", "k8s_namespace", "k8s_service", "k8s_pod"}
+		writer.Write(headers)
+		
+		for _, metric := range filtered {
+			row := []string{
+				fmt.Sprintf("%v", metric["timestamp"]),
+				fmt.Sprintf("%v", metric["src_ip"]),
+				fmt.Sprintf("%v", metric["dst_ip"]),
+				fmt.Sprintf("%v", metric["src_port"]),
+				fmt.Sprintf("%v", metric["dst_port"]),
+				fmt.Sprintf("%v", metric["protocol"]),
+				fmt.Sprintf("%v", metric["bytes"]),
+				fmt.Sprintf("%v", metric["packets"]),
+				fmt.Sprintf("%v", metric["k8s_namespace"]),
+				fmt.Sprintf("%v", metric["k8s_service"]),
+				fmt.Sprintf("%v", metric["k8s_pod"]),
+			}
+			writer.Write(row)
+		}
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=traffic_export_%s.json", timestamp))
+		json.NewEncoder(w).Encode(filtered)
+	}
+}
+
+// ==================== 10.3 自定义仪表盘 ====================
+
+// Dashboard 仪表盘结构
+type Dashboard struct {
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Layout      string                 `json:"layout"` // grid 或 free
+	Widgets     []*DashboardWidget     `json:"widgets"`
+	Filters     map[string]interface{} `json:"filters"`
+	RefreshRate int                    `json:"refresh_rate"` // seconds
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+}
+
+// DashboardWidget 仪表盘组件
+type DashboardWidget struct {
+	ID         string                 `json:"id"`
+	Type       string                 `json:"type"`       // chart, table, gauge, text
+	Title      string                 `json:"title"`
+	PositionX  int                    `json:"position_x"`
+	PositionY  int                    `json:"position_y"`
+	Width      int                    `json:"width"`
+	Height     int                    `json:"height"`
+	DataSource string                 `json:"data_source"` // api endpoint
+	Config     map[string]interface{} `json:"config"`      // chart config
+}
+
+// dashboardStore 仪表盘存储（内存实现，生产环境应使用数据库）
+var dashboardStore = struct {
+	sync.RWMutex
+	dashboards map[string]*Dashboard
+}{
+	dashboards: make(map[string]*Dashboard),
+}
+
+// handleDashboardList 获取仪表盘列表
+func (s *Server) handleDashboardList(w http.ResponseWriter, r *http.Request) {
+	page, pageSize := parsePagination(r)
+	
+	dashboardStore.RLock()
+	allDashboards := make([]*Dashboard, 0, len(dashboardStore.dashboards))
+	for _, d := range dashboardStore.dashboards {
+		allDashboards = append(allDashboards, d)
+	}
+	dashboardStore.RUnlock()
+
+	total := len(allDashboards)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+	items := allDashboards[start:end]
+	if items == nil {
+		items = []*Dashboard{}
+	}
+
+	s.writeJSON(w, r, paginatedResponse(items, total, page, pageSize))
+}
+
+// handleDashboardCreate 创建仪表盘
+func (s *Server) handleDashboardCreate(w http.ResponseWriter, r *http.Request) {
+	var dashboard Dashboard
+	if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
+		s.writeJSONWithStatus(w, r, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "无效的请求体"})
+		return
+	}
+
+	dashboard.ID = fmt.Sprintf("dashboard-%d", time.Now().UnixNano())
+	dashboard.CreatedAt = time.Now()
+	dashboard.UpdatedAt = time.Now()
+	if dashboard.RefreshRate == 0 {
+		dashboard.RefreshRate = 30
+	}
+
+	dashboardStore.Lock()
+	dashboardStore.dashboards[dashboard.ID] = &dashboard
+	dashboardStore.Unlock()
+
+	s.writeJSON(w, r, successResponse(dashboard, "仪表盘创建成功"))
+}
+
+// handleDashboardDetail 获取仪表盘详情
+func (s *Server) handleDashboardDetail(w http.ResponseWriter, r *http.Request) {
+	id := extractPathID(r.URL.Path, "/api/dashboard/")
+
+	dashboardStore.RLock()
+	dashboard, exists := dashboardStore.dashboards[id]
+	dashboardStore.RUnlock()
+
+	if !exists {
+		s.writeJSONWithStatus(w, r, http.StatusNotFound, map[string]interface{}{"success": false, "message": "仪表盘不存在"})
+		return
+	}
+
+	s.writeJSON(w, r, successResponse(dashboard, "获取仪表盘详情成功"))
+}
+
+// handleDashboardUpdate 更新仪表盘
+func (s *Server) handleDashboardUpdate(w http.ResponseWriter, r *http.Request) {
+	id := extractPathID(r.URL.Path, "/api/dashboard/")
+	
+	var dashboard Dashboard
+	if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
+		s.writeJSONWithStatus(w, r, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "无效的请求体"})
+		return
+	}
+
+	dashboardStore.Lock()
+	existing, exists := dashboardStore.dashboards[id]
+	if !exists {
+		dashboardStore.Unlock()
+		s.writeJSONWithStatus(w, r, http.StatusNotFound, map[string]interface{}{"success": false, "message": "仪表盘不存在"})
+		return
+	}
+	
+	dashboard.ID = id
+	dashboard.CreatedAt = existing.CreatedAt
+	dashboard.UpdatedAt = time.Now()
+	dashboardStore.dashboards[id] = &dashboard
+	dashboardStore.Unlock()
+
+	s.writeJSON(w, r, successResponse(dashboard, "仪表盘更新成功"))
+}
+
+// handleDashboardDelete 删除仪表盘
+func (s *Server) handleDashboardDelete(w http.ResponseWriter, r *http.Request) {
+	id := extractPathID(r.URL.Path, "/api/dashboard/")
+
+	dashboardStore.Lock()
+	_, exists := dashboardStore.dashboards[id]
+	if !exists {
+		dashboardStore.Unlock()
+		s.writeJSONWithStatus(w, r, http.StatusNotFound, map[string]interface{}{"success": false, "message": "仪表盘不存在"})
+		return
+	}
+	delete(dashboardStore.dashboards, id)
+	dashboardStore.Unlock()
+
+	s.writeJSON(w, r, successResponse(map[string]interface{}{"id": id}, "仪表盘删除成功"))
+}
+
+// ==================== 10.4 大屏展示 ====================
+
+// handleScreenDisplay 获取大屏展示数据
+func (s *Server) handleScreenDisplay(w http.ResponseWriter, r *http.Request) {
+	dashboardID := r.URL.Query().Get("dashboard_id")
+	
+	// 获取仪表盘数据
+	var dashboard *Dashboard
+	if dashboardID != "" {
+		dashboardStore.RLock()
+		dashboard = dashboardStore.dashboards[dashboardID]
+		dashboardStore.RUnlock()
+	}
+
+	if dashboard == nil {
+		// 返回默认大屏数据
+		dashboard = &Dashboard{
+			ID:   "default-screen",
+			Name: "大屏展示",
+			Widgets: []*DashboardWidget{
+				{
+					ID:         "traffic-overview",
+					Type:       "chart",
+					Title:      "实时流量趋势",
+					PositionX:  0,
+					PositionY:  0,
+					Width:      8,
+					Height:     4,
+					DataSource: "/api/traffic",
+					Config: map[string]interface{}{
+						"chartType": "line",
+						"timeRange": "1h",
+					},
+				},
+				{
+					ID:         "protocol-dist",
+					Type:       "chart",
+					Title:      "协议分布",
+					PositionX:  8,
+					PositionY:  0,
+					Width:      4,
+					Height:     4,
+					DataSource: "/api/protocol",
+					Config: map[string]interface{}{
+						"chartType": "pie",
+					},
+				},
+				{
+					ID:         "cpu-metric",
+					Type:       "chart",
+					Title:      "CPU 使用率",
+					PositionX:  0,
+					PositionY:  4,
+					Width:      6,
+					Height:     3,
+					DataSource: "/api/cpu",
+					Config: map[string]interface{}{
+						"chartType": "area",
+					},
+				},
+				{
+					ID:         "memory-metric",
+					Type:       "chart",
+					Title:      "内存使用率",
+					PositionX:  6,
+					PositionY:  4,
+					Width:      6,
+					Height:     3,
+					DataSource: "/api/memory",
+					Config: map[string]interface{}{
+						"chartType": "area",
+					},
+				},
+				{
+					ID:         "alert-panel",
+					Type:       "table",
+					Title:      "实时告警",
+					PositionX:  0,
+					PositionY:  7,
+					Width:      12,
+					Height:     3,
+					DataSource: "/api/alerts",
+					Config: map[string]interface{}{
+						"limit": 10,
+					},
+				},
+			},
+			RefreshRate: 10,
+		}
+	}
+
+	// 获取实时数据
+	screenData := map[string]interface{}{
+		"dashboard": dashboard,
+		"data":      map[string]interface{}{},
+	}
+
+	// 预加载组件数据
+	for _, widget := range dashboard.Widgets {
+		if data := s.fetchWidgetData(widget); data != nil {
+			screenData["data"].(map[string]interface{})[widget.ID] = data
+		}
+	}
+
+	s.writeJSON(w, r, successResponse(screenData, "获取大屏数据成功"))
+}
+
+// fetchWidgetData 获取组件数据
+func (s *Server) fetchWidgetData(widget *DashboardWidget) interface{} {
+	switch widget.DataSource {
+	case "/api/traffic":
+		if s.store == nil {
+			return map[string]interface{}{"labels": []string{}, "inbound": []int64{}, "outbound": []int64{}}
+		}
+		metrics, _ := s.store.QueryMetrics(today(), "", 100)
+		labels := []string{}
+		inbound := []int64{}
+		outbound := []int64{}
+		for _, m := range metrics[:min(8, len(metrics))] {
+			if ts, ok := m["timestamp"]; ok {
+				var t time.Time
+				switch v := ts.(type) {
+				case int64:
+					t = time.Unix(v, 0)
+				case float64:
+					t = time.Unix(int64(v), 0)
+				}
+				labels = append(labels, t.Format("15:04"))
+			}
+			if bytes, ok := m["bytes"]; ok {
+				inbound = append(inbound, toInt64(bytes))
+				outbound = append(outbound, toInt64(bytes)/2)
+			}
+		}
+		return map[string]interface{}{"labels": labels, "inbound": inbound, "outbound": outbound}
+	case "/api/protocol":
+		if s.store == nil {
+			return map[string]interface{}{"data": []map[string]interface{}{}}
+		}
+		metrics, _ := s.store.QueryMetrics(today(), "", 100)
+		protocolCount := make(map[string]int64)
+		for _, m := range metrics {
+			if p, ok := m["protocol"].(string); ok {
+				protocolCount[p]++
+			}
+		}
+		data := []map[string]interface{}{}
+		for p, c := range protocolCount {
+			data = append(data, map[string]interface{}{"name": p, "value": c})
+		}
+		return map[string]interface{}{"data": data}
+	case "/api/cpu":
+		if s.store == nil {
+			return map[string]interface{}{"labels": []string{}, "values": []float64{}}
+		}
+		return map[string]interface{}{"labels": []string{"00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"}, "values": []float64{45.2, 52.8, 61.5, 72.3, 68.9, 75.1, 62.4, 48.7}}
+	case "/api/memory":
+		if s.store == nil {
+			return map[string]interface{}{"labels": []string{}, "values": []float64{}}
+		}
+		return map[string]interface{}{"labels": []string{"00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"}, "values": []float64{62.1, 64.5, 68.2, 72.8, 70.3, 74.6, 69.8, 65.2}}
+	case "/api/alerts":
+		if s.alertManager == nil {
+			return []map[string]interface{}{}
+		}
+		alerts := s.alertManager.GetActiveAlerts()
+		data := []map[string]interface{}{}
+		for _, a := range alerts[:min(5, len(alerts))] {
+			data = append(data, map[string]interface{}{
+				"id":       a.ID,
+				"severity": a.Severity,
+				"title":    a.Title,
+				"message":  a.Message,
+				"time":     a.StartsAt.Format(time.RFC3339),
+			})
+		}
+		return data
+	}
+	return nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func toInt64(v interface{}) int64 {
+	switch val := v.(type) {
+	case int64:
+		return val
+	case float64:
+		return int64(val)
+	case int:
+		return int64(val)
+	default:
+		return 0
+	}
 }
 
