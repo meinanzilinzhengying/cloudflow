@@ -1,0 +1,17 @@
+# CloudFlow 备份定时任务配置
+# 放置位置: /etc/cron.d/cloudflow-backup
+
+# 每日增量备份 (02:00)
+0 2 * * * root /opt/cloudflow/scripts/backup.sh incremental >> /var/log/cloudflow/backup.log 2>&1
+
+# 每周日全量备份 (02:00)
+0 2 * * 0 root /opt/cloudflow/scripts/backup.sh full >> /var/log/cloudflow/backup.log 2>&1
+
+# Redis 每6小时快照
+0 */6 * * * root /opt/cloudflow/scripts/backup.sh redis >> /var/log/cloudflow/backup.log 2>&1
+
+# 清理7天前的本地备份
+0 3 * * * root find /backup/cloudflow -type f -mtime +7 -delete >> /var/log/cloudflow/backup-cleanup.log 2>&1
+
+# 每日备份验证 (04:00)
+0 4 * * * root /opt/cloudflow/scripts/validate_restore.sh >> /var/log/cloudflow/backup-validation.log 2>&1
