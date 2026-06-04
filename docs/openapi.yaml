@@ -1,0 +1,786 @@
+openapi: 3.0.3
+info:
+  title: CloudFlow API Documentation
+  description: CloudFlow 云原生网络流量分析平台 API 文档
+  version: 1.0.0
+  contact:
+    name: CloudFlow Support
+    email: support@cloudflow.io
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+  - url: https://api.cloudflow.io/v1
+    description: Production server
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: HTTP status code
+        message:
+          type: string
+          description: Error message
+        detail:
+          type: string
+          description: Detailed error information
+      required:
+        - code
+        - message
+
+    FlowData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        src_ip:
+          type: string
+          description: Source IP address
+        src_port:
+          type: integer
+        dst_ip:
+          type: string
+          description: Destination IP address
+        dst_port:
+          type: integer
+        protocol:
+          type: string
+          enum: [TCP, UDP, HTTP, HTTPS, DNS, ICMP, gRPC, Kafka]
+        bytes:
+          type: integer
+          description: Total bytes transferred
+        packets:
+          type: integer
+          description: Total packets transferred
+        duration_ms:
+          type: integer
+          description: Duration in milliseconds
+        k8s_namespace:
+          type: string
+          description: Kubernetes namespace
+        k8s_service:
+          type: string
+          description: Kubernetes service name
+        k8s_pod:
+          type: string
+          description: Kubernetes pod name
+        flow_type:
+          type: string
+          enum: [ingress, egress]
+      required:
+        - id
+        - timestamp
+        - src_ip
+        - dst_ip
+        - protocol
+
+    Dashboard:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        layout:
+          type: string
+          enum: [grid, free]
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardWidget'
+        filters:
+          type: object
+          additionalProperties: true
+        refresh_rate:
+          type: integer
+          description: Refresh rate in seconds
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+
+    DashboardWidget:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [chart, table, gauge, text]
+        title:
+          type: string
+        position:
+          type: object
+          properties:
+            x:
+              type: integer
+            y:
+              type: integer
+            width:
+              type: integer
+            height:
+              type: integer
+        config:
+          type: object
+          additionalProperties: true
+      required:
+        - id
+        - type
+        - title
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        severity:
+          type: string
+          enum: [critical, warning, info]
+        message:
+          type: string
+        status:
+          type: string
+          enum: [active, resolved]
+        created_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - severity
+        - status
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+
+  responses:
+    Unauthorized:
+      description: Unauthorized - Invalid or missing credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Not Found - Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequest:
+      description: Bad Request - Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+paths:
+  /healthz:
+    get:
+      summary: Health check endpoint
+      description: Check if the service is healthy
+      tags:
+        - System
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+
+  /traffic/advanced:
+    get:
+      summary: Advanced traffic query with multi-dimensional filters
+      description: Query traffic data with support for K8s resources, protocol, IP, and time filters
+      tags:
+        - Traffic
+      parameters:
+        - name: start_time
+          in: query
+          description: Start time (RFC3339 format)
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          description: End time (RFC3339 format)
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: protocol
+          in: query
+          description: Protocol filter
+          schema:
+            type: string
+            enum: [TCP, UDP, HTTP, HTTPS, DNS, ICMP, gRPC, Kafka]
+        - name: k8s_namespace
+          in: query
+          description: Kubernetes namespace filter
+          schema:
+            type: string
+        - name: k8s_service
+          in: query
+          description: Kubernetes service filter
+          schema:
+            type: string
+        - name: k8s_pod
+          in: query
+          description: Kubernetes pod filter
+          schema:
+            type: string
+        - name: src_ip
+          in: query
+          description: Source IP filter
+          schema:
+            type: string
+        - name: dst_ip
+          in: query
+          description: Destination IP filter
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          description: Items per page (default: 50)
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Successful query
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FlowData'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /filters/protocols:
+    get:
+      summary: Get available protocols
+      description: Retrieve a list of supported protocols for filtering
+      tags:
+        - Filters
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  protocols:
+                    type: array
+                    items:
+                      type: string
+                      enum: [TCP, UDP, HTTP, HTTPS, DNS, ICMP, gRPC, Kafka]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /filters/k8s/namespaces:
+    get:
+      summary: Get K8s namespaces
+      description: Retrieve a list of available Kubernetes namespaces
+      tags:
+        - Filters
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  namespaces:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /filters/k8s/services:
+    get:
+      summary: Get K8s services
+      description: Retrieve a list of services in a specific namespace
+      tags:
+        - Filters
+      parameters:
+        - name: namespace
+          in: query
+          description: Kubernetes namespace
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  services:
+                    type: array
+                    items:
+                      type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /export/advanced:
+    get:
+      summary: Export filtered traffic data
+      description: Export traffic data with filters in JSON or CSV format
+      tags:
+        - Export
+      parameters:
+        - name: start_time
+          in: query
+          description: Start time (RFC3339 format)
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          description: End time (RFC3339 format)
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: protocol
+          in: query
+          description: Protocol filter
+          schema:
+            type: string
+        - name: k8s_namespace
+          in: query
+          description: Kubernetes namespace filter
+          schema:
+            type: string
+        - name: k8s_service
+          in: query
+          description: Kubernetes service filter
+          schema:
+            type: string
+        - name: format
+          in: query
+          description: Export format (json or csv)
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+      responses:
+        '200':
+          description: Successful export
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FlowData'
+            text/csv:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dashboard:
+    get:
+      summary: List all dashboards
+      description: Retrieve a paginated list of dashboards
+      tags:
+        - Dashboard
+      parameters:
+        - name: page
+          in: query
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          description: Items per page (default: 20)
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Dashboard'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create a new dashboard
+      description: Create a custom dashboard with widgets
+      tags:
+        - Dashboard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  required: true
+                description:
+                  type: string
+                layout:
+                  type: string
+                  enum: [grid, free]
+                  default: grid
+                widgets:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/DashboardWidget'
+                filters:
+                  type: object
+                  additionalProperties: true
+                refresh_rate:
+                  type: integer
+                  default: 60
+      responses:
+        '201':
+          description: Dashboard created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dashboard/{id}:
+    get:
+      summary: Get dashboard by ID
+      description: Retrieve a specific dashboard by its ID
+      tags:
+        - Dashboard
+      parameters:
+        - name: id
+          in: path
+          description: Dashboard ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      summary: Update dashboard
+      description: Update an existing dashboard
+      tags:
+        - Dashboard
+      parameters:
+        - name: id
+          in: path
+          description: Dashboard ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                layout:
+                  type: string
+                  enum: [grid, free]
+                widgets:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/DashboardWidget'
+                filters:
+                  type: object
+                  additionalProperties: true
+                refresh_rate:
+                  type: integer
+      responses:
+        '200':
+          description: Dashboard updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      summary: Delete dashboard
+      description: Delete a dashboard by ID
+      tags:
+        - Dashboard
+      parameters:
+        - name: id
+          in: path
+          description: Dashboard ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Dashboard deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /screen/display:
+    get:
+      summary: Get screen display data
+      description: Retrieve dashboard data optimized for large screen display
+      tags:
+        - Screen
+      parameters:
+        - name: dashboard_id
+          in: query
+          description: Dashboard ID to display
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dashboard:
+                    $ref: '#/components/schemas/Dashboard'
+                  data:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /alerts:
+    get:
+      summary: List alerts
+      description: Retrieve alerts with optional filters
+      tags:
+        - Alerts
+      parameters:
+        - name: severity
+          in: query
+          description: Filter by severity
+          schema:
+            type: string
+            enum: [critical, warning, info]
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [active, resolved]
+        - name: page
+          in: query
+          description: Page number (default: 1)
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          description: Items per page (default: 50)
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alert'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /alerts/{id}/resolve:
+    post:
+      summary: Resolve alert
+      description: Mark an alert as resolved
+      tags:
+        - Alerts
+      parameters:
+        - name: id
+          in: path
+          description: Alert ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Alert resolved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/login:
+    post:
+      summary: User login
+      description: Authenticate user and get JWT token
+      tags:
+        - Auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  required: true
+                password:
+                  type: string
+                  required: true
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/logout:
+    post:
+      summary: User logout
+      description: Invalidate user session
+      tags:
+        - Auth
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          $ref: '#/components/responses/Unauthorized'
