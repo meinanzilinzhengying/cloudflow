@@ -472,8 +472,8 @@ func (s *Service) writeToClickHouse(flows []*flow.UnifiedFlow) error {
 	return tx.Commit()
 }
 
-// writeToVictoriaMetrics P0-06 新增: 写入指标到 VictoriaMetrics
-func (s *Service) writeToVictoriaMetrics(flows []*flow.UnifiedFlow) error {
+// WriteToVictoriaMetrics P0-06 新增: 写入指标到 VictoriaMetrics
+func (s *Service) WriteToVictoriaMetrics(flows []*flow.UnifiedFlow) error {
 	if s.vmHTTPClient == nil || s.config.VictoriaMetricsAddr == "" {
 		return nil // VictoriaMetrics 未配置，跳过
 	}
@@ -838,7 +838,7 @@ func (s *Service) flushFlows(batch []*flow.UnifiedFlow) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := s.writeToVictoriaMetrics(batch); err != nil {
+		if err := s.WriteToVictoriaMetrics(batch); err != nil {
 			mu.Lock()
 			vmErr = err
 			mu.Unlock()

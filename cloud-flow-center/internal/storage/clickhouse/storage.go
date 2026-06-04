@@ -1000,6 +1000,7 @@ func (s *Storage) QueryTopology(ctx context.Context, req *storage.QueryRequest) 
 	// 构建拓扑图
 	nodeMap := make(map[string]*storage.TopologyNode)
 	var edges []*storage.TopologyEdge
+	var totalBytes uint64
 
 	for rows.Next() {
 		var (
@@ -1019,6 +1020,9 @@ func (s *Storage) QueryTopology(ctx context.Context, req *storage.QueryRequest) 
 		); err != nil {
 			continue
 		}
+
+		// 累加总字节数
+		totalBytes += bytesSum
 
 		// 添加源节点
 		srcKey := srcType + ":" + srcID
@@ -1069,7 +1073,7 @@ func (s *Storage) QueryTopology(ctx context.Context, req *storage.QueryRequest) 
 		Stats: storage.TopologyStats{
 			NodeCount:  len(nodes),
 			EdgeCount:  len(edges),
-			TotalBytes: 0, // TODO: 计算
+			TotalBytes: totalBytes,
 		},
 	}, nil
 }
