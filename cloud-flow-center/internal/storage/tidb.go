@@ -2054,18 +2054,27 @@ func (s *TiDBStorage) managePartitions() {
 			continue
 		}
 
-		// 创建未来 7 天的分区
+		// P2-02 修复: 分区名和日期值使用白名单校验，防止 SQL 注入
 		for d := 1; d <= 7; d++ {
 			future := time.Now().AddDate(0, 0, d)
 			partName := fmt.Sprintf("p_%s", future.Format("20060102"))
 			nextDay := future.AddDate(0, 0, 1).Format("2006-01-02")
 
+			// P2-02 修复: 严格校验分区名格式（只允许 p_YYYYMMDD）
+			if !isValidPartitionName(partName) {
+				s.logger.Errorf("无效的分区名格式: %s", partName)
+				continue
+			}
+
+			// P2-02 修复: 严格校验日期格式（只允许 YYYY-MM-DD）
+			if !isValidDateFormat(nextDay) {
+				s.logger.Errorf("无效的日期格式: %s", nextDay)
+				continue
+			}
+
 			query := fmt.Sprintf(
 				`ALTER TABLE %s ADD PARTITION (PARTITION %s VALUES LESS THAN (UNIX_TIMESTAMP('%s')))`,
 				table, partName, nextDay)
-			// NOTE: 分区名 partName 由日期格式化生成（格式: p_YYYYMMDD），
-			// 不接受外部输入，因此无需额外的分区名校验。
-			// 如果未来分区名来自用户输入，必须添加校验防止 SQL 注入。
 			if _, err := s.db.Exec(query); err != nil {
 				// 分区已存在则忽略
 				if !strings.Contains(err.Error(), "Duplicate") {
@@ -2074,9 +2083,16 @@ func (s *TiDBStorage) managePartitions() {
 			}
 		}
 
-		// 删除过期分区
+		// P2-02 修复: 删除过期分区时也进行严格校验
 		expired := time.Now().AddDate(0, 0, -s.retDays).Format("20060102")
 		partName := fmt.Sprintf("p_%s", expired)
+		
+		// P2-02 修复: 校验分区名格式
+		if !isValidPartitionName(partName) {
+			s.logger.Errorf("无效的分区名格式: %s", partName)
+			continue
+		}
+		
 		query := fmt.Sprintf("ALTER TABLE %s DROP PARTITION IF EXISTS %s", table, partName)
 		if _, err := s.db.Exec(query); err != nil {
 			s.logger.Warnf("删除过期分区失败: %s: %v", table, err)
@@ -2108,6 +2124,47 @@ func (s *TiDBStorage) tableExists(tableName string) bool {
 		return false
 	}
 	return count > 0
+}
+
+// isValidPartitionName 验证分区名格式（P2-02 修复）
+// 只允许 p_YYYYMMDD 格式，防止 SQL 注入
+func isValidPartitionName(partName string) bool {
+	if len(partName) != 9 {
+		return false
+	}
+	if !strings.HasPrefix(partName, "p_") {
+		return false
+	}
+	datePart := partName[2:]
+	// 检查是否全部为数字
+	for _, c := range datePart {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// isValidDateFormat 验证日期格式（P2-02 修复）
+// 只允许 YYYY-MM-DD 格式，防止 SQL 注入
+func isValidDateFormat(dateStr string) bool {
+	if len(dateStr) != 10 {
+		return false
+	}
+	// 检查格式: YYYY-MM-DD
+	for i, c := range dateStr {
+		switch i {
+		case 4, 7:
+			if c != '-' {
+				return false
+			}
+		default:
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // invalidateCache 使所有缓存失效
