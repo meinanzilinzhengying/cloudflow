@@ -1,0 +1,35 @@
+{
+  "types": [
+    { "type": "feat", "section": "Added" },
+    { "type": "feature", "section": "Added" },
+    { "type": "fix", "section": "Fixed" },
+    { "type": "refactor", "section": "Changed" },
+    { "type": "perf", "section": "Changed" },
+    { "type": "docs", "section": "Added" },
+    { "type": "chore", "section": "Changed" },
+    { "type": "test", "section": "Changed" },
+    { "type": "security", "section": "Security" },
+    { "type": "deprecate", "section": "Deprecated" },
+    { "type": "remove", "section": "Removed" }
+  ],
+  "commitUrlFormat": "https://github.com/meinanzilinzhengying/cloudflow/commit/{{hash}}",
+  "compareUrlFormat": "https://github.com/meinanzilinzhengying/cloudflow/compare/{{previousTag}}...{{currentTag}}",
+  "issueUrlFormat": "https://github.com/meinanzilinzhengying/cloudflow/issues/{{issue}}",
+  "packageFiles": [
+    {
+      "filename": "VERSION",
+      "type": "plain-text"
+    }
+  ],
+  "bumpFiles": [
+    {
+      "filename": "VERSION",
+      "type": "plain-text"
+    }
+  ],
+  "skip": {
+    "changelog": false,
+    "commit": false,
+    "tag": false
+  }
+}
