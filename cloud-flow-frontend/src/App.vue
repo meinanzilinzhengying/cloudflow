@@ -5,7 +5,16 @@
       <Header @refresh="handleRefresh" />
       <main class="p-6">
         <transition name="fade" mode="out-in">
-          <component :is="currentModule" :key="activeModule" />
+          <component 
+            :is="currentModule" 
+            :key="activeModule" 
+            v-if="!isExternalTool" 
+          />
+          <ExternalTools 
+            v-else 
+            :tool="activeModule" 
+            :key="activeModule" 
+          />
         </transition>
       </main>
     </div>
@@ -29,6 +38,7 @@ import Network from './components/modules/Network.vue'
 import Alerts from './components/modules/Alerts.vue'
 import K8sFilter from './components/modules/K8sFilter.vue'
 import Export from './components/modules/Export.vue'
+import ExternalTools from './components/modules/ExternalTools.vue'
 
 const activeModule = ref('overview')
 const loading = ref(false)
@@ -42,7 +52,15 @@ const modules = {
   export: Export
 }
 
-const currentModule = computed(() => modules[activeModule.value])
+const externalToolsList = ['grafana', 'prometheus', 'jaeger', 'clickhouse', 'alertmanager']
+const isExternalTool = computed(() => externalToolsList.includes(activeModule.value))
+
+const currentModule = computed(() => {
+  if (isExternalTool.value) {
+    return null
+  }
+  return modules[activeModule.value]
+})
 
 const handleModuleChange = (module) => {
   activeModule.value = module
