@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudFlow - 云原生网络流量分析平台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #0a0e1a 0%, #1a1f2e 50%, #0d1117 100%); min-height: 100vh; color: #e0e6ed; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 40px 20px; }
+        
+        header { text-align: center; margin-bottom: 60px; }
+        header h1 { font-size: 48px; background: linear-gradient(90deg, #00d4ff, #7b2fff, #00d4ff); background-size: 200% 100%; animation: gradient 3s ease infinite; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        @keyframes gradient { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+        header p { color: #8892b0; margin-top: 12px; font-size: 16px; }
+        
+        .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-bottom: 40px; }
+        .card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 28px; transition: all 0.3s ease; }
+        .card:hover { transform: translateY(-4px); border-color: rgba(0, 212, 255, 0.3); background: rgba(255,255,255,0.08); }
+        .card-icon { font-size: 36px; margin-bottom: 16px; }
+        .card h3 { color: #00d4ff; margin-bottom: 8px; font-size: 18px; }
+        .card p { color: #8892b0; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+        .card a { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; background: linear-gradient(90deg, #00d4ff, #7b2fff); border-radius: 8px; text-decoration: none; color: white; font-size: 13px; font-weight: 500; }
+        .card a:hover { opacity: 0.9; }
+        
+        .status-section { background: rgba(255,255,255,0.03); border-radius: 16px; padding: 30px; margin-bottom: 40px; }
+        .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .status-header h2 { color: #e0e6ed; font-size: 20px; }
+        .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .status-online { background: rgba(72, 187, 120, 0.15); color: #48bb78; }
+        .status-offline { background: rgba(229, 62, 62, 0.15); color: #e53e3e; }
+        
+        .status-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+        .status-item { text-align: center; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 12px; }
+        .status-item .val { font-size: 28px; font-weight: 700; color: #00d4ff; }
+        .status-item .lbl { font-size: 12px; color: #718096; margin-top: 4px; }
+        
+        .quick-links { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+        .quick-links a { padding: 10px 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; text-decoration: none; color: #a0aec0; font-size: 13px; transition: all 0.2s; }
+        .quick-links a:hover { border-color: #00d4ff; color: #00d4ff; }
+        
+        footer { text-align: center; padding: 40px 0; color: #4a5568; font-size: 13px; }
+        footer a { color: #63b3ed; text-decoration: none; }
+        
+        @media (max-width: 768px) {
+            header h1 { font-size: 32px; }
+            .services-grid { grid-template-columns: 1fr; }
+            .status-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>☁️ CloudFlow</h1>
+            <p>云原生网络流量分析平台 | 实时监控 · 智能分析 · 全链路追踪</p>
+        </header>
+
+        <div class="status-section">
+            <div class="status-header">
+                <h2>系统状态</h2>
+                <span class="status-badge status-online">🟢 所有服务正常运行</span>
+            </div>
+            <div class="status-grid">
+                <div class="status-item"><div class="val">8</div><div class="lbl">运行中服务</div></div>
+                <div class="status-item"><div class="val">0</div><div class="lbl">告警数量</div></div>
+                <div class="status-item"><div class="val">100%</div><div class="lbl">服务可用性</div></div>
+                <div class="status-item"><div class="val">0ms</div><div class="lbl">平均延迟</div></div>
+            </div>
+        </div>
+
+        <div class="services-grid">
+            <div class="card">
+                <div class="card-icon">📊</div>
+                <h3>网络分析</h3>
+                <p>实时监控网络流量，支持多维度分析、数据包大小分布、协议统计、建连时延分析等功能</p>
+                <a href="/network-analysis.html">进入分析 →</a>
+            </div>
+            <div class="card">
+                <div class="card-icon">📈</div>
+                <h3>Grafana 仪表盘</h3>
+                <p>专业的监控可视化平台，提供丰富的图表和面板，支持自定义仪表盘配置</p>
+                <a href="http://localhost:3001" target="_blank">访问 Grafana →</a>
+            </div>
+            <div class="card">
+                <div class="card-icon">🐝</div>
+                <h3>Jaeger 追踪</h3>
+                <p>分布式追踪系统，用于追踪和分析微服务架构中的请求链路</p>
+                <a href="http://localhost:16686" target="_blank">访问 Jaeger →</a>
+            </div>
+            <div class="card">
+                <div class="card-icon">🔔</div>
+                <h3>Alertmanager</h3>
+                <p>告警管理服务，支持多种告警通知方式，灵活配置告警规则</p>
+                <a href="http://localhost:9093" target="_blank">访问 Alertmanager →</a>
+            </div>
+        </div>
+
+        <div class="quick-links">
+            <a href="http://localhost:9091" target="_blank">📊 Prometheus</a>
+            <a href="http://localhost:8007" target="_blank">🔧 Query API</a>
+            <a href="http://localhost:8006" target="_blank">🔐 Auth Service</a>
+            <a href="http://localhost:8001" target="_blank">⚙️ Control Plane</a>
+        </div>
+
+        <footer>
+            <p>CloudFlow v1.0.0 | 云原生网络流量分析平台</p>
+        </footer>
+    </div>
+</body>
+</html>
