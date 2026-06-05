@@ -35,10 +35,10 @@ CloudFlow 是一个高性能的云原生网络流量分析平台，专注于 Kub
 
 <div align="center">
 
-### Dashboard 概览
+### All-in-One 仪表盘
 
 ![Dashboard](docs/images/dashboard-overview.png)
-*实时流量监控和关键指标展示*
+*统一的流量监控仪表盘，包含总览、流量监控、网络分析、告警中心等模块*
 
 ### 服务拓扑图
 

@@ -694,6 +694,32 @@ services:
     networks:
       - cloudflow-net
 
+  # Frontend（前端服务）
+  frontend:
+    build:
+      context: cloud-flow-frontend
+      dockerfile: Dockerfile
+    container_name: cloudflow-frontend
+    restart: unless-stopped
+    depends_on:
+      query-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      TZ: Asia/Shanghai
+      VITE_API_URL: http://localhost:8007
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - cloudflow-net
+
   # Promtail（日志采集）
   promtail:
     image: grafana/promtail:2.9.4
