@@ -6,7 +6,7 @@ require (
 	github.com/meinanzilinzhengying/cloudflow/pkg v0.0.0
 	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/cilium/ebpf v0.11.0
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/spf13/viper v1.16.0
 	github.com/vishvananda/netlink v1.3.1

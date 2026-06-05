@@ -1,18 +1,62 @@
-# CloudFlow K8s 部署指南
+# CloudFlow 部署指南
 
 ## 概述
 
-CloudFlow 是一个云原生网络流量分析平台，采用 Agent → Edge → Center 三层架构设计。本指南详细描述如何在 Kubernetes 集群上部署 CloudFlow。
+CloudFlow 是一个云原生网络流量分析平台，采用 Agent → Edge → Center 三层架构设计。本指南详细描述如何部署 CloudFlow。
+
+---
+
+## 快速开始（一键部署）
+
+### 方式1：Docker Compose 一键部署（推荐用于测试环境）
+
+```bash
+# 一键部署脚本（Linux 服务器）
+curl -sSL https://raw.githubusercontent.com/meinanzilinzhengying/cloudflow/main/scripts/deploy.sh | bash
+```
+
+**脚本功能**：
+- 自动安装 Docker 和 Docker Compose
+- 克隆代码仓库
+- 配置环境变量（自动生成随机密码）
+- 启动所有服务
+- 输出访问地址和凭证
+
+### 方式2：手动 Docker Compose 部署
+
+```bash
+# 克隆代码
+git clone https://github.com/meinanzilinzhengying/cloudflow.git
+cd cloudflow
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env 设置数据库密码等配置
+
+# 启动服务
+docker compose up -d
+
+# 查看服务状态
+docker compose ps
+```
+
+### 方式3：Kubernetes 部署（生产环境）
+
+```bash
+# 使用 Helm 部署
+helm repo add cloudflow https://meinanzilinzhengying.github.io/cloudflow
+helm install cloudflow cloudflow/cloudflow --namespace cloudflow --create-namespace
+```
 
 ---
 
 ## 目录
 
 1. [环境要求](#1-环境要求)
-2. [部署前准备](#2-部署前准备)
-3. [部署架构](#3-部署架构)
-4. [Helm 部署](#4-helm-部署)
-5. [手动部署](#5-手动部署)
+2. [部署架构](#2-部署架构)
+3. [Docker Compose 部署](#3-docker-compose-部署)
+4. [Kubernetes Helm 部署](#4-kubernetes-helm-部署)
+5. [Kubernetes 手动部署](#5-kubernetes-手动部署)
 6. [配置说明](#6-配置说明)
 7. [验证部署](#7-验证部署)
 8. [升级与回滚](#8-升级与回滚)
