@@ -70,7 +70,7 @@
           分组管理
         </button>
         <button @click="showK8sModal = true" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition flex items-center gap-2">
-          <Kubernetes class="w-4 h-4" />
+          <Box class="w-4 h-4" />
           K8s 部署
         </button>
         <button @click="showSSHModal = true" class="px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition flex items-center gap-2">
@@ -212,7 +212,7 @@
           <!-- K8s 集群连接配置 -->
           <div class="bg-dark-700/50 rounded-lg p-4">
             <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
-              <Kubernetes class="w-4 h-4" />
+              <Box class="w-4 h-4" />
               K8s 集群连接配置
             </h4>
             <p class="text-xs text-gray-400 mb-4">
@@ -695,7 +695,7 @@ import {
   Settings,
   Activity,
   Loader2,
-  Kubernetes,
+  Box,
   Copy,
   FileCode,
   HelpCircle,
