@@ -1066,41 +1066,79 @@ func parseNetworkData(key, value []byte) *NetworkFlow {
 
 // loadBPFObjects 加载 eBPF 对象
 func loadBPFObjects() (*bpf.Objects, error) {
-	// 1. 首先尝试从文件系统加载（优先使用本地编译的版本）
+	// 获取内核配置
+	kernelConfig, err := GetKernelConfig()
+	if err != nil {
+		log.Printf("[eBPF] 获取内核配置失败: %v，继续尝试加载默认版本", err)
+	} else {
+		LogKernelCompatibilityInfo(*kernelConfig)
+		
+		// 检查是否满足最低要求
+		if !IsKernelSupported(kernelConfig.Version) {
+			return nil, fmt.Errorf("内核版本 %s 不满足最低要求 4.14，eBPF 功能不可用", kernelConfig.Version)
+		}
+	}
+	
+	// 1. 首先尝试查找并加载兼容的 BPF 文件
+	if kernelConfig != nil {
+		bpfVersion := SelectBPFVersion(*kernelConfig)
+		ebpfFile, err := FindCompatibleBPFFile(".", bpfVersion, kernelConfig.Arch)
+		if err == nil && ebpfFile != "" {
+			spec, err := ebpf.LoadCollectionSpec(ebpfFile)
+			if err == nil {
+				objs := &bpf.Objects{}
+				if err := spec.LoadAndAssign(objs, nil); err == nil {
+					log.Printf("[eBPF] 成功从文件 %s 加载 eBPF 对象", ebpfFile)
+					return objs, nil
+				}
+				log.Printf("[eBPF] 从文件 %s 加载 eBPF 对象失败: %v，继续尝试", ebpfFile, err)
+			}
+		}
+	}
+	
+	// 2. 尝试默认路径（保持向后兼容）
 	ebpfFile := findEBPFFile()
 	if ebpfFile != "" {
 		spec, err := ebpf.LoadCollectionSpec(ebpfFile)
 		if err != nil {
-			log.Printf("从文件 %s 加载 eBPF spec 失败: %v，尝试使用嵌入版本", ebpfFile, err)
+			log.Printf("[eBPF] 从文件 %s 加载 eBPF spec 失败: %v，尝试使用嵌入版本", ebpfFile, err)
 		} else {
 			objs := &bpf.Objects{}
 			if err := spec.LoadAndAssign(objs, nil); err != nil {
-				log.Printf("从文件 %s 加载 eBPF 对象失败: %v，尝试使用嵌入版本", ebpfFile, err)
+				log.Printf("[eBPF] 从文件 %s 加载 eBPF 对象失败: %v，尝试使用嵌入版本", ebpfFile, err)
 			} else {
-				log.Printf("成功从文件 %s 加载 eBPF 对象", ebpfFile)
+				log.Printf("[eBPF] 成功从文件 %s 加载 eBPF 对象", ebpfFile)
 				return objs, nil
 			}
 		}
 	}
 
-	// 2. 检查嵌入的 BPF 程序是否可用
+	// 3. 检查嵌入的 BPF 程序是否可用
 	if err := bpf.CheckRequiredGoFiles(); err != nil {
 		return nil, fmt.Errorf("eBPF 程序未嵌入，请运行 'make ebpf' 命令编译 tc.bpf.c: %w", err)
 	}
 
-	// 3. 尝试加载嵌入的 BPF 对象
+	// 4. 尝试加载嵌入的 BPF 对象
 	objs := &bpf.Objects{}
 	if err := objs.Load(nil); err != nil {
 		// 检查是否是内核兼容性问题
 		if strings.Contains(err.Error(), "invalid bpf program") ||
 			strings.Contains(err.Error(), "kernel version") ||
 			strings.Contains(err.Error(), "BTF") {
-			return nil, fmt.Errorf("eBPF 程序与当前内核不兼容: %w\n"+
-				"请在目标系统上运行 'make ebpf' 重新编译 BPF 程序，确保与当前内核版本匹配", err)
+			msg := "eBPF 程序与当前内核不兼容: %w\n"
+			if kernelConfig != nil {
+				msg += "当前内核版本: %s\n"
+				msg += "请选择以下方案之一:\n"
+				msg += "  1. 在目标系统上运行 'make ebpf' 重新编译 BPF 程序\n"
+				msg += "  2. 提供多版本 BPF 文件 (tc.legacy.bpf.o, tc.modern.bpf.o, tc.latest.bpf.o)\n"
+				msg += "  3. 使用传统采集模式 (不依赖 eBPF)\n"
+				return nil, fmt.Errorf(msg, err, kernelConfig.Version)
+			}
+			return nil, fmt.Errorf(msg+"\n请在目标系统上重新编译 BPF 程序", err)
 		}
 		return nil, fmt.Errorf("加载 eBPF 对象失败: %w", err)
 	}
-	log.Printf("成功加载嵌入的 eBPF 对象")
+	log.Printf("[eBPF] 成功加载嵌入的 eBPF 对象")
 	return objs, nil
 }
 
