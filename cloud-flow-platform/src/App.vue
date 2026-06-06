@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-screen bg-dark-300">
+  <div class="flex h-screen bg-dark-900">
     <Sidebar 
       :modules="enabledModules" 
       :activeModule="activeModule" 
@@ -7,7 +7,7 @@
     />
     <div class="flex-1 flex flex-col overflow-hidden">
       <Header :title="activeModuleLabel" />
-      <main class="flex-1 overflow-auto p-6 bg-dark-300">
+      <main class="flex-1 overflow-auto p-6 bg-dark-900">
         <component :is="currentModuleComponent" />
       </main>
     </div>

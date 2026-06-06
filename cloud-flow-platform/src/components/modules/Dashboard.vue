@@ -1,122 +1,155 @@
 <template>
-  <div class="space-y-6">
-    <div class="flex items-center justify-between">
-      <h2 class="text-xl font-semibold text-white">平台概览</h2>
-      <div class="flex items-center gap-2">
-        <span class="text-sm text-gray-400">最后更新: {{ lastUpdate }}</span>
-        <button @click="refreshData" class="p-2 hover:bg-dark-100 rounded-lg transition-colors">
-          <RefreshCw class="w-4 h-4 text-gray-400" :class="{ 'animate-spin': loading }" />
-        </button>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  <div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatCard
         title="CPU 使用率"
-        :value="`${stats.cpu?.usage || 0}%`"
-        subtitle="8 核心"
-        icon="Cpu"
-        :percent="stats.cpu?.usage"
+        :value="stats.cpu"
+        unit="%"
+        :change="+3.2"
+        :icon="Cpu"
+        variant="info"
+        :loading="loading"
       />
       <StatCard
         title="内存使用"
-        :value="`${stats.memory?.used || 0} / ${stats.memory?.total || 0} GB`"
-        subtitle="DDR4 3200MHz"
-        icon="HardDrive"
-        :percent="stats.memory?.usage"
+        :value="stats.memory"
+        unit="%"
+        :change="-1.5"
+        :icon="HardDrive"
+        variant="success"
+        :loading="loading"
       />
       <StatCard
         title="磁盘使用"
-        :value="`${stats.disk?.used || 0} / ${stats.disk?.total || 0} GB`"
-        subtitle="SSD NVMe"
-        icon="Database"
-        :percent="stats.disk?.usage"
+        :value="stats.disk"
+        unit="%"
+        :change="+0.8"
+        :icon="Database"
+        variant="warning"
+        :loading="loading"
       />
       <StatCard
-        title="网络流量"
-        :value="`↓ ${stats.network?.inbound || 0} / ↑ ${stats.network?.outbound || 0} MB/s`"
-        subtitle="千兆网卡"
-        icon="Network"
+        title="活跃探针"
+        :value="stats.probes"
+        :change="+2"
+        :icon="Activity"
+        variant="success"
+        :loading="loading"
       />
     </div>
-
+    
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <TrendChart
         title="CPU 使用率趋势"
         subtitle="过去 24 小时"
-        :labels="cpuLabels"
-        :data="cpuData"
-        color="#89b4fa"
+        type="line"
+        :data="cpuChartData"
+        :legends="cpuLegends"
       />
       <TrendChart
         title="内存使用趋势"
         subtitle="过去 24 小时"
-        :labels="memLabels"
-        :data="memData"
-        color="#f5c2e7"
+        type="line"
+        :data="memoryChartData"
+        :legends="memoryLegends"
       />
     </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <StatCard
-        title="服务状态"
-        :value="`${stats.services?.running || 0} / ${stats.services?.total || 0}`"
-        subtitle="运行中"
-        icon="Server"
-      />
-      <StatCard
-        title="平台运行时长"
-        :value="uptimeFormatted"
-        subtitle="最后启动: 10天前"
-        icon="Clock"
-      />
-      <StatCard
-        title="告警统计"
-        :value="`${alertsCount.firing} / ${alertsCount.total}`"
-        subtitle="触发中 / 总计"
-        icon="Bell"
-      />
+    
+    <div class="mt-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-white">平台服务状态</h3>
+      </div>
+      <div class="bg-dark-800 rounded-xl border border-dark-600 overflow-hidden">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-dark-600">
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">服务</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">状态</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">CPU</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">内存</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="service in services" :key="service.name" class="border-b border-dark-700 hover:bg-dark-700/50 transition">
+              <td class="px-4 py-3 text-sm text-white">{{ service.name }}</td>
+              <td class="px-4 py-3">
+                <span 
+                  class="px-2 py-1 text-xs rounded-full"
+                  :class="getStatusClass(service.status)"
+                >
+                  {{ service.status }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-300">{{ service.cpu }}%</td>
+              <td class="px-4 py-3 text-sm text-gray-300">{{ service.memory }}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { Cpu, HardDrive, Database, Activity } from 'lucide-vue-next'
 import StatCard from '../common/StatCard.vue'
 import TrendChart from '../common/TrendChart.vue'
-import api from '../../api'
-import { RefreshCw } from 'lucide-vue-next'
 
-const loading = ref(false)
-const stats = ref({})
-const lastUpdate = ref('')
-
-const alertsCount = ref({ firing: 2, total: 12 })
-
-const cpuLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`)
-const cpuData = Array.from({ length: 24 }, () => Math.floor(Math.random() * 30 + 30))
-
-const memLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`)
-const memData = Array.from({ length: 24 }, () => Math.floor(Math.random() * 20 + 40))
-
-const uptimeFormatted = computed(() => {
-  const seconds = stats.value.uptime || 864000
-  const days = Math.floor(seconds / 86400)
-  const hours = Math.floor((seconds % 86400) / 3600)
-  return `${days}天 ${hours}小时`
+const loading = ref(true)
+const stats = ref({
+  cpu: 45,
+  memory: 62,
+  disk: 78,
+  probes: 12
 })
 
-async function refreshData() {
-  loading.value = true
-  try {
-    stats.value = await api.getPlatformStats()
-    lastUpdate.value = new Date().toLocaleTimeString('zh-CN')
-  } finally {
-    loading.value = false
+const services = ref([
+  { name: 'cloud-flow-center', status: 'running', cpu: 25, memory: 45 },
+  { name: 'cloud-flow-edge', status: 'running', cpu: 18, memory: 32 },
+  { name: 'cloud-flow-agent-01', status: 'running', cpu: 12, memory: 28 },
+  { name: 'cloud-flow-agent-02', status: 'running', cpu: 15, memory: 35 },
+  { name: 'alert-engine', status: 'running', cpu: 8, memory: 18 }
+])
+
+const cpuChartData = computed(() => ({
+  labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
+  datasets: [{
+    label: 'CPU 使用率',
+    data: [35, 42, 48, 55, 52, 47, 45],
+    borderColor: '#3b82f6',
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    fill: true,
+    tension: 0.4
+  }]
+}))
+
+const cpuLegends = [{ label: 'CPU 使用率', color: '#3b82f6' }]
+
+const memoryChartData = computed(() => ({
+  labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
+  datasets: [{
+    label: '内存使用',
+    data: [58, 60, 65, 70, 68, 64, 62],
+    borderColor: '#10b981',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    fill: true,
+    tension: 0.4
+  }]
+}))
+
+const memoryLegends = [{ label: '内存使用', color: '#10b981' }]
+
+const getStatusClass = (status) => {
+  const classes = {
+    'running': 'bg-green-500/20 text-green-400',
+    'stopped': 'bg-red-500/20 text-red-400',
+    'error': 'bg-red-500/20 text-red-400'
   }
+  return classes[status] || 'bg-gray-500/20 text-gray-400'
 }
 
 onMounted(() => {
-  refreshData()
+  loading.value = false
 })
 </script>
