@@ -1,0 +1,10 @@
+{
+  "modules": {
+    "overview": { "enabled": true, "label": "总览" },
+    "traffic": { "enabled": true, "label": "流量监控" },
+    "network": { "enabled": true, "label": "网络分析" },
+    "alerts": { "enabled": true, "label": "告警中心" },
+    "k8s": { "enabled": true, "label": "K8s 资源" },
+    "export": { "enabled": true, "label": "数据导出" }
+  }
+}

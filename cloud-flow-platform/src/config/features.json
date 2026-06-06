@@ -1,0 +1,9 @@
+{
+  "modules": {
+    "dashboard": { "enabled": true, "label": "平台概览" },
+    "probe": { "enabled": true, "label": "探针管理" },
+    "health": { "enabled": true, "label": "健康检查" },
+    "config": { "enabled": true, "label": "配置管理" },
+    "selfAlerts": { "enabled": true, "label": "平台告警" }
+  }
+}
