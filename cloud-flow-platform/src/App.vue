@@ -23,6 +23,7 @@ import ProbeManage from './components/modules/ProbeManage.vue'
 import HealthCheck from './components/modules/HealthCheck.vue'
 import ConfigManage from './components/modules/ConfigManage.vue'
 import SelfAlerts from './components/modules/SelfAlerts.vue'
+import LogsViewer from './components/modules/LogsViewer.vue'
 import ExternalTools from './components/modules/ExternalTools.vue'
 import featuresConfig from './config/features.json'
 
@@ -35,6 +36,7 @@ const moduleComponents = {
   health: HealthCheck,
   config: ConfigManage,
   selfAlerts: SelfAlerts,
+  logs: LogsViewer,
   externalTools: ExternalTools
 }
 
@@ -64,6 +66,7 @@ function getModuleIcon(key) {
     health: 'HeartPulse',
     config: 'Settings',
     selfAlerts: 'Bell',
+    logs: 'FileText',
     externalTools: 'ExternalLink'
   }
   return icons[key] || 'Circle'

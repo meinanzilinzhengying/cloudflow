@@ -5,6 +5,7 @@
     "health": { "enabled": true, "label": "健康检查" },
     "config": { "enabled": true, "label": "配置管理" },
     "selfAlerts": { "enabled": true, "label": "平台告警" },
+    "logs": { "enabled": true, "label": "日志查看" },
     "externalTools": { "enabled": true, "label": "外部工具" }
   }
 }
