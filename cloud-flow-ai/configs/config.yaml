@@ -1,0 +1,39 @@
+ai:
+  port: 8082
+  data_dir: ./data
+  log:
+    level: info
+    format: json
+    output: stdout
+    log_dir: ./logs
+    max_size: 100
+    max_backups: 10
+    max_age: 7
+  jwt:
+    secret_key: "${CLOUDFLOW_AI_JWT_SECRET_KEY}"
+    token_duration: 24
+  llm:
+    provider: openai
+    models:
+      - name: gpt-4o
+        provider: openai
+        api_url: https://api.openai.com/v1
+        api_key: "${CLOUDFLOW_AI_API_KEY}"
+        max_tokens: 4096
+        temperature: 0.7
+      - name: deepseek-chat
+        provider: deepseek
+        api_url: https://api.deepseek.com/v1
+        api_key: "${CLOUDFLOW_AI_DEEPSEEK_KEY}"
+        max_tokens: 4096
+        temperature: 0.7
+      - name: qwen-plus
+        provider: qwen
+        api_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+        api_key: "${CLOUDFLOW_AI_QWEN_KEY}"
+        max_tokens: 4096
+        temperature: 0.7
+    default_model: gpt-4o
+  analysis:
+    cache_ttl: 3600
+    max_analysis_history: 100

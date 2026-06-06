@@ -465,6 +465,30 @@ services:
     networks:
       - cloudflow-net
 
+  # AI Service（AI 智能分析服务）
+  ai-service:
+    build:
+      context: cloud-flow-ai
+      dockerfile: deployments/Dockerfile
+    container_name: cloudflow-ai-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"  # HTTP API
+    environment:
+      TZ: Asia/Shanghai
+      CLOUDFLOW_AI_JWT_SECRET_KEY: "${CLOUDFLOW_AI_JWT_SECRET_KEY:-cloudflow-ai-jwt-secret-key-change-me}"
+      CLOUDFLOW_AI_API_KEY: "${CLOUDFLOW_AI_API_KEY:-}"
+      CLOUDFLOW_AI_DEEPSEEK_KEY: "${CLOUDFLOW_AI_DEEPSEEK_KEY:-}"
+      CLOUDFLOW_AI_QWEN_KEY: "${CLOUDFLOW_AI_QWEN_KEY:-}"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - cloudflow-net
+
   # ---------------------------------------------------------------------------
   # 3. 监控与可观测性
   # ---------------------------------------------------------------------------

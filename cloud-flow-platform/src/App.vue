@@ -25,6 +25,7 @@ import ConfigManage from './components/modules/ConfigManage.vue'
 import SelfAlerts from './components/modules/SelfAlerts.vue'
 import LogsViewer from './components/modules/LogsViewer.vue'
 import ExternalTools from './components/modules/ExternalTools.vue'
+import AIAnalysis from './components/modules/AIAnalysis.vue'
 import featuresConfig from './config/features.json'
 
 const features = ref(featuresConfig)
@@ -37,6 +38,7 @@ const moduleComponents = {
   config: ConfigManage,
   selfAlerts: SelfAlerts,
   logs: LogsViewer,
+  ai: AIAnalysis,
   externalTools: ExternalTools
 }
 
@@ -67,6 +69,7 @@ function getModuleIcon(key) {
     config: 'Settings',
     selfAlerts: 'Bell',
     logs: 'FileText',
+    ai: 'Brain',
     externalTools: 'ExternalLink'
   }
   return icons[key] || 'Circle'
