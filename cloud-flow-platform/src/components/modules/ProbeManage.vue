@@ -69,6 +69,10 @@
         <button @click="showGroupModal = true" class="px-4 py-2 bg-dark-700 text-white text-sm font-medium rounded-lg hover:bg-dark-600 transition">
           分组管理
         </button>
+        <button @click="showK8sModal = true" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition flex items-center gap-2">
+          <Kubernetes class="w-4 h-4" />
+          K8s 部署
+        </button>
         <button @click="showSSHModal = true" class="px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition flex items-center gap-2">
           <Terminal class="w-4 h-4" />
           SSH 安装
@@ -127,6 +131,173 @@
           </tr>
         </tbody>
       </table>
+    </div>
+    
+    <!-- K8s 部署弹窗 -->
+    <div v-if="showK8sModal" class="fixed inset-0 bg-dark-900/80 flex items-center justify-center z-50">
+      <div class="bg-dark-800 rounded-xl p-6 w-full max-w-3xl border border-dark-600 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+              <Kubernetes class="w-5 h-5 text-purple-400" />
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold text-white">Kubernetes 部署探针</h3>
+              <p class="text-sm text-gray-400">通过 DaemonSet 在集群每个节点上部署探针</p>
+            </div>
+          </div>
+          <button @click="showK8sModal = false" class="text-gray-400 hover:text-white">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+        
+        <!-- 部署方式选择 -->
+        <div class="mb-6">
+          <h4 class="text-sm font-medium text-white mb-3">选择部署方式</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div 
+              v-for="mode in k8sDeployModes"
+              :key="mode.id"
+              @click="k8sForm.deployMode = mode.id"
+              class="cursor-pointer p-4 rounded-lg border-2 transition-all"
+              :class="k8sForm.deployMode === mode.id ? 'border-purple-500 bg-purple-500/10' : 'border-dark-600 hover:border-dark-500'"
+            >
+              <div class="flex items-center gap-2 mb-2">
+                <component :is="mode.icon" class="w-5 h-5" :class="mode.id === 'daemonset' ? 'text-purple-400' : mode.id === 'node' ? 'text-blue-400' : 'text-green-400'" />
+                <span class="font-medium text-white">{{ mode.name }}</span>
+              </div>
+              <p class="text-xs text-gray-400">{{ mode.desc }}</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- K8s 配置 -->
+        <div class="space-y-4 mb-6">
+          <div class="bg-dark-700/50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
+              <Settings class="w-4 h-4" />
+              基本配置
+            </h4>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">命名空间</label>
+                <input 
+                  v-model="k8sForm.namespace" 
+                  type="text" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="cloudflow"
+                />
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">API Key</label>
+                <input 
+                  v-model="k8sForm.apiKey" 
+                  type="password" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="输入CloudFlow API Key"
+                />
+              </div>
+              <div class="col-span-2">
+                <label class="block text-sm text-gray-400 mb-1">Edge 服务地址</label>
+                <input 
+                  v-model="k8sForm.edgeAddr" 
+                  type="text" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="cloudflow-edge.cloudflow.svc.cluster.local:50051"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <!-- DaemonSet 配置 -->
+          <div v-if="k8sForm.deployMode === 'daemonset'" class="bg-dark-700/50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
+              <Server class="w-4 h-4" />
+              DaemonSet 配置
+            </h4>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">镜像仓库</label>
+                <input 
+                  v-model="k8sForm.registry" 
+                  type="text" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="registry.cloudflow.io"
+                />
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">镜像标签</label>
+                <input 
+                  v-model="k8sForm.tag" 
+                  type="text" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="latest"
+                />
+              </div>
+              <div class="col-span-2">
+                <div class="flex items-center gap-4 mt-2">
+                  <label class="flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.enableRBAC" class="rounded bg-dark-700 border-dark-600" />
+                    启用 RBAC
+                  </label>
+                  <label class="flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.hostNetwork" class="rounded bg-dark-700 border-dark-600" />
+                    主机网络模式
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 生成命令 -->
+        <div class="mb-6">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-sm font-medium text-white">部署命令</h4>
+            <button @click="copyK8sCommand" class="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1">
+              <Copy class="w-3 h-3" />
+              复制
+            </button>
+          </div>
+          <div class="p-3 bg-dark-900 rounded-lg font-mono text-xs text-purple-300 overflow-x-auto">
+            {{ k8sDeployCommand }}
+          </div>
+        </div>
+        
+        <!-- 权限说明 -->
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-6">
+          <h5 class="text-sm font-medium text-amber-400 mb-2 flex items-center gap-2">
+            <AlertCircle class="w-4 h-4" />
+            权限说明
+          </h5>
+          <ul class="text-xs text-gray-300 space-y-1">
+            <li>• 需要 Pod 的 get/list/watch 权限</li>
+            <li>• 推荐读取 Service/Node/Namespace 信息</li>
+            <li>• 不需要读取 Secret/ConfigMap 内容</li>
+            <li>• 使用 ServiceAccount + ClusterRole 最小权限原则</li>
+          </ul>
+        </div>
+        
+        <div class="flex justify-end gap-3">
+          <button @click="showK8sModal = false" class="px-4 py-2 text-gray-400 hover:text-white transition">
+            取消
+          </button>
+          <button 
+            @click="generateK8sYAML"
+            class="px-6 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition flex items-center gap-2"
+          >
+            <FileCode class="w-4 h-4" />
+            生成 YAML
+          </button>
+          <button 
+            @click="openK8sGuide"
+            class="px-6 py-2 bg-dark-700 text-white rounded-lg font-medium hover:bg-dark-600 transition flex items-center gap-2"
+          >
+            <HelpCircle class="w-4 h-4" />
+            查看文档
+          </button>
+        </div>
+      </div>
     </div>
     
     <!-- SSH 安装弹窗 -->
@@ -381,7 +552,12 @@ import {
   FolderTree,
   Settings,
   Activity,
-  Loader2
+  Loader2,
+  Kubernetes,
+  Copy,
+  FileCode,
+  HelpCircle,
+  AlertCircle
 } from 'lucide-vue-next'
 
 const selectedType = ref('all')
@@ -389,10 +565,69 @@ const selectedGroup = ref('all')
 const showInstallModal = ref(false)
 const showGroupModal = ref(false)
 const showSSHModal = ref(false)
+const showK8sModal = ref(false)
 const installing = ref(false)
 const installProgress = ref(0)
 const installStatus = ref('')
 const installLogs = ref([])
+
+const k8sDeployModes = [
+  { 
+    id: 'daemonset', 
+    name: 'DaemonSet', 
+    desc: '在每个K8s节点上部署Pod（推荐）',
+    icon: 'Server'
+  },
+  { 
+    id: 'node', 
+    name: 'Node安装', 
+    desc: '直接在K8s节点上安装',
+    icon: 'Terminal'
+  },
+  { 
+    id: 'ecs', 
+    name: 'ECS独立', 
+    desc: '在虚拟机上独立部署',
+    icon: 'Download'
+  }
+]
+
+const k8sForm = ref({
+  deployMode: 'daemonset',
+  namespace: 'cloudflow',
+  apiKey: '',
+  edgeAddr: 'cloudflow-edge.cloudflow.svc.cluster.local:50051',
+  registry: 'registry.cloudflow.io',
+  tag: 'latest',
+  enableRBAC: true,
+  hostNetwork: true
+})
+
+const k8sDeployCommand = computed(() => {
+  return `# 一键部署 CloudFlow Agent
+curl -sSL https://raw.githubusercontent.com/meinanzilinzhengying/cloudflow/main/cloud-flow-agent/deployments/k8s/deploy.sh | bash -s -- \\
+  --namespace ${k8sForm.value.namespace} \\
+  --api-key ${k8sForm.value.apiKey || 'YOUR_API_KEY'} \\
+  --edge-addr ${k8sForm.value.edgeAddr} \\
+  --registry ${k8sForm.value.registry} \\
+  --tag ${k8sForm.value.tag}`
+})
+
+function copyK8sCommand() {
+  navigator.clipboard.writeText(k8sDeployCommand.value).then(() => {
+    alert('命令已复制到剪贴板')
+  }).catch(() => {
+    alert('复制失败，请手动复制')
+  })
+}
+
+function generateK8sYAML() {
+  alert('YAML生成功能需要后端支持，将在后续版本中实现')
+}
+
+function openK8sGuide() {
+  window.open('https://docs.cloudflow.io/k8s-deployment', '_blank')
+}
 
 const newProbe = ref({ name: '', type: 'agent', group: '' })
 const newGroup = ref('')

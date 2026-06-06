@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflow-agent-config
+  namespace: cloudflow
+  labels:
+    app: cloudflow-agent
+data:
+  config.yaml: |
+    probe_id: ""
+    edge_addr: "cloudflow-edge.cloudflow.svc.cluster.local:50051"
+    metrics_port: "9090"
+    health_port: "8080"
+    collect_interval: 10
+    batch_size: 10
+    
+    kubernetes:
+      enabled: true
+      kubeconfig_path: ""
+      kube_namespace: ""
+      sync_interval: "30s"
+      label_selector: ""
+      field_selector: ""
+      include_namespaces: []
+      exclude_namespaces: ["kube-system", "kube-public", "kube-node-lease"]
+      include_labels: {}
+      exclude_labels: {}
+    
+    api_key: ""
+    
+    ebpf:
+      enabled: true
+      tcp_metrics:
+        enabled: true
+        connect_latency: true
+        retransmit: true
+        zero_window: true
+        queue_overflow: true
+        connection_fail: true
+      http_metrics:
+        enabled: true
+        success_rate: true
+        response_latency: true
+        error_rate: true
+        request_count: true
+        response_count: true
+      base_traffic:
+        enabled: true
+        collect_bytes: true
+        collect_packets: true
+      resource_limit:
+        enabled: true
+        max_cpu_core: 1.0
+        max_memory_mb: 1024
+        max_goroutines: 10000
+        use_cgroup: true
+      self_monitor:
+        enabled: true
+        collect_interval: "10s"
+        report_interval: "10s"
+        heartbeat_timeout: "5s"
+        alert_heartbeat_fail_count: 3
+        alert_cpu_percent: 80.0
+        alert_memory_percent: 90.0
+        alert_packet_drop_rate: 5.0
+        alert_report_success_rate_min: 95.0
+    
+    storage:
+      enabled: false
+      base_dir: "/var/lib/cloudflow-agent/storage"
+      retention_days: 60

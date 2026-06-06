@@ -1,0 +1,241 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cloudflow-agent
+  namespace: cloudflow
+  labels:
+    app: cloudflow-agent
+    component: agent
+spec:
+  selector:
+    matchLabels:
+      app: cloudflow-agent
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: cloudflow-agent
+        component: agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        seccomp.security.alpha.kubernetes.io/pod: "unconfined"
+        container.apparmor.security.beta.kubernetes.io/agent: "unconfined"
+    spec:
+      serviceAccountName: cloudflow-agent
+      priorityClassName: system-node-critical
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      restartPolicy: Always
+      
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/etcd
+          effect: NoSchedule
+        - key: node.cloud.google.com/gke-spot
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/infra
+          operator: Exists
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+      
+      containers:
+        - name: agent
+          image: registry.cloudflow.io/cloudflow-agent:latest
+          imagePullPolicy: IfNotPresent
+          
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+                - NET_ADMIN
+                - SYS_RESOURCE
+                - IPC_LOCK
+                - SYS_PTRACE
+            readOnlyRootFilesystem: false
+          
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+              hugepages-2Mi: "128Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+              hugepages-2Mi: "128Mi"
+          
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: EDGE_ADDR
+              value: "cloudflow-edge.cloudflow.svc.cluster.local:50051"
+            - name: CLOUD_FLOW_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflow-agent-secrets
+                  key: api-key
+            - name: LOG_LEVEL
+              value: "info"
+          
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+              hostPort: 9090
+            - name: health
+              containerPort: 8080
+              protocol: TCP
+              hostPort: 8080
+          
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+            successThreshold: 1
+          
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: health
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+            successThreshold: 1
+          
+          volumeMounts:
+            # eBPF必需的系统挂载
+            - name: sys
+              mountPath: /sys
+              readOnly: false
+            - name: proc
+              mountPath: /proc
+              readOnly: true
+            - name: bpffs
+              mountPath: /sys/fs/bpf
+              readOnly: false
+            - name: debug
+              mountPath: /sys/kernel/debug
+              readOnly: false
+            
+            # 大页内存
+            - name: hugepages
+              mountPath: /dev/hugepages
+              readOnly: false
+            
+            # 配置文件
+            - name: config
+              mountPath: /etc/cloudflow-agent
+              readOnly: true
+            
+            # 数据存储
+            - name: agent-data
+              mountPath: /var/lib/cloudflow-agent
+              readOnly: false
+            
+            # 日志
+            - name: log
+              mountPath: /var/log/cloudflow-agent
+              readOnly: false
+            
+            # 可选：Docker socket（用于容器发现）
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+              readOnly: true
+      
+      # 数据卷定义
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+            type: Directory
+        - name: proc
+          hostPath:
+            path: /proc
+            type: Directory
+        - name: bpffs
+          hostPath:
+            path: /sys/fs/bpf
+            type: DirectoryOrCreate
+        - name: debug
+          hostPath:
+            path: /sys/kernel/debug
+            type: Directory
+        - name: hugepages
+          hostPath:
+            path: /dev/hugepages
+            type: Directory
+        - name: config
+          configMap:
+            name: cloudflow-agent-config
+            items:
+              - key: config.yaml
+                path: config.yaml
+        - name: agent-data
+          hostPath:
+            path: /var/lib/cloudflow-agent
+            type: DirectoryOrCreate
+        - name: log
+          hostPath:
+            path: /var/log/cloudflow-agent
+            type: DirectoryOrCreate
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+            type: SocketOrCreate
