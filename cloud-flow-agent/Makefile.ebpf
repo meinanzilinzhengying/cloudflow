@@ -1,0 +1,76 @@
+# 多版本 BPF 程序编译 Makefile
+# 支持不同内核版本的编译
+#
+# 目标:
+#   all: 编译所有版本
+#   legacy: 4.14-4.19
+#   modern: 5.0-5.7
+#   latest: 5.8+
+#
+
+CLANG ?= clang
+LLC ?= llc
+ARCH := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+
+# BPF 源文件
+BPF_SRC := internal/ebpfcollector/bpf/tc.bpf.c
+
+# 输出目录
+OUT_DIR := build/bpf
+
+# 编译标记
+COMMON_CFLAGS := -D__TARGET_ARCH_$(ARCH) -Wall -O2 -g
+COMMON_CFLAGS += -I internal/ebpfcollector/bpf
+COMMON_CFLAGS += -I $(shell go env GOPATH)/pkg/mod/github.com/cilium/ebpf@v*/include
+
+.PHONY: all clean legacy modern latest
+
+all: legacy modern latest
+
+legacy: $(OUT_DIR)/tc.legacy.$(ARCH).bpf.o
+	mkdir -p $(OUT_DIR)
+	cp $(OUT_DIR)/tc.legacy.$(ARCH).bpf.o $(OUT_DIR)/tc.legacy.bpf.o
+
+modern: $(OUT_DIR)/tc.modern.$(ARCH).bpf.o
+	mkdir -p $(OUT_DIR)
+	cp $(OUT_DIR)/tc.modern.$(ARCH).bpf.o $(OUT_DIR)/tc.modern.bpf.o
+
+latest: $(OUT_DIR)/tc.latest.$(ARCH).bpf.o
+	mkdir -p $(OUT_DIR)
+	cp $(OUT_DIR)/tc.latest.$(ARCH).bpf.o $(OUT_DIR)/tc.latest.bpf.o
+
+# 传统版本（4.14-4.19）
+$(OUT_DIR)/tc.legacy.$(ARCH).bpf.o: $(BPF_SRC)
+	@mkdir -p $(OUT_DIR)
+	$(CLANG) $(COMMON_CFLAGS) -DKERNEL_LEGACY -target bpf -c $< -o $@
+	@echo "✓ 编译完成: $@"
+
+# 现代版本（5.0-5.7）
+$(OUT_DIR)/tc.modern.$(ARCH).bpf.o: $(BPF_SRC)
+	@mkdir -p $(OUT_DIR)
+	$(CLANG) $(COMMON_CFLAGS) -DKERNEL_MODERN -target bpf -c $< -o $@
+	@echo "✓ 编译完成: $@"
+
+# 最新版本（5.8+）
+$(OUT_DIR)/tc.latest.$(ARCH).bpf.o: $(BPF_SRC)
+	@mkdir -p $(OUT_DIR)
+	$(CLANG) $(COMMON_CFLAGS) -DKERNEL_LATEST -DENABLE_BTF -DENABLE_RINGBUF -target bpf -c $< -o $@
+	@echo "✓ 编译完成: $@"
+
+clean:
+	rm -rf $(OUT_DIR)
+	@echo "✓ 清理完成"
+
+install: all
+	@echo "=========================================="
+	@echo "  安装多版本 BPF 程序"
+	@echo "=========================================="
+	install -d /etc/cloud-flow-agent/bpf/
+	install -m 644 $(OUT_DIR)/tc.legacy.bpf.o /etc/cloud-flow-agent/bpf/
+	install -m 644 $(OUT_DIR)/tc.modern.bpf.o /etc/cloud-flow-agent/bpf/
+	install -m 644 $(OUT_DIR)/tc.latest.bpf.o /etc/cloud-flow-agent/bpf/
+	install -m 644 $(OUT_DIR)/tc.legacy.$(ARCH).bpf.o /etc/cloud-flow-agent/bpf/
+	install -m 644 $(OUT_DIR)/tc.modern.$(ARCH).bpf.o /etc/cloud-flow-agent/bpf/
+	install -m 644 $(OUT_DIR)/tc.latest.$(ARCH).bpf.o /etc/cloud-flow-agent/bpf/
+	@echo "✓ 安装完成: /etc/cloud-flow-agent/bpf/"
+	@echo "=========================================="

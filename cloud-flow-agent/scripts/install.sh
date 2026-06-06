@@ -114,6 +114,29 @@ check_kernel_version() {
     return 0
 }
 
+get_bpf_version() {
+    local kernel_version="$1"
+    local major minor
+
+    major=$(echo "${kernel_version}" | cut -d. -f1)
+    minor=$(echo "${kernel_version}" | cut -d. -f2)
+
+    if [[ "${major}" -gt 5 ]] || [[ "${major}" -eq 5 && "${minor}" -ge 8 ]]; then
+        echo "latest"
+    elif [[ "${major}" -gt 5 ]] || [[ "${major}" -eq 5 && "${minor}" -ge 0 ]]; then
+        echo "modern"
+    else
+        echo "legacy"
+    fi
+}
+
+check_btf_available() {
+    if [[ -f "/sys/kernel/btf/vmlinux" ]]; then
+        return 0
+    fi
+    return 1
+}
+
 check_systemd() {
     if ! command -v systemctl &>/dev/null; then
         error "未检测到 systemd，无法注册系统服务"
@@ -191,20 +214,80 @@ install_binary() {
 
     info "二进制文件已安装到 ${INSTALL_PREFIX}/bin/${BINARY_NAME}"
 
-    # 安装 eBPF 程序（如果存在）
-    local bpf_search_paths=(
-        "./bpf/tc.bpf.o"
-        "./internal/ebpfcollector/bpf/tc.bpf.o"
-    )
+    # 安装多版本 eBPF 程序
+    install_multiversion_bpf
+}
 
-    for bpf_path in "${bpf_search_paths[@]}"; do
-        if [[ -f "${bpf_path}" ]]; then
-            cp -f "${bpf_path}" "${INSTALL_PREFIX}/bpf/tc.bpf.o"
-            chmod 644 "${INSTALL_PREFIX}/bpf/tc.bpf.o"
-            info "eBPF 程序已安装到 ${INSTALL_PREFIX}/bpf/tc.bpf.o"
-            break
+install_multiversion_bpf() {
+    step "安装 eBPF 程序"
+    
+    local bpf_files=()
+    
+    # 支持的 BPF 版本
+    local versions=("latest" "modern" "legacy")
+    local arch=""
+    arch=$(detect_arch)
+    
+    # 查找多版本 BPF 文件
+    local search_dirs=(
+        "./build/bpf"
+        "./bpf"
+        "./internal/ebpfcollector/bpf"
+    )
+    
+    for dir in "${search_dirs[@]}"; do
+        for version in "${versions[@]}"; do
+            # 查找架构特定文件
+            local bpf_arch_file="${dir}/tc.${version}.${arch}.bpf.o"
+            if [[ -f "${bpf_arch_file}" ]]; then
+                bpf_files+=("${bpf_arch_file}")
+            fi
+            
+            # 查找通用文件
+            local bpf_general_file="${dir}/tc.${version}.bpf.o"
+            if [[ -f "${bpf_general_file}" ]]; then
+                bpf_files+=("${bpf_general_file}")
+            fi
+        done
+        
+        # 查找默认文件
+        local bpf_default="${dir}/tc.bpf.o"
+        if [[ -f "${bpf_default}" ]]; then
+            bpf_files+=("${bpf_default}")
         fi
     done
+    
+    # 安装找到的 BPF 文件
+    local installed_count=0
+    for bpf_file in "${bpf_files[@]}"; do
+        if [[ -f "${bpf_file}" ]]; then
+            local filename=$(basename "${bpf_file}")
+            cp -f "${bpf_file}" "${INSTALL_PREFIX}/bpf/${filename}"
+            chmod 644 "${INSTALL_PREFIX}/bpf/${filename}"
+            ((installed_count++))
+        fi
+    done
+    
+    if [[ ${installed_count} -gt 0 ]]; then
+        info "已安装 ${installed_count} 个 eBPF 程序到 ${INSTALL_PREFIX}/bpf/"
+    else
+        warn "未找到 eBPF 程序文件"
+        warn "请运行 'make ebpf' 在目标系统上编译"
+    fi
+    
+    # 根据内核版本选择并创建默认链接
+    if [[ ${installed_count} -gt 0 ]]; then
+        local kernel_version=$(detect_kernel_version)
+        local bpf_version=$(get_bpf_version "${kernel_version}")
+        
+        if [[ -f "${INSTALL_PREFIX}/bpf/tc.${bpf_version}.bpf.o" ]]; then
+            ln -sf "tc.${bpf_version}.bpf.o" "${INSTALL_PREFIX}/bpf/tc.bpf.o"
+            info "已设置默认 BPF 程序: ${bpf_version}"
+        elif [[ -f "${INSTALL_PREFIX}/bpf/tc.${bpf_version}.${arch}.bpf.o" ]]; then
+            ln -sf "tc.${bpf_version}.${arch}.bpf.o" "${INSTALL_PREFIX}/bpf/tc.bpf.o"
+            info "已设置默认 BPF 程序: ${bpf_version} (${arch})"
+        fi
+    fi
 }
 
 install_config() {
@@ -391,11 +474,18 @@ set_permissions() {
 }
 
 print_summary() {
-    local arch vendor kernel_version
-
+    local arch vendor kernel_version bpf_version btf_status
+    
     arch=$(detect_arch)
     vendor=$(detect_vendor "${arch}")
     kernel_version=$(detect_kernel_version)
+    bpf_version=$(get_bpf_version "${kernel_version}")
+    
+    if check_btf_available; then
+        btf_status="✓ 支持"
+    else
+        btf_status="✗ 不支持"
+    fi
 
     echo ""
     echo "============================================"
@@ -404,12 +494,23 @@ print_summary() {
     echo "  架构:       ${arch}"
     echo "  芯片厂商:   ${vendor}"
     echo "  内核版本:   ${kernel_version}"
+    echo "  BPF 版本:   ${bpf_version}"
+    echo "  BTF:        ${btf_status}"
     echo "  安装路径:   ${INSTALL_PREFIX}"
     echo "  配置文件:   ${CONFIG_FILE}"
     echo "  日志目录:   ${LOG_DIR}"
     echo "  数据目录:   ${DATA_DIR}"
     echo "  服务名称:   ${SERVICE_NAME}"
     echo "============================================"
+    echo ""
+    echo "内核兼容性信息:"
+    if [[ "${bpf_version}" == "latest" ]]; then
+        echo "  ✓ 您的内核完全支持最新的 eBPF 特性"
+    elif [[ "${bpf_version}" == "modern" ]]; then
+        echo "  ✓ 您的内核支持大部分现代 eBPF 特性"
+    else
+        echo "  • 您的内核将使用传统 eBPF 模式"
+    fi
     echo ""
     echo "使用以下命令管理服务:"
     echo "  启动:   systemctl start ${SERVICE_NAME}"
@@ -420,6 +521,9 @@ print_summary() {
     echo "或使用运维脚本:"
     echo "  ./scripts/agentctl.sh start"
     echo "  ./scripts/agentctl.sh status"
+    echo ""
+    echo "重新编译 BPF 程序:"
+    echo "  make -f Makefile.ebpf all"
     echo ""
 }
 
