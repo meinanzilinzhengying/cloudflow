@@ -153,13 +153,7 @@ const ruleForm = ref({
   interval: 60
 })
 
-const alerts = ref([
-  { id: 1, level: 'critical', title: 'cloud-flow-edge-shanghai 离线', source: 'health-check', time: '5分钟前', status: 'firing' },
-  { id: 2, level: 'warning', title: 'CPU使用率过高 (87%)', source: 'platform', time: '8分钟前', status: 'firing' },
-  { id: 3, level: 'warning', title: '磁盘使用率达到92%', source: 'platform', time: '12分钟前', status: 'firing' },
-  { id: 4, level: 'info', title: '配置已更新', source: 'config', time: '1小时前', status: 'resolved' },
-  { id: 5, level: 'info', title: '探针agent-prod-01已升级', source: 'probe', time: '2小时前', status: 'resolved' }
-])
+const alerts = ref([])
 
 const filteredAlerts = computed(() => {
   if (activeStatus.value === 'all') return alerts.value

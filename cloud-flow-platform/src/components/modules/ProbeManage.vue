@@ -836,16 +836,8 @@ const sshForm = ref({
   edgeAddr: 'edge:50051'
 })
 
-const groups = ['华北', '华东', '华南', '中心', '边缘']
-
-const probes = ref([
-  { id: 1, name: 'agent-prod-01', type: 'agent', group: '中心', version: 'v1.2.3', ip: '192.168.1.101', status: 'online', lastHeartbeat: '2分钟前' },
-  { id: 2, name: 'agent-prod-02', type: 'agent', group: '中心', version: 'v1.2.3', ip: '192.168.1.102', status: 'online', lastHeartbeat: '1分钟前' },
-  { id: 3, name: 'center-main', type: 'center', group: '中心', version: 'v1.2.3', ip: '192.168.1.10', status: 'online', lastHeartbeat: '30秒前' },
-  { id: 4, name: 'edge-beijing', type: 'edge', group: '华北', version: 'v1.2.2', ip: '10.0.1.10', status: 'online', lastHeartbeat: '5分钟前' },
-  { id: 5, name: 'edge-shanghai', type: 'edge', group: '华东', version: 'v1.2.3', ip: '10.0.2.10', status: 'offline', lastHeartbeat: '15分钟前' },
-  { id: 6, name: 'edge-guangzhou', type: 'edge', group: '华南', version: 'v1.2.3', ip: '10.0.3.10', status: 'online', lastHeartbeat: '1分钟前' }
-])
+const groups = []
+const probes = ref([])
 
 const filteredProbes = computed(() => {
   return probes.value.filter(probe => {

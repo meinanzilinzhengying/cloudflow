@@ -134,23 +134,7 @@ const logLevel = ref('all')
 const searchQuery = ref('')
 const autoRefresh = ref(false)
 
-const logs = ref([
-  { time: '14:35:22', level: 'info', service: 'center', message: '服务启动完成，监听端口 8080' },
-  { time: '14:35:21', level: 'info', service: 'center', message: '配置文件加载成功' },
-  { time: '14:35:20', level: 'info', service: 'center', message: '数据库连接池初始化完成' },
-  { time: '14:35:18', level: 'warning', service: 'edge', message: '连接超时，重试中 (attempt 1/3)' },
-  { time: '14:35:15', level: 'error', service: 'edge', message: '无法连接到远程服务器 10.0.0.5:8080' },
-  { time: '14:35:12', level: 'info', service: 'agent', message: '探针状态上报成功' },
-  { time: '14:35:10', level: 'info', service: 'alert', message: '告警规则 "CPU使用率" 触发，当前值: 87%' },
-  { time: '14:35:08', level: 'warning', service: 'center', message: '内存使用率达到 85%，建议关注' },
-  { time: '14:35:05', level: 'info', service: 'center', message: '健康检查完成，所有服务正常' },
-  { time: '14:35:02', level: 'info', service: 'edge', message: '边缘节点注册成功' },
-  { time: '14:35:00', level: 'error', service: 'agent', message: '磁盘空间不足，当前剩余: 2.1GB' },
-  { time: '14:34:58', level: 'info', service: 'center', message: '定时任务执行成功: cleanup_expired_sessions' },
-  { time: '14:34:55', level: 'warning', service: 'edge', message: '网络延迟较高: 245ms' },
-  { time: '14:34:52', level: 'info', service: 'alert', message: '告警通知已发送至 webhook' },
-  { time: '14:34:50', level: 'error', service: 'center', message: '请求处理失败: timeout after 30s' }
-])
+const logs = ref([])
 
 const filteredLogs = computed(() => {
   let result = logs.value

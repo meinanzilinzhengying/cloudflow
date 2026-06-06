@@ -187,28 +187,14 @@ import TrendChart from '../common/TrendChart.vue'
 
 const loading = ref(true)
 const stats = ref({
-  cpu: 45,
-  memory: 62,
-  disk: 78,
-  network: 128.5
+  cpu: 0,
+  memory: 0,
+  disk: 0,
+  network: 0
 })
 
-const services = ref([
-  { name: 'cloud-flow-center', type: 'Center', status: 'running', cpu: 25, memory: 45, restarts: 0 },
-  { name: 'cloud-flow-edge', type: 'Edge', status: 'running', cpu: 18, memory: 32, restarts: 1 },
-  { name: 'cloud-flow-agent-01', type: 'Agent', status: 'running', cpu: 12, memory: 28, restarts: 0 },
-  { name: 'cloud-flow-agent-02', type: 'Agent', status: 'running', cpu: 15, memory: 35, restarts: 2 },
-  { name: 'alert-engine', type: 'Service', status: 'running', cpu: 8, memory: 18, restarts: 0 },
-  { name: 'auth-service', type: 'Service', status: 'stopped', cpu: 0, memory: 0, restarts: 5 }
-])
-
-const processes = ref([
-  { name: 'cloudflow-server', pid: 1234, cpu: 12.5, memory: 24.8, uptime: '15d 6h' },
-  { name: 'cloudflow-worker', pid: 1235, cpu: 8.2, memory: 15.3, uptime: '15d 6h' },
-  { name: 'nginx', pid: 1, cpu: 2.1, memory: 3.2, uptime: '30d 2h' },
-  { name: 'prometheus', pid: 2345, cpu: 5.6, memory: 12.1, uptime: '20d 4h' },
-  { name: 'postgres', pid: 3456, cpu: 4.2, memory: 18.5, uptime: '30d 0h' }
-])
+const services = ref([])
+const processes = ref([])
 
 const runningCount = computed(() => services.value.filter(s => s.status === 'running').length)
 const stoppedCount = computed(() => services.value.filter(s => s.status === 'stopped').length)
@@ -217,7 +203,7 @@ const cpuChartData = computed(() => ({
   labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
   datasets: [{
     label: 'CPU 使用率',
-    data: [35, 42, 48, 55, 52, 47, 45],
+    data: [],
     borderColor: '#3b82f6',
     backgroundColor: 'rgba(59, 130, 246, 0.1)',
     fill: true,
@@ -231,7 +217,7 @@ const memoryChartData = computed(() => ({
   labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
   datasets: [{
     label: '内存使用',
-    data: [58, 60, 65, 70, 68, 64, 62],
+    data: [],
     borderColor: '#10b981',
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
     fill: true,
@@ -246,7 +232,7 @@ const networkChartData = computed(() => ({
   datasets: [
     {
       label: '入站',
-      data: [120, 150, 180, 220, 200, 190, 175],
+      data: [],
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       fill: true,
@@ -254,7 +240,7 @@ const networkChartData = computed(() => ({
     },
     {
       label: '出站',
-      data: [80, 100, 120, 150, 130, 120, 110],
+      data: [],
       borderColor: '#10b981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       fill: true,
@@ -273,7 +259,7 @@ const diskChartData = computed(() => ({
   datasets: [
     {
       label: '读取',
-      data: [25, 30, 45, 35, 40, 38, 32],
+      data: [],
       borderColor: '#8b5cf6',
       backgroundColor: 'rgba(139, 92, 246, 0.1)',
       fill: true,
@@ -281,7 +267,7 @@ const diskChartData = computed(() => ({
     },
     {
       label: '写入',
-      data: [15, 20, 28, 22, 25, 23, 18],
+      data: [],
       borderColor: '#f59e0b',
       backgroundColor: 'rgba(245, 158, 11, 0.1)',
       fill: true,

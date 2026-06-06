@@ -181,41 +181,27 @@ import { ref, computed } from 'vue'
 import { RefreshCw, CheckCircle, AlertCircle, XCircle, Activity, HardDrive, Bell } from 'lucide-vue-next'
 
 const loading = ref(false)
-const platformUptime = ref('15天 6小时')
+const platformUptime = ref('')
 
-const services = ref([
-  { name: 'cloud-flow-agent', status: 'healthy', count: 12 },
-  { name: 'cloud-flow-center', status: 'healthy', count: 3 },
-  { name: 'cloud-flow-edge', status: 'warning', count: 6 },
-  { name: 'alert-engine', status: 'healthy', count: 2 },
-  { name: 'auth-service', status: 'healthy', count: 2 }
-])
+const services = ref([])
 
 const alertRules = ref({
-  total: 24,
-  active: 18,
-  firing: 2,
-  muted: 3,
-  disabled: 1
+  total: 0,
+  active: 0,
+  firing: 0,
+  muted: 0,
+  disabled: 0
 })
 
-const healthHistory = ref([
-  { status: 'healthy', message: '所有服务健康检查通过', time: '2024-01-15 14:30:00' },
-  { status: 'healthy', message: 'cloud-flow-edge 连接恢复正常', time: '2024-01-15 14:25:00' },
-  { status: 'warning', message: 'cloud-flow-edge-beijing 连接超时', time: '2024-01-15 14:20:00' },
-  { status: 'healthy', message: 'CPU 使用率恢复正常', time: '2024-01-15 14:15:00' },
-  { status: 'warning', message: 'CPU 使用率超过阈值 (85%)', time: '2024-01-15 14:10:00' },
-  { status: 'healthy', message: '内存使用率恢复正常', time: '2024-01-15 14:05:00' },
-  { status: 'warning', message: '内存使用率超过阈值 (90%)', time: '2024-01-15 14:00:00' },
-  { status: 'healthy', message: '磁盘空间检查通过', time: '2024-01-15 13:55:00' }
-])
+const healthHistory = ref([])
 
 const serviceHealthScore = computed(() => {
+  if (services.value.length === 0) return 0
   const healthyCount = services.value.filter(s => s.status === 'healthy').length
   return Math.round((healthyCount / services.value.length) * 100)
 })
 
-const resourceHealthScore = computed(() => 75)
+const resourceHealthScore = computed(() => 0)
 
 const alertHealthScore = computed(() => {
   if (alertRules.value.firing === 0) return 100

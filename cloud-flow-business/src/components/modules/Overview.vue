@@ -112,29 +112,23 @@ import { overviewApi } from '../../api'
 const loading = ref(true)
 const stats = ref({
   totalFlows: 0,
-  flowsChange: '+12%',
+  flowsChange: '',
   activeConnections: 0,
-  connChange: '+5%',
+  connChange: '',
   retransRate: 0,
-  retransChange: '-2%',
+  retransChange: '',
   packetLoss: 0,
-  lossChange: '-0.5%'
+  lossChange: ''
 })
 
-const topFlows = ref([
-  { source: '10.10.1.25', protocol: 'TCP', bytes: 125000000, percentage: 25 },
-  { source: '10.10.1.36', protocol: 'HTTP', bytes: 98000000, percentage: 20 },
-  { source: '10.10.1.12', protocol: 'HTTPS', bytes: 75000000, percentage: 15 },
-  { source: '10.10.1.89', protocol: 'UDP', bytes: 50000000, percentage: 10 },
-  { source: '10.10.1.45', protocol: 'DNS', bytes: 30000000, percentage: 6 }
-])
+const topFlows = ref([])
 
 const trafficChartData = computed(() => ({
   labels: ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00'],
   datasets: [
     {
       label: '入站流量',
-      data: [1200, 1900, 1500, 2200, 1800, 2500, 2100],
+      data: [],
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       fill: true,
@@ -142,7 +136,7 @@ const trafficChartData = computed(() => ({
     },
     {
       label: '出站流量',
-      data: [800, 1200, 900, 1500, 1100, 1800, 1400],
+      data: [],
       borderColor: '#10b981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       fill: true,
@@ -159,7 +153,7 @@ const trafficLegends = [
 const protocolChartData = computed(() => ({
   labels: ['TCP', 'HTTP', 'HTTPS', 'UDP', 'DNS', '其他'],
   datasets: [{
-    data: [35, 25, 20, 12, 5, 3],
+    data: [],
     backgroundColor: [
       '#3b82f6',
       '#10b981',
