@@ -23,6 +23,7 @@ import ProbeManage from './components/modules/ProbeManage.vue'
 import HealthCheck from './components/modules/HealthCheck.vue'
 import ConfigManage from './components/modules/ConfigManage.vue'
 import SelfAlerts from './components/modules/SelfAlerts.vue'
+import ExternalTools from './components/modules/ExternalTools.vue'
 import featuresConfig from './config/features.json'
 
 const features = ref(featuresConfig)
@@ -33,7 +34,8 @@ const moduleComponents = {
   probe: ProbeManage,
   health: HealthCheck,
   config: ConfigManage,
-  selfAlerts: SelfAlerts
+  selfAlerts: SelfAlerts,
+  externalTools: ExternalTools
 }
 
 const enabledModules = computed(() => {
@@ -61,7 +63,8 @@ function getModuleIcon(key) {
     probe: 'Cpu',
     health: 'HeartPulse',
     config: 'Settings',
-    selfAlerts: 'Bell'
+    selfAlerts: 'Bell',
+    externalTools: 'ExternalLink'
   }
   return icons[key] || 'Circle'
 }

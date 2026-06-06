@@ -32,6 +32,7 @@ import Network from './components/modules/Network.vue'
 import Alerts from './components/modules/Alerts.vue'
 import K8sFilter from './components/modules/K8sFilter.vue'
 import Export from './components/modules/Export.vue'
+import ExternalTools from './components/modules/ExternalTools.vue'
 import features from './config/features.json'
 
 const activeModule = ref('overview')
@@ -43,7 +44,8 @@ const modules = {
   network: Network,
   alerts: Alerts,
   k8s: K8sFilter,
-  export: Export
+  export: Export,
+  externalTools: ExternalTools
 }
 
 const enabledModules = computed(() => {
