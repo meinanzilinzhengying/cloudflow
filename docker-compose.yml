@@ -694,7 +694,7 @@ services:
     networks:
       - cloudflow-net
 
-  # Frontend（前端服务）
+  # Frontend（业务监控前端 - 保留）
   frontend:
     build:
       context: cloud-flow-frontend
@@ -717,6 +717,62 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    networks:
+      - cloudflow-net
+
+  # Business Frontend（业务监控前端 - 新）
+  business-frontend:
+    build:
+      context: cloud-flow-business
+      dockerfile: Dockerfile
+    container_name: cloudflow-business-frontend
+    restart: unless-stopped
+    depends_on:
+      query-service:
+        condition: service_healthy
+      alert-engine:
+        condition: service_healthy
+    ports:
+      - "3002:80"
+    environment:
+      TZ: Asia/Shanghai
+      VITE_API_URL: http://localhost:8007
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - cloudflow-net
+
+  # Platform Frontend（平台自监控前端 - 新）
+  platform-frontend:
+    build:
+      context: cloud-flow-platform
+      dockerfile: Dockerfile
+    container_name: cloudflow-platform-frontend
+    restart: unless-stopped
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    ports:
+      - "3003:80"
+    environment:
+      TZ: Asia/Shanghai
+      VITE_PROMETHEUS_URL: http://localhost:9091
+      VITE_LOKI_URL: http://localhost:3100
+      VITE_CONTROL_PLANE_URL: http://localhost:8001
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - cloudflow-net
 
