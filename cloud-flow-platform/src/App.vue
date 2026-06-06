@@ -1,9 +1,9 @@
 <template>
   <div class="flex h-screen bg-dark-900">
-    <Sidebar 
-      :modules="enabledModules" 
-      :activeModule="activeModule" 
-      @select="handleModuleSelect" 
+    <Sidebar
+      :modules="enabledModules"
+      :activeModule="activeModule"
+      @select="handleModuleSelect"
     />
     <div class="flex-1 flex flex-col overflow-hidden">
       <Header :title="activeModuleLabel" />
