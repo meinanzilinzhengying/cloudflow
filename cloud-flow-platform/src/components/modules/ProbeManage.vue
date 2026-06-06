@@ -209,6 +209,148 @@
             </div>
           </div>
           
+          <!-- K8s 集群连接配置 -->
+          <div class="bg-dark-700/50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
+              <Kubernetes class="w-4 h-4" />
+              K8s 集群连接配置
+            </h4>
+            <p class="text-xs text-gray-400 mb-4">
+              配置探针如何连接 K8s API 来获取容器信息（Pod、Service、Namespace 等）
+            </p>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="col-span-2">
+                <label class="block text-sm text-gray-400 mb-1">连接模式</label>
+                <select 
+                  v-model="k8sForm.k8sConnectMode" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="in-cluster">集群内 (In-Cluster) - 推荐（使用ServiceAccount）</option>
+                  <option value="kubeconfig">Kubeconfig - 指定 kubeconfig 文件路径</option>
+                  <option value="manual">手动配置 - 输入 API 地址和 Token</option>
+                </select>
+              </div>
+              
+              <div v-if="k8sForm.k8sConnectMode === 'kubeconfig'" class="col-span-2">
+                <label class="block text-sm text-gray-400 mb-1">Kubeconfig 文件路径</label>
+                <input 
+                  v-model="k8sForm.kubeconfigPath" 
+                  type="text" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="/root/.kube/config"
+                />
+              </div>
+              
+              <template v-if="k8sForm.k8sConnectMode === 'manual'">
+                <div>
+                  <label class="block text-sm text-gray-400 mb-1">K8s API 地址</label>
+                  <input 
+                    v-model="k8sForm.k8sApiServer" 
+                    type="text" 
+                    class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                    placeholder="https://kubernetes.default.svc:443"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm text-gray-400 mb-1">Token</label>
+                  <input 
+                    v-model="k8sForm.k8sToken" 
+                    type="password" 
+                    class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                    placeholder="输入 Token"
+                  />
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-sm text-gray-400 mb-1">CA 证书 (可选)</label>
+                  <textarea 
+                    v-model="k8sForm.k8sCaCert" 
+                    rows="3"
+                    class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500 font-mono text-xs"
+                    placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                  ></textarea>
+                </div>
+              </template>
+            </div>
+          </div>
+          
+          <!-- K8s 数据采集配置 -->
+          <div class="bg-dark-700/50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
+              <Database class="w-4 h-4" />
+              K8s 数据采集配置
+            </h4>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="col-span-2">
+                <label class="block text-sm text-gray-400 mb-1">包含命名空间</label>
+                <input 
+                  v-model="k8sForm.includeNamespaces" 
+                  type="text" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="留空表示监控所有；多个用逗号分隔：default,prod,staging"
+                />
+              </div>
+              <div class="col-span-2">
+                <label class="block text-sm text-gray-400 mb-1">排除命名空间</label>
+                <input 
+                  v-model="k8sForm.excludeNamespaces" 
+                  type="text" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="kube-system,kube-public,kube-node-lease"
+                />
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">同步间隔 (秒)</label>
+                <input 
+                  v-model.number="k8sForm.syncInterval" 
+                  type="number" 
+                  class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  placeholder="30"
+                />
+              </div>
+              <div class="col-span-2 space-y-2">
+                <h5 class="text-xs font-medium text-gray-300">采集资源</h5>
+                <div class="grid grid-cols-3 gap-2">
+                  <label class="flex items-center gap-2 text-xs text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.collectPods" class="rounded bg-dark-700 border-dark-600" />
+                    Pods
+                  </label>
+                  <label class="flex items-center gap-2 text-xs text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.collectServices" class="rounded bg-dark-700 border-dark-600" />
+                    Services
+                  </label>
+                  <label class="flex items-center gap-2 text-xs text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.collectDeployments" class="rounded bg-dark-700 border-dark-600" />
+                    Deployments
+                  </label>
+                  <label class="flex items-center gap-2 text-xs text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.collectReplicasets" class="rounded bg-dark-700 border-dark-600" />
+                    ReplicaSets
+                  </label>
+                  <label class="flex items-center gap-2 text-xs text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.collectStatefulsets" class="rounded bg-dark-700 border-dark-600" />
+                    StatefulSets
+                  </label>
+                  <label class="flex items-center gap-2 text-xs text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.collectDaemonsets" class="rounded bg-dark-700 border-dark-600" />
+                    DaemonSets
+                  </label>
+                  <label class="flex items-center gap-2 text-xs text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.collectJobs" class="rounded bg-dark-700 border-dark-600" />
+                    Jobs
+                  </label>
+                  <label class="flex items-center gap-2 text-xs text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.collectCronjobs" class="rounded bg-dark-700 border-dark-600" />
+                    CronJobs
+                  </label>
+                  <label class="flex items-center gap-2 text-xs text-gray-300">
+                    <input type="checkbox" v-model="k8sForm.collectNamespaces" class="rounded bg-dark-700 border-dark-600" />
+                    Namespaces
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <!-- DaemonSet 配置 -->
           <div v-if="k8sForm.deployMode === 'daemonset'" class="bg-dark-700/50 rounded-lg p-4">
             <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
@@ -557,7 +699,8 @@ import {
   Copy,
   FileCode,
   HelpCircle,
-  AlertCircle
+  AlertCircle,
+  Database
 } from 'lucide-vue-next'
 
 const selectedType = ref('all')
@@ -600,17 +743,65 @@ const k8sForm = ref({
   registry: 'registry.cloudflow.io',
   tag: 'latest',
   enableRBAC: true,
-  hostNetwork: true
+  hostNetwork: true,
+  // K8s连接配置
+  k8sConnectMode: 'in-cluster',
+  kubeconfigPath: '/root/.kube/config',
+  k8sApiServer: 'https://kubernetes.default.svc:443',
+  k8sToken: '',
+  k8sCaCert: '',
+  // K8s数据采集配置
+  includeNamespaces: '',
+  excludeNamespaces: 'kube-system,kube-public,kube-node-lease',
+  syncInterval: 30,
+  collectPods: true,
+  collectServices: true,
+  collectDeployments: true,
+  collectReplicasets: true,
+  collectStatefulsets: true,
+  collectDaemonsets: true,
+  collectJobs: true,
+  collectCronjobs: true,
+  collectNamespaces: true
 })
 
 const k8sDeployCommand = computed(() => {
-  return `# 一键部署 CloudFlow Agent
+  let cmd = `# 一键部署 CloudFlow Agent
 curl -sSL https://raw.githubusercontent.com/meinanzilinzhengying/cloudflow/main/cloud-flow-agent/deployments/k8s/deploy.sh | bash -s -- \\
   --namespace ${k8sForm.value.namespace} \\
   --api-key ${k8sForm.value.apiKey || 'YOUR_API_KEY'} \\
   --edge-addr ${k8sForm.value.edgeAddr} \\
   --registry ${k8sForm.value.registry} \\
-  --tag ${k8sForm.value.tag}`
+  --tag ${k8sForm.value.tag} \\
+  --k8s-connect-mode ${k8sForm.value.k8sConnectMode} \\
+  --sync-interval ${k8sForm.value.syncInterval}`
+  
+  if (k8sForm.value.includeNamespaces) {
+    cmd += ` \\
+  --include-namespaces "${k8sForm.value.includeNamespaces}"`
+  }
+  if (k8sForm.value.excludeNamespaces) {
+    cmd += ` \\
+  --exclude-namespaces "${k8sForm.value.excludeNamespaces}"`
+  }
+  
+  const resources = []
+  if (k8sForm.value.collectPods) resources.push('pods')
+  if (k8sForm.value.collectServices) resources.push('services')
+  if (k8sForm.value.collectDeployments) resources.push('deployments')
+  if (k8sForm.value.collectReplicasets) resources.push('replicasets')
+  if (k8sForm.value.collectStatefulsets) resources.push('statefulsets')
+  if (k8sForm.value.collectDaemonsets) resources.push('daemonsets')
+  if (k8sForm.value.collectJobs) resources.push('jobs')
+  if (k8sForm.value.collectCronjobs) resources.push('cronjobs')
+  if (k8sForm.value.collectNamespaces) resources.push('namespaces')
+  
+  if (resources.length > 0) {
+    cmd += ` \\
+  --collect-resources "${resources.join(',')}"`
+  }
+  
+  return cmd
 })
 
 function copyK8sCommand() {

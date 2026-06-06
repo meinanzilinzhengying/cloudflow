@@ -5,20 +5,68 @@ metadata:
   labels:
     app: cloudflow-agent
 rules:
-  # 必需权限
+  # 核心权限 - Pod资源（必需）
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
   
-  # 推荐权限 - 增强功能
+  # Pod详情（包括Pod状态、事件、存活时间等）
   - apiGroups: [""]
-    resources: ["services", "endpoints", "nodes", "namespaces"]
+    resources: ["pods/status", "pods/log"]
     verbs: ["get", "list", "watch"]
   
-  # 可选权限 - 日志关联
+  # Service资源
   - apiGroups: [""]
-    resources: ["pods/log"]
-    verbs: ["get"]
+    resources: ["services", "endpoints", "endpointslices"]
+    verbs: ["get", "list", "watch"]
+  
+  # Node资源
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/status"]
+    verbs: ["get", "list", "watch"]
+  
+  # Namespace资源
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+  
+  # 工作负载资源 - Deployment
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/status"]
+    verbs: ["get", "list", "watch"]
+  
+  # 工作负载资源 - ReplicaSet
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "replicasets/status"]
+    verbs: ["get", "list", "watch"]
+  
+  # 工作负载资源 - StatefulSet
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "statefulsets/status"]
+    verbs: ["get", "list", "watch"]
+  
+  # 工作负载资源 - DaemonSet
+  - apiGroups: ["apps"]
+    resources: ["daemonsets", "daemonsets/status"]
+    verbs: ["get", "list", "watch"]
+  
+  # 工作负载资源 - Job & CronJob
+  - apiGroups: ["batch"]
+    resources: ["jobs", "jobs/status", "cronjobs", "cronjobs/status"]
+    verbs: ["get", "list", "watch"]
+  
+  # Event资源 - 用于关联事件
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  
+  # 可选 - ConfigMap和Secret的元数据（不读取内容）
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["list", "watch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1

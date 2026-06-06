@@ -8,7 +8,40 @@ CloudFlow探针支持三种部署方式：
 |---------|---------|---------|---------|
 | **ECS部署** | 传统云服务器监控 | 直接在ECS上安装 | SSH/root权限 |
 | **Node节点部署** | Kubernetes节点监控 | 在K8s节点上安装 | SSH/root权限 |
-| **Pod节点部署** | 容器集群全栈监控 | 作为DaemonSet部署 | K8s ServiceAccount + RBAC权限 |
+| **Pod节点部署（推荐）** | 容器集群全栈监控 | 作为DaemonSet部署 | K8s ServiceAccount + RBAC权限 |
+
+## K8s 连接配置
+
+探针支持三种K8s集群连接方式来获取容器配置信息：
+
+### 1. 集群内模式 (In-Cluster) - 推荐 ✅
+
+使用Pod的ServiceAccount自动连接，无需额外配置。
+
+| 配置项 | 说明 |
+|---------|---------|
+| `kubernetes.connect_mode` | `in-cluster` |
+| `kubernetes.kubeconfig_path` | 留空 |
+
+### 2. Kubeconfig 模式
+
+指定 kubeconfig 文件路径。
+
+| 配置项 | 说明 |
+|---------|---------|
+| `kubernetes.connect_mode` | `kubeconfig` |
+| `kubernetes.kubeconfig_path` | `/path/to/kubeconfig` |
+
+### 3. 手动模式 (Manual)
+
+手动配置 API 地址和 Token。
+
+| 配置项 | 说明 |
+|---------|---------|
+| `kubernetes.connect_mode` | `manual` |
+| `kubernetes.api_server` | K8s API 地址 |
+| `kubernetes.token` | 访问 Token |
+| `kubernetes.ca_cert` | CA 证书内容（可选） |
 
 ---
 
@@ -603,6 +636,86 @@ kubectl delete namespace cloudflow --wait=true
 
 ---
 
+## 附录：完整配置参考
+
+### ConfigMap 配置详解
+
+以下是 `kubernetes` 配置节的完整说明：
+
+```yaml
+kubernetes:
+  enabled: true
+  # 连接模式: in-cluster (默认), kubeconfig, manual
+  connect_mode: "in-cluster"
+  
+  # 当 connect_mode=kubeconfig 时使用
+  kubeconfig_path: ""
+  
+  # 当 connect_mode=manual 时使用
+  api_server: "https://kubernetes.default.svc:443"
+  token: ""
+  ca_cert: ""
+  
+  # 命名空间控制
+  kube_namespace: ""
+  include_namespaces: []      # 只监控这些命名空间（留空表示所有）
+  exclude_namespaces: ["kube-system", "kube-public", "kube-node-lease"]
+  
+  # 资源同步配置
+  sync_interval: "30s"
+  
+  # 资源采集控制
+  collect_pods: true
+  collect_services: true
+  collect_deployments: true
+  collect_replicasets: true
+  collect_statefulsets: true
+  collect_daemonsets: true
+  collect_jobs: true
+  collect_cronjobs: true
+  collect_namespaces: true
+  
+  # 其他配置
+  label_selector: ""
+  field_selector: ""
+  include_labels: {}
+  exclude_labels: {}
+```
+
+### 采集的 Pod 信息
+
+当启用 `collect_pods: true` 时，探针会采集以下 Pod 信息用于流量关联：
+
+| 字段 | 说明 |
+|-----|------|
+| 名称 | Pod 名称 |
+| 命名空间 | 所属命名空间 |
+| Pod IP | 分配的 IP 地址 |
+| 节点 IP | 运行所在节点 |
+| 容器 | 容器列表和镜像 |
+| 标签 | 用于关联应用 |
+| 注解 | 用于元数据关联 |
+| 创建时间 | 计算存活时间 |
+| 状态 | Running/Pending/Succeeded/Failed |
+| 重启计数 | 判断稳定性 |
+
+### 部署脚本参数
+
+`deploy.sh` 脚本支持以下参数：
+
+| 参数 | 默认值 | 说明 |
+|-----|-------|------|
+| `--namespace` | cloudflow | 部署到的命名空间 |
+| `--api-key` | (必需) | CloudFlow API Key |
+| `--edge-addr` | (必需) | Edge服务地址 |
+| `--registry` | registry.cloudflow.io | 镜像仓库 |
+| `--tag` | latest | 镜像标签 |
+| `--k8s-connect-mode` | in-cluster | K8s连接模式 |
+| `--sync-interval` | 30 | 同步间隔(秒) |
+| `--include-namespaces` | (可选) | 包含的命名空间,逗号分隔 |
+| `--exclude-namespaces` | kube-system,... | 排除的命名空间,逗号分隔 |
+| `--collect-resources` | pods,services,... | 采集的资源,逗号分隔 |
+
 ## 附录：完整文件结构
 
 ```
@@ -620,6 +733,6 @@ kubectl delete namespace cloudflow --wait=true
 
 ---
 
-**文档版本**: v1.0  
+**文档版本**: v1.1  
 **最后更新**: 2024-01-15  
 **适用版本**: CloudFlow v1.0+

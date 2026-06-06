@@ -16,13 +16,37 @@ data:
     
     kubernetes:
       enabled: true
+      # 连接模式: in-cluster, kubeconfig, manual
+      connect_mode: "in-cluster"
+      # 当 connect_mode=kubeconfig 时使用
       kubeconfig_path: ""
+      # 当 connect_mode=manual 时使用
+      api_server: "https://kubernetes.default.svc:443"
+      token: ""
+      ca_cert: ""
+      
+      # 命名空间控制
       kube_namespace: ""
-      sync_interval: "30s"
-      label_selector: ""
-      field_selector: ""
       include_namespaces: []
       exclude_namespaces: ["kube-system", "kube-public", "kube-node-lease"]
+      
+      # 资源同步配置
+      sync_interval: "30s"
+      
+      # 资源采集控制
+      collect_pods: true
+      collect_services: true
+      collect_deployments: true
+      collect_replicasets: true
+      collect_statefulsets: true
+      collect_daemonsets: true
+      collect_jobs: true
+      collect_cronjobs: true
+      collect_namespaces: true
+      
+      # 其他配置
+      label_selector: ""
+      field_selector: ""
       include_labels: {}
       exclude_labels: {}
     
