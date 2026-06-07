@@ -21,7 +21,7 @@ type Logger struct {
 }
 
 func New(cfg Config) *Logger {
-	var level := zapcore.InfoLevel
+	level := zapcore.InfoLevel
 	switch cfg.Level {
 	case "debug":
 		level = zapcore.DebugLevel
