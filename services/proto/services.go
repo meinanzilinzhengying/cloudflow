@@ -697,6 +697,20 @@ type RevokeTokenResponse struct {
 	Message string `json:"message"`
 }
 
+// ValidateAPIKeyRequest API Key 验证请求
+type ValidateAPIKeyRequest struct {
+	ApiKey string `json:"api_key"`
+}
+
+// ValidateAPIKeyResponse API Key 验证响应
+type ValidateAPIKeyResponse struct {
+	Valid    bool   `json:"valid"`
+	UserId   string `json:"user_id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	TenantId string `json:"tenant_id"`
+}
+
 // ============================================================================
 // tenant-service
 // ============================================================================
@@ -1301,6 +1315,7 @@ type AuthServiceServer interface {
 	HealthCheck(ctx context.Context, req *HealthCheckRequest) (*HealthCheckResponse, error)
 	Authenticate(ctx context.Context, req *AuthenticateRequest) (*AuthenticateResponse, error)
 	ValidateToken(ctx context.Context, req *ValidateTokenRequest) (*ValidateTokenResponse, error)
+	ValidateAPIKey(ctx context.Context, req *ValidateAPIKeyRequest) (*ValidateAPIKeyResponse, error)
 	Authorize(ctx context.Context, req *AuthorizeRequest) (*AuthorizeResponse, error)
 	// New RBAC methods:
 	CreateRole(ctx context.Context, req *CreateRoleRequest) (*CreateRoleResponse, error)
@@ -1310,6 +1325,320 @@ type AuthServiceServer interface {
 	OIDCCallback(ctx context.Context, req *OIDCCallbackRequest) (*AuthenticateResponse, error)
 	// New security method:
 	RevokeToken(ctx context.Context, req *RevokeTokenRequest) (*RevokeTokenResponse, error)
+}
+
+// AuthServiceClient auth-service gRPC 客户端接口
+type AuthServiceClient interface {
+	HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
+	Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error)
+	ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error)
+	ValidateAPIKey(ctx context.Context, in *ValidateAPIKeyRequest, opts ...grpc.CallOption) (*ValidateAPIKeyResponse, error)
+	Authorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*AuthorizeResponse, error)
+	CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*CreateRoleResponse, error)
+	BindUserRole(ctx context.Context, in *BindUserRoleRequest, opts ...grpc.CallOption) (*BindUserRoleResponse, error)
+	CreatePolicy(ctx context.Context, in *CreatePolicyRequest, opts ...grpc.CallOption) (*CreatePolicyResponse, error)
+	CheckPermission(ctx context.Context, in *CheckPermissionRequest, opts ...grpc.CallOption) (*CheckPermissionResponse, error)
+	OIDCCallback(ctx context.Context, in *OIDCCallbackRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error)
+	RevokeToken(ctx context.Context, in *RevokeTokenRequest, opts ...grpc.CallOption) (*RevokeTokenResponse, error)
+}
+
+// authServiceClient AuthServiceClient 的默认实现
+type authServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+// NewAuthServiceClient 创建 AuthService 客户端
+func NewAuthServiceClient(cc grpc.ClientConnInterface) AuthServiceClient {
+	return &authServiceClient{cc}
+}
+
+func (c *authServiceClient) HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error) {
+	out := new(HealthCheckResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/HealthCheck", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error) {
+	out := new(AuthenticateResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/Authenticate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error) {
+	out := new(ValidateTokenResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/ValidateToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ValidateAPIKey(ctx context.Context, in *ValidateAPIKeyRequest, opts ...grpc.CallOption) (*ValidateAPIKeyResponse, error) {
+	out := new(ValidateAPIKeyResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/ValidateAPIKey", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) Authorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*AuthorizeResponse, error) {
+	out := new(AuthorizeResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/Authorize", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*CreateRoleResponse, error) {
+	out := new(CreateRoleResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateRole", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) BindUserRole(ctx context.Context, in *BindUserRoleRequest, opts ...grpc.CallOption) (*BindUserRoleResponse, error) {
+	out := new(BindUserRoleResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/BindUserRole", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreatePolicy(ctx context.Context, in *CreatePolicyRequest, opts ...grpc.CallOption) (*CreatePolicyResponse, error) {
+	out := new(CreatePolicyResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreatePolicy", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CheckPermission(ctx context.Context, in *CheckPermissionRequest, opts ...grpc.CallOption) (*CheckPermissionResponse, error) {
+	out := new(CheckPermissionResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CheckPermission", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) OIDCCallback(ctx context.Context, in *OIDCCallbackRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error) {
+	out := new(AuthenticateResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/OIDCCallback", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) RevokeToken(ctx context.Context, in *RevokeTokenRequest, opts ...grpc.CallOption) (*RevokeTokenResponse, error) {
+	out := new(RevokeTokenResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/RevokeToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// RegisterAuthServiceServer 注册 AuthServiceServer 到 gRPC server
+func RegisterAuthServiceServer(s *grpc.Server, srv AuthServiceServer) {
+	s.RegisterService(&_AuthService_serviceDesc, srv)
+}
+
+var _AuthService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.AuthService",
+	HandlerType: (*AuthServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{MethodName: "HealthCheck", Handler: authServiceHealthCheckHandler},
+		{MethodName: "Authenticate", Handler: authServiceAuthenticateHandler},
+		{MethodName: "ValidateToken", Handler: authServiceValidateTokenHandler},
+		{MethodName: "ValidateAPIKey", Handler: authServiceValidateAPIKeyHandler},
+		{MethodName: "Authorize", Handler: authServiceAuthorizeHandler},
+		{MethodName: "CreateRole", Handler: authServiceCreateRoleHandler},
+		{MethodName: "BindUserRole", Handler: authServiceBindUserRoleHandler},
+		{MethodName: "CreatePolicy", Handler: authServiceCreatePolicyHandler},
+		{MethodName: "CheckPermission", Handler: authServiceCheckPermissionHandler},
+		{MethodName: "OIDCCallback", Handler: authServiceOIDCCallbackHandler},
+		{MethodName: "RevokeToken", Handler: authServiceRevokeTokenHandler},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/services.proto",
+}
+
+func authServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HealthCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).HealthCheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/HealthCheck"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceAuthenticateHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).Authenticate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/Authenticate"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).Authenticate(ctx, req.(*AuthenticateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceValidateTokenHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/ValidateToken"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateToken(ctx, req.(*ValidateTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceValidateAPIKeyHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateAPIKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateAPIKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/ValidateAPIKey"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateAPIKey(ctx, req.(*ValidateAPIKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceAuthorizeHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthorizeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).Authorize(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/Authorize"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).Authorize(ctx, req.(*AuthorizeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceCreateRoleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/CreateRole"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateRole(ctx, req.(*CreateRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceBindUserRoleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BindUserRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).BindUserRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/BindUserRole"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).BindUserRole(ctx, req.(*BindUserRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceCreatePolicyHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreatePolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreatePolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/CreatePolicy"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreatePolicy(ctx, req.(*CreatePolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceCheckPermissionHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckPermissionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CheckPermission(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/CheckPermission"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CheckPermission(ctx, req.(*CheckPermissionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceOIDCCallbackHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OIDCCallbackRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).OIDCCallback(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/OIDCCallback"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).OIDCCallback(ctx, req.(*OIDCCallbackRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func authServiceRevokeTokenHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).RevokeToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/RevokeToken"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).RevokeToken(ctx, req.(*RevokeTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 // TenantServiceServer tenant-service gRPC 服务
@@ -1340,6 +1669,10 @@ func (UnimplementedAuthServiceServer) ValidateToken(ctx context.Context, req *Va
 }
 
 func (UnimplementedAuthServiceServer) Authorize(ctx context.Context, req *AuthorizeRequest) (*AuthorizeResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAuthServiceServer) ValidateAPIKey(ctx context.Context, req *ValidateAPIKeyRequest) (*ValidateAPIKeyResponse, error) {
 	return nil, nil
 }
 

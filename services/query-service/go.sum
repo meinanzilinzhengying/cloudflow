@@ -1,0 +1,4 @@
+github.com/ClickHouse/clickhouse-go/v2 v2.46.0 h1:s3eRy+hYmu5uzotB6ZhDofgHu8kDgGN/fpmjxRkqSpk=
+github.com/ClickHouse/clickhouse-go/v2 v2.46.0/go.mod h1:giJfUVlMkcfUEPVfRpt51zZaGEx9i17gCos8gBl392c=
+google.golang.org/grpc v1.80.0 h1:Xr6m2WmWZLETvUNvIUmeD5OAagMw3FiKmMlTdViWsHM=
+google.golang.org/grpc v1.80.0/go.mod h1:ho/dLnxwi3EDJA4Zghp7k2Ec1+c2jqup0bFkw07bwF4=

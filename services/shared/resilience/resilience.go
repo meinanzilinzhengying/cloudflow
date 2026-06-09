@@ -114,14 +114,12 @@ func (rc *ResilientClient) ExecuteWithContext(ctx context.Context, fn func(ctx c
 		return fmt.Errorf("bulkhead at capacity")
 	}
 
-	var lastErr error
 	executeFn := func(ctx context.Context) error {
 		if rc.bulkhead != nil {
 			err := rc.bulkhead.ExecuteWithContext(ctx, func(ctx context.Context) error {
 				return fn(ctx)
 			})
 			if err != nil {
-				lastErr = err
 				return err
 			}
 			return nil
@@ -143,7 +141,6 @@ func (rc *ResilientClient) ExecuteWithContext(ctx context.Context, fn func(ctx c
 	} else {
 		err := executeFn(ctx)
 		if err != nil {
-			lastErr = err
 			if rc.circuitBreaker != nil {
 				rc.circuitBreaker.RecordFailure()
 			}
