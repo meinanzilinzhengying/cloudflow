@@ -784,6 +784,64 @@ type UpdateTenantQuotaResponse struct {
 	Message string `json:"message"`
 }
 
+// UpdateTenantRequest 更新租户请求
+type UpdateTenantRequest struct {
+	TenantId    string `json:"tenant_id"`
+	DisplayName string `json:"display_name"`
+	Description string `json:"description"`
+	Plan        string `json:"plan"`
+	Status      string `json:"status"`
+}
+
+// UpdateTenantResponse 更新租户响应
+type UpdateTenantResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// DeleteTenantRequest 删除租户请求
+type DeleteTenantRequest struct {
+	TenantId string `json:"tenant_id"`
+}
+
+// DeleteTenantResponse 删除租户响应
+type DeleteTenantResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// GetProjectRequest 获取项目请求
+type GetProjectRequest struct {
+	ProjectId string `json:"project_id"`
+}
+
+// GetProjectResponse 获取项目响应
+type GetProjectResponse struct {
+	Project *Project `json:"project"`
+}
+
+// Quota 配额信息
+type Quota struct {
+	QuotaId        int    `json:"quota_id"`
+	TenantId       string `json:"tenant_id"`
+	ProjectId      string `json:"project_id"`
+	MaxAgents      int    `json:"max_agents"`
+	MaxFlowsPerDay int64  `json:"max_flows_per_day"`
+	MaxStorageGB   int    `json:"max_storage_gb"`
+	MaxAlertRules  int    `json:"max_alert_rules"`
+	RetentionDays  int    `json:"retention_days"`
+}
+
+// GetQuotaRequest 获取配额请求
+type GetQuotaRequest struct {
+	TenantId string `json:"tenant_id"`
+}
+
+// GetQuotaResponse 获取配额响应
+type GetQuotaResponse struct {
+	Quota *Quota `json:"quota"`
+}
+
 // ============================================================================
 // RBAC / Project / Policy / OIDC 类型定义
 // ============================================================================
@@ -1647,10 +1705,14 @@ type TenantServiceServer interface {
 	CreateTenant(ctx context.Context, req *CreateTenantRequest) (*CreateTenantResponse, error)
 	GetTenant(ctx context.Context, req *GetTenantRequest) (*GetTenantResponse, error)
 	ListTenants(ctx context.Context, req *ListTenantsRequest) (*ListTenantsResponse, error)
+	UpdateTenant(ctx context.Context, req *UpdateTenantRequest) (*UpdateTenantResponse, error)
+	DeleteTenant(ctx context.Context, req *DeleteTenantRequest) (*DeleteTenantResponse, error)
 	UpdateQuota(ctx context.Context, req *UpdateTenantQuotaRequest) (*UpdateTenantQuotaResponse, error)
+	GetQuota(ctx context.Context, req *GetQuotaRequest) (*GetQuotaResponse, error)
 	// New project methods:
 	CreateProject(ctx context.Context, req *CreateProjectRequest) (*CreateProjectResponse, error)
 	ListProjects(ctx context.Context, req *ListProjectsRequest) (*ListProjectsResponse, error)
+	GetProject(ctx context.Context, req *GetProjectRequest) (*GetProjectResponse, error)
 }
 
 // UnimplementedAuthServiceServer 可嵌入的默认实现，使现有代码无需实现新方法即可编译
@@ -1728,5 +1790,21 @@ func (UnimplementedTenantServiceServer) CreateProject(ctx context.Context, req *
 }
 
 func (UnimplementedTenantServiceServer) ListProjects(ctx context.Context, req *ListProjectsRequest) (*ListProjectsResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedTenantServiceServer) UpdateTenant(ctx context.Context, req *UpdateTenantRequest) (*UpdateTenantResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedTenantServiceServer) DeleteTenant(ctx context.Context, req *DeleteTenantRequest) (*DeleteTenantResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedTenantServiceServer) GetQuota(ctx context.Context, req *GetQuotaRequest) (*GetQuotaResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedTenantServiceServer) GetProject(ctx context.Context, req *GetProjectRequest) (*GetProjectResponse, error) {
 	return nil, nil
 }
