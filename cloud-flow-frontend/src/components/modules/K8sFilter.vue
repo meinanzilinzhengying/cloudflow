@@ -131,7 +131,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Server, Pod, Eye, FileText } from 'lucide-vue-next'
+import { Server, Eye, FileText } from 'lucide-vue-next'
 import { filtersApi } from '../../api'
 
 const selectedNamespace = ref('')
@@ -150,7 +150,7 @@ const resourceTabs = [
 ]
 
 const resourceList = ref([
-  { name: 'cloudflow-agent-abc12', namespace: 'cloudflow', status: 'Running', cpu: 45, memory: 62, network: 125000, icon: Pod },
+  { name: 'cloudflow-agent-abc12', namespace: 'cloudflow', status: 'Running', cpu: 45, memory: 62, network: 125000, icon: Server },
   { name: 'cloudflow-center-def34', namespace: 'cloudflow', status: 'Running', cpu: 32, memory: 45, network: 89000, icon: Server },
   { name: 'cloudflow-edge-ghi56', namespace: 'cloudflow', status: 'Running', cpu: 58, memory: 71, network: 230000, icon: Server },
   { name: 'redis-master-jkl78', namespace: 'default', status: 'Running', cpu: 12, memory: 28, network: 45000, icon: Server },

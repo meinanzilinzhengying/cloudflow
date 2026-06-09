@@ -13,7 +13,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: 构建阶段 - 支持多架构
 # ---------------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 
 WORKDIR /build
 

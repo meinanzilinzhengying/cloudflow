@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 RUN apk add --no-cache git sed
 ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /build
@@ -12,7 +12,13 @@ RUN sed -i 's|../pkg|/build/pkg|g' go.mod && \
     sed -i 's|../proto|/build/proto|g' go.mod
 
 # Run go mod tidy to resolve all dependencies
-RUN go mod tidy
+ENV GOWORK=off
+ENV GOPROXY=off
+
+    RUN go mod tidy
+    
+
+    RUN go build -o /app/main ./
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \

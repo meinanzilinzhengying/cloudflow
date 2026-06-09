@@ -4,11 +4,10 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # 设置国内代理
-ENV GOPROXY=https://goproxy.cn,direct
 ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json ./
+RUN npm install
 
 COPY . .
 RUN npm run build

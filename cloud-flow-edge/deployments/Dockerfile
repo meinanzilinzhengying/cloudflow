@@ -1,6 +1,6 @@
 # 多阶段构建 - 边缘节点服务
 # 第一阶段：编译
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # 安装必要工具
 RUN apk add --no-cache git sed
@@ -19,7 +19,13 @@ RUN sed -i 's|../pkg|/build/pkg|g' go.mod && \
     sed -i 's|../proto|/build/proto|g' go.mod
 
 # Run go mod tidy and compile
-RUN go mod tidy && \
+ENV GOWORK=off
+ENV GOPROXY=off
+
+    RUN go mod tidy
+    
+
+    RUN go build -o /app/main ./ && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /build/cloud-flow-edge ./cmd/main.go
 
