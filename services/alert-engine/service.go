@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,7 +29,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	svcproto "github.com/meinanzilinzhengying/cloudflow/proto"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
@@ -1089,16 +1088,14 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 
 					// 添加到响应
 					firedAlerts = append(firedAlerts, &svcproto.Alert{
-						Id:         alertID,
-						RuleId:     ruleID,
-						Name:       name,
-						TenantId:   tenantID,
-						Severity:   severity,
-						Message:    alertMessage,
-						StartedAt:  time.Now().Unix(),
-						FiredAt:    time.Now().Unix(),
-						ResolvedAt: 0,
-						Status:     "firing",
+						AlertId:   alertID,
+						RuleId:    ruleID,
+						TenantId:  tenantID,
+						Severity:  severity,
+						Title:     name,
+						Message:   alertMessage,
+						StartsAt:  time.Now().Format(time.RFC3339),
+						Status:    "firing",
 					})
 
 					// 创建通知
@@ -1142,6 +1139,80 @@ func (s *Service) listAlertsHTTPHandler(w http.ResponseWriter, r *http.Request) 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}
+}
+
+// ============================================================================
+// gRPC Server 类型 (用于实现 AlertServiceServer 接口)
+// ============================================================================
+
+type alertGRPC struct {
+	svcproto.UnimplementedAlertServiceServer
+	svc *Service
+}
+
+func (g *alertGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
+	return &svcproto.HealthCheckResponse{Healthy: true, Version: g.svc.config.Version}, nil
+}
+
+func (g *alertGRPC) CreateRule(ctx context.Context, req *svcproto.CreateAlertRuleRequest) (*svcproto.CreateAlertRuleResponse, error) {
+	return g.svc.CreateRule(ctx, req)
+}
+
+func (g *alertGRPC) GetRule(ctx context.Context, req *svcproto.GetAlertRuleRequest) (*svcproto.GetAlertRuleResponse, error) {
+	return g.svc.GetRule(ctx, req)
+}
+
+func (g *alertGRPC) ListRules(ctx context.Context, req *svcproto.ListAlertRulesRequest) (*svcproto.ListAlertRulesResponse, error) {
+	return g.svc.ListRules(ctx, req)
+}
+
+func (g *alertGRPC) UpdateRule(ctx context.Context, req *svcproto.UpdateAlertRuleRequest) (*svcproto.UpdateAlertRuleResponse, error) {
+	return g.svc.UpdateRule(ctx, req)
+}
+
+func (g *alertGRPC) DeleteRule(ctx context.Context, req *svcproto.DeleteAlertRuleRequest) (*svcproto.DeleteAlertRuleResponse, error) {
+	return g.svc.DeleteRule(ctx, req)
+}
+
+func (g *alertGRPC) CreateAlert(ctx context.Context, req *svcproto.CreateAlertRequest) (*svcproto.CreateAlertResponse, error) {
+	return g.svc.CreateAlert(ctx, req)
+}
+
+func (g *alertGRPC) GetAlert(ctx context.Context, req *svcproto.GetAlertRequest) (*svcproto.GetAlertResponse, error) {
+	return g.svc.GetAlert(ctx, req)
+}
+
+func (g *alertGRPC) UpdateAlert(ctx context.Context, req *svcproto.UpdateAlertRequest) (*svcproto.UpdateAlertResponse, error) {
+	return g.svc.UpdateAlert(ctx, req)
+}
+
+func (g *alertGRPC) ListAlerts(ctx context.Context, req *svcproto.ListAlertsRequest) (*svcproto.ListAlertsResponse, error) {
+	return g.svc.ListAlerts(ctx, req)
+}
+
+func (g *alertGRPC) CreateNotification(ctx context.Context, req *svcproto.CreateNotificationRequest) (*svcproto.CreateNotificationResponse, error) {
+	return g.svc.CreateNotification(ctx, req)
+}
+
+func (g *alertGRPC) UpdateNotification(ctx context.Context, req *svcproto.UpdateNotificationRequest) (*svcproto.UpdateNotificationResponse, error) {
+	return g.svc.UpdateNotification(ctx, req)
+}
+
+func (g *alertGRPC) ListNotifications(ctx context.Context, req *svcproto.ListNotificationsRequest) (*svcproto.ListNotificationsResponse, error) {
+	return g.svc.ListNotifications(ctx, req)
+}
+
+func (g *alertGRPC) EvaluateRules(ctx context.Context, req *svcproto.EvaluateRulesRequest) (*svcproto.EvaluateRulesResponse, error) {
+	return g.svc.EvaluateRules(ctx, req)
+}
+
+func (g *alertGRPC) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAlertsRequest) (*svcproto.EvaluateAlertsResponse, error) {
+	return g.svc.EvaluateAlerts(ctx, req)
+}
+
+// RegisterAlertService 注册 gRPC 服务
+func RegisterAlertService(s *grpc.Server, svc *Service) {
+	svcproto.RegisterAlertServiceServer(s, &alertGRPC{svc: svc})
 }
 
 func (s *Service) createAlertHTTPHandler(w http.ResponseWriter, r *http.Request) {

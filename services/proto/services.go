@@ -1414,6 +1414,69 @@ func topologyServiceGetSnapshotHandler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+// UnimplementedAlertServiceServer 可嵌入的默认实现，使现有代码无需实现新方法即可编译
+type UnimplementedAlertServiceServer struct{}
+
+func (UnimplementedAlertServiceServer) HealthCheck(ctx context.Context, req *HealthCheckRequest) (*HealthCheckResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) CreateRule(ctx context.Context, req *CreateAlertRuleRequest) (*CreateAlertRuleResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) GetRule(ctx context.Context, req *GetAlertRuleRequest) (*GetAlertRuleResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) ListRules(ctx context.Context, req *ListAlertRulesRequest) (*ListAlertRulesResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) UpdateRule(ctx context.Context, req *UpdateAlertRuleRequest) (*UpdateAlertRuleResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) DeleteRule(ctx context.Context, req *DeleteAlertRuleRequest) (*DeleteAlertRuleResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) CreateAlert(ctx context.Context, req *CreateAlertRequest) (*CreateAlertResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) GetAlert(ctx context.Context, req *GetAlertRequest) (*GetAlertResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) UpdateAlert(ctx context.Context, req *UpdateAlertRequest) (*UpdateAlertResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) ListAlerts(ctx context.Context, req *ListAlertsRequest) (*ListAlertsResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) CreateNotification(ctx context.Context, req *CreateNotificationRequest) (*CreateNotificationResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) UpdateNotification(ctx context.Context, req *UpdateNotificationRequest) (*UpdateNotificationResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) ListNotifications(ctx context.Context, req *ListNotificationsRequest) (*ListNotificationsResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) EvaluateRules(ctx context.Context, req *EvaluateRulesRequest) (*EvaluateRulesResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAlertServiceServer) EvaluateAlerts(ctx context.Context, req *EvaluateAlertsRequest) (*EvaluateAlertsResponse, error) {
+	return nil, nil
+}
+
 // AlertServiceServer alert-engine gRPC 服务
 type AlertServiceServer interface {
 	HealthCheck(ctx context.Context, req *HealthCheckRequest) (*HealthCheckResponse, error)
@@ -1435,6 +1498,258 @@ type AlertServiceServer interface {
 	// 评估
 	EvaluateRules(ctx context.Context, req *EvaluateRulesRequest) (*EvaluateRulesResponse, error)
 	EvaluateAlerts(ctx context.Context, req *EvaluateAlertsRequest) (*EvaluateAlertsResponse, error)
+}
+
+// RegisterAlertServiceServer 注册 AlertServiceServer 到 gRPC server
+func RegisterAlertServiceServer(s *grpc.Server, srv AlertServiceServer) {
+	s.RegisterService(&_AlertService_serviceDesc, srv)
+}
+
+var _AlertService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.AlertService",
+	HandlerType: (*AlertServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{MethodName: "HealthCheck", Handler: alertServiceHealthCheckHandler},
+		{MethodName: "CreateRule", Handler: alertServiceCreateRuleHandler},
+		{MethodName: "GetRule", Handler: alertServiceGetRuleHandler},
+		{MethodName: "ListRules", Handler: alertServiceListRulesHandler},
+		{MethodName: "UpdateRule", Handler: alertServiceUpdateRuleHandler},
+		{MethodName: "DeleteRule", Handler: alertServiceDeleteRuleHandler},
+		{MethodName: "CreateAlert", Handler: alertServiceCreateAlertHandler},
+		{MethodName: "GetAlert", Handler: alertServiceGetAlertHandler},
+		{MethodName: "UpdateAlert", Handler: alertServiceUpdateAlertHandler},
+		{MethodName: "ListAlerts", Handler: alertServiceListAlertsHandler},
+		{MethodName: "CreateNotification", Handler: alertServiceCreateNotificationHandler},
+		{MethodName: "UpdateNotification", Handler: alertServiceUpdateNotificationHandler},
+		{MethodName: "ListNotifications", Handler: alertServiceListNotificationsHandler},
+		{MethodName: "EvaluateRules", Handler: alertServiceEvaluateRulesHandler},
+		{MethodName: "EvaluateAlerts", Handler: alertServiceEvaluateAlertsHandler},
+	},
+}
+
+func alertServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HealthCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).HealthCheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/HealthCheck"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceCreateRuleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAlertRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).CreateRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/CreateRule"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).CreateRule(ctx, req.(*CreateAlertRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceGetRuleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAlertRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/GetRule"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetRule(ctx, req.(*GetAlertRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceListRulesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAlertRulesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).ListRules(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/ListRules"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).ListRules(ctx, req.(*ListAlertRulesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceUpdateRuleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAlertRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).UpdateRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/UpdateRule"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).UpdateRule(ctx, req.(*UpdateAlertRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceDeleteRuleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAlertRuleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).DeleteRule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/DeleteRule"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).DeleteRule(ctx, req.(*DeleteAlertRuleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceCreateAlertHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAlertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).CreateAlert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/CreateAlert"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).CreateAlert(ctx, req.(*CreateAlertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceGetAlertHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAlertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetAlert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/GetAlert"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetAlert(ctx, req.(*GetAlertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceUpdateAlertHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAlertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).UpdateAlert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/UpdateAlert"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).UpdateAlert(ctx, req.(*UpdateAlertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceListAlertsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAlertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).ListAlerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/ListAlerts"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).ListAlerts(ctx, req.(*ListAlertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceCreateNotificationHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).CreateNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/CreateNotification"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).CreateNotification(ctx, req.(*CreateNotificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceUpdateNotificationHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).UpdateNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/UpdateNotification"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).UpdateNotification(ctx, req.(*UpdateNotificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceListNotificationsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListNotificationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).ListNotifications(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/ListNotifications"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).ListNotifications(ctx, req.(*ListNotificationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceEvaluateRulesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EvaluateRulesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).EvaluateRules(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/EvaluateRules"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).EvaluateRules(ctx, req.(*EvaluateRulesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func alertServiceEvaluateAlertsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EvaluateAlertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).EvaluateAlerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/EvaluateAlerts"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).EvaluateAlerts(ctx, req.(*EvaluateAlertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 // AuthServiceServer auth-service gRPC 服务
