@@ -1104,6 +1104,146 @@ type ControlPlaneServiceServer interface {
 	UpdateIngestConfig(ctx context.Context, req *UpdateIngestConfigRequest) (*UpdateIngestConfigResponse, error)
 }
 
+// UnimplementedControlPlaneServiceServer 可嵌入的默认实现
+type UnimplementedControlPlaneServiceServer struct{}
+
+func (UnimplementedControlPlaneServiceServer) HealthCheck(ctx context.Context, req *HealthCheckRequest) (*HealthCheckResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedControlPlaneServiceServer) ListAgents(ctx context.Context, req *ListAgentsRequest) (*ListAgentsResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedControlPlaneServiceServer) GetAgent(ctx context.Context, req *AgentInfo) (*AgentInfo, error) {
+	return nil, nil
+}
+
+func (UnimplementedControlPlaneServiceServer) ListEdges(ctx context.Context, req *ListEdgesRequest) (*ListEdgesResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedControlPlaneServiceServer) GetEdge(ctx context.Context, req *EdgeInfo) (*EdgeInfo, error) {
+	return nil, nil
+}
+
+func (UnimplementedControlPlaneServiceServer) UpdateIngestConfig(ctx context.Context, req *UpdateIngestConfigRequest) (*UpdateIngestConfigResponse, error) {
+	return nil, nil
+}
+
+// RegisterControlPlaneServiceServer 注册 ControlPlaneServiceServer 到 gRPC server
+func RegisterControlPlaneServiceServer(s *grpc.Server, srv ControlPlaneServiceServer) {
+	s.RegisterService(&_ControlPlaneService_serviceDesc, srv)
+}
+
+// RegisterControlPlaneService 是 RegisterControlPlaneServiceServer 的别名
+func RegisterControlPlaneService(s *grpc.Server, srv ControlPlaneServiceServer) {
+	RegisterControlPlaneServiceServer(s, srv)
+}
+
+var _ControlPlaneService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.ControlPlaneService",
+	HandlerType: (*ControlPlaneServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{MethodName: "HealthCheck", Handler: controlPlaneServiceHealthCheckHandler},
+		{MethodName: "ListAgents", Handler: controlPlaneServiceListAgentsHandler},
+		{MethodName: "GetAgent", Handler: controlPlaneServiceGetAgentHandler},
+		{MethodName: "ListEdges", Handler: controlPlaneServiceListEdgesHandler},
+		{MethodName: "GetEdge", Handler: controlPlaneServiceGetEdgeHandler},
+		{MethodName: "UpdateIngestConfig", Handler: controlPlaneServiceUpdateIngestConfigHandler},
+	},
+}
+
+func controlPlaneServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HealthCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).HealthCheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/HealthCheck"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func controlPlaneServiceListAgentsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAgentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).ListAgents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/ListAgents"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).ListAgents(ctx, req.(*ListAgentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func controlPlaneServiceGetAgentHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AgentInfo)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).GetAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/GetAgent"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).GetAgent(ctx, req.(*AgentInfo))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func controlPlaneServiceListEdgesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEdgesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).ListEdges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/ListEdges"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).ListEdges(ctx, req.(*ListEdgesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func controlPlaneServiceGetEdgeHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EdgeInfo)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).GetEdge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/GetEdge"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).GetEdge(ctx, req.(*EdgeInfo))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func controlPlaneServiceUpdateIngestConfigHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateIngestConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).UpdateIngestConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/UpdateIngestConfig"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).UpdateIngestConfig(ctx, req.(*UpdateIngestConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DataPlaneService data-plane gRPC 服务
 type DataPlaneServiceServer interface {
 	HealthCheck(ctx context.Context, req *HealthCheckRequest) (*HealthCheckResponse, error)

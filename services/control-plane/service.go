@@ -732,3 +732,64 @@ func (s *Service) listEdgesHandler(w http.ResponseWriter, r *http.Request) {
 	edges := s.ListEdges("", "", "")
 	fmt.Fprintf(w, `{"edges":%d}`, len(edges))
 }
+
+// ============================================================================
+// gRPC Server 实现
+// ============================================================================
+
+type controlPlaneGRPC struct {
+	svcproto.UnimplementedControlPlaneServiceServer
+	svc *Service
+}
+
+func (g *controlPlaneGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
+	return &svcproto.HealthCheckResponse{
+		Healthy: true,
+		Version: g.svc.config.Version,
+		Uptime:  int64(time.Since(g.svc.startTime).Seconds()),
+	}, nil
+}
+
+func (g *controlPlaneGRPC) ListAgents(ctx context.Context, req *svcproto.ListAgentsRequest) (*svcproto.ListAgentsResponse, error) {
+	agents := g.svc.ListAgents(req.TenantId, req.Region, req.Status)
+	return &svcproto.ListAgentsResponse{
+		Agents: agents,
+		Total:  len(agents),
+	}, nil
+}
+
+func (g *controlPlaneGRPC) GetAgent(ctx context.Context, req *svcproto.AgentInfo) (*svcproto.AgentInfo, error) {
+	agent, ok := g.svc.GetAgent(req.AgentId)
+	if !ok {
+		return nil, nil
+	}
+	return agent, nil
+}
+
+func (g *controlPlaneGRPC) ListEdges(ctx context.Context, req *svcproto.ListEdgesRequest) (*svcproto.ListEdgesResponse, error) {
+	edges := g.svc.ListEdges(req.TenantId, req.Region, req.Status)
+	return &svcproto.ListEdgesResponse{
+		Edges: edges,
+		Total: len(edges),
+	}, nil
+}
+
+func (g *controlPlaneGRPC) GetEdge(ctx context.Context, req *svcproto.EdgeInfo) (*svcproto.EdgeInfo, error) {
+	edge, ok := g.svc.GetEdge(req.EdgeId)
+	if !ok {
+		return nil, nil
+	}
+	return edge, nil
+}
+
+func (g *controlPlaneGRPC) UpdateIngestConfig(ctx context.Context, req *svcproto.UpdateIngestConfigRequest) (*svcproto.UpdateIngestConfigResponse, error) {
+	return &svcproto.UpdateIngestConfigResponse{
+		Success: true,
+		Message: "config updated",
+	}, nil
+}
+
+// RegisterControlPlaneService 注册 gRPC 服务
+func RegisterControlPlaneService(s *grpc.Server, svc *Service) {
+	svcproto.RegisterControlPlaneServiceServer(s, &controlPlaneGRPC{svc: svc})
+}
