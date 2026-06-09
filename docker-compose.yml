@@ -700,14 +700,13 @@ services:
 
   # VictoriaMetrics（指标存储）
   victoriametrics:
-    image: victoriametrics/victoria-metrics:latest
+    image: victoriametrics/victoria-metrics:v1.102.0
     container_name: cloudflow-victoriametrics
     restart: unless-stopped
     ports:
       - "8428:8428"  # HTTP
     command:
       - "--storageDataPath=/var/lib/victoria-metrics-data"
-      - "--httpListenAddress=:8428"
       - "--retentionPeriod=30d"
     volumes:
       - victoriametrics-data:/var/lib/victoria-metrics-data
