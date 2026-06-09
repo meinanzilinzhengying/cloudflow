@@ -711,7 +711,7 @@ services:
     volumes:
       - victoriametrics-data:/var/lib/victoria-metrics-data
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8428/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8428/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
