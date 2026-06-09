@@ -20,13 +20,11 @@ RUN sed -i 's|../pkg|/build/pkg|g' go.mod && \
 
 # Run go mod tidy and compile
 ENV GOWORK=off
-ENV GOPROXY=off
 
     RUN go mod tidy
     
 
-    RUN go build -o /app/main ./ && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /build/cloud-flow-edge ./cmd/main.go
 
 # 第二阶段：运行

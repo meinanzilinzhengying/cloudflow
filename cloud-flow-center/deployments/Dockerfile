@@ -13,13 +13,9 @@ RUN sed -i 's|../pkg|/build/pkg|g' go.mod && \
 
 # Run go mod tidy to resolve all dependencies
 ENV GOWORK=off
-ENV GOPROXY=off
 
     RUN go mod tidy
     
-
-    RUN go build -o /app/main ./
-
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /build/cloud-flow-center ./cmd/main.go
