@@ -18,7 +18,11 @@ WORKDIR /build/cloud-flow-edge
 RUN echo '' >> go.mod && \
     echo 'replace (' >> go.mod && \
     echo '    github.com/meinanzilinzhengying/cloudflow/pkg => /build/pkg' >> go.mod && \
-    echo '    github.com/meinanzilinzhengying/cloudflow/services/proto => /build/proto' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/proto => /build/proto' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/services/proto => /build/services/proto' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/services/shared => /build/services/shared' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/services/shared/resilience => /build/services/shared/resilience' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/services/shared/auth => /build/services/shared/auth' >> go.mod && \
     echo ')' >> go.mod
 
 # Run go mod tidy and compile
