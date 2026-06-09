@@ -3,11 +3,12 @@
 # =============================================================================
 global:
   resolve_timeout: 5m
-  smtp_smarthost: '${SMTP_HOST:-smtp.example.com:587}'
-  smtp_from: '${SMTP_FROM:-alertmanager@cloudflow.local}'
-  smtp_auth_username: '${SMTP_USER:-}'
-  smtp_auth_password: '${SMTP_PASSWORD:-}'
-  smtp_require_tls: true
+  # SMTP 配置 - 取消注释并填写实际值后启用邮件通知
+  # smtp_smarthost: 'smtp.example.com:587'
+  # smtp_from: 'alertmanager@cloudflow.local'
+  # smtp_auth_username: ''
+  # smtp_auth_password: ''
+  # smtp_require_tls: true
 
 # 告警路由树
 route:

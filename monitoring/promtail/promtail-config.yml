@@ -119,15 +119,15 @@ scrape_configs:
           level:
 
   # ---------------------------------------------------------------------------
-  # 系统日志
+  # 系统日志 (仅在使用 systemd 的主机上启用，需要挂载 /var/log/journal)
   # ---------------------------------------------------------------------------
-  - job_name: syslog
-    journal:
-      json: false
-      max_age: 12h
-      path: /var/log/journal
-      labels:
-        job: systemd
-    relabel_configs:
-      - source_labels: ['__journal__systemd_unit']
-        target_label: 'unit'
+  # - job_name: syslog
+  #   journal:
+  #     json: false
+  #     max_age: 12h
+  #     path: /var/log/journal
+  #     labels:
+  #       job: systemd
+  #   relabel_configs:
+  #     - source_labels: ['__journal__systemd_unit']
+  #       target_label: 'unit'
