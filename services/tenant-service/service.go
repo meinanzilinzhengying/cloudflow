@@ -16,9 +16,8 @@ package tenantservice
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -617,7 +616,7 @@ func (s *Service) GetProject(ctx context.Context, req *svcproto.GetProjectReques
 		"SELECT project_id, tenant_id, name, display_name, description, status, created_at FROM projects WHERE project_id = ?",
 		req.ProjectId,
 	).Scan(
-		&project.ProjectId,
+		&project.Id,
 		&project.TenantId,
 		&project.Name,
 		&project.DisplayName,
@@ -647,7 +646,7 @@ func (s *Service) ListProjects(ctx context.Context, req *svcproto.ListProjectsRe
 	for rows.Next() {
 		var project svcproto.Project
 		if err := rows.Scan(
-			&project.ProjectId,
+			&project.Id,
 			&project.TenantId,
 			&project.Name,
 			&project.DisplayName,
@@ -675,7 +674,7 @@ func (s *Service) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (
 		&quota.ProjectId,
 		&quota.MaxAgents,
 		&quota.MaxFlowsPerDay,
-		&quota.MaxStorageGb,
+		&quota.MaxStorageGB,
 		&quota.MaxAlertRules,
 		&quota.RetentionDays,
 	)
@@ -684,11 +683,11 @@ func (s *Service) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (
 		return &svcproto.GetQuotaResponse{
 			Quota: &svcproto.Quota{
 				TenantId:        req.TenantId,
-				MaxAgents:       int32(s.config.DefaultMaxAgents),
+				MaxAgents:       s.config.DefaultMaxAgents,
 				MaxFlowsPerDay:  s.config.DefaultMaxFlowsPerDay,
-				MaxStorageGb:    int32(s.config.DefaultMaxStorageGB),
-				MaxAlertRules:   int32(s.config.DefaultMaxAlertRules),
-				RetentionDays:   int32(s.config.DefaultRetentionDays),
+				MaxStorageGB:    s.config.DefaultMaxStorageGB,
+				MaxAlertRules:   s.config.DefaultMaxAlertRules,
+				RetentionDays:   s.config.DefaultRetentionDays,
 			},
 		}, nil
 	}
@@ -705,7 +704,7 @@ func (s *Service) UpdateQuota(ctx context.Context, req *svcproto.UpdateQuotaRequ
 		"UPDATE quotas SET max_agents = ?, max_flows_per_day = ?, max_storage_gb = ?, max_alert_rules = ?, retention_days = ? WHERE tenant_id = ?",
 		req.MaxAgents,
 		req.MaxFlowsPerDay,
-		req.MaxStorageGb,
+		req.MaxStorageGB,
 		req.MaxAlertRules,
 		req.RetentionDays,
 		req.TenantId,
@@ -845,4 +844,74 @@ func (s *Service) quotasHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data)
 	}
+}
+
+// ============================================================================
+// gRPC Server 类型 (用于实现 TenantServiceServer 接口)
+// ============================================================================
+
+type tenantGRPC struct {
+	svcproto.UnimplementedTenantServiceServer
+	svc *Service
+}
+
+func (g *tenantGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
+	return &svcproto.HealthCheckResponse{Healthy: true, Version: g.svc.config.Version}, nil
+}
+
+func (g *tenantGRPC) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRequest) (*svcproto.CreateTenantResponse, error) {
+	return g.svc.CreateTenant(ctx, req)
+}
+
+func (g *tenantGRPC) GetTenant(ctx context.Context, req *svcproto.GetTenantRequest) (*svcproto.GetTenantResponse, error) {
+	return g.svc.GetTenant(ctx, req)
+}
+
+func (g *tenantGRPC) ListTenants(ctx context.Context, req *svcproto.ListTenantsRequest) (*svcproto.ListTenantsResponse, error) {
+	return g.svc.ListTenants(ctx, req)
+}
+
+func (g *tenantGRPC) UpdateQuota(ctx context.Context, req *svcproto.UpdateQuotaRequest) (*svcproto.UpdateQuotaResponse, error) {
+	return g.svc.UpdateQuota(ctx, req)
+}
+
+func (g *tenantGRPC) CreateProject(ctx context.Context, req *svcproto.CreateProjectRequest) (*svcproto.CreateProjectResponse, error) {
+	return g.svc.CreateProject(ctx, req)
+}
+
+func (g *tenantGRPC) ListProjects(ctx context.Context, req *svcproto.ListProjectsRequest) (*svcproto.ListProjectsResponse, error) {
+	return g.svc.ListProjects(ctx, req)
+}
+
+func (g *tenantGRPC) GetProject(ctx context.Context, req *svcproto.GetProjectRequest) (*svcproto.GetProjectResponse, error) {
+	return g.svc.GetProject(ctx, req)
+}
+
+func (g *tenantGRPC) UpdateTenant(ctx context.Context, req *svcproto.UpdateTenantRequest) (*svcproto.UpdateTenantResponse, error) {
+	return g.svc.UpdateTenant(ctx, req)
+}
+
+func (g *tenantGRPC) DeleteTenant(ctx context.Context, req *svcproto.DeleteTenantRequest) (*svcproto.DeleteTenantResponse, error) {
+	return g.svc.DeleteTenant(ctx, req)
+}
+
+func (g *tenantGRPC) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (*svcproto.GetQuotaResponse, error) {
+	return g.svc.GetQuota(ctx, req)
+}
+
+func (g *tenantGRPC) AddTenantMember(ctx context.Context, req *svcproto.AddTenantMemberRequest) (*svcproto.AddTenantMemberResponse, error) {
+	return g.svc.AddTenantMember(ctx, req)
+}
+
+func (g *tenantGRPC) RemoveTenantMember(ctx context.Context, req *svcproto.RemoveTenantMemberRequest) (*svcproto.RemoveTenantMemberResponse, error) {
+	return g.svc.RemoveTenantMember(ctx, req)
+}
+
+func (g *tenantGRPC) ListTenantMembers(ctx context.Context, req *svcproto.ListTenantMembersRequest) (*svcproto.ListTenantMembersResponse, error) {
+	return g.svc.ListTenantMembers(ctx, req)
+}
+
+// RegisterTenantService 注册 gRPC 服务
+func RegisterTenantService(s *grpc.Server, svc *Service) {
+	svcproto.RegisterTenantServiceServer(s, &tenantGRPC{svc: svc})
 }

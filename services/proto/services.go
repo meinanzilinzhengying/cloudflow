@@ -1003,7 +1003,10 @@ type CreateProjectRequest struct {
 
 // CreateProjectResponse 创建项目响应
 type CreateProjectResponse struct {
-	Project *Project `json:"project"`
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	ProjectId string `json:"project_id"`
+	Project   *Project `json:"project"`
 }
 
 // ListProjectsRequest 列出项目请求
