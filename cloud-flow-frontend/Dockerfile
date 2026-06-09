@@ -22,6 +22,9 @@ COPY --from=builder /app/dist .
 # 配置 nginx
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# 删除默认配置，避免与自定义 nginx.conf 冲突
+RUN rm -f /etc/nginx/conf.d/default.conf
+
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

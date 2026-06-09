@@ -560,7 +560,7 @@ services:
     command:
       - "--config.file=/etc/blackbox_exporter/config.yml"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9115/probe?target=google.com&module=http_2xx"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9115/metrics"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -673,7 +673,7 @@ services:
       TZ: Asia/Shanghai
       COLLECTOR_OTLP_ENABLED: "true"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:14268/health"]
+      test: ["CMD", "/go/bin/all-in-one-linux", "healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -732,7 +732,7 @@ services:
       TZ: Asia/Shanghai
       VITE_API_URL: http://localhost:8007
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -758,7 +758,7 @@ services:
       TZ: Asia/Shanghai
       VITE_API_URL: http://localhost:8007
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -788,7 +788,7 @@ services:
       VITE_LOKI_URL: http://localhost:3100
       VITE_CONTROL_PLANE_URL: http://localhost:8001
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
       interval: 10s
       timeout: 5s
       retries: 3
