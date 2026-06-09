@@ -188,6 +188,34 @@ func New(config *Config) (*Service, error) {
 
 // initTiDB P0-02 修复: 初始化 TiDB 连接和表结构
 func (s *Service) initTiDB() error {
+	// 先连接到 TiDB（不带数据库名）以便创建目标数据库
+	initDSN := fmt.Sprintf("%s:%s@tcp(%s)/?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
+		s.config.TiDBUser,
+		s.config.TiDBPassword,
+		s.config.TiDBAddr,
+	)
+
+	initDB, err := sql.Open("mysql", initDSN)
+	if err != nil {
+		return fmt.Errorf("TiDB init open failed: %w", err)
+	}
+	defer initDB.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := initDB.PingContext(ctx); err != nil {
+		return fmt.Errorf("TiDB init ping failed: %w", err)
+	}
+
+	// 创建目标数据库（如果不存在）
+	createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_bin;",
+		s.config.TiDBDatabase)
+	if _, err := initDB.ExecContext(ctx, createDB); err != nil {
+		return fmt.Errorf("create database %s failed: %w", s.config.TiDBDatabase, err)
+	}
+
+	// 使用完整 DSN 连接到目标数据库
 	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
 		s.config.TiDBUser,
 		s.config.TiDBPassword,
@@ -204,10 +232,10 @@ func (s *Service) initTiDB() error {
 	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel2()
 
-	if err := db.PingContext(ctx); err != nil {
+	if err := db.PingContext(ctx2); err != nil {
 		db.Close()
 		return fmt.Errorf("TiDB ping failed: %w", err)
 	}
