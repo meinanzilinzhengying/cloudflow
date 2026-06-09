@@ -717,14 +717,16 @@ type ValidateAPIKeyResponse struct {
 
 // Tenant 租户
 type Tenant struct {
-	Id          string `json:"id"`
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
-	Status      string `json:"status"`
-	Plan        string `json:"plan"` // free/pro/enterprise
+	Id          string       `json:"id"`
+	TenantId    string       `json:"tenant_id"`
+	Name        string       `json:"name"`
+	DisplayName string       `json:"display_name"`
+	Description string       `json:"description"`
+	Status      string       `json:"status"`
+	Plan        string       `json:"plan"` // free/pro/enterprise
 	Quota       *TenantQuota `json:"quota"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	CreatedAt   int64        `json:"created_at"`
+	UpdatedAt   int64        `json:"updated_at"`
 }
 
 // TenantQuota 租户配额
@@ -748,7 +750,10 @@ type CreateTenantRequest struct {
 
 // CreateTenantResponse 创建租户响应
 type CreateTenantResponse struct {
-	Tenant *Tenant `json:"tenant"`
+	Success  bool   `json:"success"`
+	Message  string `json:"message"`
+	TenantId string `json:"tenant_id"`
+	Tenant   *Tenant `json:"tenant"`
 }
 
 // GetTenantRequest 获取租户请求
@@ -1763,6 +1768,11 @@ func authServiceRevokeTokenHandler(srv interface{}, ctx context.Context, dec fun
 // RegisterTenantServiceServer 注册 TenantServiceServer 到 gRPC server
 func RegisterTenantServiceServer(s *grpc.Server, srv TenantServiceServer) {
 	s.RegisterService(&_TenantService_serviceDesc, srv)
+}
+
+// RegisterTenantService 是 RegisterTenantServiceServer 的别名
+func RegisterTenantService(s *grpc.Server, srv TenantServiceServer) {
+	RegisterTenantServiceServer(s, srv)
 }
 
 var _TenantService_serviceDesc = grpc.ServiceDesc{
