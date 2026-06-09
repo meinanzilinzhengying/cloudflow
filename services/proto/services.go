@@ -1316,6 +1316,189 @@ func (UnimplementedQueryServiceServer) GetOTLPStats(ctx context.Context, req *He
 	return nil, nil
 }
 
+// RegisterQueryServiceServer 注册 QueryServiceServer 到 gRPC server
+func RegisterQueryServiceServer(s *grpc.Server, srv QueryServiceServer) {
+	s.RegisterService(&_QueryService_serviceDesc, srv)
+}
+
+var _QueryService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.QueryService",
+	HandlerType: (*QueryServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{MethodName: "HealthCheck", Handler: queryServiceHealthCheckHandler},
+		{MethodName: "QueryFlows", Handler: queryServiceQueryFlowsHandler},
+		{MethodName: "QueryMetrics", Handler: queryServiceQueryMetricsHandler},
+		{MethodName: "QueryTraces", Handler: queryServiceQueryTracesHandler},
+		{MethodName: "QueryDashboard", Handler: queryServiceQueryDashboardHandler},
+		{MethodName: "QueryOTLPTraces", Handler: queryServiceQueryOTLPTracesHandler},
+		{MethodName: "GetRootCauseAnalysis", Handler: queryServiceGetRootCauseAnalysisHandler},
+		{MethodName: "QueryCorrelation", Handler: queryServiceQueryCorrelationHandler},
+		{MethodName: "GetOTLPStats", Handler: queryServiceGetOTLPStatsHandler},
+	},
+}
+
+func queryServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HealthCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).HealthCheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.QueryService/HealthCheck",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func queryServiceQueryFlowsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryFlowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryFlows(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.QueryService/QueryFlows",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryFlows(ctx, req.(*QueryFlowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func queryServiceQueryMetricsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryFlowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.QueryService/QueryMetrics",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryMetrics(ctx, req.(*QueryFlowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func queryServiceQueryTracesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryFlowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryTraces(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.QueryService/QueryTraces",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryTraces(ctx, req.(*QueryFlowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func queryServiceQueryDashboardHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryFlowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryDashboard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.QueryService/QueryDashboard",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryDashboard(ctx, req.(*QueryFlowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func queryServiceQueryOTLPTracesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TraceQueryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryOTLPTraces(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.QueryService/QueryOTLPTraces",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryOTLPTraces(ctx, req.(*TraceQueryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func queryServiceGetRootCauseAnalysisHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RootCauseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetRootCauseAnalysis(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.QueryService/GetRootCauseAnalysis",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetRootCauseAnalysis(ctx, req.(*RootCauseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func queryServiceQueryCorrelationHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CorrelationQueryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryCorrelation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.QueryService/QueryCorrelation",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryCorrelation(ctx, req.(*CorrelationQueryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func queryServiceGetOTLPStatsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HealthCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetOTLPStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.QueryService/GetOTLPStats",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetOTLPStats(ctx, req.(*HealthCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TopologyServiceServer topology-engine gRPC 服务
 type TopologyServiceServer interface {
 	HealthCheck(ctx context.Context, req *HealthCheckRequest) (*HealthCheckResponse, error)
