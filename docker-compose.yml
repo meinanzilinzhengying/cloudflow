@@ -727,7 +727,7 @@ services:
       TZ: Asia/Shanghai
       VITE_API_URL: http://localhost:8007
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:80/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -753,7 +753,7 @@ services:
       TZ: Asia/Shanghai
       VITE_API_URL: http://localhost:8007
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:80/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -783,7 +783,7 @@ services:
       VITE_LOKI_URL: http://localhost:3100
       VITE_CONTROL_PLANE_URL: http://localhost:8001
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:80/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
