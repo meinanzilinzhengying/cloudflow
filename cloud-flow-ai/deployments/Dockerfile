@@ -2,10 +2,14 @@ FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache git
 ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /app
-COPY go.mod ./
+
+COPY go.mod go.sum ./
 RUN go mod download
+
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/main.go
+ENV GOWORK=off
+RUN go mod tidy -e && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server ./cmd/main.go
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates tzdata
