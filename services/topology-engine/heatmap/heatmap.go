@@ -10,6 +10,7 @@
 package heatmap
 
 import (
+	"strings"
 	"math"
 	"sort"
 	"sync"
@@ -493,10 +494,10 @@ func inTimeRange(b *TimeBucket, startTime, endTime int64) bool {
 
 // splitEdgeKey 将 "source→target" 格式的 key 拆分为 source 和 target。
 func splitEdgeKey(key string) (string, string) {
-	for i := 0; i < len(key); i++ {
-		if key[i] == '\u2192' { // Unicode arrow →
-			return key[:i], key[i+3:] // → is 3 bytes in UTF-8
-		}
+	arrow := "→"
+	idx := strings.Index(key, arrow)
+	if idx >= 0 {
+		return key[:idx], key[idx+len(arrow):]
 	}
 	return key, ""
 }
