@@ -672,11 +672,6 @@ services:
     environment:
       TZ: Asia/Shanghai
       COLLECTOR_OTLP_ENABLED: "true"
-    healthcheck:
-      test: ["CMD", "/go/bin/all-in-one-linux", "healthcheck"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
     networks:
       - cloudflow-net
 
