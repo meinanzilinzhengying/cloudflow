@@ -2,6 +2,7 @@ package authservice
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/resilience"
