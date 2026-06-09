@@ -1254,6 +1254,113 @@ type DataPlaneServiceServer interface {
 	ApplyConfig(ctx context.Context, req *UpdateIngestConfigRequest) (*UpdateIngestConfigResponse, error)
 }
 
+// UnimplementedDataPlaneServiceServer 可嵌入的默认实现，使现有代码无需实现新方法即可编译
+type UnimplementedDataPlaneServiceServer struct{}
+
+func (UnimplementedDataPlaneServiceServer) HealthCheck(ctx context.Context, req *HealthCheckRequest) (*HealthCheckResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedDataPlaneServiceServer) IngestFlows(ctx context.Context, req *FlowBatch) (*IngestResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedDataPlaneServiceServer) IngestMetrics(ctx context.Context, req *FlowBatch) (*IngestResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedDataPlaneServiceServer) ApplyConfig(ctx context.Context, req *UpdateIngestConfigRequest) (*UpdateIngestConfigResponse, error) {
+	return nil, nil
+}
+
+// RegisterDataPlaneServiceServer 注册 DataPlaneServiceServer 到 gRPC server
+func RegisterDataPlaneServiceServer(s *grpc.Server, srv DataPlaneServiceServer) {
+	s.RegisterService(&_DataPlaneService_serviceDesc, srv)
+}
+
+var _DataPlaneService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.DataPlaneService",
+	HandlerType: (*DataPlaneServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{MethodName: "HealthCheck", Handler: dataPlaneServiceHealthCheckHandler},
+		{MethodName: "IngestFlows", Handler: dataPlaneServiceIngestFlowsHandler},
+		{MethodName: "IngestMetrics", Handler: dataPlaneServiceIngestMetricsHandler},
+		{MethodName: "ApplyConfig", Handler: dataPlaneServiceApplyConfigHandler},
+	},
+}
+
+func dataPlaneServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HealthCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataPlaneServiceServer).HealthCheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataPlaneService/HealthCheck",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataPlaneServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func dataPlaneServiceIngestFlowsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlowBatch)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataPlaneServiceServer).IngestFlows(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataPlaneService/IngestFlows",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataPlaneServiceServer).IngestFlows(ctx, req.(*FlowBatch))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func dataPlaneServiceIngestMetricsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlowBatch)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataPlaneServiceServer).IngestMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataPlaneService/IngestMetrics",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataPlaneServiceServer).IngestMetrics(ctx, req.(*FlowBatch))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func dataPlaneServiceApplyConfigHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateIngestConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataPlaneServiceServer).ApplyConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.DataPlaneService/ApplyConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataPlaneServiceServer).ApplyConfig(ctx, req.(*UpdateIngestConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IngestResponse 数据接收响应
 type IngestResponse struct {
 	Accepted int  `json:"accepted"`

@@ -193,7 +193,7 @@ const Prefix = "cfk_"
 func (m *Manager) Generate(ctx context.Context, userID, tenantID, name string, expiresIn time.Duration) (string, error) {
 	// 生成随机 Key
 	rawBytes := make([]byte, 32)
-	if _, err := generateRandomBytes(rawBytes); err != nil {
+	if err := generateRandomBytes(rawBytes); err != nil {
 		return "", fmt.Errorf("generate random bytes: %w", err)
 	}
 	rawKey := Prefix + hex.EncodeToString(rawBytes)
