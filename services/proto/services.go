@@ -741,6 +741,7 @@ type TenantQuota struct {
 type CreateTenantRequest struct {
 	Name        string       `json:"name"`
 	DisplayName string       `json:"display_name"`
+	Description string       `json:"description"`
 	Plan        string       `json:"plan"`
 	Quota       *TenantQuota `json:"quota"`
 }
@@ -840,6 +841,66 @@ type GetQuotaRequest struct {
 // GetQuotaResponse 获取配额响应
 type GetQuotaResponse struct {
 	Quota *Quota `json:"quota"`
+}
+
+// UpdateQuotaRequest 更新配额请求
+type UpdateQuotaRequest struct {
+	TenantId      string `json:"tenant_id"`
+	MaxAgents     int    `json:"max_agents"`
+	MaxFlowsPerDay int64 `json:"max_flows_per_day"`
+	MaxStorageGB  int    `json:"max_storage_gb"`
+	MaxAlertRules int    `json:"max_alert_rules"`
+	RetentionDays int    `json:"retention_days"`
+}
+
+// UpdateQuotaResponse 更新配额响应
+type UpdateQuotaResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// TenantMember 租户成员
+type TenantMember struct {
+	MemberId  string `json:"member_id"`
+	TenantId  string `json:"tenant_id"`
+	UserId    string `json:"user_id"`
+	Role      string `json:"role"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+// AddTenantMemberRequest 添加租户成员请求
+type AddTenantMemberRequest struct {
+	TenantId string `json:"tenant_id"`
+	UserId   string `json:"user_id"`
+	Role     string `json:"role"`
+}
+
+// AddTenantMemberResponse 添加租户成员响应
+type AddTenantMemberResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// RemoveTenantMemberRequest 移除租户成员请求
+type RemoveTenantMemberRequest struct {
+	TenantId string `json:"tenant_id"`
+	UserId   string `json:"user_id"`
+}
+
+// RemoveTenantMemberResponse 移除租户成员响应
+type RemoveTenantMemberResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// ListTenantMembersRequest 列出租户成员请求
+type ListTenantMembersRequest struct {
+	TenantId string `json:"tenant_id"`
+}
+
+// ListTenantMembersResponse 列出租户成员响应
+type ListTenantMembersResponse struct {
+	Members []*TenantMember `json:"members"`
 }
 
 // ============================================================================
@@ -1699,6 +1760,244 @@ func authServiceRevokeTokenHandler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+// RegisterTenantServiceServer 注册 TenantServiceServer 到 gRPC server
+func RegisterTenantServiceServer(s *grpc.Server, srv TenantServiceServer) {
+	s.RegisterService(&_TenantService_serviceDesc, srv)
+}
+
+var _TenantService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.TenantService",
+	HandlerType: (*TenantServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{MethodName: "HealthCheck", Handler: tenantServiceHealthCheckHandler},
+		{MethodName: "CreateTenant", Handler: tenantServiceCreateTenantHandler},
+		{MethodName: "GetTenant", Handler: tenantServiceGetTenantHandler},
+		{MethodName: "ListTenants", Handler: tenantServiceListTenantsHandler},
+		{MethodName: "UpdateTenant", Handler: tenantServiceUpdateTenantHandler},
+		{MethodName: "DeleteTenant", Handler: tenantServiceDeleteTenantHandler},
+		{MethodName: "UpdateQuota", Handler: tenantServiceUpdateQuotaHandler},
+		{MethodName: "GetQuota", Handler: tenantServiceGetQuotaHandler},
+		{MethodName: "AddTenantMember", Handler: tenantServiceAddTenantMemberHandler},
+		{MethodName: "RemoveTenantMember", Handler: tenantServiceRemoveTenantMemberHandler},
+		{MethodName: "ListTenantMembers", Handler: tenantServiceListTenantMembersHandler},
+		{MethodName: "CreateProject", Handler: tenantServiceCreateProjectHandler},
+		{MethodName: "ListProjects", Handler: tenantServiceListProjectsHandler},
+		{MethodName: "GetProject", Handler: tenantServiceGetProjectHandler},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/services.proto",
+}
+
+func tenantServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HealthCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).HealthCheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/HealthCheck"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceCreateTenantHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateTenantRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).CreateTenant(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/CreateTenant"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).CreateTenant(ctx, req.(*CreateTenantRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceGetTenantHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTenantRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).GetTenant(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/GetTenant"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).GetTenant(ctx, req.(*GetTenantRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceListTenantsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTenantsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).ListTenants(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/ListTenants"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).ListTenants(ctx, req.(*ListTenantsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceUpdateTenantHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateTenantRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).UpdateTenant(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/UpdateTenant"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).UpdateTenant(ctx, req.(*UpdateTenantRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceDeleteTenantHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteTenantRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).DeleteTenant(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/DeleteTenant"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).DeleteTenant(ctx, req.(*DeleteTenantRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceUpdateQuotaHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).UpdateQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/UpdateQuota"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).UpdateQuota(ctx, req.(*UpdateQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceGetQuotaHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).GetQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/GetQuota"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).GetQuota(ctx, req.(*GetQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceAddTenantMemberHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddTenantMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).AddTenantMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/AddTenantMember"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).AddTenantMember(ctx, req.(*AddTenantMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceRemoveTenantMemberHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveTenantMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).RemoveTenantMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/RemoveTenantMember"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).RemoveTenantMember(ctx, req.(*RemoveTenantMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceListTenantMembersHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTenantMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).ListTenantMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/ListTenantMembers"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).ListTenantMembers(ctx, req.(*ListTenantMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceCreateProjectHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateProjectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).CreateProject(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/CreateProject"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).CreateProject(ctx, req.(*CreateProjectRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceListProjectsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProjectsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).ListProjects(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/ListProjects"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).ListProjects(ctx, req.(*ListProjectsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func tenantServiceGetProjectHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProjectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).GetProject(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/GetProject"}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).GetProject(ctx, req.(*GetProjectRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TenantServiceServer tenant-service gRPC 服务
 type TenantServiceServer interface {
 	HealthCheck(ctx context.Context, req *HealthCheckRequest) (*HealthCheckResponse, error)
@@ -1707,8 +2006,12 @@ type TenantServiceServer interface {
 	ListTenants(ctx context.Context, req *ListTenantsRequest) (*ListTenantsResponse, error)
 	UpdateTenant(ctx context.Context, req *UpdateTenantRequest) (*UpdateTenantResponse, error)
 	DeleteTenant(ctx context.Context, req *DeleteTenantRequest) (*DeleteTenantResponse, error)
-	UpdateQuota(ctx context.Context, req *UpdateTenantQuotaRequest) (*UpdateTenantQuotaResponse, error)
+	UpdateQuota(ctx context.Context, req *UpdateQuotaRequest) (*UpdateQuotaResponse, error)
 	GetQuota(ctx context.Context, req *GetQuotaRequest) (*GetQuotaResponse, error)
+	// Member management:
+	AddTenantMember(ctx context.Context, req *AddTenantMemberRequest) (*AddTenantMemberResponse, error)
+	RemoveTenantMember(ctx context.Context, req *RemoveTenantMemberRequest) (*RemoveTenantMemberResponse, error)
+	ListTenantMembers(ctx context.Context, req *ListTenantMembersRequest) (*ListTenantMembersResponse, error)
 	// New project methods:
 	CreateProject(ctx context.Context, req *CreateProjectRequest) (*CreateProjectResponse, error)
 	ListProjects(ctx context.Context, req *ListProjectsRequest) (*ListProjectsResponse, error)
@@ -1781,7 +2084,19 @@ func (UnimplementedTenantServiceServer) ListTenants(ctx context.Context, req *Li
 	return nil, nil
 }
 
-func (UnimplementedTenantServiceServer) UpdateQuota(ctx context.Context, req *UpdateTenantQuotaRequest) (*UpdateTenantQuotaResponse, error) {
+func (UnimplementedTenantServiceServer) UpdateQuota(ctx context.Context, req *UpdateQuotaRequest) (*UpdateQuotaResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedTenantServiceServer) AddTenantMember(ctx context.Context, req *AddTenantMemberRequest) (*AddTenantMemberResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedTenantServiceServer) RemoveTenantMember(ctx context.Context, req *RemoveTenantMemberRequest) (*RemoveTenantMemberResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedTenantServiceServer) ListTenantMembers(ctx context.Context, req *ListTenantMembersRequest) (*ListTenantMembersResponse, error) {
 	return nil, nil
 }
 
