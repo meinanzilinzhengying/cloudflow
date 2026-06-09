@@ -6,13 +6,18 @@ WORKDIR /build
 # Copy entire project
 COPY . .
 
-# Fix replace directives in go.mod for Docker build environment
+# Add replace directives for local modules in Docker build environment
 WORKDIR /build/cloud-flow-center
-RUN sed -i 's|../pkg|/build/pkg|g' go.mod && \
-    sed -i 's|../proto|/build/proto|g' go.mod
+RUN echo '' >> go.mod && \
+    echo 'replace (' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/pkg => /build/pkg' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/services/proto => /build/proto' >> go.mod && \
+    echo ')' >> go.mod
 
 # Run go mod tidy to resolve all dependencies
 ENV GOWORK=off
+ENV GONOSUMCHECK=github.com/meinanzilinzhengying/cloudflow/*
+ENV GONOSUMDB=github.com/meinanzilinzhengying/cloudflow/*
 
     RUN go mod tidy
     

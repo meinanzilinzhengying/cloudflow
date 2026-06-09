@@ -9,16 +9,21 @@ WORKDIR /build
 # Copy entire project
 COPY . .
 
-# Fix replace directives in go.mod for Docker build environment
+# Add replace directives for local modules in Docker build environment
 WORKDIR /build/services/control-plane
-RUN sed -i 's|../../../pkg|/build/pkg|g' go.mod && \
-    sed -i 's|../../../proto|/build/proto|g' go.mod && \
-    sed -i 's|../../../shared|/build/services/shared|g' go.mod && \
-    sed -i 's|../../../shared/resilience|/build/services/shared/resilience|g' go.mod && \
-    sed -i 's|../../../shared/auth|/build/services/shared/auth|g' go.mod
+RUN echo '' >> go.mod && \
+    echo 'replace (' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/pkg => /build/pkg' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/services/proto => /build/proto' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/services/shared => /build/services/shared' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/services/shared/resilience => /build/services/shared/resilience' >> go.mod && \
+    echo '    github.com/meinanzilinzhengying/cloudflow/services/shared/auth => /build/services/shared/auth' >> go.mod && \
+    echo ')' >> go.mod
 
 # Run go mod tidy to resolve all dependencies
 ENV GOWORK=off
+ENV GONOSUMCHECK=github.com/meinanzilinzhengying/cloudflow/*
+ENV GONOSUMDB=github.com/meinanzilinzhengying/cloudflow/*
 
     RUN go mod tidy
     
