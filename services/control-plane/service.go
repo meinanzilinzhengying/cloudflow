@@ -197,9 +197,9 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/healthz", s.healthzHandler)
 	
 	// P1-05 修复: 添加认证中间件保护管理 API
+	// 注意: authMiddleware 内部已经注册了 /api/agents 和 /api/edges 路由（含认证检查）
+	// 不要再重复注册，否则会导致 HTTP 路由冲突 panic
 	protected := s.authMiddleware(mux)
-	protected.HandleFunc("/api/agents", s.listAgentsHandler)
-	protected.HandleFunc("/api/edges", s.listEdgesHandler)
 
 	s.httpServer = &http.Server{
 		Addr:    s.config.HttpAddr,
