@@ -10,8 +10,6 @@ require (
 	google.golang.org/grpc v1.80.0
 )
 
-replace github.com/meinanzilinzhengying/cloudflow/services/proto => ../proto
-
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
