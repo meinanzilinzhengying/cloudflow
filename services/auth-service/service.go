@@ -227,62 +227,78 @@ func New(config *Config) (*Service, error) {
 
 // initTiDB P0-02 修复: 初始化 TiDB 连接和用户表
 func (s *Service) initTiDB() error {
-	// 先连接到 TiDB（不带数据库名）以便创建目标数据库
+	var initDB *sql.DB
+	var err error
+
+	// 先连接到 TiDB（不带数据库名）以便创建目标数据库，重试避免竞态
 	initDSN := fmt.Sprintf("%s:%s@tcp(%s)/?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
 		s.config.TiDBUser,
 		s.config.TiDBPassword,
 		s.config.TiDBAddr,
 	)
 
-	initDB, err := sql.Open("mysql", initDSN)
-	if err != nil {
-		return fmt.Errorf("TiDB init open failed: %w", err)
-	}
-	defer initDB.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := initDB.PingContext(ctx); err != nil {
-		return fmt.Errorf("TiDB init ping failed: %w", err)
+	for attempt := 1; attempt <= 5; attempt++ {
+		initDB, err = sql.Open("mysql", initDSN)
+		if err != nil {
+			return fmt.Errorf("TiDB init open failed: %w", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := initDB.PingContext(ctx); err != nil {
+			initDB.Close()
+			if attempt < 5 {
+				fmt.Printf("TiDB init ping attempt %d failed: %v, retrying...\n", attempt, err)
+				time.Sleep(time.Duration(attempt*2) * time.Second)
+				continue
+			}
+			return fmt.Errorf("TiDB init ping failed after 5 attempts: %w", err)
+		}
+		break
 	}
 
 	// 创建目标数据库（如果不存在）
 	createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_bin;",
 		s.config.TiDBDatabase)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	if _, err := initDB.ExecContext(ctx, createDB); err != nil {
+		initDB.Close()
 		return fmt.Errorf("create database %s failed: %w", s.config.TiDBDatabase, err)
 	}
+	initDB.Close()
 
-	// 使用完整 DSN 连接到目标数据库
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
-		s.config.TiDBUser,
-		s.config.TiDBPassword,
-		s.config.TiDBAddr,
-		s.config.TiDBDatabase,
-	)
+	// 使用完整 DSN 连接到目标数据库，重试避免竞态
+	var db *sql.DB
+	for attempt := 1; attempt <= 5; attempt++ {
+		db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
+			s.config.TiDBUser, s.config.TiDBPassword, s.config.TiDBAddr, s.config.TiDBDatabase))
+		if err != nil {
+			return fmt.Errorf("TiDB open failed: %w", err)
+		}
+		db.SetMaxOpenConns(50)
+		db.SetMaxIdleConns(10)
+		db.SetConnMaxLifetime(5 * time.Minute)
 
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return fmt.Errorf("TiDB open failed: %w", err)
-	}
-
-	db.SetMaxOpenConns(50)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(5 * time.Minute)
-
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel2()
-
-	if err := db.PingContext(ctx2); err != nil {
-		db.Close()
-		return fmt.Errorf("TiDB ping failed: %w", err)
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := db.PingContext(ctx2); err != nil {
+			db.Close()
+			cancel2()
+			if attempt < 5 {
+				fmt.Printf("TiDB ping attempt %d failed: %v, retrying...\n", attempt, err)
+				time.Sleep(time.Duration(attempt*2) * time.Second)
+				continue
+			}
+			return fmt.Errorf("TiDB ping failed after 5 attempts: %w", err)
+		}
+		cancel2()
+		break
 	}
 
 	s.db = db
 
 	// P0-02 修复: 初始化 GORM DB (用于 RBAC 持久化)
-	gormDB, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	gormDB, err := gorm.Open(mysql.Open(fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
+		s.config.TiDBUser, s.config.TiDBPassword, s.config.TiDBAddr, s.config.TiDBDatabase)), &gorm.Config{})
 	if err != nil {
 		return fmt.Errorf("GORM open failed: %w", err)
 	}
