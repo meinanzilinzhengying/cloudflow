@@ -789,33 +789,7 @@ services:
     networks:
       - cloudflow-net
 
-  # Business Frontend（业务监控前端 - 新）
-  business-frontend:
-    build:
-      context: cloud-flow-business
-      dockerfile: Dockerfile
-    container_name: cloudflow-business-frontend
-    restart: unless-stopped
-    depends_on:
-      query-service:
-        condition: service_healthy
-      alert-engine:
-        condition: service_healthy
-    ports:
-      - "3002:80"
-    environment:
-      TZ: Asia/Shanghai
-      VITE_API_URL: http://localhost:8007
-    healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:80/ || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    networks:
-      - cloudflow-net
-
-  # Platform Frontend（平台自监控前端 - 新）
+  # Platform Frontend（平台自监控前端）
   platform-frontend:
     build:
       context: cloud-flow-platform

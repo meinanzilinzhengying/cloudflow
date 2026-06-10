@@ -102,7 +102,7 @@ ${BOLD}支持的操作系统：${NC}
     ✓ Fedora 36/37/38
 
 ${BOLD}安装后访问：${NC}
-    • 业务监控:     http://<服务器IP>:3002
+    • 前端分析页面: http://<服务器IP>:8080
     • 平台监控:     http://<服务器IP>:3003
     • Grafana:       http://<服务器IP>:3001
     • Prometheus:    http://<服务器IP>:9091
@@ -894,7 +894,7 @@ check_services() {
     echo -e "${BOLD}${CYAN}============================================${NC}"
     echo ""
     echo -e "${BOLD}服务访问地址：${NC}"
-    echo "  • 业务监控前端:  ${BOLD}http://${host_ip}:3002${NC}"
+    echo "  • 前端分析页面:  ${BOLD}http://${host_ip}:8080${NC}"
     echo "  • 平台监控前端:  ${BOLD}http://${host_ip}:3003${NC}"
     echo "  • Grafana:        ${BOLD}http://${host_ip}:3001${NC}"
     echo "  • Prometheus:     ${BOLD}http://${host_ip}:9091${NC}"
