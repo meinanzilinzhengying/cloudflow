@@ -1,76 +1,116 @@
 <template>
-  <div class="min-h-screen bg-dark-900">
-    <Sidebar :activeModule="activeModule" @change="handleModuleChange" />
-    <div class="ml-64">
-      <Header @refresh="handleRefresh" />
-      <main class="p-6">
-        <transition name="fade" mode="out-in">
-          <component 
-            :is="currentModule" 
-            :key="activeModule" 
-            v-if="!isExternalTool" 
-          />
-          <ExternalTools 
-            v-else 
-            :tool="activeModule" 
-            :key="activeModule" 
-          />
-        </transition>
-      </main>
-    </div>
-    
-    <div v-if="loading" class="fixed inset-0 bg-dark-900/90 flex items-center justify-center z-50">
-      <div class="text-center">
-        <div class="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p class="text-gray-400">加载中...</p>
+  <div :class="['min-h-screen transition-colors duration-300', isDark ? 'dark' : '']">
+    <div class="flex h-screen bg-slate-50 dark:bg-dark-900">
+      <!-- Sidebar -->
+      <Sidebar
+        :collapsed="sidebarCollapsed"
+        :activeMenu="activeMenu"
+        :activeSubmenu="activeSubmenu"
+        @toggle="toggleSidebar"
+        @menu-change="handleMenuChange"
+      />
+
+      <!-- Main Content -->
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- Header -->
+        <Header
+          :isDark="isDark"
+          @toggle-theme="toggleTheme"
+          @refresh="handleRefresh"
+        />
+
+        <!-- Page Content -->
+        <main class="flex-1 overflow-auto p-6 bg-slate-50 dark:bg-dark-900">
+          <Dashboard v-if="activeMenu === 'dashboard'" />
+          <Traffic v-else-if="activeMenu === 'traffic'" />
+          <Topology v-else-if="activeMenu === 'topology'" />
+          <Tracing v-else-if="activeMenu === 'tracing'" />
+          <Metrics v-else-if="activeMenu === 'metrics'" />
+          <Logs v-else-if="activeMenu === 'logs'" />
+          <Alerts v-else-if="activeMenu === 'alerts'" />
+          <Tenants v-else-if="activeMenu === 'tenants'" />
+          <Users v-else-if="activeMenu === 'users'" />
+          <Agents v-else-if="activeMenu === 'agents'" />
+          <Settings v-else-if="activeMenu === 'settings'" />
+          <Dashboard v-else />
+        </main>
       </div>
     </div>
+
+    <!-- Loading Overlay -->
+    <Transition name="fade">
+      <div
+        v-if="loading"
+        class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50"
+      >
+        <div class="text-center">
+          <div class="relative w-16 h-16 mx-auto mb-4">
+            <div class="absolute inset-0 border-4 border-primary-500/20 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-primary-500 rounded-full border-t-transparent animate-spin"></div>
+          </div>
+          <p class="text-white/80 text-sm font-medium">加载中...</p>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import Sidebar from './components/layout/Sidebar.vue'
 import Header from './components/layout/Header.vue'
-import Overview from './components/modules/Overview.vue'
-import Traffic from './components/modules/Traffic.vue'
-import Network from './components/modules/Network.vue'
-import Alerts from './components/modules/Alerts.vue'
-import K8sFilter from './components/modules/K8sFilter.vue'
-import Export from './components/modules/Export.vue'
-import ExternalTools from './components/modules/ExternalTools.vue'
+import Dashboard from './components/pages/Dashboard.vue'
+import Traffic from './components/pages/Traffic.vue'
+import Topology from './components/pages/Topology.vue'
+import Tracing from './components/pages/Tracing.vue'
+import Metrics from './components/pages/Metrics.vue'
+import Logs from './components/pages/Logs.vue'
+import Alerts from './components/pages/Alerts.vue'
+import Tenants from './components/pages/Tenants.vue'
+import Users from './components/pages/Users.vue'
+import Agents from './components/pages/Agents.vue'
+import Settings from './components/pages/Settings.vue'
 
-const activeModule = ref('overview')
+const isDark = ref(false)
 const loading = ref(false)
+const sidebarCollapsed = ref(false)
+const activeMenu = ref('dashboard')
+const activeSubmenu = ref(null)
 
-const modules = {
-  overview: Overview,
-  traffic: Traffic,
-  network: Network,
-  alerts: Alerts,
-  k8s: K8sFilter,
-  export: Export
-}
-
-const externalToolsList = ['grafana', 'prometheus', 'jaeger', 'clickhouse', 'alertmanager']
-const isExternalTool = computed(() => externalToolsList.includes(activeModule.value))
-
-const currentModule = computed(() => {
-  if (isExternalTool.value) {
-    return null
+onMounted(() => {
+  // Check system preference
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    isDark.value = true
   }
-  return modules[activeModule.value]
+
+  // Check localStorage
+  const savedTheme = localStorage.getItem('cloudflow_theme')
+  if (savedTheme === 'dark') {
+    isDark.value = true
+  } else if (savedTheme === 'light') {
+    isDark.value = false
+  }
 })
 
-const handleModuleChange = (module) => {
-  activeModule.value = module
+const toggleTheme = () => {
+  isDark.value = !isDark.value
+  localStorage.setItem('cloudflow_theme', isDark.value ? 'dark' : 'light')
+}
+
+const toggleSidebar = () => {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
+const handleMenuChange = (menu, submenu = null) => {
+  activeMenu.value = menu
+  activeSubmenu.value = submenu
 }
 
 const handleRefresh = () => {
   loading.value = true
   setTimeout(() => {
     loading.value = false
-  }, 500)
+  }, 1000)
 }
 </script>
 

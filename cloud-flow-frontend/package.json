@@ -1,7 +1,7 @@
 {
   "name": "cloudflow-frontend",
   "version": "1.0.0",
-  "description": "CloudFlow All-in-One Dashboard",
+  "description": "CloudFlow Enterprise Cloud-Native Observability Platform",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "vue": "^3.4.21",
-    "chart.js": "^4.4.1",
     "axios": "^1.6.7",
+    "echarts": "^5.5.0",
+    "vue-echarts": "^6.6.9",
+    "dayjs": "^1.11.10",
     "lucide-vue-next": "^1.0.0"
   },
   "devDependencies": {
