@@ -26,8 +26,7 @@ ENV GOWORK=off
 ENV GONOSUMCHECK=github.com/meinanzilinzhengying/cloudflow/*
 ENV GONOSUMDB=github.com/meinanzilinzhengying/cloudflow/*
 
-    RUN go mod tidy
-    
+RUN go mod tidy
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-s -w" -o /build/tenant-service ./cmd/main.go
