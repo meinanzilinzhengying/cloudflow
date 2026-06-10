@@ -16,6 +16,12 @@ func main() {
 	flag.Parse()
 
 	// 从环境变量读取配置
+	if addr := os.Getenv("GRPC_ADDR"); addr != "" {
+		cfg.GrpcAddr = addr
+	}
+	if addr := os.Getenv("HTTP_ADDR"); addr != "" {
+		cfg.HttpAddr = addr
+	}
 	if addr := os.Getenv("CLICKHOUSE_ADDR"); addr != "" {
 		cfg.ClickHouseAddr = addr
 	}
