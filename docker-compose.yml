@@ -129,8 +129,10 @@ services:
       - "127.0.0.1:9092:9092"
     environment:
       TZ: Asia/Shanghai
+      KAFKA_HEAP_OPTS: "-Xmx512M -Xms256M"
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092"
       KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
       KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
@@ -166,7 +168,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s
     networks:
       - cloudflow-net
 
@@ -703,10 +705,8 @@ services:
     restart: unless-stopped
     ports:
       - "8428:8428"  # HTTP
-      - "2003:2003"  # Graphite
     command:
       - "--storageDataPath=/var/lib/victoria-metrics-data"
-      - "--graphiteListenAddress=:2003"
       - "--httpListenAddress=:8428"
       - "--retentionPeriod=30d"
     volumes:
