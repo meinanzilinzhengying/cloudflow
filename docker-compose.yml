@@ -131,8 +131,8 @@ services:
       TZ: Asia/Shanghai
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
       KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
       
       # 副本配置 - 单节点模式（生产环境高可用建议使用 docker-compose-kafka-ha.yml）
@@ -531,6 +531,7 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: cloudflow-alertmanager
+    user: "0:0"
     restart: unless-stopped
     ports:
       - "9093:9093"
@@ -673,11 +674,6 @@ services:
     environment:
       TZ: Asia/Shanghai
       COLLECTOR_OTLP_ENABLED: "true"
-    healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:14268/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
     networks:
       - cloudflow-net
 
@@ -714,7 +710,7 @@ services:
       - "--httpListenAddress=:8428"
       - "--retentionPeriod=30d"
     volumes:
-      - victoriametrics-data:/var/lib/victorial-metrics-data
+      - victoriametrics-data:/var/lib/victoria-metrics-data
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8428/health || exit 1"]
       interval: 10s
@@ -816,6 +812,8 @@ services:
     volumes:
       - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml
       - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command:
       - -config.file=/etc/promtail/config.yml
     networks:
