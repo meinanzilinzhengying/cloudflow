@@ -503,8 +503,7 @@ func (e *RBACEngine) Stop() {
 	defer e.mu.Unlock()
 
 	if e.enforcer != nil {
-		// Note: Stop() method is not available in newer casbin versions
-		e.enforcer = nil
+		e.enforcer.Stop()
 	}
 }
 
@@ -533,7 +532,7 @@ func (e *RBACEngine) CheckPermission(userID, tenantID, projectID, resource, acti
 	}
 
 	// 尝试提供更详细的原因
-	roles := e.enforcer.GetRolesForUserInDomain(userID, domain)
+	roles, _ := e.enforcer.GetRolesForUserInDomain(userID, domain)
 	if len(roles) == 0 {
 		return false, fmt.Sprintf("user %q has no roles in domain %q", userID, domain)
 	}
@@ -592,7 +591,11 @@ func (e *RBACEngine) GetRolesForUser(userID, tenantID, projectID string) ([]stri
 	}
 
 	domain := tenantID + ":" + projectID
-	roles := e.enforcer.GetRolesForUserInDomain(userID, domain)
+	roles, err := e.enforcer.GetRolesForUserInDomain(userID, domain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get roles for user %q in domain %q: %w", userID, domain, err)
+	}
+
 	return roles, nil
 }
 
@@ -646,8 +649,7 @@ func (e *RBACEngine) GetPoliciesForRole(role, tenantID, projectID string) [][]st
 	}
 
 	domain := tenantID + ":" + projectID
-	policies := e.enforcer.GetFilteredPolicy(0, role, domain)
-	return policies
+	return e.enforcer.GetFilteredPolicy(0, role, domain)
 }
 
 // ---------------------------------------------------------------------------

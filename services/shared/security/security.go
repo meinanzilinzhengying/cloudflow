@@ -24,7 +24,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -92,7 +91,7 @@ type SecurityConfig struct {
 
 // DefaultConfig 默认安全配置
 func DefaultConfig() *SecurityConfig {
-	return &SecurityConfig{
+	return &amp;SecurityConfig{
 		BlacklistEnabled:      true,
 		BlacklistTTL:          7 * 24 * time.Hour,
 		KeyRotationEnabled:    true,
@@ -143,7 +142,7 @@ type InMemoryTokenBlacklist struct {
 
 // NewInMemoryTokenBlacklist 创建内存黑名单
 func NewInMemoryTokenBlacklist(ttl time.Duration) *InMemoryTokenBlacklist {
-	bl := &InMemoryTokenBlacklist{ttl: ttl}
+	bl := &amp;InMemoryTokenBlacklist{ttl: ttl}
 	go bl.cleanup()
 	return bl
 }
@@ -243,7 +242,7 @@ type LoginLockoutManager struct {
 
 // NewLoginLockoutManager 创建登录锁定管理器
 func NewLoginLockoutManager(config *SecurityConfig) *LoginLockoutManager {
-	return &LoginLockoutManager{
+	return &amp;LoginLockoutManager{
 		config: config,
 	}
 }
@@ -258,7 +257,7 @@ func (m *LoginLockoutManager) RecordFailedAttempt(userID string) error {
 	defer m.mu.Unlock()
 
 	now := time.Now()
-	val, _ := m.attempts.LoadOrStore(userID, &LoginAttempt{
+	val, _ := m.attempts.LoadOrStore(userID, &amp;LoginAttempt{
 		UserID: userID,
 		Attempts: 1,
 	})
@@ -270,7 +269,7 @@ func (m *LoginLockoutManager) RecordFailedAttempt(userID string) error {
 
 	// 更新尝试次数
 	attempt.Attempts++
-	if attempt.Attempts >= m.config.LoginMaxAttempts {
+	if attempt.Attempts &gt;= m.config.LoginMaxAttempts {
 		attempt.LockedUntil = now.Add(m.config.LoginLockoutDuration)
 		attempt.Attempts = m.config.LoginMaxAttempts // 防止溢出
 	}
@@ -326,7 +325,7 @@ type TokenRateLimiter struct {
 
 // NewTokenRateLimiter 创建 Token 速率限制器
 func NewTokenRateLimiter(config *SecurityConfig) *TokenRateLimiter {
-	return &TokenRateLimiter{
+	return &amp;TokenRateLimiter{
 		config: config,
 	}
 }
@@ -366,7 +365,7 @@ type APIRateLimiter struct {
 
 // NewAPIRateLimiter 创建 API 速率限制器
 func NewAPIRateLimiter(config *SecurityConfig) *APIRateLimiter {
-	return &APIRateLimiter{config: config}
+	return &amp;APIRateLimiter{config: config}
 }
 
 // Allow 检查用户是否允许请求
@@ -399,7 +398,7 @@ type RotatingKey struct {
 
 // KeyRotationManager 密钥轮换管理器
 type KeyRotationManager struct {
-	keys sync.Map // keyID -> RotatingKey
+	keys sync.Map // keyID -&gt; RotatingKey
 	config *SecurityConfig
 	activeKeyID string
 	mu sync.RWMutex
@@ -407,14 +406,14 @@ type KeyRotationManager struct {
 
 // NewKeyRotationManager 创建密钥轮换管理器
 func NewKeyRotationManager(config *SecurityConfig) *KeyRotationManager {
-	return &KeyRotationManager{
+	return &amp;KeyRotationManager{
 		config: config,
 	}
 }
 
 // AddKey 添加密钥
 func (m *KeyRotationManager) AddKey(keyID string, key interface{}, activeUntil time.Time) {
-	m.keys.Store(keyID, &RotatingKey{
+	m.keys.Store(keyID, &amp;RotatingKey{
 		KeyID: keyID,
 		Key: key,
 		ActiveUntil: activeUntil,
@@ -461,8 +460,8 @@ func (m *KeyRotationManager) GetKeyByID(keyID string) (interface{}, bool) {
 
 	key := val.(*RotatingKey)
 	// 在宽限期内仍然可以使用旧密钥验证
-	if m.config.KeyRotationEnabled &&
-	   time.Now().After(key.ActiveUntil) &&
+	if m.config.KeyRotationEnabled &amp;&amp;
+	   time.Now().After(key.ActiveUntil) &amp;&amp;
 	   time.Now().Before(key.ActiveUntil.Add(m.config.KeyRotationGracePeriod)) {
 		return key.Key, true
 	}
@@ -511,7 +510,7 @@ type SecurityManager struct {
 
 // NewSecurityManager 创建统一安全管理器
 func NewSecurityManager(config *SecurityConfig) *SecurityManager {
-	m := &SecurityManager{
+	m := &amp;SecurityManager{
 		config: config,
 		lockout: NewLoginLockoutManager(config),
 		tokenRateLimiter: NewTokenRateLimiter(config),
@@ -557,7 +556,7 @@ func (m *SecurityManager) RevokeToken(ctx context.Context, jti, reason, userID s
 		return fmt.Errorf("blacklist not enabled")
 	}
 
-	return m.blacklist.AddToBlacklist(ctx, jti, &BlacklistEntry{
+	return m.blacklist.AddToBlacklist(ctx, jti, &amp;BlacklistEntry{
 		JTI: jti,
 		Reason: reason,
 		RevokedAt: time.Now(),
@@ -578,10 +577,9 @@ func (m *SecurityManager) IsTokenRevoked(ctx context.Context, jti string) (bool,
 
 // ServiceClaims JWT 服务身份声明
 type ServiceClaims struct {
-	ServiceName     string   `json:"service_name"`
-	ServiceID       string   `json:"service_id"`
-	Permissions     []string `json:"permissions"`
-	IsAuthenticated bool     `json:"is_authenticated"`
+	ServiceName string   `json:"service_name"`
+	ServiceID   string   `json:"service_id"`
+	Permissions []string `json:"permissions"`
 	jwt.RegisteredClaims
 }
 
@@ -613,7 +611,7 @@ func NewTokenManager(config *SecurityConfig) *TokenManager {
 	if config == nil {
 		config = DefaultConfig()
 	}
-	return &TokenManager{
+	return &amp;TokenManager{
 		config:     config,
 		signingKey: []byte(config.JWTSecret),
 	}
@@ -643,10 +641,10 @@ func (tm *TokenManager) GenerateToken(serviceName, serviceID string, permissions
 // ValidateToken 验证服务间调用令牌
 func (tm *TokenManager) ValidateToken(tokenString string) (*ServiceClaims, error) {
 	if !tm.config.JWTEnabled {
-		return &ServiceClaims{IsAuthenticated: true}, nil
+		return &amp;ServiceClaims{IsAuthenticated: true}, nil
 	}
 
-	token, err := jwt.ParseWithClaims(tokenString, &ServiceClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &amp;ServiceClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -657,7 +655,7 @@ func (tm *TokenManager) ValidateToken(tokenString string) (*ServiceClaims, error
 		return nil, err
 	}
 
-	if claims, ok := token.Claims.(*ServiceClaims); ok && token.Valid {
+	if claims, ok := token.Claims.(*ServiceClaims); ok &amp;&amp; token.Valid {
 		return claims, nil
 	}
 
@@ -680,7 +678,7 @@ func NewWhitelistManager(config *SecurityConfig) *WhitelistManager {
 		config = DefaultConfig()
 	}
 
-	wm := &WhitelistManager{
+	wm := &amp;WhitelistManager{
 		config:     config,
 		serviceMap: make(map[string]bool),
 		ipMap:      make(map[string]bool),
@@ -775,11 +773,11 @@ func ServerTLSCredentials(config *SecurityConfig) (credentials.TransportCredenti
 		return insecure.NewCredentials(), nil
 	}
 
-	tlsConfig := &tls.Config{
+	tlsConfig := &amp;tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
 
-	if config.ClientAuth && config.CAFile != "" {
+	if config.ClientAuth &amp;&amp; config.CAFile != "" {
 		caCert, err := os.ReadFile(config.CAFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read CA cert: %w", err)
@@ -792,7 +790,7 @@ func ServerTLSCredentials(config *SecurityConfig) (credentials.TransportCredenti
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
-	if config.CertFile != "" && config.KeyFile != "" {
+	if config.CertFile != "" &amp;&amp; config.KeyFile != "" {
 		serverCert, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load server cert: %w", err)
@@ -809,7 +807,7 @@ func ClientTLSCredentials(config *SecurityConfig) (credentials.TransportCredenti
 		return insecure.NewCredentials(), nil
 	}
 
-	tlsConfig := &tls.Config{
+	tlsConfig := &amp;tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
 
@@ -830,7 +828,7 @@ func ClientTLSCredentials(config *SecurityConfig) (credentials.TransportCredenti
 		tlsConfig.RootCAs = caCertPool
 	}
 
-	if config.CertFile != "" && config.KeyFile != "" {
+	if config.CertFile != "" &amp;&amp; config.KeyFile != "" {
 		clientCert, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load client cert: %w", err)
@@ -871,7 +869,7 @@ func NewInterceptorManager(config *SecurityConfig, tokenMgr *TokenManager, white
 		whitelistMgr = NewWhitelistManager(config)
 	}
 
-	return &InterceptorManager{
+	return &amp;InterceptorManager{
 		config:      config,
 		tokenMgr:    tokenMgr,
 		whitelistMgr: whitelistMgr,
@@ -922,7 +920,7 @@ func (im *InterceptorManager) StreamServerInterceptor(srv interface{}, ss grpc.S
 	}
 
 	// 包装流以传递身份
-	wrapped := &wrappedServerStream{
+	wrapped := &amp;wrappedServerStream{
 		ServerStream: ss,
 		ctx: context.WithValue(ss.Context(), IdentityContextKey, identity),
 	}
@@ -932,12 +930,12 @@ func (im *InterceptorManager) StreamServerInterceptor(srv interface{}, ss grpc.S
 
 // extractAndVerifyIdentity 从上下文提取并验证身份
 func (im *InterceptorManager) extractAndVerifyIdentity(ctx context.Context) (*ServiceIdentity, error) {
-	identity := &ServiceIdentity{}
+	identity := &amp;ServiceIdentity{}
 
 	// 1. 从 mTLS 证书提取身份
-	if p, ok := peer.FromContext(ctx); ok && im.config.MTLSEnabled {
+	if p, ok := peer.FromContext(ctx); ok &amp;&amp; im.config.MTLSEnabled {
 		if tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo); ok {
-			if len(tlsInfo.State.VerifiedChains) > 0 && len(tlsInfo.State.VerifiedChains[0]) > 0 {
+			if len(tlsInfo.State.VerifiedChains) &gt; 0 &amp;&amp; len(tlsInfo.State.VerifiedChains[0]) &gt; 0 {
 				cert := tlsInfo.State.VerifiedChains[0][0]
 				identity.Cert = cert
 				identity.Name = cert.Subject.CommonName
@@ -955,7 +953,7 @@ func (im *InterceptorManager) extractAndVerifyIdentity(ctx context.Context) (*Se
 				if strings.HasPrefix(h, "Bearer ") {
 					token := strings.TrimPrefix(h, "Bearer ")
 					claims, err := im.tokenMgr.ValidateToken(token)
-					if err == nil && claims != nil {
+					if err == nil &amp;&amp; claims != nil {
 						identity.Name = claims.ServiceName
 						identity.ID = claims.ServiceID
 						identity.Permissions = claims.Permissions
@@ -968,7 +966,7 @@ func (im *InterceptorManager) extractAndVerifyIdentity(ctx context.Context) (*Se
 	}
 
 	// 如果没有启用安全检查，返回未认证但允许访问
-	if !im.config.JWTEnabled && !im.config.MTLSEnabled {
+	if !im.config.JWTEnabled &amp;&amp; !im.config.MTLSEnabled {
 		identity.IsAuthenticated = true
 		return identity, nil
 	}
@@ -988,7 +986,7 @@ func (im *InterceptorManager) checkWhitelist(ctx context.Context, identity *Serv
 	}
 
 	// 检查服务名白名单
-	if identity.Name != "" && im.whitelistMgr.IsServiceAllowed(identity.Name) {
+	if identity.Name != "" &amp;&amp; im.whitelistMgr.IsServiceAllowed(identity.Name) {
 		return true
 	}
 
@@ -1047,7 +1045,7 @@ func NewHTTPMiddleware(config *SecurityConfig, tokenMgr *TokenManager, whitelist
 		whitelistMgr = NewWhitelistManager(config)
 	}
 
-	return &HTTPMiddleware{
+	return &amp;HTTPMiddleware{
 		config:      config,
 		tokenMgr:    tokenMgr,
 		whitelistMgr: whitelistMgr,
@@ -1078,10 +1076,10 @@ func (hm *HTTPMiddleware) SecurityMiddleware(next http.Handler) http.Handler {
 
 // authenticateHTTPRequest 认证 HTTP 请求
 func (hm *HTTPMiddleware) authenticateHTTPRequest(r *http.Request) (*ServiceIdentity, error) {
-	identity := &ServiceIdentity{}
+	identity := &amp;ServiceIdentity{}
 
 	// 检查 mTLS 证书
-	if hm.config.MTLSEnabled && r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+	if hm.config.MTLSEnabled &amp;&amp; r.TLS != nil &amp;&amp; len(r.TLS.PeerCertificates) &gt; 0 {
 		cert := r.TLS.PeerCertificates[0]
 		identity.Cert = cert
 		identity.Name = cert.Subject.CommonName
@@ -1091,10 +1089,10 @@ func (hm *HTTPMiddleware) authenticateHTTPRequest(r *http.Request) (*ServiceIden
 	// 检查 JWT 令牌
 	if hm.config.JWTEnabled {
 		authHeader := r.Header.Get("Authorization")
-		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+		if authHeader != "" &amp;&amp; strings.HasPrefix(authHeader, "Bearer ") {
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 			claims, err := hm.tokenMgr.ValidateToken(token)
-			if err == nil && claims != nil {
+			if err == nil &amp;&amp; claims != nil {
 				identity.Name = claims.ServiceName
 				identity.ID = claims.ServiceID
 				identity.Permissions = claims.Permissions
@@ -1105,7 +1103,7 @@ func (hm *HTTPMiddleware) authenticateHTTPRequest(r *http.Request) (*ServiceIden
 	}
 
 	// 如果没有启用安全检查
-	if !hm.config.JWTEnabled && !hm.config.MTLSEnabled {
+	if !hm.config.JWTEnabled &amp;&amp; !hm.config.MTLSEnabled {
 		identity.IsAuthenticated = true
 		return identity, nil
 	}
@@ -1125,7 +1123,7 @@ func (hm *HTTPMiddleware) checkHTTPWhitelist(r *http.Request, identity *ServiceI
 	}
 
 	// 检查服务名白名单
-	if identity.Name != "" && hm.whitelistMgr.IsServiceAllowed(identity.Name) {
+	if identity.Name != "" &amp;&amp; hm.whitelistMgr.IsServiceAllowed(identity.Name) {
 		return true
 	}
 
@@ -1151,7 +1149,7 @@ type ServiceSecurityManager struct {
 // NewServiceSecurityManager 创建服务安全管理器
 func NewServiceSecurityManager(config *SecurityConfig) *ServiceSecurityManager {
 	if config == nil {
-		config = &SecurityConfig{}
+		config = &amp;SecurityConfig{}
 	}
 
 	tokenMgr := NewTokenManager(config)
@@ -1159,7 +1157,7 @@ func NewServiceSecurityManager(config *SecurityConfig) *ServiceSecurityManager {
 	interceptorMgr := NewInterceptorManager(config, tokenMgr, whitelistMgr)
 	httpMiddleware := NewHTTPMiddleware(config, tokenMgr, whitelistMgr)
 
-	return &ServiceSecurityManager{
+	return &amp;ServiceSecurityManager{
 		Config:          config,
 		TokenManager:    tokenMgr,
 		WhitelistManager: whitelistMgr,
@@ -1223,10 +1221,10 @@ func (sm *ServiceSecurityManager) ClientOptions(serviceName, serviceID string, p
 // LoadConfigFromJSON 从 JSON 加载配置
 func LoadConfigFromJSON(data []byte) (*SecurityConfig, error) {
 	var cfg SecurityConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	if err := json.Unmarshal(data, &amp;cfg); err != nil {
 		return nil, err
 	}
-	return &cfg, nil
+	return &amp;cfg, nil
 }
 
 // SaveConfigToJSON 保存配置到 JSON

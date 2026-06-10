@@ -16,8 +16,9 @@ package tenantservice
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -184,71 +185,28 @@ func New(config *Config) (*Service, error) {
 
 // initTiDB P0-02 修复: 初始化 TiDB 连接和表结构
 func (s *Service) initTiDB() error {
-	// 先连接到 TiDB（不带数据库名）以便创建目标数据库，重试避免竞态
-	initDSN := fmt.Sprintf("%s:%s@tcp(%s)/?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
 		s.config.TiDBUser,
 		s.config.TiDBPassword,
 		s.config.TiDBAddr,
+		s.config.TiDBDatabase,
 	)
 
-	var initDB *sql.DB
-	var err error
-
-	for attempt := 1; attempt <= 5; attempt++ {
-		initDB, err = sql.Open("mysql", initDSN)
-		if err != nil {
-			return fmt.Errorf("TiDB init open failed: %w", err)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := initDB.PingContext(ctx); err != nil {
-			initDB.Close()
-			if attempt < 5 {
-				fmt.Printf("TiDB init ping attempt %d failed: %v, retrying...\n", attempt, err)
-				time.Sleep(time.Duration(attempt*2) * time.Second)
-				continue
-			}
-			return fmt.Errorf("TiDB init ping failed after 5 attempts: %w", err)
-		}
-		break
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("TiDB open failed: %w", err)
 	}
 
-	// 创建目标数据库（如果不存在）
-	createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_bin;",
-		s.config.TiDBDatabase)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	db.SetMaxOpenConns(50)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := initDB.ExecContext(ctx, createDB); err != nil {
-		initDB.Close()
-		return fmt.Errorf("create database %s failed: %w", s.config.TiDBDatabase, err)
-	}
-	initDB.Close()
 
-	// 使用完整 DSN 连接到目标数据库，重试避免竞态
-	var db *sql.DB
-	for attempt := 1; attempt <= 5; attempt++ {
-		db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
-			s.config.TiDBUser, s.config.TiDBPassword, s.config.TiDBAddr, s.config.TiDBDatabase))
-		if err != nil {
-			return fmt.Errorf("TiDB open failed: %w", err)
-		}
-		db.SetMaxOpenConns(50)
-		db.SetMaxIdleConns(10)
-		db.SetConnMaxLifetime(5 * time.Minute)
-
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := db.PingContext(ctx2); err != nil {
-			db.Close()
-			cancel2()
-			if attempt < 5 {
-				fmt.Printf("TiDB ping attempt %d failed: %v, retrying...\n", attempt, err)
-				time.Sleep(time.Duration(attempt*2) * time.Second)
-				continue
-			}
-			return fmt.Errorf("TiDB ping failed after 5 attempts: %w", err)
-		}
-		cancel2()
-		break
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
+		return fmt.Errorf("TiDB ping failed: %w", err)
 	}
 
 	s.db = db
@@ -659,7 +617,7 @@ func (s *Service) GetProject(ctx context.Context, req *svcproto.GetProjectReques
 		"SELECT project_id, tenant_id, name, display_name, description, status, created_at FROM projects WHERE project_id = ?",
 		req.ProjectId,
 	).Scan(
-		&project.Id,
+		&project.ProjectId,
 		&project.TenantId,
 		&project.Name,
 		&project.DisplayName,
@@ -689,7 +647,7 @@ func (s *Service) ListProjects(ctx context.Context, req *svcproto.ListProjectsRe
 	for rows.Next() {
 		var project svcproto.Project
 		if err := rows.Scan(
-			&project.Id,
+			&project.ProjectId,
 			&project.TenantId,
 			&project.Name,
 			&project.DisplayName,
@@ -717,7 +675,7 @@ func (s *Service) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (
 		&quota.ProjectId,
 		&quota.MaxAgents,
 		&quota.MaxFlowsPerDay,
-		&quota.MaxStorageGB,
+		&quota.MaxStorageGb,
 		&quota.MaxAlertRules,
 		&quota.RetentionDays,
 	)
@@ -726,11 +684,11 @@ func (s *Service) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (
 		return &svcproto.GetQuotaResponse{
 			Quota: &svcproto.Quota{
 				TenantId:        req.TenantId,
-				MaxAgents:       s.config.DefaultMaxAgents,
+				MaxAgents:       int32(s.config.DefaultMaxAgents),
 				MaxFlowsPerDay:  s.config.DefaultMaxFlowsPerDay,
-				MaxStorageGB:    s.config.DefaultMaxStorageGB,
-				MaxAlertRules:   s.config.DefaultMaxAlertRules,
-				RetentionDays:   s.config.DefaultRetentionDays,
+				MaxStorageGb:    int32(s.config.DefaultMaxStorageGB),
+				MaxAlertRules:   int32(s.config.DefaultMaxAlertRules),
+				RetentionDays:   int32(s.config.DefaultRetentionDays),
 			},
 		}, nil
 	}
@@ -747,7 +705,7 @@ func (s *Service) UpdateQuota(ctx context.Context, req *svcproto.UpdateQuotaRequ
 		"UPDATE quotas SET max_agents = ?, max_flows_per_day = ?, max_storage_gb = ?, max_alert_rules = ?, retention_days = ? WHERE tenant_id = ?",
 		req.MaxAgents,
 		req.MaxFlowsPerDay,
-		req.MaxStorageGB,
+		req.MaxStorageGb,
 		req.MaxAlertRules,
 		req.RetentionDays,
 		req.TenantId,
@@ -887,74 +845,4 @@ func (s *Service) quotasHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data)
 	}
-}
-
-// ============================================================================
-// gRPC Server 类型 (用于实现 TenantServiceServer 接口)
-// ============================================================================
-
-type tenantGRPC struct {
-	svcproto.UnimplementedTenantServiceServer
-	svc *Service
-}
-
-func (g *tenantGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
-	return &svcproto.HealthCheckResponse{Healthy: true, Version: g.svc.config.Version}, nil
-}
-
-func (g *tenantGRPC) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRequest) (*svcproto.CreateTenantResponse, error) {
-	return g.svc.CreateTenant(ctx, req)
-}
-
-func (g *tenantGRPC) GetTenant(ctx context.Context, req *svcproto.GetTenantRequest) (*svcproto.GetTenantResponse, error) {
-	return g.svc.GetTenant(ctx, req)
-}
-
-func (g *tenantGRPC) ListTenants(ctx context.Context, req *svcproto.ListTenantsRequest) (*svcproto.ListTenantsResponse, error) {
-	return g.svc.ListTenants(ctx, req)
-}
-
-func (g *tenantGRPC) UpdateQuota(ctx context.Context, req *svcproto.UpdateQuotaRequest) (*svcproto.UpdateQuotaResponse, error) {
-	return g.svc.UpdateQuota(ctx, req)
-}
-
-func (g *tenantGRPC) CreateProject(ctx context.Context, req *svcproto.CreateProjectRequest) (*svcproto.CreateProjectResponse, error) {
-	return g.svc.CreateProject(ctx, req)
-}
-
-func (g *tenantGRPC) ListProjects(ctx context.Context, req *svcproto.ListProjectsRequest) (*svcproto.ListProjectsResponse, error) {
-	return g.svc.ListProjects(ctx, req)
-}
-
-func (g *tenantGRPC) GetProject(ctx context.Context, req *svcproto.GetProjectRequest) (*svcproto.GetProjectResponse, error) {
-	return g.svc.GetProject(ctx, req)
-}
-
-func (g *tenantGRPC) UpdateTenant(ctx context.Context, req *svcproto.UpdateTenantRequest) (*svcproto.UpdateTenantResponse, error) {
-	return g.svc.UpdateTenant(ctx, req)
-}
-
-func (g *tenantGRPC) DeleteTenant(ctx context.Context, req *svcproto.DeleteTenantRequest) (*svcproto.DeleteTenantResponse, error) {
-	return g.svc.DeleteTenant(ctx, req)
-}
-
-func (g *tenantGRPC) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (*svcproto.GetQuotaResponse, error) {
-	return g.svc.GetQuota(ctx, req)
-}
-
-func (g *tenantGRPC) AddTenantMember(ctx context.Context, req *svcproto.AddTenantMemberRequest) (*svcproto.AddTenantMemberResponse, error) {
-	return g.svc.AddTenantMember(ctx, req)
-}
-
-func (g *tenantGRPC) RemoveTenantMember(ctx context.Context, req *svcproto.RemoveTenantMemberRequest) (*svcproto.RemoveTenantMemberResponse, error) {
-	return g.svc.RemoveTenantMember(ctx, req)
-}
-
-func (g *tenantGRPC) ListTenantMembers(ctx context.Context, req *svcproto.ListTenantMembersRequest) (*svcproto.ListTenantMembersResponse, error) {
-	return g.svc.ListTenantMembers(ctx, req)
-}
-
-// RegisterTenantService 注册 gRPC 服务
-func RegisterTenantService(s *grpc.Server, svc *Service) {
-	svcproto.RegisterTenantServiceServer(s, &tenantGRPC{svc: svc})
 }

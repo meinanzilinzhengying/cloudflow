@@ -207,7 +207,7 @@ func (rl *RateLimiter) GetMetrics() RateLimiterMetrics {
 		AllowedRequests:  allowed,
 		RejectedRequests: rejected,
 		BlockedRequests:  atomic.LoadInt64(&rl.blockedRequests),
-		CurrentRPS:       float64(rate.Limit(atomic.LoadInt64(&rl.totalRequests)) / rate.Limit(time.Since(time.Unix(0, lastRst)).Seconds())),
+		CurrentRPS:       rate.Limit(atomic.LoadInt64(&rl.totalRequests)) / rate.Limit(time.Since(time.Unix(0, lastRst)).Seconds()),
 		RejectionRate:    rejectionRate,
 		LastResetTime:    time.Unix(0, lastRst).Format(time.RFC3339),
 	}

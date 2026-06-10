@@ -153,7 +153,7 @@ func pow(base, exp float64) float64 {
 }
 
 func randomFloat64(min, max float64) float64 {
-	return min + float64(time.Now().UnixNano()%int64(max-min))/1e9 + float64(time.Now().UnixNano()%1000)/1000.0
+	return min + float64(int64(float64(time.Now().UnixNano())%int64(max-min))) + float64(time.Now().UnixNano()%1000)/1000.0
 }
 
 type RetryMetrics struct {
@@ -183,7 +183,7 @@ func (s *RetryStats) RecordSuccess(latency time.Duration) {
 
 func (s *RetryStats) RecordFailure(latency time.Duration) {
 	s.failures++
-	s.totalLatencyNs += latency.Nanoseconds()
+	s.totalLatencyMs += latency.Nanoseconds() / 1e6
 }
 
 func (s *RetryStats) RecordRetry() {

@@ -862,7 +862,7 @@ func (s *Service) QueryCorrelation(ctx context.Context, req *svcproto.Correlatio
 
 // GetOTLPStats 获取 OTLP 接收统计
 func (s *Service) GetOTLPStats(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.OTLPIngestStats, error) {
-	stats := s.otlpReceiver.Stats()
+	stats := s.otlpReceiver.Stats().Snapshot()
 	return &svcproto.OTLPIngestStats{
 		TracesReceived:     stats.TracesReceived,
 		SpansReceived:      stats.SpansReceived,
@@ -970,7 +970,7 @@ func (s *Service) otelLogsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.otlpReceiver.LogStore().Query(otel.LogQuery{Limit: 100}))
 }
 func (s *Service) otelStatsHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, s.otlpReceiver.Stats())
+	writeJSON(w, s.otlpReceiver.Stats().Snapshot())
 }
 func (s *Service) rcaHandler(w http.ResponseWriter, r *http.Request) {
 	traceID := r.URL.Query().Get("trace_id")
@@ -1034,58 +1034,4 @@ func parseInt(s string, defaultVal int) int {
 		return defaultVal
 	}
 	return result
-}
-
-// ============================================================================
-// gRPC Server 实现
-// ============================================================================
-
-type queryGRPC struct {
-	svcproto.UnimplementedQueryServiceServer
-	svc *Service
-}
-
-func (g *queryGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
-	return &svcproto.HealthCheckResponse{
-		Healthy: true,
-		Version: g.svc.config.Version,
-		Uptime:  int64(time.Since(g.svc.startTime).Seconds()),
-	}, nil
-}
-
-func (g *queryGRPC) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
-	return g.svc.QueryFlows(ctx, req)
-}
-
-func (g *queryGRPC) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
-	return g.svc.QueryMetrics(ctx, req)
-}
-
-func (g *queryGRPC) QueryTraces(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
-	return g.svc.QueryTraces(ctx, req)
-}
-
-func (g *queryGRPC) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
-	return g.svc.QueryDashboard(ctx, req)
-}
-
-func (g *queryGRPC) QueryOTLPTraces(ctx context.Context, req *svcproto.TraceQueryRequest) (*svcproto.TraceQueryResponse, error) {
-	return g.svc.QueryOTLPTraces(ctx, req)
-}
-
-func (g *queryGRPC) GetRootCauseAnalysis(ctx context.Context, req *svcproto.RootCauseRequest) (*svcproto.RootCauseResponse, error) {
-	return g.svc.GetRootCauseAnalysis(ctx, req)
-}
-
-func (g *queryGRPC) QueryCorrelation(ctx context.Context, req *svcproto.CorrelationQueryRequest) (*svcproto.CorrelationQueryResponse, error) {
-	return g.svc.QueryCorrelation(ctx, req)
-}
-
-func (g *queryGRPC) GetOTLPStats(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.OTLPIngestStats, error) {
-	return g.svc.GetOTLPStats(ctx, req)
-}
-
-// RegisterQueryService 注册 gRPC 服务
-func RegisterQueryService(s *grpc.Server, svc *Service) {
-	svcproto.RegisterQueryServiceServer(s, &queryGRPC{svc: svc})
 }

@@ -3,8 +3,8 @@ package authservice
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -154,7 +154,7 @@ func New(config *Config) (*Service, error) {
 		Issuer:          config.JWTIssuer,
 		ExpireDuration:  time.Duration(config.JWTExpireSec) * time.Second,
 		RefreshDuration: time.Duration(config.JWTRefreshSec) * time.Second,
-		Blacklist:       &blacklistAdapter{inner: secManager.Blacklist()},
+		Blacklist:       secManager.Blacklist(),
 	}
 	
 	authenticator, err := auth.NewAuthenticatorWithConfig(authConfig)
@@ -227,78 +227,34 @@ func New(config *Config) (*Service, error) {
 
 // initTiDB P0-02 修复: 初始化 TiDB 连接和用户表
 func (s *Service) initTiDB() error {
-	var initDB *sql.DB
-	var err error
-
-	// 先连接到 TiDB（不带数据库名）以便创建目标数据库，重试避免竞态
-	initDSN := fmt.Sprintf("%s:%s@tcp(%s)/?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
 		s.config.TiDBUser,
 		s.config.TiDBPassword,
 		s.config.TiDBAddr,
+		s.config.TiDBDatabase,
 	)
 
-	for attempt := 1; attempt <= 5; attempt++ {
-		initDB, err = sql.Open("mysql", initDSN)
-		if err != nil {
-			return fmt.Errorf("TiDB init open failed: %w", err)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := initDB.PingContext(ctx); err != nil {
-			initDB.Close()
-			if attempt < 5 {
-				fmt.Printf("TiDB init ping attempt %d failed: %v, retrying...\n", attempt, err)
-				time.Sleep(time.Duration(attempt*2) * time.Second)
-				continue
-			}
-			return fmt.Errorf("TiDB init ping failed after 5 attempts: %w", err)
-		}
-		break
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("TiDB open failed: %w", err)
 	}
 
-	// 创建目标数据库（如果不存在）
-	createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_bin;",
-		s.config.TiDBDatabase)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	db.SetMaxOpenConns(50)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := initDB.ExecContext(ctx, createDB); err != nil {
-		initDB.Close()
-		return fmt.Errorf("create database %s failed: %w", s.config.TiDBDatabase, err)
-	}
-	initDB.Close()
 
-	// 使用完整 DSN 连接到目标数据库，重试避免竞态
-	var db *sql.DB
-	for attempt := 1; attempt <= 5; attempt++ {
-		db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
-			s.config.TiDBUser, s.config.TiDBPassword, s.config.TiDBAddr, s.config.TiDBDatabase))
-		if err != nil {
-			return fmt.Errorf("TiDB open failed: %w", err)
-		}
-		db.SetMaxOpenConns(50)
-		db.SetMaxIdleConns(10)
-		db.SetConnMaxLifetime(5 * time.Minute)
-
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := db.PingContext(ctx2); err != nil {
-			db.Close()
-			cancel2()
-			if attempt < 5 {
-				fmt.Printf("TiDB ping attempt %d failed: %v, retrying...\n", attempt, err)
-				time.Sleep(time.Duration(attempt*2) * time.Second)
-				continue
-			}
-			return fmt.Errorf("TiDB ping failed after 5 attempts: %w", err)
-		}
-		cancel2()
-		break
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
+		return fmt.Errorf("TiDB ping failed: %w", err)
 	}
 
 	s.db = db
 
 	// P0-02 修复: 初始化 GORM DB (用于 RBAC 持久化)
-	gormDB, err := gorm.Open(mysql.Open(fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
-		s.config.TiDBUser, s.config.TiDBPassword, s.config.TiDBAddr, s.config.TiDBDatabase)), &gorm.Config{})
+	gormDB, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return fmt.Errorf("GORM open failed: %w", err)
 	}
@@ -514,11 +470,11 @@ func (s *Service) Authenticate(ctx context.Context, req *svcproto.AuthenticateRe
 
 	// 5. 检查 token 生成速率限制
 	if s.securityManager != nil {
-		allowed, err := s.securityManager.TokenRateLimiter().Allow(user.UserID)
+		limited, err := s.securityManager.RateLimiter().CheckAndConsume(user.UserID)
 		if err != nil {
 			return nil, fmt.Errorf("rate limiter error: %w", err)
 		}
-		if !allowed {
+		if limited {
 			return nil, fmt.Errorf("too many token requests, please try again later")
 		}
 	}
@@ -600,6 +556,8 @@ func (s *Service) CreateRole(ctx context.Context, req *svcproto.CreateRoleReques
 
 // BindUserRole 绑定用户角色
 func (s *Service) BindUserRole(ctx context.Context, req *svcproto.BindUserRoleRequest) (*svcproto.BindUserRoleResponse, error) {
+	tc := tenant.MustFromContext(ctx)
+
 	err := s.rbacEngine.AddRoleForUser(req.UserId, req.RoleId, req.TenantId, req.ProjectId)
 	if err != nil {
 		return &svcproto.BindUserRoleResponse{Success: false, Message: err.Error()}, nil
@@ -872,7 +830,7 @@ func (s *Service) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newToken, err := s.authenticator.JWTManager().RefreshToken(r.Context(), body.RefreshToken)
+	newToken, err := s.authenticator.JWTManager().RefreshToken(body.RefreshToken)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -965,14 +923,17 @@ func (s *Service) apiKeyHandler(w http.ResponseWriter, r *http.Request) {
 			Name string `json:"name"`
 		}
 		json.NewDecoder(r.Body).Decode(&body)
-		// 生成简单的 API Key
-		key := fmt.Sprintf("apikey_%d_%s", time.Now().UnixNano(), tc.UserID)
+		key, err := s.authenticator.GenerateAPIKey(tc.UserID, tc.TenantID, body.Name, 30*24*time.Hour)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, map[string]string{"api_key": key})
 
 	case http.MethodDelete:
 		key := r.URL.Query().Get("key")
-		// 简单实现：记录撤销但不实际存储
-		writeJSON(w, map[string]string{"status": "revoked", "key": key})
+		s.authenticator.RevokeAPIKey(key)
+		writeJSON(w, map[string]string{"status": "revoked"})
 
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1116,89 +1077,4 @@ func extractBearerToken(r *http.Request) string {
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
-}
-
-// ============================================================================
-// TokenBlacklist 适配器 - 解决接口不兼容问题
-// ============================================================================
-
-type blacklistAdapter struct {
-	inner security.TokenBlacklist
-}
-
-func (b *blacklistAdapter) IsBlacklisted(ctx context.Context, jti string) (bool, error) {
-	return b.inner.IsBlacklisted(ctx, jti)
-}
-
-func (b *blacklistAdapter) AddToBlacklist(ctx context.Context, jti string, expiry time.Duration) error {
-	entry := &security.BlacklistEntry{
-		JTI:      jti,
-		Reason:   "token revoked",
-		RevokedAt: time.Now(),
-		ExpiresAt: time.Now().Add(expiry),
-	}
-	return b.inner.AddToBlacklist(ctx, jti, entry)
-}
-
-// ============================================================================
-// gRPC Server 实现
-// ============================================================================
-
-type authGRPC struct {
-	svcproto.UnimplementedAuthServiceServer
-	svc *Service
-}
-
-func (g *authGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
-	return &svcproto.HealthCheckResponse{
-		Healthy: true,
-		Version: g.svc.config.Version,
-		Uptime:  int64(time.Since(g.svc.startTime).Seconds()),
-	}, nil
-}
-
-func (g *authGRPC) Authenticate(ctx context.Context, req *svcproto.AuthenticateRequest) (*svcproto.AuthenticateResponse, error) {
-	return g.svc.Authenticate(ctx, req)
-}
-
-func (g *authGRPC) ValidateToken(ctx context.Context, req *svcproto.ValidateTokenRequest) (*svcproto.ValidateTokenResponse, error) {
-	return g.svc.ValidateToken(ctx, req)
-}
-
-func (g *authGRPC) ValidateAPIKey(ctx context.Context, req *svcproto.ValidateAPIKeyRequest) (*svcproto.ValidateAPIKeyResponse, error) {
-	// 使用默认实现
-	return &svcproto.ValidateAPIKeyResponse{Valid: false}, nil
-}
-
-func (g *authGRPC) Authorize(ctx context.Context, req *svcproto.AuthorizeRequest) (*svcproto.AuthorizeResponse, error) {
-	return g.svc.Authorize(ctx, req)
-}
-
-func (g *authGRPC) CreateRole(ctx context.Context, req *svcproto.CreateRoleRequest) (*svcproto.CreateRoleResponse, error) {
-	return g.svc.CreateRole(ctx, req)
-}
-
-func (g *authGRPC) BindUserRole(ctx context.Context, req *svcproto.BindUserRoleRequest) (*svcproto.BindUserRoleResponse, error) {
-	return g.svc.BindUserRole(ctx, req)
-}
-
-func (g *authGRPC) CreatePolicy(ctx context.Context, req *svcproto.CreatePolicyRequest) (*svcproto.CreatePolicyResponse, error) {
-	return g.svc.CreatePolicy(ctx, req)
-}
-
-func (g *authGRPC) CheckPermission(ctx context.Context, req *svcproto.CheckPermissionRequest) (*svcproto.CheckPermissionResponse, error) {
-	return g.svc.CheckPermission(ctx, req)
-}
-
-func (g *authGRPC) OIDCCallback(ctx context.Context, req *svcproto.OIDCCallbackRequest) (*svcproto.AuthenticateResponse, error) {
-	return g.svc.OIDCCallback(ctx, req)
-}
-
-func (g *authGRPC) RevokeToken(ctx context.Context, req *svcproto.RevokeTokenRequest) (*svcproto.RevokeTokenResponse, error) {
-	return g.svc.RevokeToken(ctx, req)
-}
-
-// RegisterAuthService 注册 gRPC 服务
-func RegisterAuthService(s *grpc.Server, svc *Service) {
-	svcproto.RegisterAuthServiceServer(s, &authGRPC{svc: svc})
 }

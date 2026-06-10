@@ -73,14 +73,12 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:2379:2379"
-    entrypoint: ["/usr/local/bin/etcd"]
     command:
       - --name=etcd
       - --advertise-client-urls=http://0.0.0.0:2379
       - --listen-client-urls=http://0.0.0.0:2379
       - --initial-cluster-state=new
       - --initial-cluster-token=cloudflow-etcd-token
-      - --data-dir=/etcd-data
     volumes:
       - etcd-data:/etcd-data
     healthcheck:
@@ -128,7 +126,6 @@ services:
       TZ: Asia/Shanghai
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093"
       KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
       KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
@@ -320,7 +317,7 @@ services:
       clickhouse:
         condition: service_healthy
       victoriametrics:
-        condition: service_started
+        condition: service_healthy
       loki:
         condition: service_healthy
       control-plane:
@@ -530,7 +527,6 @@ services:
     image: prom/alertmanager:v0.27.0
     container_name: cloudflow-alertmanager
     restart: unless-stopped
-    user: "0:0"
     ports:
       - "9093:9093"
     volumes:
@@ -560,7 +556,7 @@ services:
     command:
       - "--config.file=/etc/blackbox_exporter/config.yml"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9115/metrics"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9115/probe?target=google.com&module=http_2xx"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -672,6 +668,11 @@ services:
     environment:
       TZ: Asia/Shanghai
       COLLECTOR_OTLP_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:14268/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       - cloudflow-net
 
@@ -696,16 +697,24 @@ services:
 
   # VictoriaMetrics（指标存储）
   victoriametrics:
-    image: victoriametrics/victoria-metrics:v1.102.0
+    image: victoriametrics/victoria-metrics:latest
     container_name: cloudflow-victoriametrics
     restart: unless-stopped
     ports:
       - "8428:8428"  # HTTP
+      - "2003:2003"  # Graphite
     command:
       - "--storageDataPath=/var/lib/victoria-metrics-data"
+      - "--graphiteListenAddress=:2003"
+      - "--httpListenAddress=:8428"
       - "--retentionPeriod=30d"
     volumes:
-      - victoriametrics-data:/var/lib/victoria-metrics-data
+      - victoriametrics-data:/var/lib/victorial-metrics-data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8428/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       - cloudflow-net
 
@@ -727,7 +736,7 @@ services:
       TZ: Asia/Shanghai
       VITE_API_URL: http://localhost:8007
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:80/ || exit 1"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -753,7 +762,7 @@ services:
       TZ: Asia/Shanghai
       VITE_API_URL: http://localhost:8007
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:80/ || exit 1"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -783,7 +792,7 @@ services:
       VITE_LOKI_URL: http://localhost:3100
       VITE_CONTROL_PLANE_URL: http://localhost:8001
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:80/ || exit 1"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -802,8 +811,6 @@ services:
     volumes:
       - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml
       - /var/log:/var/log:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command:
       - -config.file=/etc/promtail/config.yml
     networks:

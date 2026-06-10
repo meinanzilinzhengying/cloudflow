@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
@@ -188,71 +189,28 @@ func New(config *Config) (*Service, error) {
 
 // initTiDB P0-02 修复: 初始化 TiDB 连接和表结构
 func (s *Service) initTiDB() error {
-	var initDB *sql.DB
-	var err error
-
-	// 先连接到 TiDB（不带数据库名）以便创建目标数据库，重试避免竞态
-	initDSN := fmt.Sprintf("%s:%s@tcp(%s)/?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
 		s.config.TiDBUser,
 		s.config.TiDBPassword,
 		s.config.TiDBAddr,
+		s.config.TiDBDatabase,
 	)
 
-	for attempt := 1; attempt <= 5; attempt++ {
-		initDB, err = sql.Open("mysql", initDSN)
-		if err != nil {
-			return fmt.Errorf("TiDB init open failed: %w", err)
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := initDB.PingContext(ctx); err != nil {
-			initDB.Close()
-			if attempt < 5 {
-				fmt.Printf("TiDB init ping attempt %d failed: %v, retrying...\n", attempt, err)
-				time.Sleep(time.Duration(attempt*2) * time.Second)
-				continue
-			}
-			return fmt.Errorf("TiDB init ping failed after 5 attempts: %w", err)
-		}
-		break
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("TiDB open failed: %w", err)
 	}
 
-	// 创建目标数据库（如果不存在）
-	createDB := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_bin;",
-		s.config.TiDBDatabase)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	db.SetMaxOpenConns(50)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := initDB.ExecContext(ctx, createDB); err != nil {
-		initDB.Close()
-		return fmt.Errorf("create database %s failed: %w", s.config.TiDBDatabase, err)
-	}
-	initDB.Close()
 
-	// 使用完整 DSN 连接到目标数据库，重试避免竞态
-	var db *sql.DB
-	for attempt := 1; attempt <= 5; attempt++ {
-		db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
-			s.config.TiDBUser, s.config.TiDBPassword, s.config.TiDBAddr, s.config.TiDBDatabase))
-		if err != nil {
-			return fmt.Errorf("TiDB open failed: %w", err)
-		}
-		db.SetMaxOpenConns(50)
-		db.SetMaxIdleConns(10)
-		db.SetConnMaxLifetime(5 * time.Minute)
-
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := db.PingContext(ctx2); err != nil {
-			db.Close()
-			cancel2()
-			if attempt < 5 {
-				fmt.Printf("TiDB ping attempt %d failed: %v, retrying...\n", attempt, err)
-				time.Sleep(time.Duration(attempt*2) * time.Second)
-				continue
-			}
-			return fmt.Errorf("TiDB ping failed after 5 attempts: %w", err)
-		}
-		cancel2()
-		break
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
+		return fmt.Errorf("TiDB ping failed: %w", err)
 	}
 
 	s.db = db
@@ -1131,14 +1089,16 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 
 					// 添加到响应
 					firedAlerts = append(firedAlerts, &svcproto.Alert{
-						AlertId:   alertID,
-						RuleId:    ruleID,
-						TenantId:  tenantID,
-						Severity:  severity,
-						Title:     name,
-						Message:   alertMessage,
-						StartsAt:  time.Now().Format(time.RFC3339),
-						Status:    "firing",
+						Id:         alertID,
+						RuleId:     ruleID,
+						Name:       name,
+						TenantId:   tenantID,
+						Severity:   severity,
+						Message:    alertMessage,
+						StartedAt:  time.Now().Unix(),
+						FiredAt:    time.Now().Unix(),
+						ResolvedAt: 0,
+						Status:     "firing",
 					})
 
 					// 创建通知
@@ -1182,80 +1142,6 @@ func (s *Service) listAlertsHTTPHandler(w http.ResponseWriter, r *http.Request) 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}
-}
-
-// ============================================================================
-// gRPC Server 类型 (用于实现 AlertServiceServer 接口)
-// ============================================================================
-
-type alertGRPC struct {
-	svcproto.UnimplementedAlertServiceServer
-	svc *Service
-}
-
-func (g *alertGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
-	return &svcproto.HealthCheckResponse{Healthy: true, Version: g.svc.config.Version}, nil
-}
-
-func (g *alertGRPC) CreateRule(ctx context.Context, req *svcproto.CreateAlertRuleRequest) (*svcproto.CreateAlertRuleResponse, error) {
-	return g.svc.CreateRule(ctx, req)
-}
-
-func (g *alertGRPC) GetRule(ctx context.Context, req *svcproto.GetAlertRuleRequest) (*svcproto.GetAlertRuleResponse, error) {
-	return g.svc.GetRule(ctx, req)
-}
-
-func (g *alertGRPC) ListRules(ctx context.Context, req *svcproto.ListAlertRulesRequest) (*svcproto.ListAlertRulesResponse, error) {
-	return g.svc.ListRules(ctx, req)
-}
-
-func (g *alertGRPC) UpdateRule(ctx context.Context, req *svcproto.UpdateAlertRuleRequest) (*svcproto.UpdateAlertRuleResponse, error) {
-	return g.svc.UpdateRule(ctx, req)
-}
-
-func (g *alertGRPC) DeleteRule(ctx context.Context, req *svcproto.DeleteAlertRuleRequest) (*svcproto.DeleteAlertRuleResponse, error) {
-	return g.svc.DeleteRule(ctx, req)
-}
-
-func (g *alertGRPC) CreateAlert(ctx context.Context, req *svcproto.CreateAlertRequest) (*svcproto.CreateAlertResponse, error) {
-	return g.svc.CreateAlert(ctx, req)
-}
-
-func (g *alertGRPC) GetAlert(ctx context.Context, req *svcproto.GetAlertRequest) (*svcproto.GetAlertResponse, error) {
-	return g.svc.GetAlert(ctx, req)
-}
-
-func (g *alertGRPC) UpdateAlert(ctx context.Context, req *svcproto.UpdateAlertRequest) (*svcproto.UpdateAlertResponse, error) {
-	return g.svc.UpdateAlert(ctx, req)
-}
-
-func (g *alertGRPC) ListAlerts(ctx context.Context, req *svcproto.ListAlertsRequest) (*svcproto.ListAlertsResponse, error) {
-	return g.svc.ListAlerts(ctx, req)
-}
-
-func (g *alertGRPC) CreateNotification(ctx context.Context, req *svcproto.CreateNotificationRequest) (*svcproto.CreateNotificationResponse, error) {
-	return g.svc.CreateNotification(ctx, req)
-}
-
-func (g *alertGRPC) UpdateNotification(ctx context.Context, req *svcproto.UpdateNotificationRequest) (*svcproto.UpdateNotificationResponse, error) {
-	return g.svc.UpdateNotification(ctx, req)
-}
-
-func (g *alertGRPC) ListNotifications(ctx context.Context, req *svcproto.ListNotificationsRequest) (*svcproto.ListNotificationsResponse, error) {
-	return g.svc.ListNotifications(ctx, req)
-}
-
-func (g *alertGRPC) EvaluateRules(ctx context.Context, req *svcproto.EvaluateRulesRequest) (*svcproto.EvaluateRulesResponse, error) {
-	return g.svc.EvaluateRules(ctx, req)
-}
-
-func (g *alertGRPC) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAlertsRequest) (*svcproto.EvaluateAlertsResponse, error) {
-	return g.svc.EvaluateAlerts(ctx, req)
-}
-
-// RegisterAlertService 注册 gRPC 服务
-func RegisterAlertService(s *grpc.Server, svc *Service) {
-	svcproto.RegisterAlertServiceServer(s, &alertGRPC{svc: svc})
 }
 
 func (s *Service) createAlertHTTPHandler(w http.ResponseWriter, r *http.Request) {

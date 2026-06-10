@@ -553,7 +553,7 @@ func (s *Service) writeToLoki(flows []*flow.UnifiedFlow) error {
 			message += fmt.Sprintf(" l7=%s", f.L7Protocol.String())
 		}
 		if f.Method != 0 {
-			message += fmt.Sprintf(" method=%d", f.Method)
+			message += fmt.Sprintf(" method=%s", f.Method.String())
 		}
 		if f.StatusCode > 0 {
 			message += fmt.Sprintf(" status=%d", f.StatusCode)
@@ -644,6 +644,7 @@ func parseLabels(labels string) map[string]string {
 // IngestFlow 接收 Flow（含采样决策）
 func (s *Service) IngestFlow(ctx context.Context, batch *svcproto.FlowBatch) (*svcproto.IngestResponse, error) {
 	accepted := 0
+	sampled := 0
 
 	for _, flowMap := range batch.Flows {
 		// 反序列化 UnifiedFlow
@@ -897,8 +898,8 @@ func (s *Service) statsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) samplingConfigHandler(w http.ResponseWriter, r *http.Request) {
 	// P0-3 修复: 验证认证
-	tc, _ := tenant.FromContext(r.Context())
-	if tc == nil || tc.TenantID == "" {
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID == "" {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
@@ -932,8 +933,8 @@ func (s *Service) ingestMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// P0-3 修复: 获取租户信息
-	tc, _ := tenant.FromContext(r.Context())
-	if tc == nil || tc.TenantID == "" {
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID == "" {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
@@ -947,7 +948,7 @@ func (s *Service) ingestMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	count := 0
 	for _, m := range metrics {
 		// P0-3 修复: 添加租户信息
-		m["tenant_id"] = tc.TenantID
+		m["tenant_id"] = tenantID
 		select {
 		case s.metricQueue <- m:
 			count++
@@ -974,8 +975,8 @@ func (s *Service) ingestLogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// P0-3 修复: 获取租户信息
-	tc, _ := tenant.FromContext(r.Context())
-	if tc == nil || tc.TenantID == "" {
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID == "" {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
@@ -989,7 +990,7 @@ func (s *Service) ingestLogsHandler(w http.ResponseWriter, r *http.Request) {
 	count := 0
 	for _, l := range logs {
 		// P0-3 修复: 添加租户信息
-		l["tenant_id"] = tc.TenantID
+		l["tenant_id"] = tenantID
 		select {
 		case s.logQueue <- l:
 			count++
@@ -1092,41 +1093,4 @@ func mapToUnifiedFlow(m map[string]interface{}) *flow.UnifiedFlow {
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
-}
-
-// ============================================================================
-// gRPC Server 实现
-// ============================================================================
-
-type dataPlaneGRPC struct {
-	svcproto.UnimplementedDataPlaneServiceServer
-	svc *Service
-}
-
-func (g *dataPlaneGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
-	return &svcproto.HealthCheckResponse{
-		Healthy: true,
-		Version: g.svc.config.Version,
-		Uptime:  int64(time.Since(g.svc.startTime).Seconds()),
-	}, nil
-}
-
-func (g *dataPlaneGRPC) IngestFlows(ctx context.Context, req *svcproto.FlowBatch) (*svcproto.IngestResponse, error) {
-	return g.svc.IngestFlow(ctx, req)
-}
-
-func (g *dataPlaneGRPC) IngestMetrics(ctx context.Context, req *svcproto.FlowBatch) (*svcproto.IngestResponse, error) {
-	return g.svc.IngestFlow(ctx, req)
-}
-
-func (g *dataPlaneGRPC) ApplyConfig(ctx context.Context, req *svcproto.UpdateIngestConfigRequest) (*svcproto.UpdateIngestConfigResponse, error) {
-	return &svcproto.UpdateIngestConfigResponse{
-		Success: true,
-		Message: "config updated",
-	}, nil
-}
-
-// RegisterDataPlaneService 注册 gRPC 服务
-func RegisterDataPlaneService(s *grpc.Server, svc *Service) {
-	svcproto.RegisterDataPlaneServiceServer(s, &dataPlaneGRPC{svc: svc})
 }
