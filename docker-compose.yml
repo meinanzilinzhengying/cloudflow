@@ -151,6 +151,14 @@ services:
   # Kafka（消息队列）- 高可用配置
   kafka:
     image: confluentinc/cp-kafka:7.6.0
+    # Clean stale meta.properties to prevent Cluster ID mismatch
+    # (ZooKeeper is ephemeral but kafka named volume persists across down/up)
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        rm -f /var/lib/kafka/data/meta.properties
+        exec /etc/confluent/docker/run
     container_name: cloudflow-kafka
     restart: unless-stopped
     depends_on:
@@ -193,7 +201,7 @@ services:
       # 自动创建 Topic
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     volumes:
-      - kafka-data-v2:/var/lib/kafka/data
+      - kafka-data-v3:/var/lib/kafka/data
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "127.0.0.1:9092"]
       interval: 15s
@@ -219,6 +227,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    # Named volume ensures ZooKeeper data persists with Kafka data
+    # preventing Cluster ID mismatch after docker-compose down/up
+    volumes:
+      - zk-data:/var/lib/zookeeper/data
+      - zk-log:/var/lib/zookeeper/log
     networks:
       - cloudflow-net
 
@@ -870,8 +883,12 @@ volumes:
     name: cloudflow-etcd-data
   clickhouse-data:
     name: cloudflow-clickhouse-data
-  kafka-data-v2:
-    name: cloudflow-kafka-data-v2
+  kafka-data-v3:
+    name: cloudflow-kafka-data-v3
+  zk-data:
+    name: cloudflow-zk-data
+  zk-log:
+    name: cloudflow-zk-log
   prometheus-data:
     name: cloudflow-prometheus-data
   alertmanager-data:
