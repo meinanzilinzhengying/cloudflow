@@ -27,79 +27,75 @@
 
     <!-- Navigation -->
     <nav class="flex-1 min-h-0 overflow-y-auto py-4 px-3 sidebar-nav-scroll">
-      <div v-for="menu in menuItems" :key="menu.id" class="mb-1">
-        <!-- Parent Menu -->
-        <div class="relative">
-          <button
-            @click="toggleSubmenu(menu.id)"
-            :class="[
-              'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl',
-              'transition-all duration-200 group relative',
-              isActiveMenu(menu.id)
-                ? 'bg-primary-500/15 text-primary-400'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            ]"
-          >
-            <!-- Active indicator -->
-            <div
-              v-if="isActiveMenu(menu.id)"
-              class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary-500 rounded-r-full"
-            ></div>
-
-            <component :is="menu.icon" class="w-5 h-5 flex-shrink-0" />
-            <span v-if="!collapsed" class="text-sm font-medium truncate flex-1 text-left">{{ menu.label }}</span>
-            
-            <!-- Badge -->
-            <span
-              v-if="menu.badge && !collapsed"
+      <div class="space-y-1">
+        <div v-for="menu in menuItems" :key="menu.id">
+          <div class="relative">
+            <button
+              @click="toggleSubmenu(menu.id)"
               :class="[
-                'text-xs px-2 py-0.5 rounded-full font-medium',
-                menu.badgeType === 'danger' ? 'bg-red-500/20 text-red-400' : 'bg-primary-500/20 text-primary-400'
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl',
+                'transition-all duration-200 group relative',
+                isActiveMenu(menu.id)
+                  ? 'bg-primary-500/15 text-primary-400'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               ]"
             >
-              {{ menu.badge }}
-            </span>
+              <div
+                v-if="isActiveMenu(menu.id)"
+                class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary-500 rounded-r-full"
+              ></div>
 
-            <!-- Chevron for submenu -->
-            <ChevronRight
-              v-if="menu.children && !collapsed"
-              :class="[
-                'w-4 h-4 transition-transform duration-200',
-                expandedMenus.includes(menu.id) ? 'rotate-90' : ''
-              ]"
-            />
+              <component :is="menu.icon" class="w-5 h-5 flex-shrink-0" />
+              <span v-if="!collapsed" class="text-sm font-medium truncate flex-1 text-left">{{ menu.label }}</span>
+              
+              <span
+                v-if="menu.badge && !collapsed"
+                :class="[
+                  'text-xs px-2 py-0.5 rounded-full font-medium',
+                  menu.badgeType === 'danger' ? 'bg-red-500/20 text-red-400' : 'bg-primary-500/20 text-primary-400'
+                ]"
+              >
+                {{ menu.badge }}
+              </span>
 
-            <!-- Tooltip for collapsed state -->
-            <div
-              v-if="collapsed"
-              class="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50"
-            >
-              {{ menu.label }}
-            </div>
-          </button>
+              <ChevronRight
+                v-if="menu.children && !collapsed"
+                :class="[
+                  'w-4 h-4 transition-transform duration-200',
+                  expandedMenus.includes(menu.id) ? 'rotate-90' : ''
+                ]"
+              />
 
-          <!-- Submenu -->
-          <Transition name="submenu">
-            <div v-if="menu.children && expandedMenus.includes(menu.id) && !collapsed" class="mt-1 ml-3">
-              <div class="space-y-0.5">
-                <button
-                  v-for="child in menu.children"
-                  :key="child.id"
-                  @click="handleMenuClick(child.id)"
-                  :class="[
-                    'w-full flex items-center gap-3 px-3 py-2 rounded-lg',
-                    'transition-all duration-200',
-                    activeMenu === child.id
-                      ? 'bg-primary-500/10 text-primary-400'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  ]"
-                >
-                  <component :is="child.icon || Circle" class="w-3.5 h-3.5 flex-shrink-0" />
-                  <span class="text-sm truncate">{{ child.label }}</span>
-                </button>
+              <div
+                v-if="collapsed"
+                class="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50"
+              >
+                {{ menu.label }}
               </div>
-            </div>
-          </Transition>
+            </button>
+
+            <Transition name="submenu">
+              <div v-if="menu.children && expandedMenus.includes(menu.id) && !collapsed" class="mt-1 ml-3">
+                <div class="space-y-0.5">
+                  <button
+                    v-for="child in menu.children"
+                    :key="child.id"
+                    @click="handleMenuClick(child.id)"
+                    :class="[
+                      'w-full flex items-center gap-3 px-3 py-2 rounded-lg',
+                      'transition-all duration-200',
+                      activeMenu === child.id
+                        ? 'bg-primary-500/10 text-primary-400'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ]"
+                  >
+                    <component :is="child.icon || Circle" class="w-3.5 h-3.5 flex-shrink-0" />
+                    <span class="text-sm truncate">{{ child.label }}</span>
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </div>
         </div>
       </div>
     </nav>
@@ -128,7 +124,6 @@ import {
   FileText,
   AlertTriangle,
   Search,
-  RefreshCw,
   Circle,
   ChevronLeft,
   ChevronRight,
@@ -136,19 +131,17 @@ import {
   Users,
   Server,
   Settings,
-  Key,
-  Database,
-  Layers,
-  Clock,
-  Zap,
-  Code,
   Network,
   Globe,
   History,
   Bug,
   Lightbulb,
   Map,
-  Bell,
+  Clock,
+  Zap,
+  Code,
+  Database,
+  Layers,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -158,7 +151,7 @@ const props = defineProps({
 
 const emit = defineEmits(['toggle', 'menu-change'])
 
-const expandedMenus = ref(['traffic', 'topology', 'tracing', 'metrics', 'logs', 'alerts', 'rca', 'management'])
+const expandedMenus = ref(['traffic', 'topology', 'tracing', 'metrics', 'logs', 'rca', 'management'])
 
 const menuItems = computed(() => [
   {
@@ -168,7 +161,7 @@ const menuItems = computed(() => [
   },
   {
     id: 'traffic',
-    label: '网络流量',
+    label: '流量分析',
     icon: TrendingUp,
     children: [
       { id: 'traffic-overview', label: '全局流量分析', icon: Globe },
@@ -224,16 +217,10 @@ const menuItems = computed(() => [
   },
   {
     id: 'alerts',
-    label: '告警中心',
+    label: '告警管理',
     icon: AlertTriangle,
     badge: '3',
     badgeType: 'danger',
-    children: [
-      { id: 'alerts-events', label: '告警事件', icon: AlertTriangle },
-      { id: 'alerts-rules', label: '告警规则', icon: Settings },
-      { id: 'alerts-notifications', label: '通知策略', icon: Bell },
-      { id: 'alerts-stats', label: '告警统计', icon: BarChart3 },
-    ],
   },
   {
     id: 'rca',
@@ -250,10 +237,9 @@ const menuItems = computed(() => [
     label: '管理中心',
     icon: Settings,
     children: [
-      { id: 'management-agents', label: 'Agent管理', icon: Server },
-      { id: 'management-users', label: '用户管理', icon: Users },
       { id: 'management-tenants', label: '租户管理', icon: Building2 },
-      { id: 'management-apikey', label: 'API Key', icon: Key },
+      { id: 'management-users', label: '用户管理', icon: Users },
+      { id: 'management-agents', label: 'Agent管理', icon: Server },
       { id: 'management-settings', label: '系统设置', icon: Settings },
     ],
   },
