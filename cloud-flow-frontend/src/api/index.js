@@ -1,16 +1,13 @@
 import axios from 'axios'
 
-// API Base URLs - these would be configured via environment variables in production
-const API_BASE = {
-  auth: 'http://localhost:8006',
-  tenant: 'http://localhost:8010',
-  controlPlane: 'http://localhost:8001',
-  query: 'http://localhost:8007',
-  alert: 'http://localhost:8009',
-  dataPlane: 'http://localhost:9102',
-}
+// 所有请求通过 nginx 反向代理转发到对应后端服务
+// nginx 代理规则：
+//   /api/     -> query-service:8007/api/
+//   /auth/    -> auth-service:8006/
+//   /tenant/  -> tenant-service:8010/
+//   /control/ -> control-plane:8001/
+//   /alert/   -> alert-engine:8009/
 
-// Create axios instances for each service
 const createApiClient = (baseURL) => {
   const client = axios.create({
     baseURL,
@@ -51,12 +48,12 @@ const createApiClient = (baseURL) => {
   return client
 }
 
-const authApi = createApiClient(API_BASE.auth)
-const tenantApi = createApiClient(API_BASE.tenant)
-const controlPlaneApi = createApiClient(API_BASE.controlPlane)
-const queryApi = createApiClient(API_BASE.query)
-const alertApi = createApiClient(API_BASE.alert)
-const dataPlaneApi = createApiClient(API_BASE.dataPlane)
+// 各服务 axios 实例（使用相对路径，由 nginx 代理到对应后端）
+const authApi = createApiClient('/auth')
+const tenantApi = createApiClient('/tenant')
+const controlPlaneApi = createApiClient('/control')
+const queryApi = createApiClient('/api')
+const alertApi = createApiClient('/alert')
 
 // Auth Service APIs
 export const authService = {
@@ -124,43 +121,43 @@ export const controlPlaneService = {
 // Query Service APIs
 export const queryService = {
   getOverview: () =>
-    queryApi.get('/api/overview'),
+    queryApi.get('/overview'),
 
   getMetrics: (params) =>
-    queryApi.get('/api/metrics', { params }),
+    queryApi.get('/metrics', { params }),
 
   getFlows: (params) =>
-    queryApi.get('/api/flows', { params }),
+    queryApi.get('/flows', { params }),
 
   getTraces: (params) =>
-    queryApi.get('/api/traces', { params }),
+    queryApi.get('/traces', { params }),
 
   getTopology: (params) =>
-    queryApi.get('/api/topology', { params }),
+    queryApi.get('/topology', { params }),
 
   getAlerts: (params) =>
-    queryApi.get('/api/alerts', { params }),
+    queryApi.get('/alerts', { params }),
 
   getOTELTraces: (params) =>
-    queryApi.get('/api/otel/traces', { params }),
+    queryApi.get('/otel/traces', { params }),
 
   getOTELMetrics: (params) =>
-    queryApi.get('/api/otel/metrics', { params }),
+    queryApi.get('/otel/metrics', { params }),
 
   getOTELLogs: (params) =>
-    queryApi.get('/api/otel/logs', { params }),
+    queryApi.get('/otel/logs', { params }),
 
   getOTELStats: () =>
-    queryApi.get('/api/otel/stats'),
+    queryApi.get('/otel/stats'),
 
   getRCA: (params) =>
-    queryApi.get('/api/rca', { params }),
+    queryApi.get('/rca', { params }),
 
   getCorrelation: (params) =>
-    queryApi.get('/api/correlation', { params }),
+    queryApi.get('/correlation', { params }),
 }
 
-// Alert Service APIs
+// Alert Engine APIs
 export const alertService = {
   getAlerts: (params) =>
     alertApi.get('/api/alerts', { params }),
@@ -187,30 +184,14 @@ export const alertService = {
     alertApi.delete('/api/rules/delete', { data: { rule_id: ruleId } }),
 }
 
-// Data Plane APIs
-export const dataPlaneService = {
-  getHealth: () =>
-    dataPlaneApi.get('/health'),
-
-  getMetrics: () =>
-    dataPlaneApi.get('/metrics'),
-
-  getSamplingConfig: () =>
-    dataPlaneApi.get('/api/sampling/config'),
-
-  getSamplingStats: () =>
-    dataPlaneApi.get('/api/sampling/stats'),
-}
-
 // Health check for all services
 export const healthCheck = async () => {
   const services = [
-    { name: 'auth', url: `${API_BASE.auth}/healthz` },
-    { name: 'tenant', url: `${API_BASE.tenant}/healthz` },
-    { name: 'control-plane', url: `${API_BASE.controlPlane}/healthz` },
-    { name: 'query', url: `${API_BASE.query}/healthz` },
-    { name: 'alert', url: `${API_BASE.alert}/healthz` },
-    { name: 'data-plane', url: `${API_BASE.dataPlane}/health` },
+    { name: 'auth', url: '/auth/healthz' },
+    { name: 'tenant', url: '/tenant/healthz' },
+    { name: 'control-plane', url: '/control/healthz' },
+    { name: 'query', url: '/api/healthz' },
+    { name: 'alert', url: '/alert/healthz' },
   ]
 
   const results = await Promise.allSettled(
@@ -233,6 +214,5 @@ export default {
   controlPlaneService,
   queryService,
   alertService,
-  dataPlaneService,
   healthCheck,
 }
