@@ -49,7 +49,9 @@ services:
 
   # TiDB init - create root@'%' user for container connections
   # Uses network_mode: service:tidb to share tidb's network namespace,
-  # so mysql connects as localhost (root@localhost) which TiDB allows by default
+  # so mysql connects as localhost which TiDB allows by default.
+  # Includes retry logic since TiDB HTTP healthcheck may pass before
+  # SQL connections are ready, and explicit --default-auth for TiDB compat.
   tidb-init:
     image: mysql:8.0
     container_name: cloudflow-tidb-init
@@ -57,11 +59,23 @@ services:
     depends_on:
       tidb:
         condition: service_healthy
-    command: >
-      mysql -h 127.0.0.1 -P 4000 -u root
-      -e "CREATE USER IF NOT EXISTS 'root'@'%%' IDENTIFIED BY '';
-          GRANT ALL PRIVILEGES ON *.* TO 'root'@'%%' WITH GRANT OPTION;
-          FLUSH PRIVILEGES;"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Waiting for TiDB to accept SQL connections..."
+        for i in $$(seq 1 30); do
+          if mysql -h 127.0.0.1 -P 4000 -u root --default-auth=mysql_native_password -e "SELECT 1" 2>/dev/null; then
+            echo "TiDB is ready, creating root@'%' user..."
+            mysql -h 127.0.0.1 -P 4000 -u root --default-auth=mysql_native_password -e "CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY ''; GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES;"
+            echo "root@'%' user created successfully"
+            exit 0
+          fi
+          echo "Attempt $$i/30 failed, retrying in 2s..."
+          sleep 2
+        done
+        echo "ERROR: TiDB never became ready for SQL connections"
+        exit 1
     restart: "no"
 
   # Redis（缓存/状态）
