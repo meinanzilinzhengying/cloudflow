@@ -222,7 +222,7 @@ func New(config *Config) (*Service, error) {
 		grpcOptions = append(grpcOptions, grpc.Creds(s.grpcCreds))
 	}
 	s.grpcServer = grpc.NewServer(grpcOptions...)
-	RegisterTopologyService(s.grpcServer, s)
+	svcproto.RegisterTopologyServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
 	return s, nil
