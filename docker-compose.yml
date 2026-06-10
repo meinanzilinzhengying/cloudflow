@@ -48,20 +48,21 @@ services:
       - cloudflow-net
 
   # TiDB init - create root@'%' user for container connections
+  # Uses network_mode: service:tidb to share tidb's network namespace,
+  # so mysql connects as localhost (root@localhost) which TiDB allows by default
   tidb-init:
     image: mysql:8.0
     container_name: cloudflow-tidb-init
+    network_mode: "service:tidb"
     depends_on:
       tidb:
         condition: service_healthy
     command: >
-      mysql -h tidb -P 4000 -u root
+      mysql -h 127.0.0.1 -P 4000 -u root
       -e "CREATE USER IF NOT EXISTS 'root'@'%%' IDENTIFIED BY '';
           GRANT ALL PRIVILEGES ON *.* TO 'root'@'%%' WITH GRANT OPTION;
           FLUSH PRIVILEGES;"
     restart: "no"
-    networks:
-      - cloudflow-net
 
   # Redis（缓存/状态）
   redis:
@@ -178,7 +179,7 @@ services:
       # 自动创建 Topic
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     volumes:
-      - kafka-data:/var/lib/kafka/data
+      - kafka-data-v2:/var/lib/kafka/data
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "127.0.0.1:9092"]
       interval: 15s
@@ -855,8 +856,8 @@ volumes:
     name: cloudflow-etcd-data
   clickhouse-data:
     name: cloudflow-clickhouse-data
-  kafka-data:
-    name: cloudflow-kafka-data
+  kafka-data-v2:
+    name: cloudflow-kafka-data-v2
   prometheus-data:
     name: cloudflow-prometheus-data
   alertmanager-data:
