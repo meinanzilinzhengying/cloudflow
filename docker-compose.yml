@@ -35,7 +35,7 @@ services:
       - "127.0.0.1:10080:10080"  # Status 端口 - 仅本地访问
     environment:
       TZ: Asia/Shanghai
-      MYSQL_ROOT_PASSWORD: "${CLOUD_FLOW_DB_PASSWORD:?请在 .env 文件中设置 CLOUD_FLOW_DB_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: ""
     volumes:
       - tidb-data:/var/lib/tidb
     healthcheck:
@@ -44,6 +44,22 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    networks:
+      - cloudflow-net
+
+  # TiDB init - create root@'%' user for container connections
+  tidb-init:
+    image: mysql:8.0
+    container_name: cloudflow-tidb-init
+    depends_on:
+      tidb:
+        condition: service_healthy
+    command: >
+      mysql -h tidb -P 4000 -u root
+      -e "CREATE USER IF NOT EXISTS 'root'@'%%' IDENTIFIED BY '';
+          GRANT ALL PRIVILEGES ON *.* TO 'root'@'%%' WITH GRANT OPTION;
+          FLUSH PRIVILEGES;"
+    restart: "no"
     networks:
       - cloudflow-net
 
@@ -203,8 +219,8 @@ services:
     container_name: cloudflow-auth
     restart: unless-stopped
     depends_on:
-      tidb:
-        condition: service_healthy
+      tidb-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     ports:
@@ -221,7 +237,7 @@ services:
       SUPER_ADMIN_ROLE: super_admin
       TIDB_ADDR: "tidb:4000"
       TIDB_USER: root
-      TIDB_PASSWORD: "${CLOUD_FLOW_DB_PASSWORD}"
+      TIDB_PASSWORD: ""
       TIDB_DATABASE: cloudflow_auth
       REDIS_ADDR: "redis:6379"
     healthcheck:
@@ -241,8 +257,8 @@ services:
     container_name: cloudflow-tenant
     restart: unless-stopped
     depends_on:
-      tidb:
-        condition: service_healthy
+      tidb-init:
+        condition: service_completed_successfully
       auth-service:
         condition: service_healthy
     ports:
@@ -255,7 +271,7 @@ services:
       HTTP_ADDR: ":8010"
       TIDB_ADDR: "tidb:4000"
       TIDB_USER: root
-      TIDB_PASSWORD: "${CLOUD_FLOW_DB_PASSWORD}"
+      TIDB_PASSWORD: ""
       TIDB_DATABASE: cloudflow_tenant
       AUTH_ADDR: "auth-service:9006"
     healthcheck:
@@ -438,8 +454,8 @@ services:
     container_name: cloudflow-alert
     restart: unless-stopped
     depends_on:
-      tidb:
-        condition: service_healthy
+      tidb-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       control-plane:
@@ -454,7 +470,7 @@ services:
       HTTP_ADDR: ":8009"
       TIDB_ADDR: "tidb:4000"
       TIDB_USER: root
-      TIDB_PASSWORD: "${CLOUD_FLOW_DB_PASSWORD}"
+      TIDB_PASSWORD: ""
       TIDB_DATABASE: cloudflow_alert
       REDIS_ADDR: "redis:6379"
       CLICKHOUSE_ADDR: "clickhouse:9000"
@@ -707,7 +723,7 @@ services:
       - "8428:8428"  # HTTP
     command:
       - "--storageDataPath=/var/lib/victoria-metrics-data"
-      - "--httpListenAddress=:8428"
+      - "--httpListenAddr=:8428"
       - "--retentionPeriod=30d"
     volumes:
       - victoriametrics-data:/var/lib/victoria-metrics-data
