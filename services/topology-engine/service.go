@@ -284,7 +284,7 @@ func (s *Service) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequ
 	return &svcproto.HealthCheckResponse{
 		Healthy: true,
 		Version: "1.0.0",
-		Uptime:  time.Now().Unix() - s.startTime,
+		Uptime:  int64(time.Since(s.startTime).Seconds()),
 	}, nil
 }
 
