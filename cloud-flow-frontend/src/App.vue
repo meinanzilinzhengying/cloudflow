@@ -38,10 +38,10 @@
           <TopologyDiff v-else-if="activeMenu === 'topology-diff'" />
 
           <!-- Tracing -->
-          <TracingQuery v-else-if="activeMenu === 'tracing-query'" />
+          <TracingOverview v-else-if="activeMenu === 'tracing-query'" />
           <TracingSlow v-else-if="activeMenu === 'tracing-slow'" />
-          <TracingErrors v-else-if="activeMenu === 'tracing-errors'" />
-          <TracingCalls v-else-if="activeMenu === 'tracing-calls'" />
+          <TracingError v-else-if="activeMenu === 'tracing-errors'" />
+          <TracingService v-else-if="activeMenu === 'tracing-calls'" />
 
           <!-- Metrics -->
           <MetricsHost v-else-if="activeMenu === 'metrics-host'" />
@@ -50,9 +50,7 @@
           <MetricsCustom v-else-if="activeMenu === 'metrics-custom'" />
 
           <!-- Logs -->
-          <LogsSearch v-else-if="activeMenu === 'logs-search'" />
-          <LogsAggregate v-else-if="activeMenu === 'logs-aggregate'" />
-          <LogsCorrelation v-else-if="activeMenu === 'logs-correlation'" />
+          <Logs v-else-if="activeMenu === 'logs-search' || activeMenu === 'logs-aggregate' || activeMenu === 'logs-correlation'" />
 
           <!-- Alerts -->
           <AlertCenter v-else-if="activeMenu === 'alerts-events' || activeMenu === 'alerts-rules' || activeMenu === 'alerts-notifications' || activeMenu === 'alerts-stats'" />
@@ -63,10 +61,10 @@
           <RCATimeline v-else-if="activeMenu === 'rca-timeline'" />
 
           <!-- Management -->
-          <ManagementAgents v-else-if="activeMenu === 'management-agents'" />
-          <ManagementUsers v-else-if="activeMenu === 'management-users'" />
-          <ManagementTenants v-else-if="activeMenu === 'management-tenants'" />
-          <ManagementAPIKey v-else-if="activeMenu === 'management-apikey'" />
+          <ManagementAgent v-else-if="activeMenu === 'management-agents'" />
+          <ManagementUser v-else-if="activeMenu === 'management-users'" />
+          <ManagementTenant v-else-if="activeMenu === 'management-tenants'" />
+          <ManagementApiKey v-else-if="activeMenu === 'management-apikey'" />
           <ManagementSettings v-else-if="activeMenu === 'management-settings'" />
 
           <!-- Default -->
@@ -118,10 +116,10 @@ import TopologyNamespace from './components/pages/topology/TopologyNamespace.vue
 import TopologyDiff from './components/pages/topology/TopologyDiff.vue'
 
 // Tracing
-import TracingQuery from './components/pages/tracing/TracingOverview.vue'
+import TracingOverview from './components/pages/tracing/TracingOverview.vue'
 import TracingSlow from './components/pages/tracing/TracingSlow.vue'
-import TracingErrors from './components/pages/tracing/TracingError.vue'
-import TracingCalls from './components/pages/tracing/TracingService.vue'
+import TracingError from './components/pages/tracing/TracingError.vue'
+import TracingService from './components/pages/tracing/TracingService.vue'
 
 // Metrics
 import MetricsHost from './components/pages/metrics/MetricsHost.vue'
@@ -130,9 +128,7 @@ import MetricsService from './components/pages/metrics/MetricsService.vue'
 import MetricsCustom from './components/pages/metrics/MetricsCustom.vue'
 
 // Logs
-import LogsSearch from './components/pages/logs/LogsSearch.vue'
-import LogsAggregate from './components/pages/logs/LogsAggregate.vue'
-import LogsCorrelation from './components/pages/logs/LogsCorrelation.vue'
+import Logs from './components/pages/Logs.vue'
 
 // Alerts
 import AlertCenter from './components/pages/alerts/AlertCenter.vue'
@@ -143,10 +139,10 @@ import RCACorrelation from './components/pages/rca/RcaCorrelation.vue'
 import RCATimeline from './components/pages/rca/RcaTimeline.vue'
 
 // Management
-import ManagementAgents from './components/pages/management/ManagementAgent.vue'
-import ManagementUsers from './components/pages/management/ManagementUser.vue'
-import ManagementTenants from './components/pages/management/ManagementTenant.vue'
-import ManagementAPIKey from './components/pages/management/ManagementApiKey.vue'
+import ManagementAgent from './components/pages/management/ManagementAgent.vue'
+import ManagementUser from './components/pages/management/ManagementUser.vue'
+import ManagementTenant from './components/pages/management/ManagementTenant.vue'
+import ManagementApiKey from './components/pages/management/ManagementApiKey.vue'
 import ManagementSettings from './components/pages/management/ManagementSettings.vue'
 
 const isDark = ref(false)

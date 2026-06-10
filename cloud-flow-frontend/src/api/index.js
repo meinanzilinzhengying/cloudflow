@@ -2,12 +2,12 @@ import axios from 'axios'
 
 // API Base URLs - these would be configured via environment variables in production
 const API_BASE = {
-  auth: 'http://localhost:8006',
-  tenant: 'http://localhost:8010',
-  controlPlane: 'http://localhost:8001',
-  query: 'http://localhost:8007',
-  alert: 'http://localhost:8009',
-  dataPlane: 'http://localhost:9102',
+  auth: '/api/auth',
+  tenant: '/api/tenant',
+  controlPlane: '/api/control',
+  query: '/api/query',
+  alert: '/api/alert',
+  dataPlane: '/api/dataplane',
 }
 
 // Create axios instances for each service
@@ -61,130 +61,130 @@ const dataPlaneApi = createApiClient(API_BASE.dataPlane)
 // Auth Service APIs
 export const authService = {
   login: (username, password) =>
-    authApi.post('/api/login', { username, password }),
+    authApi.post('/login', { username, password }),
 
   verify: (token) =>
-    authApi.post('/api/verify', { token }),
+    authApi.post('/verify', { token }),
 
   refresh: (token) =>
-    authApi.post('/api/refresh', { token }),
+    authApi.post('/refresh', { token }),
 
   revoke: (token) =>
-    authApi.post('/api/revoke', { token }),
+    authApi.post('/revoke', { token }),
 
   getUsers: () =>
-    authApi.get('/api/users'),
+    authApi.get('/users'),
 
   createUser: (userData) =>
-    authApi.post('/api/users/create', userData),
+    authApi.post('/users/create', userData),
 
   updateUser: (userData) =>
-    authApi.post('/api/users/update', userData),
+    authApi.post('/users/update', userData),
 
   deleteUser: (username) =>
-    authApi.delete('/api/users/delete', { data: { username } }),
+    authApi.delete('/users/delete', { data: { username } }),
 
   getRoles: () =>
-    authApi.get('/api/roles'),
+    authApi.get('/roles'),
 
   checkPermission: (action, resource) =>
-    authApi.post('/api/permissions/check', { action, resource }),
+    authApi.post('/permissions/check', { action, resource }),
 }
 
 // Tenant Service APIs
 export const tenantService = {
   getTenants: () =>
-    tenantApi.get('/api/tenants'),
+    tenantApi.get('/tenants'),
 
   createTenant: (tenantData) =>
-    tenantApi.post('/api/tenants/create', tenantData),
+    tenantApi.post('/tenants/create', tenantData),
 
   updateTenant: (tenantData) =>
-    tenantApi.post('/api/tenants/update', tenantData),
+    tenantApi.post('/tenants/update', tenantData),
 
   deleteTenant: (tenantId) =>
-    tenantApi.post('/api/tenants/delete', { tenant_id: tenantId }),
+    tenantApi.post('/tenants/delete', { tenant_id: tenantId }),
 
   getProjects: () =>
-    tenantApi.get('/api/projects'),
+    tenantApi.get('/projects'),
 
   getQuotas: () =>
-    tenantApi.get('/api/quotas'),
+    tenantApi.get('/quotas'),
 }
 
 // Control Plane APIs
 export const controlPlaneService = {
   getAgents: () =>
-    controlPlaneApi.get('/api/agents'),
+    controlPlaneApi.get('/agents'),
 
   getEdges: () =>
-    controlPlaneApi.get('/api/edges'),
+    controlPlaneApi.get('/edges'),
 }
 
 // Query Service APIs
 export const queryService = {
   getOverview: () =>
-    queryApi.get('/api/overview'),
+    queryApi.get('/overview'),
 
   getMetrics: (params) =>
-    queryApi.get('/api/metrics', { params }),
+    queryApi.get('/metrics', { params }),
 
   getFlows: (params) =>
-    queryApi.get('/api/flows', { params }),
+    queryApi.get('/flows', { params }),
 
   getTraces: (params) =>
-    queryApi.get('/api/traces', { params }),
+    queryApi.get('/traces', { params }),
 
   getTopology: (params) =>
-    queryApi.get('/api/topology', { params }),
+    queryApi.get('/topology', { params }),
 
   getAlerts: (params) =>
-    queryApi.get('/api/alerts', { params }),
+    queryApi.get('/alerts', { params }),
 
   getOTELTraces: (params) =>
-    queryApi.get('/api/otel/traces', { params }),
+    queryApi.get('/otel/traces', { params }),
 
   getOTELMetrics: (params) =>
-    queryApi.get('/api/otel/metrics', { params }),
+    queryApi.get('/otel/metrics', { params }),
 
   getOTELLogs: (params) =>
-    queryApi.get('/api/otel/logs', { params }),
+    queryApi.get('/otel/logs', { params }),
 
   getOTELStats: () =>
-    queryApi.get('/api/otel/stats'),
+    queryApi.get('/otel/stats'),
 
   getRCA: (params) =>
-    queryApi.get('/api/rca', { params }),
+    queryApi.get('/rca', { params }),
 
   getCorrelation: (params) =>
-    queryApi.get('/api/correlation', { params }),
+    queryApi.get('/correlation', { params }),
 }
 
 // Alert Service APIs
 export const alertService = {
   getAlerts: (params) =>
-    alertApi.get('/api/alerts', { params }),
+    alertApi.get('/alerts', { params }),
 
   createAlert: (alertData) =>
-    alertApi.post('/api/alerts/create', alertData),
+    alertApi.post('/alerts/create', alertData),
 
   updateAlert: (alertData) =>
-    alertApi.post('/api/alerts/update', alertData),
+    alertApi.post('/alerts/update', alertData),
 
   resolveAlert: (alertId) =>
-    alertApi.post('/api/alerts/resolve', { alert_id: alertId }),
+    alertApi.post('/alerts/resolve', { alert_id: alertId }),
 
   getRules: () =>
-    alertApi.get('/api/rules'),
+    alertApi.get('/rules'),
 
   createRule: (ruleData) =>
-    alertApi.post('/api/rules/create', ruleData),
+    alertApi.post('/rules/create', ruleData),
 
   updateRule: (ruleData) =>
-    alertApi.post('/api/rules/update', ruleData),
+    alertApi.post('/rules/update', ruleData),
 
   deleteRule: (ruleId) =>
-    alertApi.delete('/api/rules/delete', { data: { rule_id: ruleId } }),
+    alertApi.delete('/rules/delete', { data: { rule_id: ruleId } }),
 }
 
 // Data Plane APIs
@@ -196,10 +196,10 @@ export const dataPlaneService = {
     dataPlaneApi.get('/metrics'),
 
   getSamplingConfig: () =>
-    dataPlaneApi.get('/api/sampling/config'),
+    dataPlaneApi.get('/sampling/config'),
 
   getSamplingStats: () =>
-    dataPlaneApi.get('/api/sampling/stats'),
+    dataPlaneApi.get('/sampling/stats'),
 }
 
 // Health check for all services

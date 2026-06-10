@@ -718,7 +718,7 @@ services:
     networks:
       - cloudflow-net
 
-  # Frontend（业务监控前端 - 保留）
+  # Frontend（业务监控前端 - 8080）
   frontend:
     build:
       context: cloud-flow-frontend
@@ -726,15 +726,20 @@ services:
     container_name: cloudflow-frontend
     restart: unless-stopped
     depends_on:
+      auth-service:
+        condition: service_healthy
+      tenant-service:
+        condition: service_healthy
+      control-plane:
+        condition: service_healthy
       query-service:
         condition: service_healthy
-      auth-service:
+      alert-engine:
         condition: service_healthy
     ports:
       - "8080:80"
     environment:
       TZ: Asia/Shanghai
-      VITE_API_URL: http://localhost:8007
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
       interval: 10s
@@ -744,33 +749,7 @@ services:
     networks:
       - cloudflow-net
 
-  # Business Frontend（业务监控前端 - 新）
-  business-frontend:
-    build:
-      context: cloud-flow-business
-      dockerfile: Dockerfile
-    container_name: cloudflow-business-frontend
-    restart: unless-stopped
-    depends_on:
-      query-service:
-        condition: service_healthy
-      alert-engine:
-        condition: service_healthy
-    ports:
-      - "3002:80"
-    environment:
-      TZ: Asia/Shanghai
-      VITE_API_URL: http://localhost:8007
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    networks:
-      - cloudflow-net
-
-  # Platform Frontend（平台自监控前端 - 新）
+  # Platform Frontend（平台自监控前端）
   platform-frontend:
     build:
       context: cloud-flow-platform
@@ -780,6 +759,8 @@ services:
     depends_on:
       control-plane:
         condition: service_healthy
+      alert-engine:
+        condition: service_healthy
       prometheus:
         condition: service_healthy
       loki:
@@ -788,9 +769,6 @@ services:
       - "3003:80"
     environment:
       TZ: Asia/Shanghai
-      VITE_PROMETHEUS_URL: http://localhost:9091
-      VITE_LOKI_URL: http://localhost:3100
-      VITE_CONTROL_PLANE_URL: http://localhost:8001
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
       interval: 10s
