@@ -1,15 +1,15 @@
 <template>
   <aside
     :class="[
-      'fixed left-0 top-0 bottom-0 z-40 flex flex-col',
+      'fixed left-0 top-0 z-40 flex flex-col h-screen',
       'bg-slate-900 dark:bg-dark-950',
       'border-r border-slate-800 dark:border-dark-800',
-      'transition-all duration-300 ease-in-out',
+      'transition-all duration-300 ease-in-out overflow-hidden',
       collapsed ? 'w-[72px]' : 'w-[260px]'
     ]"
   >
     <!-- Logo -->
-    <div class="h-16 flex items-center px-4 border-b border-slate-800 dark:border-dark-800">
+    <div class="h-16 flex-shrink-0 flex items-center px-4 border-b border-slate-800 dark:border-dark-800">
       <div class="flex items-center gap-3 overflow-hidden">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary-500/25">
           <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -26,7 +26,7 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="flex-1 overflow-y-auto py-4 px-3 scrollbar-hide">
+    <nav class="flex-1 min-h-0 overflow-y-auto py-4 px-3 sidebar-nav-scroll">
       <div v-for="menu in menuItems" :key="menu.id" class="mb-1">
         <!-- Parent Menu -->
         <div class="relative">
@@ -105,7 +105,7 @@
     </nav>
 
     <!-- Footer -->
-    <div class="p-4 border-t border-slate-800 dark:border-dark-800">
+    <div class="flex-shrink-0 p-4 border-t border-slate-800 dark:border-dark-800">
       <button
         @click="$emit('toggle')"
         class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200"
@@ -287,6 +287,28 @@ const handleMenuClick = (menuId) => {
 </script>
 
 <style scoped>
+.sidebar-nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
 .submenu-enter-active,
 .submenu-leave-active {
   transition: all 0.2s ease;
