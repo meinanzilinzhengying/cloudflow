@@ -53,15 +53,15 @@ const (
 
 	// MaxVersionHistory 最大版本历史记录数 (用于 Diff 计算)
 	MaxVersionHistory = 10
-
-	// supportedGraphTypes 支持的图类型列表
-	supportedGraphTypes = []string{
-		graph.GraphTypeService,
-		graph.GraphTypeProcess,
-		graph.GraphTypePod,
-		graph.GraphTypeNamespace,
-	}
 )
+
+// supportedGraphTypes 支持的图类型列表
+var supportedGraphTypes = []string{
+	graph.GraphTypeService,
+	graph.GraphTypeProcess,
+	graph.GraphTypePod,
+	graph.GraphTypeNamespace,
+}
 
 // ---------------------------------------------------------------------------
 // BuilderConfig (占位，传递给 graph builder 的配置)
