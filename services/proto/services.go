@@ -1450,14 +1450,13 @@ type AuthServiceServer interface {
 	Authenticate(ctx context.Context, req *AuthenticateRequest) (*AuthenticateResponse, error)
 	ValidateToken(ctx context.Context, req *ValidateTokenRequest) (*ValidateTokenResponse, error)
 	Authorize(ctx context.Context, req *AuthorizeRequest) (*AuthorizeResponse, error)
-	// New RBAC methods:
 	CreateRole(ctx context.Context, req *CreateRoleRequest) (*CreateRoleResponse, error)
 	BindUserRole(ctx context.Context, req *BindUserRoleRequest) (*BindUserRoleResponse, error)
 	CreatePolicy(ctx context.Context, req *CreatePolicyRequest) (*CreatePolicyResponse, error)
 	CheckPermission(ctx context.Context, req *CheckPermissionRequest) (*CheckPermissionResponse, error)
 	OIDCCallback(ctx context.Context, req *OIDCCallbackRequest) (*AuthenticateResponse, error)
-	// New security method:
 	RevokeToken(ctx context.Context, req *RevokeTokenRequest) (*RevokeTokenResponse, error)
+	ValidateAPIKey(ctx context.Context, req *ValidateAPIKeyRequest) (*ValidateAPIKeyResponse, error)
 }
 
 // TenantServiceServer tenant-service gRPC 服务
@@ -1517,6 +1516,10 @@ func (UnimplementedAuthServiceServer) OIDCCallback(ctx context.Context, req *OID
 }
 
 func (UnimplementedAuthServiceServer) RevokeToken(ctx context.Context, req *RevokeTokenRequest) (*RevokeTokenResponse, error) {
+	return nil, nil
+}
+
+func (UnimplementedAuthServiceServer) ValidateAPIKey(ctx context.Context, req *ValidateAPIKeyRequest) (*ValidateAPIKeyResponse, error) {
 	return nil, nil
 }
 

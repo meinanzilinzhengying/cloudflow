@@ -656,6 +656,24 @@ func (s *Service) RevokeToken(ctx context.Context, req *svcproto.RevokeTokenRequ
 	return &svcproto.RevokeTokenResponse{Success: true}, nil
 }
 
+// ValidateAPIKey 验证 API Key
+func (s *Service) ValidateAPIKey(ctx context.Context, req *svcproto.ValidateAPIKeyRequest) (*svcproto.ValidateAPIKeyResponse, error) {
+	if req.ApiKey == "" {
+		return &svcproto.ValidateAPIKeyResponse{Valid: false}, nil
+	}
+
+	// 从 securityManager 验证
+	if s.securityManager != nil {
+		valid, err := s.securityManager.ValidateAPIKey(ctx, req.ApiKey)
+		if err != nil {
+			return &svcproto.ValidateAPIKeyResponse{Valid: false}, nil
+		}
+		return &svcproto.ValidateAPIKeyResponse{Valid: valid}, nil
+	}
+
+	return &svcproto.ValidateAPIKeyResponse{Valid: false}, nil
+}
+
 // ============================================================================
 // P0-02 修复: 用户管理 (TiDB 持久化)
 // ============================================================================
