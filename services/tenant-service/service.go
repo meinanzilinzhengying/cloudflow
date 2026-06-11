@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -177,7 +178,7 @@ func New(config *Config) (*Service, error) {
 		grpcOptions = append(grpcOptions, grpc.Creds(s.grpcCreds))
 	}
 	s.grpcServer = grpc.NewServer(grpcOptions...)
-	RegisterTenantService(s.grpcServer, s)
+	svcproto.RegisterTenantServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
 	return s, nil
@@ -767,7 +768,7 @@ func (s *Service) ListTenantMembers(ctx context.Context, req *svcproto.ListTenan
 			&member.TenantId,
 			&member.UserId,
 			&member.Role,
-			&member.CreatedAt,
+			&member.JoinedAt,
 		); err != nil {
 			continue
 		}
