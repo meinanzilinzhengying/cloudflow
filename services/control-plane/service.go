@@ -198,10 +198,7 @@ func (s *Service) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthzHandler)
 	
-	// P1-05 修复: 添加认证中间件保护管理 API
 	protected := s.authMiddleware(mux)
-	protected.HandleFunc("/api/agents", s.listAgentsHandler)
-	protected.HandleFunc("/api/edges", s.listEdgesHandler)
 
 	s.httpServer = &http.Server{
 		Addr:    s.config.HttpAddr,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/meinanzilinzhengying/cloudflow/services/control-plane"
@@ -17,6 +18,14 @@ func main() {
 	flag.StringVar(&cfg.GrpcAddr, "grpc-addr", cfg.GrpcAddr, "gRPC listen address")
 	flag.StringVar(&cfg.HttpAddr, "http-addr", cfg.HttpAddr, "HTTP listen address")
 	flag.Parse()
+
+	// 从环境变量覆盖配置
+	if env := os.Getenv("ETCD_ENDPOINTS"); env != "" {
+		cfg.EtcdEndpoints = strings.Split(env, ",")
+	}
+	if env := os.Getenv("ETCD_PREFIX"); env != "" {
+		cfg.EtcdPrefix = env
+	}
 
 	svc, err := controlplane.New(cfg)
 	if err != nil {
