@@ -73,12 +73,7 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:2379:2379"
-    command:
-      - --name=etcd
-      - --advertise-client-urls=http://0.0.0.0:2379
-      - --listen-client-urls=http://0.0.0.0:2379
-      - --initial-cluster-state=new
-      - --initial-cluster-token=cloudflow-etcd-token
+    command: etcd --name=etcd --advertise-client-urls=http://0.0.0.0:2379 --listen-client-urls=http://0.0.0.0:2379 --initial-cluster-state=new --initial-cluster-token=cloudflow-etcd-token
     volumes:
       - etcd-data:/etcd-data
     healthcheck:
