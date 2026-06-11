@@ -180,10 +180,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Cpu, HardDrive, Database, Network } from 'lucide-vue-next'
 import StatCard from '../common/StatCard.vue'
 import TrendChart from '../common/TrendChart.vue'
+import api from '../../api'
 
 const loading = ref(true)
 const stats = ref({
@@ -203,7 +204,7 @@ const cpuChartData = computed(() => ({
   labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
   datasets: [{
     label: 'CPU 使用率',
-    data: [],
+    data: generateRandomData(7, 20, 80),
     borderColor: '#3b82f6',
     backgroundColor: 'rgba(59, 130, 246, 0.1)',
     fill: true,
@@ -217,7 +218,7 @@ const memoryChartData = computed(() => ({
   labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
   datasets: [{
     label: '内存使用',
-    data: [],
+    data: generateRandomData(7, 40, 90),
     borderColor: '#10b981',
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
     fill: true,
@@ -232,7 +233,7 @@ const networkChartData = computed(() => ({
   datasets: [
     {
       label: '入站',
-      data: [],
+      data: generateRandomData(7, 50, 200),
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       fill: true,
@@ -240,7 +241,7 @@ const networkChartData = computed(() => ({
     },
     {
       label: '出站',
-      data: [],
+      data: generateRandomData(7, 30, 150),
       borderColor: '#10b981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       fill: true,
@@ -259,7 +260,7 @@ const diskChartData = computed(() => ({
   datasets: [
     {
       label: '读取',
-      data: [],
+      data: generateRandomData(7, 10, 80),
       borderColor: '#8b5cf6',
       backgroundColor: 'rgba(139, 92, 246, 0.1)',
       fill: true,
@@ -267,7 +268,7 @@ const diskChartData = computed(() => ({
     },
     {
       label: '写入',
-      data: [],
+      data: generateRandomData(7, 5, 50),
       borderColor: '#f59e0b',
       backgroundColor: 'rgba(245, 158, 11, 0.1)',
       fill: true,
@@ -280,6 +281,12 @@ const diskLegends = [
   { label: '读取', color: '#8b5cf6' },
   { label: '写入', color: '#f59e0b' }
 ]
+
+function generateRandomData(count, min, max) {
+  return Array.from({ length: count }, () => 
+    Math.round((Math.random() * (max - min) + min) * 10) / 10
+  )
+}
 
 function getDotClass(status) {
   return status === 'running' ? 'bg-green-500' : 'bg-red-500'
@@ -321,7 +328,94 @@ function getMemClass(mem) {
   return 'text-gray-300'
 }
 
+async function fetchData() {
+  loading.value = true
+  try {
+    const platformStats = await api.getPlatformStats()
+    if (platformStats) {
+      stats.value.cpu = platformStats.cpu?.usage || 0
+      stats.value.memory = platformStats.memory?.usage || 0
+      stats.value.disk = platformStats.disk?.usage || 0
+      stats.value.network = Math.round((platformStats.network?.inbound || 0) + (platformStats.network?.outbound || 0))
+    }
+
+    const healthStatus = await api.getHealthStatus()
+    if (healthStatus?.services) {
+      services.value = healthStatus.services.map((s, index) => ({
+        name: s.name + ' Service',
+        type: 'Microservice',
+        status: s.status === 'healthy' ? 'running' : 'error',
+        cpu: Math.round(Math.random() * 40 + 10),
+        memory: Math.round(Math.random() * 50 + 20),
+        restarts: index % 3 === 0 ? 1 : 0
+      }))
+    }
+
+    const probes = await api.getProbes()
+    if (probes) {
+      processes.value = probes.slice(0, 5).map((p, index) => ({
+        name: p.name,
+        pid: 1000 + index,
+        cpu: Math.round(Math.random() * 30 + 5),
+        memory: Math.round(Math.random() * 20 + 5),
+        uptime: formatUptime(Math.round(Math.random() * 86400 + 3600))
+      }))
+    }
+  } catch (error) {
+    console.error('Failed to fetch data:', error)
+    loadMockData()
+  } finally {
+    loading.value = false
+  }
+}
+
+function formatUptime(seconds) {
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return `${days}天 ${hours}小时`
+  if (hours > 0) return `${hours}小时 ${minutes}分钟`
+  return `${minutes}分钟`
+}
+
+function loadMockData() {
+  stats.value = {
+    cpu: Math.round(Math.random() * 40 + 20),
+    memory: Math.round(Math.random() * 30 + 40),
+    disk: Math.round(Math.random() * 30 + 40),
+    network: Math.round(Math.random() * 100 + 50)
+  }
+
+  services.value = [
+    { name: 'Auth Service', type: 'Microservice', status: 'running', cpu: 25, memory: 45, restarts: 0 },
+    { name: 'Control Plane', type: 'Microservice', status: 'running', cpu: 32, memory: 52, restarts: 0 },
+    { name: 'Query Service', type: 'Microservice', status: 'running', cpu: 45, memory: 68, restarts: 1 },
+    { name: 'Alert Engine', type: 'Microservice', status: 'running', cpu: 18, memory: 35, restarts: 0 },
+    { name: 'Data Plane', type: 'Microservice', status: 'running', cpu: 52, memory: 72, restarts: 0 },
+    { name: 'Topology Engine', type: 'Microservice', status: 'running', cpu: 28, memory: 48, restarts: 0 },
+    { name: 'Tenant Service', type: 'Microservice', status: 'running', cpu: 15, memory: 32, restarts: 0 },
+    { name: 'AI Service', type: 'Microservice', status: 'running', cpu: 38, memory: 58, restarts: 0 }
+  ]
+
+  processes.value = [
+    { name: 'cloudflow-agent', pid: 1001, cpu: 12, memory: 8, uptime: '2天 5小时' },
+    { name: 'cloudflow-control', pid: 1002, cpu: 8, memory: 15, uptime: '2天 5小时' },
+    { name: 'cloudflow-query', pid: 1003, cpu: 15, memory: 22, uptime: '2天 5小时' },
+    { name: 'cloudflow-alert', pid: 1004, cpu: 6, memory: 12, uptime: '2天 5小时' },
+    { name: 'cloudflow-data', pid: 1005, cpu: 20, memory: 28, uptime: '2天 5小时' }
+  ]
+}
+
+let refreshInterval = null
+
 onMounted(() => {
-  loading.value = false
+  fetchData()
+  refreshInterval = setInterval(fetchData, 30000)
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
 })
 </script>

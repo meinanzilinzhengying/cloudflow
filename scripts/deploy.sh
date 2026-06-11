@@ -141,7 +141,7 @@ main() {
     section "部署完成"
     info ""
     info "服务访问地址："
-    info "  📊 业务监控前端: http://$HOST_IP:3002"
+    info "  📊 业务监控前端: http://$HOST_IP:8080"
     info "  🔧 平台自监控前端: http://$HOST_IP:3003"
     info "  📈 Grafana:    http://$HOST_IP:3001"
     info "  📉 Prometheus: http://$HOST_IP:9091"

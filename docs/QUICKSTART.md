@@ -53,9 +53,8 @@ docker compose ps
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| 业务监控前端 | http://your-server-ip:3002 | 监控业务流量、分析网络数据 |
-| 平台自监控前端 | http://your-server-ip:3003 | 监控平台自身状态 |
-| 旧版前端 | http://your-server-ip:8080 | 保留用于兼容 |
+| 业务监控前端 | http://your-server-ip:8080 | 流量分析、服务拓扑、链路追踪、告警管理 |
+| 平台自监控前端 | http://your-server-ip:3003 | 平台自监控、探针管理、AI 分析 |
 
 ### 可观测性工具
 
