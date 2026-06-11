@@ -46,15 +46,15 @@ type Config struct {
 	HttpAddr    string // :8007
 
 	// 后端连接
-	DataPlaneAddr        string
-	TopologyAddr         string
-	AlertAddr            string
-	ClickHouseAddr       string
-	ClickHouseUser       string
-	ClickHousePassword   string
-	ClickHouseDatabase   string
-	VictoriaMetricsAddr  string
-	LokiAddr             string
+	DataPlaneAddr       string
+	TopologyAddr        string
+	AlertAddr           string
+	ClickHouseAddr      string
+	ClickHouseUser      string
+	ClickHousePassword  string
+	ClickHouseDatabase  string
+	VictoriaMetricsAddr string
+	LokiAddr            string
 
 	// 查询配置
 	QueryTimeout         time.Duration
@@ -71,20 +71,20 @@ type Config struct {
 
 func DefaultConfig() *Config {
 	return &Config{
-		ServiceName:         "query-service",
-		Version:             "1.0.0",
-		GrpcAddr:            ":9007",
-		HttpAddr:            ":8007",
-		ClickHouseAddr:      "clickhouse:9000",
-		ClickHouseUser:      "default",
-		ClickHousePassword:  "",
-		ClickHouseDatabase:  "cloudflow",
-		VictoriaMetricsAddr: "http://victoriametrics:8428",
-		LokiAddr:            "http://loki:3100",
-		QueryTimeout:        30 * time.Second,
+		ServiceName:          "query-service",
+		Version:              "1.0.0",
+		GrpcAddr:             ":9007",
+		HttpAddr:             ":8007",
+		ClickHouseAddr:       "clickhouse:9000",
+		ClickHouseUser:       "default",
+		ClickHousePassword:   "",
+		ClickHouseDatabase:   "cloudflow",
+		VictoriaMetricsAddr:  "http://victoriametrics:8428",
+		LokiAddr:             "http://loki:3100",
+		QueryTimeout:         30 * time.Second,
 		MaxConcurrentQueries: 1000,
-		TLSEnabled:          false,
-		TLSInsecureSkip:    false,
+		TLSEnabled:           false,
+		TLSInsecureSkip:      false,
 	}
 }
 
@@ -117,7 +117,7 @@ type Service struct {
 	httpServer *http.Server
 
 	// OTLP
-	otlpReceiver       *otel.OTLPReceiver
+	otlpReceiver      *otel.OTLPReceiver
 	correlationEngine *correlation.CorrelationEngine
 
 	// 统计
@@ -230,11 +230,11 @@ func (s *Service) initClickHouse() error {
 	// 构建 DSN，支持用户名和密码认证
 	var dsn string
 	if s.config.ClickHouseUser != "" && s.config.ClickHousePassword != "" {
-		dsn = fmt.Sprintf("clickhouse://%s:%s@%s/%s", 
-			s.config.ClickHouseUser, s.config.ClickHousePassword, 
+		dsn = fmt.Sprintf("clickhouse://%s:%s@%s/%s",
+			s.config.ClickHouseUser, s.config.ClickHousePassword,
 			s.config.ClickHouseAddr, s.config.ClickHouseDatabase)
 	} else if s.config.ClickHouseUser != "" {
-		dsn = fmt.Sprintf("clickhouse://%s@%s/%s", 
+		dsn = fmt.Sprintf("clickhouse://%s@%s/%s",
 			s.config.ClickHouseUser, s.config.ClickHouseAddr, s.config.ClickHouseDatabase)
 	} else {
 		dsn = fmt.Sprintf("clickhouse://%s/%s", s.config.ClickHouseAddr, s.config.ClickHouseDatabase)
@@ -816,7 +816,7 @@ func (s *Service) GetRootCauseAnalysis(ctx context.Context, req *svcproto.RootCa
 		resp.RelatedFlows = append(resp.RelatedFlows, &svcproto.FlowTraceLink{
 			TraceId: fl.TraceID, SpanId: fl.SpanID,
 			ServiceName: fl.ServiceName,
-			SrcIp: fl.FlowSrcIP, DstIp: fl.FlowDstIP,
+			SrcIp:       fl.FlowSrcIP, DstIp: fl.FlowDstIP,
 			SrcPort: fl.FlowSrcPort, DstPort: fl.FlowDstPort,
 			Protocol: fl.FlowProtocol, LatencyNs: fl.FlowLatencyNs,
 			Bytes: fl.FlowBytes, Timestamp: fl.FlowTimestamp,
@@ -836,7 +836,7 @@ func (s *Service) QueryCorrelation(ctx context.Context, req *svcproto.Correlatio
 			flows = append(flows, &svcproto.FlowTraceLink{
 				TraceId: fl.TraceID, SpanId: fl.SpanID,
 				ServiceName: fl.ServiceName,
-				SrcIp: fl.FlowSrcIP, DstIp: fl.FlowDstIP,
+				SrcIp:       fl.FlowSrcIP, DstIp: fl.FlowDstIP,
 				SrcPort: fl.FlowSrcPort, DstPort: fl.FlowDstPort,
 				Protocol: fl.FlowProtocol, LatencyNs: fl.FlowLatencyNs,
 				Bytes: fl.FlowBytes, Timestamp: fl.FlowTimestamp,
@@ -862,7 +862,7 @@ func (s *Service) QueryCorrelation(ctx context.Context, req *svcproto.Correlatio
 
 // GetOTLPStats 获取 OTLP 接收统计
 func (s *Service) GetOTLPStats(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.OTLPIngestStats, error) {
-	stats := s.otlpReceiver.Stats().Snapshot()
+	stats := s.otlpReceiver.Stats()
 	return &svcproto.OTLPIngestStats{
 		TracesReceived:     stats.TracesReceived,
 		SpansReceived:      stats.SpansReceived,
@@ -970,7 +970,7 @@ func (s *Service) otelLogsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.otlpReceiver.LogStore().Query(otel.LogQuery{Limit: 100}))
 }
 func (s *Service) otelStatsHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, s.otlpReceiver.Stats().Snapshot())
+	writeJSON(w, s.otlpReceiver.Stats())
 }
 func (s *Service) rcaHandler(w http.ResponseWriter, r *http.Request) {
 	traceID := r.URL.Query().Get("trace_id")
@@ -1034,4 +1034,42 @@ func parseInt(s string, defaultVal int) int {
 		return defaultVal
 	}
 	return result
+}
+
+// gRPC 服务注册
+type queryGRPC struct {
+	svcproto.UnimplementedQueryServiceServer
+	svc *Service
+}
+
+func RegisterQueryService(s *grpc.Server, svc *Service) {
+	svcproto.RegisterQueryServiceServer(s, &queryGRPC{svc: svc})
+}
+
+func (g *queryGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
+	return &svcproto.HealthCheckResponse{Healthy: true, Version: g.svc.config.Version}, nil
+}
+func (g *queryGRPC) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
+	return g.svc.QueryFlows(ctx, req)
+}
+func (g *queryGRPC) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
+	return g.svc.QueryMetrics(ctx, req)
+}
+func (g *queryGRPC) QueryTraces(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
+	return g.svc.QueryTraces(ctx, req)
+}
+func (g *queryGRPC) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
+	return g.svc.QueryDashboard(ctx, req)
+}
+func (g *queryGRPC) QueryOTLPTraces(ctx context.Context, req *svcproto.TraceQueryRequest) (*svcproto.TraceQueryResponse, error) {
+	return g.svc.QueryOTLPTraces(ctx, req)
+}
+func (g *queryGRPC) GetRootCauseAnalysis(ctx context.Context, req *svcproto.RootCauseRequest) (*svcproto.RootCauseResponse, error) {
+	return g.svc.GetRootCauseAnalysis(ctx, req)
+}
+func (g *queryGRPC) QueryCorrelation(ctx context.Context, req *svcproto.CorrelationQueryRequest) (*svcproto.CorrelationQueryResponse, error) {
+	return g.svc.QueryCorrelation(ctx, req)
+}
+func (g *queryGRPC) GetOTLPStats(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.OTLPIngestStats, error) {
+	return g.svc.GetOTLPStats(ctx, req)
 }
