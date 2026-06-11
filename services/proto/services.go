@@ -760,6 +760,32 @@ type GetTenantResponse struct {
 	Tenant *Tenant `json:"tenant"`
 }
 
+// UpdateTenantRequest 更新租户请求
+type UpdateTenantRequest struct {
+	TenantId    string `json:"tenant_id"`
+	DisplayName string `json:"display_name"`
+	Description string `json:"description"`
+	Plan        string `json:"plan"`
+	Status      string `json:"status"`
+}
+
+// UpdateTenantResponse 更新租户响应
+type UpdateTenantResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// DeleteTenantRequest 删除租户请求
+type DeleteTenantRequest struct {
+	TenantId string `json:"tenant_id"`
+}
+
+// DeleteTenantResponse 删除租户响应
+type DeleteTenantResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
 // ListTenantsRequest 列出租户请求
 type ListTenantsRequest struct {
 	Status string `json:"status"`
@@ -780,6 +806,44 @@ type UpdateTenantQuotaRequest struct {
 
 // UpdateTenantQuotaResponse 更新配额响应
 type UpdateTenantQuotaResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// Quota 配额
+type Quota struct {
+	QuotaId        string `json:"quota_id"`
+	TenantId       string `json:"tenant_id"`
+	ProjectId      string `json:"project_id"`
+	MaxAgents      int32  `json:"max_agents"`
+	MaxFlowsPerDay int64  `json:"max_flows_per_day"`
+	MaxStorageGb   int32  `json:"max_storage_gb"`
+	MaxAlertRules  int32  `json:"max_alert_rules"`
+	RetentionDays  int32  `json:"retention_days"`
+}
+
+// GetQuotaRequest 获取配额请求
+type GetQuotaRequest struct {
+	TenantId string `json:"tenant_id"`
+}
+
+// GetQuotaResponse 获取配额响应
+type GetQuotaResponse struct {
+	Quota *Quota `json:"quota"`
+}
+
+// UpdateQuotaRequest 更新配额请求
+type UpdateQuotaRequest struct {
+	TenantId       string `json:"tenant_id"`
+	MaxAgents      int32  `json:"max_agents"`
+	MaxFlowsPerDay int64  `json:"max_flows_per_day"`
+	MaxStorageGb   int32  `json:"max_storage_gb"`
+	MaxAlertRules  int32  `json:"max_alert_rules"`
+	RetentionDays  int32  `json:"retention_days"`
+}
+
+// UpdateQuotaResponse 更新配额响应
+type UpdateQuotaResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
@@ -879,6 +943,16 @@ type CreateProjectRequest struct {
 
 // CreateProjectResponse 创建项目响应
 type CreateProjectResponse struct {
+	Project *Project `json:"project"`
+}
+
+// GetProjectRequest 获取项目请求
+type GetProjectRequest struct {
+	ProjectId string `json:"project_id"`
+}
+
+// GetProjectResponse 获取项目响应
+type GetProjectResponse struct {
 	Project *Project `json:"project"`
 }
 
