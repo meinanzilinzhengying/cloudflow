@@ -16,8 +16,6 @@ package tenantservice
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -431,6 +429,15 @@ func (s *Service) Stop() {
 // gRPC 服务方法
 // ============================================================================
 
+// HealthCheck 健康检查
+func (s *Service) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
+	return &svcproto.HealthCheckResponse{
+		Healthy: true,
+		Version: s.config.Version,
+		Uptime:  int64(time.Since(s.startTime).Seconds()),
+	}, nil
+}
+
 // CreateTenant 创建租户
 func (s *Service) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRequest) (*svcproto.CreateTenantResponse, error) {
 	tenantID := fmt.Sprintf("tenant-%d", time.Now().UnixNano())
@@ -701,22 +708,26 @@ func (s *Service) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (
 }
 
 // UpdateQuota 更新配额信息
-func (s *Service) UpdateQuota(ctx context.Context, req *svcproto.UpdateQuotaRequest) (*svcproto.UpdateQuotaResponse, error) {
+func (s *Service) UpdateQuota(ctx context.Context, req *svcproto.UpdateTenantQuotaRequest) (*svcproto.UpdateTenantQuotaResponse, error) {
+	if req.Quota == nil {
+		return &svcproto.UpdateTenantQuotaResponse{Success: false, Message: "quota is required"}, nil
+	}
+
 	result, err := s.db.Exec(
 		"UPDATE quotas SET max_agents = ?, max_flows_per_day = ?, max_storage_gb = ?, max_alert_rules = ?, retention_days = ? WHERE tenant_id = ?",
-		req.MaxAgents,
-		req.MaxFlowsPerDay,
-		req.MaxStorageGb,
-		req.MaxAlertRules,
-		req.RetentionDays,
+		req.Quota.MaxAgents,
+		req.Quota.MaxFlowsPerDay,
+		req.Quota.MaxStorageGB,
+		req.Quota.MaxAlertRules,
+		req.Quota.RetentionDays,
 		req.TenantId,
 	)
 	if err != nil {
-		return &svcproto.UpdateQuotaResponse{Success: false, Message: err.Error()}, nil
+		return &svcproto.UpdateTenantQuotaResponse{Success: false, Message: err.Error()}, nil
 	}
 
 	rowsAffected, _ := result.RowsAffected()
-	return &svcproto.UpdateQuotaResponse{Success: rowsAffected > 0}, nil
+	return &svcproto.UpdateTenantQuotaResponse{Success: rowsAffected > 0}, nil
 }
 
 // AddTenantMember 添加租户成员
