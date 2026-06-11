@@ -35,7 +35,6 @@ services:
       - "127.0.0.1:10080:10080"  # Status 端口 - 仅本地访问
     environment:
       TZ: Asia/Shanghai
-      MYSQL_ROOT_PASSWORD: "${CLOUD_FLOW_DB_PASSWORD:?请在 .env 文件中设置 CLOUD_FLOW_DB_PASSWORD}"
     volumes:
       - tidb-data:/var/lib/tidb
     healthcheck:
@@ -211,7 +210,7 @@ services:
       SUPER_ADMIN_ROLE: super_admin
       TIDB_ADDR: "tidb:4000"
       TIDB_USER: root
-      TIDB_PASSWORD: "${CLOUD_FLOW_DB_PASSWORD}"
+      TIDB_PASSWORD: ""
       TIDB_DATABASE: cloudflow_auth
       REDIS_ADDR: "redis:6379"
     healthcheck:
@@ -245,7 +244,7 @@ services:
       HTTP_ADDR: ":8010"
       TIDB_ADDR: "tidb:4000"
       TIDB_USER: root
-      TIDB_PASSWORD: "${CLOUD_FLOW_DB_PASSWORD}"
+      TIDB_PASSWORD: ""
       TIDB_DATABASE: cloudflow_tenant
       AUTH_ADDR: "auth-service:9006"
     healthcheck:
@@ -444,7 +443,7 @@ services:
       HTTP_ADDR: ":8009"
       TIDB_ADDR: "tidb:4000"
       TIDB_USER: root
-      TIDB_PASSWORD: "${CLOUD_FLOW_DB_PASSWORD}"
+      TIDB_PASSWORD: ""
       TIDB_DATABASE: cloudflow_alert
       REDIS_ADDR: "redis:6379"
       CLICKHOUSE_ADDR: "clickhouse:9000"
