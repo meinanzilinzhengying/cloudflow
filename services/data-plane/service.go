@@ -40,6 +40,29 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
 
+// httpMethodToString 将 uint8 HTTP 方法转换为字符串
+func httpMethodToString(method uint8) string {
+	switch method {
+	case 1:
+		return "GET"
+	case 2:
+		return "POST"
+	case 3:
+		return "PUT"
+	case 4:
+		return "DELETE"
+	case 5:
+		return "HEAD"
+	case 6:
+		return "OPTIONS"
+	case 7:
+		return "PATCH"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+
 // ============================================================================
 // 配置
 // ============================================================================
@@ -550,10 +573,10 @@ func (s *Service) writeToLoki(flows []*flow.UnifiedFlow) error {
 			f.SrcIP.String(), f.DstIP.String(), f.DstPort, f.Protocol.String(), f.Bytes, f.LatencyNs)
 
 		if f.L7Protocol != 0 {
-			message += fmt.Sprintf(" l7=%s", f.L7Protocol.String())
+			message += fmt.Sprintf(" l7=%s", httpMethodToString(uint8(f.L7Protocol)))
 		}
 		if f.Method != 0 {
-			message += fmt.Sprintf(" method=%s", f.Method.String())
+			message += fmt.Sprintf(" method=%s", httpMethodToString(f.Method))
 		}
 		if f.StatusCode > 0 {
 			message += fmt.Sprintf(" status=%d", f.StatusCode)
@@ -644,7 +667,8 @@ func parseLabels(labels string) map[string]string {
 // IngestFlow 接收 Flow（含采样决策）
 func (s *Service) IngestFlow(ctx context.Context, batch *svcproto.FlowBatch) (*svcproto.IngestResponse, error) {
 	accepted := 0
-	sampled := 0
+	_ = sampled
+		var sampled int
 
 	for _, flowMap := range batch.Flows {
 		// 反序列化 UnifiedFlow
@@ -898,7 +922,11 @@ func (s *Service) statsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) samplingConfigHandler(w http.ResponseWriter, r *http.Request) {
 	// P0-3 修复: 验证认证
-	tenantID := tenant.FromContext(r.Context())
+	tc, _ := tenant.FromContext(r.Context())
+		tenantID := ""
+		if tc != nil {
+			tenantID = tc.TenantID
+		}
 	if tenantID == "" {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
@@ -933,7 +961,11 @@ func (s *Service) ingestMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// P0-3 修复: 获取租户信息
-	tenantID := tenant.FromContext(r.Context())
+	tc, _ := tenant.FromContext(r.Context())
+		tenantID := ""
+		if tc != nil {
+			tenantID = tc.TenantID
+		}
 	if tenantID == "" {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
@@ -975,7 +1007,11 @@ func (s *Service) ingestLogsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// P0-3 修复: 获取租户信息
-	tenantID := tenant.FromContext(r.Context())
+	tc, _ := tenant.FromContext(r.Context())
+		tenantID := ""
+		if tc != nil {
+			tenantID = tc.TenantID
+		}
 	if tenantID == "" {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
