@@ -276,20 +276,21 @@ function formatTime(offsetMin) {
 // --- 核心：推进实时图表 —— 每轮轮询推入一个新数据点，溢出时移除最老的 ---
 function pushChartPoint(chartRef, newDataValues, labelSuffix = '') {
   const ts = formatTime(0) + labelSuffix
-  const chart = chartRef.value
+  const old = chartRef.value
 
-  // 推进 labels
-  chart.labels.push(ts)
-  if (chart.labels.length > MAX_POINTS) chart.labels.shift()
+  // 全新创建 labels 数组（不要直接 push，避免 Proxy 循环）
+  const newLabels = [...old.labels, ts]
+  if (newLabels.length > MAX_POINTS) newLabels.shift()
 
-  // 推进每条 dataset
-  chart.datasets.forEach((ds, i) => {
-    ds.data.push(newDataValues[i])
-    if (ds.data.length > MAX_POINTS) ds.data.shift()
+  // 全新创建 datasets（每条 dataset 的 data 也是新数组）
+  const newDatasets = old.datasets.map((ds, i) => {
+    const newData = [...ds.data, newDataValues[i]]
+    if (newData.length > MAX_POINTS) newData.shift()
+    return { ...ds, data: newData }
   })
 
-  // 触发响应式更新
-  chartRef.value = { ...chartRef.value }
+  // 一次性赋值新对象，彻底切断 Proxy 链
+  chartRef.value = { labels: newLabels, datasets: newDatasets }
 }
 
 // --- 轮询数据 ---
