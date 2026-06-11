@@ -45,6 +45,26 @@ services:
       start_period: 30s
     networks:
       - cloudflow-net
+  # TiDB 数据库初始化（自动创建数据库）
+  tidb-init:
+    image: mysql:8.0
+    container_name: cloudflow-tidb-init
+    depends_on:
+      tidb:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        echo "Waiting for TiDB..."
+        sleep 5
+        mysql -h tidb -P 4000 -u root -e "CREATE DATABASE IF NOT EXISTS cloudflow_tenant;"
+        mysql -h tidb -P 4000 -u root -e "CREATE DATABASE IF NOT EXISTS cloudflow_auth;"
+        mysql -h tidb -P 4000 -u root -e "CREATE DATABASE IF NOT EXISTS cloudflow_alert;"
+        echo "All databases created successfully!"
+    networks:
+      - cloudflow-net
+    restart: "no"
 
   # Redis（缓存/状态）
   redis:
