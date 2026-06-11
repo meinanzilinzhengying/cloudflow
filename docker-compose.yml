@@ -116,13 +116,15 @@ services:
       zookeeper:
         condition: service_healthy
     ports:
+      - "127.0.0.1:9093:9093"
       - "127.0.0.1:9092:9092"
     environment:
       TZ: Asia/Shanghai
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093"
       KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
       
       # 副本配置 - 单节点模式（生产环境高可用建议使用 docker-compose-kafka-ha.yml）
