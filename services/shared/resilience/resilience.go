@@ -120,7 +120,6 @@ func (rc *ResilientClient) ExecuteWithContext(ctx context.Context, fn func(ctx c
 				return fn(ctx)
 			})
 			if err != nil {
-				lastErr = err
 				return err
 			}
 			return nil
@@ -142,7 +141,6 @@ func (rc *ResilientClient) ExecuteWithContext(ctx context.Context, fn func(ctx c
 	} else {
 		err := executeFn(ctx)
 		if err != nil {
-			lastErr = err
 			if rc.circuitBreaker != nil {
 				rc.circuitBreaker.RecordFailure()
 			}
