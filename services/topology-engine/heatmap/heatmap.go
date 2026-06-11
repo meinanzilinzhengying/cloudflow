@@ -12,7 +12,6 @@ package heatmap
 import (
 	"math"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -492,12 +491,12 @@ func inTimeRange(b *TimeBucket, startTime, endTime int64) bool {
 	return true
 }
 
-// splitEdgeKey splits "source→target" key into source and target.
+// splitEdgeKey 将 "source→target" 格式的 key 拆分为 source 和 target。
 func splitEdgeKey(key string) (string, string) {
-	arrow := "→"
-	idx := strings.Index(key, arrow)
-	if idx >= 0 {
-		return key[:idx], key[idx+len(arrow):]
+	for i := 0; i < len(key); i++ {
+		if key[i] == '\u2192' { // Unicode arrow →
+			return key[:i], key[i+3:] // → is 3 bytes in UTF-8
+		}
 	}
 	return key, ""
 }

@@ -1,11 +1,10 @@
 # =============================================================================
 # Blackbox Exporter 配置 - CloudFlow
 # =============================================================================
-# 注意: v0.25.0 的 timeout 字段必须在 module 顶级，不能放在 http: 内
 modules:
   http_2xx:
     prober: http
-    timeout: 5s
     http:
       valid_status_codes: [200, 201, 204]
       preferred_ip_protocol: ip4
+      timeout: 5s

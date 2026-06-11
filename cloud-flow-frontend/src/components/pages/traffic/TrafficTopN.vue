@@ -6,34 +6,24 @@
         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">流量排行分析</p>
       </div>
       <div class="flex items-center gap-3">
-        <select v-model="metric" class="input w-32">
-          <option value="bytes">按流量</option>
-          <option value="packets">按包数</option>
-          <option value="sessions">按会话数</option>
+        <select class="input w-32">
+          <option>按流量</option>
+          <option>按包数</option>
+          <option>按会话数</option>
         </select>
-        <select v-model="topN" class="input w-24">
-          <option :value="10">Top 10</option>
-          <option :value="20">Top 20</option>
-          <option :value="50">Top 50</option>
+        <select class="input w-24">
+          <option>Top 10</option>
+          <option>Top 20</option>
+          <option>Top 50</option>
         </select>
-        <button @click="fetchData" :disabled="loading" class="btn-secondary">
-          <RefreshCw v-if="loading" class="w-4 h-4 animate-spin" />
-          <RefreshCw v-else class="w-4 h-4" />
-        </button>
       </div>
     </div>
 
     <div class="grid grid-cols-2 gap-6">
       <div class="card p-6">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Top 源IP</h3>
-        <div v-if="loading" class="space-y-3">
-          <div v-for="i in 5" :key="i" class="h-6 bg-slate-100 dark:bg-dark-700 rounded animate-pulse"></div>
-        </div>
-        <div v-else-if="topSrcIps.length === 0" class="text-center text-sm text-slate-400 py-8">
-          暂无数据
-        </div>
-        <div v-else class="space-y-3">
-          <div v-for="(item, i) in topSrcIps" :key="item.ip" class="flex items-center gap-3">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Top IP</h3>
+        <div class="space-y-3">
+          <div v-for="(item, i) in topIPs" :key="item.ip" class="flex items-center gap-3">
             <span class="w-6 text-xs font-medium text-slate-400">{{ i + 1 }}</span>
             <div class="flex-1">
               <div class="flex items-center justify-between mb-1">
@@ -49,38 +39,8 @@
       </div>
 
       <div class="card p-6">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Top 目的IP</h3>
-        <div v-if="loading" class="space-y-3">
-          <div v-for="i in 5" :key="i" class="h-6 bg-slate-100 dark:bg-dark-700 rounded animate-pulse"></div>
-        </div>
-        <div v-else-if="topDstIps.length === 0" class="text-center text-sm text-slate-400 py-8">
-          暂无数据
-        </div>
-        <div v-else class="space-y-3">
-          <div v-for="(item, i) in topDstIps" :key="item.ip" class="flex items-center gap-3">
-            <span class="w-6 text-xs font-medium text-slate-400">{{ i + 1 }}</span>
-            <div class="flex-1">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ item.ip }}</span>
-                <span class="text-xs text-slate-500">{{ item.value }}</span>
-              </div>
-              <div class="h-2 bg-slate-100 dark:bg-dark-700 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-accent-500 to-emerald-500 rounded-full" :style="{ width: `${item.percentage}%` }"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card p-6">
         <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Top 端口</h3>
-        <div v-if="loading" class="space-y-3">
-          <div v-for="i in 5" :key="i" class="h-6 bg-slate-100 dark:bg-dark-700 rounded animate-pulse"></div>
-        </div>
-        <div v-else-if="topPorts.length === 0" class="text-center text-sm text-slate-400 py-8">
-          暂无数据
-        </div>
-        <div v-else class="space-y-3">
+        <div class="space-y-3">
           <div v-for="(item, i) in topPorts" :key="item.port" class="flex items-center gap-3">
             <span class="w-6 text-xs font-medium text-slate-400">{{ i + 1 }}</span>
             <div class="flex-1">
@@ -89,31 +49,7 @@
                 <span class="text-xs text-slate-500">{{ item.value }}</span>
               </div>
               <div class="h-2 bg-slate-100 dark:bg-dark-700 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-amber-500 to-red-500 rounded-full" :style="{ width: `${item.percentage}%` }"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card p-6">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Top 协议</h3>
-        <div v-if="loading" class="space-y-3">
-          <div v-for="i in 5" :key="i" class="h-6 bg-slate-100 dark:bg-dark-700 rounded animate-pulse"></div>
-        </div>
-        <div v-else-if="topProtocols.length === 0" class="text-center text-sm text-slate-400 py-8">
-          暂无数据
-        </div>
-        <div v-else class="space-y-3">
-          <div v-for="(item, i) in topProtocols" :key="item.protocol" class="flex items-center gap-3">
-            <span class="w-6 text-xs font-medium text-slate-400">{{ i + 1 }}</span>
-            <div class="flex-1">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ item.protocol }}</span>
-                <span class="text-xs text-slate-500">{{ item.value }}</span>
-              </div>
-              <div class="h-2 bg-slate-100 dark:bg-dark-700 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full" :style="{ width: `${item.percentage}%` }"></div>
+                <div class="h-full bg-gradient-to-r from-accent-500 to-emerald-500 rounded-full" :style="{ width: `${item.percentage}%` }"></div>
               </div>
             </div>
           </div>
@@ -124,115 +60,21 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { RefreshCw } from 'lucide-vue-next'
-import { queryService } from '../../../api'
+import { ref } from 'vue'
 
-const loading = ref(false)
-const metric = ref('bytes')
-const topN = ref(10)
-const flows = ref([])
+const topIPs = ref([
+  { ip: '192.168.1.100', value: '2.1 GB', percentage: 100 },
+  { ip: '192.168.1.101', value: '1.5 GB', percentage: 71 },
+  { ip: '192.168.1.102', value: '980 MB', percentage: 47 },
+  { ip: '192.168.1.103', value: '650 MB', percentage: 31 },
+  { ip: '192.168.1.104', value: '420 MB', percentage: 20 },
+])
 
-const formatBytes = (bytes) => {
-  if (!bytes || bytes === 0) return '0 B'
-  const k = 1024
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + units[i]
-}
-
-const aggregateByKey = (items, keyField, valueFn) => {
-  const map = new Map()
-  items.forEach((f) => {
-    const key = f[keyField]
-    if (!key && key !== 0) return
-    map.set(key, (map.get(key) || 0) + valueFn(f))
-  })
-  const arr = Array.from(map.entries())
-    .map(([k, v]) => ({ key, value: v }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, topN.value)
-  const max = arr.length > 0 ? arr[0].value : 1
-  return { arr, max }
-}
-
-const buildTopIps = (items, ipKey) => {
-  const { arr, max } = aggregateByKey(items, ipKey, (f) => {
-    if (metric.value === 'packets') return f.packet_count || f.packets || 0
-    if (metric.value === 'sessions') return 1
-    return f.byte_count || f.bytes || 0
-  })
-  return arr.map((item) => ({
-    ip: item.key,
-    value: metric.value === 'bytes' ? formatBytes(item.value) : item.value.toString(),
-    percentage: max > 0 ? Math.round((item.value / max) * 100) : 0,
-  }))
-}
-
-const topSrcIps = computed(() => buildTopIps(flows.value, 'src_ip'))
-const topDstIps = computed(() => buildTopIps(flows.value, 'dst_ip'))
-
-const topPorts = computed(() => {
-  const portMap = new Map()
-  flows.value.forEach((f) => {
-    const port = f.dst_port || f.destPort
-    const proto = (f.protocol || f.proto || 'TCP').toUpperCase()
-    if (!port && port !== 0) return
-    const key = `${port}/${proto}`
-    const value = metric.value === 'packets' ? (f.packet_count || f.packets || 0) : metric.value === 'sessions' ? 1 : (f.byte_count || f.bytes || 0)
-    portMap.set(key, (portMap.get(key) || 0) + value)
-  })
-  const arr = Array.from(portMap.entries())
-    .map(([k, v]) => {
-      const [port, protocol] = k.split('/')
-      return { port, protocol, value: v }
-    })
-    .sort((a, b) => b.value - a.value)
-    .slice(0, topN.value)
-  const max = arr.length > 0 ? arr[0].value : 1
-  return arr.map((item) => ({
-    port: item.port,
-    protocol: item.protocol,
-    value: metric.value === 'bytes' ? formatBytes(item.value) : item.value.toString(),
-    percentage: max > 0 ? Math.round((item.value / max) * 100) : 0,
-  }))
-})
-
-const topProtocols = computed(() => {
-  const protoMap = new Map()
-  flows.value.forEach((f) => {
-    const proto = (f.protocol || f.proto || 'OTHER').toUpperCase()
-    const value = metric.value === 'packets' ? (f.packet_count || f.packets || 0) : metric.value === 'sessions' ? 1 : (f.byte_count || f.bytes || 0)
-    protoMap.set(proto, (protoMap.get(proto) || 0) + value)
-  })
-  const arr = Array.from(protoMap.entries())
-    .map(([protocol, value]) => ({ protocol, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, topN.value)
-  const max = arr.length > 0 ? arr[0].value : 1
-  return arr.map((item) => ({
-    protocol: item.protocol,
-    value: metric.value === 'bytes' ? formatBytes(item.value) : item.value.toString(),
-    percentage: max > 0 ? Math.round((item.value / max) * 100) : 0,
-  }))
-})
-
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const res = await queryService.getFlows({ limit: 1000 }).catch(() => null)
-    const data = (res?.data || res?.flows || res || [])
-    flows.value = Array.isArray(data) ? data : []
-  } catch {
-    flows.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-watch([metric, topN], () => {})
-
-onMounted(() => {
-  fetchData()
-})
+const topPorts = ref([
+  { port: 80, protocol: 'TCP', value: '3.2 GB', percentage: 100 },
+  { port: 443, protocol: 'TCP', value: '2.1 GB', percentage: 66 },
+  { port: 8080, protocol: 'TCP', value: '1.2 GB', percentage: 38 },
+  { port: 3306, protocol: 'TCP', value: '850 MB', percentage: 27 },
+  { port: 53, protocol: 'UDP', value: '420 MB', percentage: 13 },
+])
 </script>

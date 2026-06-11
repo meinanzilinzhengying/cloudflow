@@ -71,23 +71,11 @@
 
     <!-- Alerts Timeline -->
     <div v-if="activeTab === 'events'" class="card">
-      <div class="p-6 border-b border-slate-200 dark:border-dark-700 flex items-center justify-between">
+      <div class="p-6 border-b border-slate-200 dark:border-dark-700">
         <h3 class="text-lg font-semibold text-slate-900 dark:text-white">告警时间线</h3>
-        <button @click="fetchData" class="btn-secondary text-sm">
-          <RefreshCw class="w-4 h-4" />
-          刷新
-        </button>
       </div>
       <div class="p-6">
-        <div v-if="loading" class="py-12 text-center text-slate-500 dark:text-slate-400">
-          <div class="inline-block w-6 h-6 border-2 border-slate-300 border-t-primary-500 rounded-full animate-spin mb-3"></div>
-          <p>加载中...</p>
-        </div>
-        <div v-else-if="alerts.length === 0" class="py-12 text-center text-slate-500 dark:text-slate-400">
-          <AlertCircle class="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
-          <p>暂无告警数据</p>
-        </div>
-        <div v-else class="relative pl-8">
+        <div class="relative pl-8">
           <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-200 dark:bg-dark-700"></div>
           <div
             v-for="alert in alerts"
@@ -108,7 +96,7 @@
                   {{ alert.severity }}
                 </span>
               </div>
-              <p v-if="alert.description" class="text-sm text-slate-600 dark:text-slate-300 mt-2">{{ alert.description }}</p>
+              <p class="text-sm text-slate-600 dark:text-slate-300 mt-2">{{ alert.description }}</p>
               <div class="flex items-center gap-4 mt-3 text-xs text-slate-400">
                 <span>{{ alert.time }}</span>
                 <span>{{ alert.status }}</span>
@@ -129,15 +117,7 @@
         </button>
       </div>
       <div class="overflow-x-auto">
-        <div v-if="loading" class="py-12 text-center text-slate-500 dark:text-slate-400">
-          <div class="inline-block w-6 h-6 border-2 border-slate-300 border-t-primary-500 rounded-full animate-spin mb-3"></div>
-          <p>加载中...</p>
-        </div>
-        <div v-else-if="rules.length === 0" class="py-12 text-center text-slate-500 dark:text-slate-400">
-          <AlertCircle class="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
-          <p>暂无规则数据</p>
-        </div>
-        <table v-else class="w-full">
+        <table class="w-full">
           <thead>
             <tr class="bg-slate-50 dark:bg-dark-700/50">
               <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">规则名称</th>
@@ -229,7 +209,7 @@
               </div>
             </div>
 
-            <div v-if="selectedAlert.description" class="p-4 bg-slate-50 dark:bg-dark-700 rounded-xl">
+            <div class="p-4 bg-slate-50 dark:bg-dark-700 rounded-xl">
               <p class="text-sm text-slate-600 dark:text-slate-300">{{ selectedAlert.description }}</p>
             </div>
 
@@ -252,16 +232,42 @@
               </div>
             </div>
 
-            <div v-if="selectedAlert.raw && Object.keys(selectedAlert.raw).length">
-              <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">关联信息</h4>
-              <div class="p-4 bg-slate-50 dark:bg-dark-700 rounded-xl max-h-64 overflow-y-auto">
-                <pre class="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap break-all font-mono">{{ JSON.stringify(selectedAlert.raw, null, 2) }}</pre>
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">影响范围</h4>
+              <div class="p-4 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20">
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2">
+                    <Server class="w-4 h-4 text-amber-600" />
+                    <span class="text-sm font-medium text-amber-800 dark:text-amber-300">Gateway</span>
+                  </div>
+                  <div class="flex items-center gap-2 pl-4">
+                    <ChevronDown class="w-4 h-4 text-amber-400" />
+                    <span class="text-sm font-medium text-amber-700 dark:text-amber-400">Order Service</span>
+                  </div>
+                  <div class="flex items-center gap-2 pl-8">
+                    <ChevronDown class="w-4 h-4 text-amber-400" />
+                    <span class="text-sm font-medium text-amber-600 dark:text-amber-500">Payment Service</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div v-if="selectedAlert.logSample">
+            <div>
+              <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">相关Trace</h4>
+              <div class="space-y-2">
+                <div class="p-3 bg-slate-50 dark:bg-dark-700 rounded-lg">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Checkout Flow</span>
+                    <span class="text-xs text-red-500">Error</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-1">Trace ID: abc123...</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
               <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">相关日志</h4>
-              <div class="p-4 bg-slate-900 rounded-lg font-mono text-sm text-slate-300 max-h-48 overflow-y-auto whitespace-pre-wrap break-all">
+              <div class="p-4 bg-slate-900 rounded-lg font-mono text-sm text-slate-300">
                 {{ selectedAlert.logSample }}
               </div>
             </div>
@@ -284,7 +290,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, PieChart } from 'echarts/charts'
@@ -306,7 +312,6 @@ import {
   MessageCircle,
   Phone,
 } from 'lucide-vue-next'
-import { alertService, queryService } from '../../../api'
 
 use([CanvasRenderer, LineChart, PieChart, TooltipComponent, GridComponent, LegendComponent])
 
@@ -319,20 +324,27 @@ const tabs = [
   { id: 'statistics', label: '告警统计' },
 ]
 
-const loading = ref(false)
-
 const alertStats = ref({
-  critical: 0,
-  high: 0,
-  warning: 0,
-  medium: 0,
-  low: 0,
-  info: 0,
-  normal: 0,
+  critical: 5,
+  high: 12,
+  medium: 23,
+  low: 45,
 })
 
-const alerts = ref([])
-const rules = ref([])
+const alerts = ref([
+  { id: 1, title: '服务异常延迟', severity: 'critical', service: 'Order Service', description: '订单服务响应时间超过500ms，持续时间超过5分钟', time: '2分钟前', status: '触发中', duration: '5分钟', instance: 'order-svc-0', logSample: '[ERROR] timeout connecting to database' },
+  { id: 2, title: 'CPU使用率过高', severity: 'high', service: 'API Gateway', description: 'CPU使用率达到90%，超过阈值', time: '5分钟前', status: '触发中', duration: '3分钟', instance: 'api-gw-0', logSample: '[WARN] high CPU usage detected' },
+  { id: 3, title: '内存使用告警', severity: 'medium', service: 'User Service', description: '内存使用达到85%', time: '12分钟前', status: '已恢复', duration: '10分钟', instance: 'user-svc-1', logSample: '[INFO] memory usage at 85%' },
+  { id: 4, title: '网络延迟增加', severity: 'medium', service: 'Payment Service', description: '网络延迟增加至200ms', time: '18分钟前', status: '触发中', duration: '8分钟', instance: 'pay-svc-0', logSample: '[WARN] network latency increased' },
+  { id: 5, title: '连接池耗尽', severity: 'high', service: 'Order Service', description: '数据库连接池已耗尽', time: '25分钟前', status: '已恢复', duration: '15分钟', instance: 'order-svc-1', logSample: '[ERROR] connection pool exhausted' },
+])
+
+const rules = ref([
+  { id: 1, name: 'CPU使用率告警', metric: 'cpu_usage', threshold: '> 80%', severity: 'high', enabled: true },
+  { id: 2, name: '内存使用告警', metric: 'memory_usage', threshold: '> 85%', severity: 'medium', enabled: true },
+  { id: 3, name: '服务延迟告警', metric: 'latency', threshold: '> 500ms', severity: 'critical', enabled: true },
+  { id: 4, name: '错误率告警', metric: 'error_rate', threshold: '> 5%', severity: 'high', enabled: false },
+])
 
 const notificationPolicies = ref([
   { id: 1, name: '邮件通知', description: '发送告警邮件到指定邮箱', icon: Mail, color: 'text-blue-500' },
@@ -342,160 +354,39 @@ const notificationPolicies = ref([
 
 const selectedAlert = ref(null)
 
-const normalizeSeverity = (severity) => {
-  if (!severity) return 'low'
-  const s = String(severity).toLowerCase()
-  const map = {
-    critical: 'critical',
-    fatal: 'critical',
-    high: 'high',
-    warning: 'warning',
-    warn: 'warning',
-    medium: 'medium',
-    info: 'info',
-    low: 'low',
-    normal: 'normal',
-    debug: 'normal',
-  }
-  return map[s] || 'low'
-}
+const alertTrendOption = computed(() => ({
+  tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.95)', textStyle: { color: '#1e293b' } },
+  grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+  xAxis: { type: 'category', data: ['00:00', '06:00', '12:00', '18:00', '24:00'], axisLabel: { color: '#64748b' } },
+  yAxis: { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+  series: [
+    { name: '严重', type: 'line', smooth: true, lineStyle: { color: '#ef4444', width: 2 }, data: [5, 3, 8, 6, 5] },
+    { name: '高', type: 'line', smooth: true, lineStyle: { color: '#f59e0b', width: 2 }, data: [10, 8, 15, 12, 12] },
+    { name: '中', type: 'line', smooth: true, lineStyle: { color: '#eab308', width: 2 }, data: [15, 20, 25, 22, 23] },
+    { name: '低', type: 'line', smooth: true, lineStyle: { color: '#3b82f6', width: 2 }, data: [30, 40, 45, 50, 45] },
+  ],
+}))
 
-const formatTime = (t) => {
-  if (!t) return '-'
-  if (typeof t === 'string' && !t.includes('T') && !t.includes('-') && t.length <= 10) return t
-  try {
-    const date = new Date(t)
-    if (isNaN(date.getTime())) return t
-    const now = Date.now()
-    const diff = now - date.getTime()
-    if (diff < 60 * 1000) return '刚刚'
-    if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}分钟前`
-    if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}小时前`
-    return date.toLocaleString('zh-CN', { hour12: false })
-  } catch {
-    return t
-  }
-}
-
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const [alertsData, rulesData] = await Promise.all([
-      alertService.getAlerts({ limit: 20 }),
-      alertService.getRules(),
-    ])
-
-    const alertList = Array.isArray(alertsData)
-      ? alertsData
-      : (alertsData?.data || alertsData?.alerts || alertsData?.items || [])
-
-    const normalized = alertList.map((a) => ({
-      id: a.id || a.alert_id || a._id || Math.random().toString(36).slice(2),
-      title: a.title || a.name || a.summary || a.message || '未命名告警',
-      severity: normalizeSeverity(a.severity || a.level || a.priority),
-      service: a.service || a.service_name || a.module || a.source || '未知服务',
-      description: a.description || a.message || a.detail || a.content || '',
-      time: formatTime(a.time || a.created_at || a.timestamp || a.triggered_at),
-      created_at: a.created_at || a.timestamp || a.triggered_at,
-      status: a.status || a.state || (a.resolved ? '已恢复' : '触发中'),
-      duration: a.duration || '-',
-      instance: a.instance || a.host || a.node || '-',
-      logSample: a.log_sample || a.logs || a.log || a.message || '',
-      raw: a,
-    }))
-
-    alerts.value = normalized
-
-    alertStats.value = {
-      critical: 0,
-      high: 0,
-      warning: 0,
-      medium: 0,
-      low: 0,
-      info: 0,
-      normal: 0,
-    }
-    normalized.forEach((a) => {
-      if (alertStats.value[a.severity] !== undefined) {
-        alertStats.value[a.severity] += 1
-      } else {
-        alertStats.value.low += 1
-      }
-    })
-
-    const ruleList = Array.isArray(rulesData)
-      ? rulesData
-      : (rulesData?.data || rulesData?.rules || rulesData?.items || [])
-    rules.value = ruleList.map((r) => ({
-      id: r.id || r.rule_id || Math.random().toString(36).slice(2),
-      name: r.name || r.title || '未命名规则',
-      metric: r.metric || r.indicator || r.key || '-',
-      threshold: r.threshold || r.condition || r.value || '-',
-      severity: normalizeSeverity(r.severity || r.level),
-      enabled: r.enabled !== undefined ? r.enabled : r.active !== undefined ? r.active : true,
-    }))
-  } catch (err) {
-    console.error('Failed to fetch alert data:', err)
-    alerts.value = []
-    rules.value = []
-    alertStats.value = { critical: 0, high: 0, warning: 0, medium: 0, low: 0, info: 0, normal: 0 }
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(() => {
-  fetchData()
-})
-
-const alertTrendOption = computed(() => {
-  const s = alertStats.value
-  return {
-    tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.95)', textStyle: { color: '#1e293b' } },
-    grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
-    xAxis: { type: 'category', data: ['严重', '高', '警告', '中', '低', '信息', '正常'], axisLabel: { color: '#64748b' } },
-    yAxis: { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-    series: [
-      {
-        name: '告警分布',
-        type: 'line',
-        smooth: true,
-        lineStyle: { color: '#3b82f6', width: 2 },
-        itemStyle: { color: '#3b82f6' },
-        areaStyle: { color: 'rgba(59, 130, 246, 0.1)' },
-        data: [s.critical, s.high, s.warning, s.medium, s.low, s.info, s.normal],
-      },
+const alertDistributionOption = computed(() => ({
+  tooltip: { trigger: 'item', backgroundColor: 'rgba(255,255,255,0.95)', textStyle: { color: '#1e293b' } },
+  legend: { bottom: 0, textStyle: { color: '#64748b' } },
+  series: [{
+    type: 'pie',
+    radius: ['40%', '70%'],
+    itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+    label: { show: false },
+    emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
+    data: [
+      { value: 5, name: '严重', itemStyle: { color: '#ef4444' } },
+      { value: 12, name: '高', itemStyle: { color: '#f59e0b' } },
+      { value: 23, name: '中', itemStyle: { color: '#eab308' } },
+      { value: 45, name: '低', itemStyle: { color: '#3b82f6' } },
     ],
-  }
-})
-
-const alertDistributionOption = computed(() => {
-  const s = alertStats.value
-  const data = [
-    { value: s.critical, name: '严重', itemStyle: { color: '#ef4444' } },
-    { value: s.high, name: '高', itemStyle: { color: '#f59e0b' } },
-    { value: s.warning, name: '警告', itemStyle: { color: '#fb923c' } },
-    { value: s.medium, name: '中', itemStyle: { color: '#eab308' } },
-    { value: s.low, name: '低', itemStyle: { color: '#3b82f6' } },
-    { value: s.info, name: '信息', itemStyle: { color: '#06b6d4' } },
-    { value: s.normal, name: '正常', itemStyle: { color: '#22c55e' } },
-  ].filter((d) => d.value > 0)
-  return {
-    tooltip: { trigger: 'item', backgroundColor: 'rgba(255,255,255,0.95)', textStyle: { color: '#1e293b' } },
-    legend: { bottom: 0, textStyle: { color: '#64748b' } },
-    series: [{
-      type: 'pie',
-      radius: ['40%', '70%'],
-      itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
-      label: { show: false },
-      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
-      data: data.length ? data : [{ value: 1, name: '暂无数据', itemStyle: { color: '#cbd5e1' } }],
-    }],
-  }
-})
+  }],
+}))
 
 const getAlertIcon = (severity) => {
-  const icons = { critical: AlertOctagon, high: AlertTriangle, warning: AlertTriangle, medium: AlertCircle, low: Info, info: Info, normal: Info }
+  const icons = { critical: AlertOctagon, high: AlertTriangle, medium: AlertCircle, low: Info }
   return icons[severity] || Info
 }
 
@@ -503,25 +394,14 @@ const getAlertIconBg = (severity) => {
   const colors = {
     critical: 'bg-red-100 border-red-500',
     high: 'bg-amber-100 border-amber-500',
-    warning: 'bg-orange-100 border-orange-500',
     medium: 'bg-yellow-100 border-yellow-500',
     low: 'bg-blue-100 border-blue-500',
-    info: 'bg-cyan-100 border-cyan-500',
-    normal: 'bg-green-100 border-green-500',
   }
   return colors[severity] || 'bg-slate-100 border-slate-500'
 }
 
 const getAlertIconColor = (severity) => {
-  const colors = {
-    critical: 'text-red-500',
-    high: 'text-amber-500',
-    warning: 'text-orange-500',
-    medium: 'text-yellow-500',
-    low: 'text-blue-500',
-    info: 'text-cyan-500',
-    normal: 'text-green-500',
-  }
+  const colors = { critical: 'text-red-500', high: 'text-amber-500', medium: 'text-yellow-500', low: 'text-blue-500' }
   return colors[severity] || 'text-slate-500'
 }
 
@@ -529,11 +409,8 @@ const getAlertBadgeClass = (severity) => {
   const classes = {
     critical: 'bg-red-100 text-red-600',
     high: 'bg-amber-100 text-amber-600',
-    warning: 'bg-orange-100 text-orange-600',
     medium: 'bg-yellow-100 text-yellow-600',
     low: 'bg-blue-100 text-blue-600',
-    info: 'bg-cyan-100 text-cyan-600',
-    normal: 'bg-green-100 text-green-600',
   }
   return classes[severity] || 'bg-slate-100 text-slate-600'
 }

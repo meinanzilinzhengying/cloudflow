@@ -1,13 +1,16 @@
 import axios from 'axios'
 
-// 所有请求通过 nginx 反向代理转发到对应后端服务
-// nginx 代理规则：
-//   /api/     -> query-service:8007/api/
-//   /auth/    -> auth-service:8006/
-//   /tenant/  -> tenant-service:8010/
-//   /control/ -> control-plane:8001/
-//   /alert/   -> alert-engine:8009/
+// API Base URLs - these would be configured via environment variables in production
+const API_BASE = {
+  auth: '/api/auth',
+  tenant: '/api/tenant',
+  controlPlane: '/api/control',
+  query: '/api/query',
+  alert: '/api/alert',
+  dataPlane: '/api/dataplane',
+}
 
+// Create axios instances for each service
 const createApiClient = (baseURL) => {
   const client = axios.create({
     baseURL,
@@ -48,74 +51,74 @@ const createApiClient = (baseURL) => {
   return client
 }
 
-// 各服务 axios 实例（使用相对路径，由 nginx 代理到对应后端）
-const authApi = createApiClient('/auth')
-const tenantApi = createApiClient('/tenant')
-const controlPlaneApi = createApiClient('/control')
-const queryApi = createApiClient('/api')
-const alertApi = createApiClient('/alert')
+const authApi = createApiClient(API_BASE.auth)
+const tenantApi = createApiClient(API_BASE.tenant)
+const controlPlaneApi = createApiClient(API_BASE.controlPlane)
+const queryApi = createApiClient(API_BASE.query)
+const alertApi = createApiClient(API_BASE.alert)
+const dataPlaneApi = createApiClient(API_BASE.dataPlane)
 
 // Auth Service APIs
 export const authService = {
   login: (username, password) =>
-    authApi.post('/api/login', { username, password }),
+    authApi.post('/login', { username, password }),
 
   verify: (token) =>
-    authApi.post('/api/verify', { token }),
+    authApi.post('/verify', { token }),
 
   refresh: (token) =>
-    authApi.post('/api/refresh', { token }),
+    authApi.post('/refresh', { token }),
 
   revoke: (token) =>
-    authApi.post('/api/revoke', { token }),
+    authApi.post('/revoke', { token }),
 
   getUsers: () =>
-    authApi.get('/api/users'),
+    authApi.get('/users'),
 
   createUser: (userData) =>
-    authApi.post('/api/users/create', userData),
+    authApi.post('/users/create', userData),
 
   updateUser: (userData) =>
-    authApi.post('/api/users/update', userData),
+    authApi.post('/users/update', userData),
 
   deleteUser: (username) =>
-    authApi.delete('/api/users/delete', { data: { username } }),
+    authApi.delete('/users/delete', { data: { username } }),
 
   getRoles: () =>
-    authApi.get('/api/roles'),
+    authApi.get('/roles'),
 
   checkPermission: (action, resource) =>
-    authApi.post('/api/permissions/check', { action, resource }),
+    authApi.post('/permissions/check', { action, resource }),
 }
 
 // Tenant Service APIs
 export const tenantService = {
   getTenants: () =>
-    tenantApi.get('/api/tenants'),
+    tenantApi.get('/tenants'),
 
   createTenant: (tenantData) =>
-    tenantApi.post('/api/tenants/create', tenantData),
+    tenantApi.post('/tenants/create', tenantData),
 
   updateTenant: (tenantData) =>
-    tenantApi.post('/api/tenants/update', tenantData),
+    tenantApi.post('/tenants/update', tenantData),
 
   deleteTenant: (tenantId) =>
-    tenantApi.post('/api/tenants/delete', { tenant_id: tenantId }),
+    tenantApi.post('/tenants/delete', { tenant_id: tenantId }),
 
   getProjects: () =>
-    tenantApi.get('/api/projects'),
+    tenantApi.get('/projects'),
 
   getQuotas: () =>
-    tenantApi.get('/api/quotas'),
+    tenantApi.get('/quotas'),
 }
 
 // Control Plane APIs
 export const controlPlaneService = {
   getAgents: () =>
-    controlPlaneApi.get('/api/agents'),
+    controlPlaneApi.get('/agents'),
 
   getEdges: () =>
-    controlPlaneApi.get('/api/edges'),
+    controlPlaneApi.get('/edges'),
 }
 
 // Query Service APIs
@@ -157,41 +160,57 @@ export const queryService = {
     queryApi.get('/correlation', { params }),
 }
 
-// Alert Engine APIs
+// Alert Service APIs
 export const alertService = {
   getAlerts: (params) =>
-    alertApi.get('/api/alerts', { params }),
+    alertApi.get('/alerts', { params }),
 
   createAlert: (alertData) =>
-    alertApi.post('/api/alerts/create', alertData),
+    alertApi.post('/alerts/create', alertData),
 
   updateAlert: (alertData) =>
-    alertApi.post('/api/alerts/update', alertData),
+    alertApi.post('/alerts/update', alertData),
 
   resolveAlert: (alertId) =>
-    alertApi.post('/api/alerts/resolve', { alert_id: alertId }),
+    alertApi.post('/alerts/resolve', { alert_id: alertId }),
 
   getRules: () =>
-    alertApi.get('/api/rules'),
+    alertApi.get('/rules'),
 
   createRule: (ruleData) =>
-    alertApi.post('/api/rules/create', ruleData),
+    alertApi.post('/rules/create', ruleData),
 
   updateRule: (ruleData) =>
-    alertApi.post('/api/rules/update', ruleData),
+    alertApi.post('/rules/update', ruleData),
 
   deleteRule: (ruleId) =>
-    alertApi.delete('/api/rules/delete', { data: { rule_id: ruleId } }),
+    alertApi.delete('/rules/delete', { data: { rule_id: ruleId } }),
+}
+
+// Data Plane APIs
+export const dataPlaneService = {
+  getHealth: () =>
+    dataPlaneApi.get('/health'),
+
+  getMetrics: () =>
+    dataPlaneApi.get('/metrics'),
+
+  getSamplingConfig: () =>
+    dataPlaneApi.get('/sampling/config'),
+
+  getSamplingStats: () =>
+    dataPlaneApi.get('/sampling/stats'),
 }
 
 // Health check for all services
 export const healthCheck = async () => {
   const services = [
-    { name: 'auth', url: '/auth/healthz' },
-    { name: 'tenant', url: '/tenant/healthz' },
-    { name: 'control-plane', url: '/control/healthz' },
-    { name: 'query', url: '/api/healthz' },
-    { name: 'alert', url: '/alert/healthz' },
+    { name: 'auth', url: `${API_BASE.auth}/healthz` },
+    { name: 'tenant', url: `${API_BASE.tenant}/healthz` },
+    { name: 'control-plane', url: `${API_BASE.controlPlane}/healthz` },
+    { name: 'query', url: `${API_BASE.query}/healthz` },
+    { name: 'alert', url: `${API_BASE.alert}/healthz` },
+    { name: 'data-plane', url: `${API_BASE.dataPlane}/health` },
   ]
 
   const results = await Promise.allSettled(
@@ -214,5 +233,6 @@ export default {
   controlPlaneService,
   queryService,
   alertService,
+  dataPlaneService,
   healthCheck,
 }

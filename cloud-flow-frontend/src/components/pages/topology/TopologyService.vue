@@ -12,8 +12,8 @@
           <option>default</option>
           <option>kube-system</option>
         </select>
-        <button class="btn-secondary" @click="fetchData" :disabled="loading">
-          <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
+        <button class="btn-secondary">
+          <RefreshCw class="w-4 h-4" />
           刷新
         </button>
       </div>
@@ -75,20 +75,8 @@
 
     <!-- Topology Graph -->
     <div class="card p-6">
-      <div class="h-[500px] relative">
-        <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-dark-800/60 z-10">
-          <div class="flex flex-col items-center gap-2">
-            <RefreshCw class="w-6 h-6 text-primary-500 animate-spin" />
-            <span class="text-sm text-slate-500">加载中...</span>
-          </div>
-        </div>
-        <div v-else-if="!hasData" class="absolute inset-0 flex items-center justify-center">
-          <div class="text-center">
-            <Layers class="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-500" />
-            <p class="text-slate-500 dark:text-slate-400">暂无数据</p>
-          </div>
-        </div>
-        <ECharts v-else ref="chartRef" :option="topologyOption" class="w-full h-full" autoresize @click="onChartClick" />
+      <div class="h-[500px]">
+        <ECharts :option="topologyOption" class="w-full h-full" autoresize />
       </div>
     </div>
 
@@ -171,20 +159,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { GraphChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent } from 'echarts/components'
 import ECharts from 'vue-echarts'
-import { Layers, Activity, CheckCircle, X, AlertTriangle, RefreshCw } from 'lucide-vue-next'
-import { queryService } from '../../../api'
+import { Layers, Activity, CheckCircle, X, AlertTriangle } from 'lucide-vue-next'
 
 use([CanvasRenderer, GraphChart, TooltipComponent, LegendComponent])
 
 const activeTab = ref('service')
-const loading = ref(false)
-const chartRef = ref(null)
 
 const tabs = [
   { id: 'service', label: 'Service' },
@@ -194,41 +179,12 @@ const tabs = [
 ]
 
 const serviceStats = ref({
-  total: 0,
-  calls: 0,
-  errorRate: 0,
+  total: 12,
+  calls: 156,
+  errorRate: 2.3,
 })
 
-const nodes = ref([])
-const links = ref([])
-
-const hasData = computed(() => nodes.value.length > 0)
-
 const selectedService = ref(null)
-
-const normalizeStatus = (status) => {
-  if (!status) return 'normal'
-  const s = String(status).toLowerCase()
-  if (s.includes('error') || s.includes('故障') || s.includes('err') || s === 'down') return 'error'
-  if (s.includes('warn') || s.includes('告警') || s.includes('warning')) return 'warning'
-  if (s.includes('offline') || s.includes('离线')) return 'offline'
-  return 'normal'
-}
-
-const getStatusColor = (status) => {
-  const colors = { normal: 'bg-green-500', warning: 'bg-amber-500', error: 'bg-red-500', offline: 'bg-gray-400' }
-  return colors[status] || colors.normal
-}
-
-const getStatusDotColor = (status) => {
-  const colors = { normal: '#22c55e', warning: '#f59e0b', error: '#ef4444', offline: '#94a3b8' }
-  return colors[status] || colors.normal
-}
-
-const getStatusText = (status) => {
-  const texts = { normal: '运行正常', warning: '存在告警', error: '服务故障', offline: '离线' }
-  return texts[status] || '未知'
-}
 
 const topologyOption = computed(() => ({
   tooltip: {
@@ -238,8 +194,7 @@ const topologyOption = computed(() => ({
     textStyle: { color: '#1e293b' },
     formatter: (params) => {
       if (params.dataType === 'node') {
-        const s = params.data.statusKey || 'normal'
-        return `<div class="font-medium">${params.name}</div><div class="text-xs text-gray-500">${getStatusText(s)}</div>`
+        return `<div class="font-medium">${params.name}</div><div class="text-xs text-gray-500">${params.data.status}</div>`
       }
       return ''
     },
@@ -261,90 +216,67 @@ const topologyOption = computed(() => ({
       gravity: 0.1,
       edgeLength: [80, 200],
     },
-    data: nodes.value.map((n) => {
-      const statusKey = normalizeStatus(n.status)
-      const isInfra = ['database', 'db', 'redis', 'kafka', 'cache', 'queue', 'storage'].some(
-        (kw) => String(n.name || '').toLowerCase().includes(kw)
-      )
-      return {
-        name: n.name,
-        statusKey,
-        raw: n,
-        symbol: isInfra ? 'diamond' : 'roundRect',
-        itemStyle: { color: getStatusDotColor(statusKey) },
-      }
-    }),
-    links: links.value.map((l) => ({
-      source: l.source || l.from,
-      target: l.target || l.to,
-      value: l.calls || l.weight,
-    })),
+    data: [
+      { name: 'API Gateway', status: '正常', symbol: 'roundRect', itemStyle: { color: '#22c55e' }, category: 0 },
+      { name: 'User Service', status: '正常', symbol: 'roundRect', itemStyle: { color: '#22c55e' }, category: 1 },
+      { name: 'Order Service', status: '告警', symbol: 'roundRect', itemStyle: { color: '#f59e0b' }, category: 1 },
+      { name: 'Payment Service', status: '正常', symbol: 'roundRect', itemStyle: { color: '#22c55e' }, category: 1 },
+      { name: 'Product Service', status: '正常', symbol: 'roundRect', itemStyle: { color: '#22c55e' }, category: 1 },
+      { name: 'Inventory Service', status: '故障', symbol: 'roundRect', itemStyle: { color: '#ef4444' }, category: 1 },
+      { name: 'Database', status: '正常', symbol: 'diamond', itemStyle: { color: '#2563eb' }, category: 2 },
+      { name: 'Redis', status: '正常', symbol: 'diamond', itemStyle: { color: '#14b8a6' }, category: 2 },
+      { name: 'Kafka', status: '正常', symbol: 'diamond', itemStyle: { color: '#8b5cf6' }, category: 2 },
+    ],
+    links: [
+      { source: 'API Gateway', target: 'User Service' },
+      { source: 'API Gateway', target: 'Order Service' },
+      { source: 'API Gateway', target: 'Product Service' },
+      { source: 'User Service', target: 'Database' },
+      { source: 'User Service', target: 'Redis' },
+      { source: 'Order Service', target: 'Payment Service' },
+      { source: 'Order Service', target: 'Inventory Service' },
+      { source: 'Order Service', target: 'Database' },
+      { source: 'Order Service', target: 'Kafka' },
+      { source: 'Product Service', target: 'Redis' },
+      { source: 'Product Service', target: 'Database' },
+      { source: 'Payment Service', target: 'Database' },
+      { source: 'Inventory Service', target: 'Database' },
+    ],
   }],
 }))
 
-const handleNodeClick = (node) => {
-  const raw = node.raw || node
-  const statusKey = normalizeStatus(raw.status)
+const getStatusColor = (status) => {
+  const colors = { normal: 'bg-green-500', warning: 'bg-amber-500', error: 'bg-red-500', offline: 'bg-gray-400' }
+  return colors[status] || colors.normal
+}
+
+const getStatusText = (status) => {
+  const texts = { normal: '运行正常', warning: '存在告警', error: '服务故障', offline: '离线' }
+  return texts[status] || '未知'
+}
+
+// Mock selected service data
+selectedService.value = null
+
+// When clicking on a node in the chart, we'd set selectedService
+const handleNodeClick = (service) => {
   selectedService.value = {
-    name: raw.name,
-    status: statusKey,
-    qps: raw.qps ?? 0,
-    errorRate: typeof raw.error_rate === 'number' ? raw.error_rate : (raw.errorRate ?? 0),
-    latency: typeof raw.latency === 'number' ? raw.latency : (raw.latency_p50 ?? 0),
-    p99Latency: typeof raw.p99_latency === 'number' ? raw.p99_latency : (raw.p99Latency ?? raw.latency ?? 0),
-    topTraces: raw.top_traces || raw.topTraces || [],
-    recentAlerts: raw.alerts || raw.recentAlerts || [],
+    name: service.name,
+    status: 'normal',
+    qps: 12500,
+    errorRate: 2.3,
+    latency: 45,
+    p99Latency: 156,
+    topTraces: [
+      { id: 1, name: 'Checkout', status: 'success', duration: 123, spans: 8 },
+      { id: 2, name: 'GetUser', status: 'success', duration: 45, spans: 3 },
+      { id: 3, name: 'CreateOrder', status: 'error', duration: 890, spans: 12 },
+    ],
+    recentAlerts: [
+      { id: 1, title: '延迟增加警告', time: '5分钟前' },
+    ],
   }
 }
-
-const onChartClick = (params) => {
-  if (params.dataType === 'node' && params.data) {
-    handleNodeClick(params.data)
-  }
-}
-
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const data = await queryService.getTopology({ type: 'service' })
-    const payload = data?.data || data || {}
-
-    const totalServices = payload.total_services ?? payload.service_count ?? payload.services ?? 0
-    const totalCalls = payload.total_calls ?? payload.calls ?? 0
-    const errorRate = payload.error_rate ?? payload.errorRate ?? 0
-    serviceStats.value = {
-      total: Number(totalServices) || 0,
-      calls: Math.round((Number(totalCalls) || 0) / 1000),
-      errorRate: Number(errorRate) || 0,
-    }
-
-    const rawNodes = payload.nodes || payload.services || []
-    nodes.value = Array.isArray(rawNodes)
-      ? rawNodes.map((n) => (typeof n === 'string' ? { name: n } : n))
-      : []
-
-    const rawLinks = payload.links || payload.edges || payload.relations || []
-    links.value = Array.isArray(rawLinks) ? rawLinks : []
-  } catch (err) {
-    console.error('Failed to load topology:', err)
-    nodes.value = []
-    links.value = []
-    serviceStats.value = { total: 0, calls: 0, errorRate: 0 }
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(async () => {
-  await fetchData()
-  if (chartRef.value?.getInstance) {
-    await nextTick()
-    const instance = chartRef.value.getInstance()
-    if (instance && typeof instance.on === 'function') {
-      instance.on('click', onChartClick)
-    }
-  }
-})
 </script>
 
 <style scoped>

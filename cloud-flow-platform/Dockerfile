@@ -19,34 +19,8 @@ WORKDIR /usr/share/nginx/html
 
 COPY --from=builder /app/dist .
 
-# 配置 nginx
-RUN echo 'server { \
-    listen 80; \
-    server_name localhost; \
-    root /usr/share/nginx/html; \
-    index index.html; \
-    location / { \
-        try_files $uri $uri/ /index.html; \
-    } \
-    location /api { \
-        proxy_pass http://control-plane:8001; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-    } \
-    location /prometheus { \
-        proxy_pass http://prometheus:9090; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-    } \
-    location /loki { \
-        proxy_pass http://loki:3100; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
+# 配置 nginx - 使用项目根目录下的 nginx.conf 文件
+COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 80
 

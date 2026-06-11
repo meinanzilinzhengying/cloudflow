@@ -1,15 +1,15 @@
 <template>
   <aside
     :class="[
-      'fixed left-0 top-0 z-40 flex flex-col h-screen',
+      'fixed left-0 top-0 bottom-0 z-40 flex flex-col',
       'bg-slate-900 dark:bg-dark-950',
       'border-r border-slate-800 dark:border-dark-800',
-      'transition-all duration-300 ease-in-out overflow-hidden',
+      'transition-all duration-300 ease-in-out',
       collapsed ? 'w-[72px]' : 'w-[260px]'
     ]"
   >
     <!-- Logo -->
-    <div class="h-16 flex-shrink-0 flex items-center px-4 border-b border-slate-800 dark:border-dark-800">
+    <div class="h-16 flex items-center px-4 border-b border-slate-800 dark:border-dark-800">
       <div class="flex items-center gap-3 overflow-hidden">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary-500/25">
           <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -26,82 +26,86 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="flex-1 min-h-0 overflow-y-auto py-4 px-3 sidebar-nav-scroll">
-      <div class="space-y-1">
-        <div v-for="menu in menuItems" :key="menu.id">
-          <div class="relative">
-            <button
-              @click="toggleSubmenu(menu.id)"
+    <nav class="flex-1 overflow-y-auto py-4 px-3 scrollbar-hide">
+      <div v-for="menu in menuItems" :key="menu.id" class="mb-1">
+        <!-- Parent Menu -->
+        <div class="relative">
+          <button
+            @click="toggleSubmenu(menu.id)"
+            :class="[
+              'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl',
+              'transition-all duration-200 group relative',
+              isActiveMenu(menu.id)
+                ? 'bg-primary-500/15 text-primary-400'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            ]"
+          >
+            <!-- Active indicator -->
+            <div
+              v-if="isActiveMenu(menu.id)"
+              class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary-500 rounded-r-full"
+            ></div>
+
+            <component :is="menu.icon" class="w-5 h-5 flex-shrink-0" />
+            <span v-if="!collapsed" class="text-sm font-medium truncate flex-1 text-left">{{ menu.label }}</span>
+            
+            <!-- Badge -->
+            <span
+              v-if="menu.badge && !collapsed"
               :class="[
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl',
-                'transition-all duration-200 group relative',
-                isActiveMenu(menu.id)
-                  ? 'bg-primary-500/15 text-primary-400'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                'text-xs px-2 py-0.5 rounded-full font-medium',
+                menu.badgeType === 'danger' ? 'bg-red-500/20 text-red-400' : 'bg-primary-500/20 text-primary-400'
               ]"
             >
-              <div
-                v-if="isActiveMenu(menu.id)"
-                class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary-500 rounded-r-full"
-              ></div>
+              {{ menu.badge }}
+            </span>
 
-              <component :is="menu.icon" class="w-5 h-5 flex-shrink-0" />
-              <span v-if="!collapsed" class="text-sm font-medium truncate flex-1 text-left">{{ menu.label }}</span>
-              
-              <span
-                v-if="menu.badge && !collapsed"
-                :class="[
-                  'text-xs px-2 py-0.5 rounded-full font-medium',
-                  menu.badgeType === 'danger' ? 'bg-red-500/20 text-red-400' : 'bg-primary-500/20 text-primary-400'
-                ]"
-              >
-                {{ menu.badge }}
-              </span>
+            <!-- Chevron for submenu -->
+            <ChevronRight
+              v-if="menu.children && !collapsed"
+              :class="[
+                'w-4 h-4 transition-transform duration-200',
+                expandedMenus.includes(menu.id) ? 'rotate-90' : ''
+              ]"
+            />
 
-              <ChevronRight
-                v-if="menu.children && !collapsed"
-                :class="[
-                  'w-4 h-4 transition-transform duration-200',
-                  expandedMenus.includes(menu.id) ? 'rotate-90' : ''
-                ]"
-              />
+            <!-- Tooltip for collapsed state -->
+            <div
+              v-if="collapsed"
+              class="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50"
+            >
+              {{ menu.label }}
+            </div>
+          </button>
 
-              <div
-                v-if="collapsed"
-                class="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50"
-              >
-                {{ menu.label }}
+          <!-- Submenu -->
+          <Transition name="submenu">
+            <div v-if="menu.children && expandedMenus.includes(menu.id) && !collapsed" class="mt-1 ml-3">
+              <div class="space-y-0.5">
+                <button
+                  v-for="child in menu.children"
+                  :key="child.id"
+                  @click="handleMenuClick(child.id)"
+                  :class="[
+                    'w-full flex items-center gap-3 px-3 py-2 rounded-lg',
+                    'transition-all duration-200',
+                    activeMenu === child.id
+                      ? 'bg-primary-500/10 text-primary-400'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  ]"
+                >
+                  <component :is="child.icon || Circle" class="w-3.5 h-3.5 flex-shrink-0" />
+                  <span class="text-sm truncate">{{ child.label }}</span>
+                </button>
               </div>
-            </button>
-
-            <Transition name="submenu">
-              <div v-if="menu.children && expandedMenus.includes(menu.id) && !collapsed" class="mt-1 ml-3">
-                <div class="space-y-0.5">
-                  <button
-                    v-for="child in menu.children"
-                    :key="child.id"
-                    @click="handleMenuClick(child.id)"
-                    :class="[
-                      'w-full flex items-center gap-3 px-3 py-2 rounded-lg',
-                      'transition-all duration-200',
-                      activeMenu === child.id
-                        ? 'bg-primary-500/10 text-primary-400'
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    ]"
-                  >
-                    <component :is="child.icon || Circle" class="w-3.5 h-3.5 flex-shrink-0" />
-                    <span class="text-sm truncate">{{ child.label }}</span>
-                  </button>
-                </div>
-              </div>
-            </Transition>
-          </div>
+            </div>
+          </Transition>
         </div>
       </div>
     </nav>
 
     <!-- Footer -->
-    <div class="flex-shrink-0 p-4 border-t border-slate-800 dark:border-dark-800">
+    <div class="p-4 border-t border-slate-800 dark:border-dark-800">
       <button
         @click="$emit('toggle')"
         class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-slate-500 hover:bg-slate-800 hover:text-white transition-all duration-200"
@@ -124,6 +128,7 @@ import {
   FileText,
   AlertTriangle,
   Search,
+  RefreshCw,
   Circle,
   ChevronLeft,
   ChevronRight,
@@ -131,17 +136,19 @@ import {
   Users,
   Server,
   Settings,
+  Key,
+  Database,
+  Layers,
+  Clock,
+  Zap,
+  Code,
   Network,
   Globe,
   History,
   Bug,
   Lightbulb,
   Map,
-  Clock,
-  Zap,
-  Code,
-  Database,
-  Layers,
+  Bell,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -151,7 +158,7 @@ const props = defineProps({
 
 const emit = defineEmits(['toggle', 'menu-change'])
 
-const expandedMenus = ref(['traffic', 'topology', 'tracing', 'metrics', 'logs', 'rca', 'management'])
+const expandedMenus = ref(['traffic', 'topology', 'tracing', 'metrics', 'logs', 'alerts', 'rca', 'management'])
 
 const menuItems = computed(() => [
   {
@@ -161,7 +168,7 @@ const menuItems = computed(() => [
   },
   {
     id: 'traffic',
-    label: '流量分析',
+    label: '网络流量',
     icon: TrendingUp,
     children: [
       { id: 'traffic-overview', label: '全局流量分析', icon: Globe },
@@ -217,10 +224,16 @@ const menuItems = computed(() => [
   },
   {
     id: 'alerts',
-    label: '告警管理',
+    label: '告警中心',
     icon: AlertTriangle,
     badge: '3',
     badgeType: 'danger',
+    children: [
+      { id: 'alerts-events', label: '告警事件', icon: AlertTriangle },
+      { id: 'alerts-rules', label: '告警规则', icon: Settings },
+      { id: 'alerts-notifications', label: '通知策略', icon: Bell },
+      { id: 'alerts-stats', label: '告警统计', icon: BarChart3 },
+    ],
   },
   {
     id: 'rca',
@@ -237,9 +250,10 @@ const menuItems = computed(() => [
     label: '管理中心',
     icon: Settings,
     children: [
-      { id: 'management-tenants', label: '租户管理', icon: Building2 },
-      { id: 'management-users', label: '用户管理', icon: Users },
       { id: 'management-agents', label: 'Agent管理', icon: Server },
+      { id: 'management-users', label: '用户管理', icon: Users },
+      { id: 'management-tenants', label: '租户管理', icon: Building2 },
+      { id: 'management-apikey', label: 'API Key', icon: Key },
       { id: 'management-settings', label: '系统设置', icon: Settings },
     ],
   },
@@ -273,28 +287,6 @@ const handleMenuClick = (menuId) => {
 </script>
 
 <style scoped>
-.sidebar-nav-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
-}
-
-.sidebar-nav-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sidebar-nav-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar-nav-scroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
-  border-radius: 3px;
-}
-
-.sidebar-nav-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
-}
-
 .submenu-enter-active,
 .submenu-leave-active {
   transition: all 0.2s ease;

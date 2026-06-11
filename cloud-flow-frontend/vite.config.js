@@ -12,33 +12,74 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // Auth Service
-      '/auth': {
+      '/api/auth': {
         target: 'http://localhost:8006',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/auth/, '')
+        rewrite: (path) => path.replace(/^\/api\/auth/, '')
       },
       // Tenant Service
-      '/tenant': {
+      '/api/tenants': {
         target: 'http://localhost:8010',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/tenant/, '')
+        changeOrigin: true
+      },
+      '/api/projects': {
+        target: 'http://localhost:8010',
+        changeOrigin: true
+      },
+      '/api/quotas': {
+        target: 'http://localhost:8010',
+        changeOrigin: true
       },
       // Control Plane
-      '/control': {
+      '/api/agents': {
         target: 'http://localhost:8001',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/control/, '')
+        changeOrigin: true
       },
-      // Query Service（/api/ 前缀，后端路由本身就是 /api/*）
-      '/api': {
+      '/api/edges': {
+        target: 'http://localhost:8001',
+        changeOrigin: true
+      },
+      // Query Service
+      '/api/overview': {
         target: 'http://localhost:8007',
         changeOrigin: true
       },
-      // Alert Engine
-      '/alert': {
+      '/api/metrics': {
+        target: 'http://localhost:8007',
+        changeOrigin: true
+      },
+      '/api/flows': {
+        target: 'http://localhost:8007',
+        changeOrigin: true
+      },
+      '/api/traces': {
+        target: 'http://localhost:8007',
+        changeOrigin: true
+      },
+      '/api/topology': {
+        target: 'http://localhost:8007',
+        changeOrigin: true
+      },
+      '/api/alerts': {
+        target: 'http://localhost:8007',
+        changeOrigin: true
+      },
+      '/api/otel': {
+        target: 'http://localhost:8007',
+        changeOrigin: true
+      },
+      '/api/rca': {
+        target: 'http://localhost:8007',
+        changeOrigin: true
+      },
+      '/api/correlation': {
+        target: 'http://localhost:8007',
+        changeOrigin: true
+      },
+      // Alert Service
+      '/api/rules': {
         target: 'http://localhost:8009',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/alert/, '')
+        changeOrigin: true
       }
     }
   }

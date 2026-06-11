@@ -6,9 +6,8 @@ WORKDIR /app
 # 设置国内代理
 ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 
-COPY package.json ./package.json
-COPY package-lock.json ./package-lock.json
-RUN npm ci
+COPY package.json ./
+RUN npm install
 
 COPY . .
 RUN npm run build
@@ -17,9 +16,6 @@ RUN npm run build
 FROM nginx:alpine
 
 WORKDIR /usr/share/nginx/html
-
-# 删除默认配置避免与自定义配置冲突
-RUN rm -f /etc/nginx/conf.d/default.conf
 
 COPY --from=builder /app/dist .
 

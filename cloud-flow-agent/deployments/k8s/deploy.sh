@@ -240,7 +240,7 @@ show_result() {
     echo "   kubectl -n $NAMESPACE get all -l app=cloudflow-agent"
     echo ""
     echo "🔗 访问前端界面:"
-    echo "   前端分析: http://<your-server-ip>:8080"
+    echo "   业务监控: http://<your-server-ip>:8080"
     echo "   平台监控: http://<your-server-ip>:3003"
     echo ""
     echo "📚 查看文档: docs/kubernetes-agent-deployment.md"

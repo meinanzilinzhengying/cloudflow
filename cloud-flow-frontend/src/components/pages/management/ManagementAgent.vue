@@ -1,18 +1,24 @@
 <template>
   <div class="space-y-6">
+    <!-- Page Header -->
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Agent管理</h1>
         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">管理和监控Agent节点</p>
       </div>
       <div class="flex items-center gap-3">
-        <button class="btn-secondary" @click="fetchData">
-          <RefreshCw class="w-4 h-4" />
-          刷新
+        <button class="btn-secondary">
+          <Upload class="w-4 h-4" />
+          批量升级
+        </button>
+        <button class="btn-primary">
+          <Plus class="w-4 h-4" />
+          添加Agent
         </button>
       </div>
     </div>
 
+    <!-- Stats Cards -->
     <div class="grid grid-cols-4 gap-4">
       <div class="card p-4">
         <div class="flex items-center justify-between">
@@ -60,42 +66,59 @@
       </div>
     </div>
 
+    <!-- Agent List -->
     <div class="card">
+      <div class="p-6 border-b border-slate-200 dark:border-dark-700 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <input type="text" placeholder="搜索Agent..." class="input max-w-xs" />
+          <select class="input w-32">
+            <option>全部状态</option>
+            <option>在线</option>
+            <option>离线</option>
+            <option>异常</option>
+          </select>
+        </div>
+        <button class="btn-secondary">
+          <RefreshCw class="w-4 h-4" />
+          刷新
+        </button>
+      </div>
       <div class="overflow-x-auto">
-        <div v-if="loading" class="flex items-center justify-center py-12">
-          <Loader2 class="w-8 h-8 text-primary-500 animate-spin" />
-        </div>
-
-        <div v-else-if="agents.length === 0" class="flex flex-col items-center justify-center py-12 text-slate-500">
-          <Inbox class="w-12 h-12 mb-3 text-slate-300" />
-          <p>暂无数据</p>
-        </div>
-
-        <table v-else class="w-full">
+        <table class="w-full">
           <thead>
             <tr class="bg-slate-50 dark:bg-dark-700/50">
-              <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">Agent ID</th>
-              <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">主机名</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">Agent名称</th>
               <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">IP地址</th>
               <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">版本</th>
               <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">状态</th>
-              <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">最后心跳</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">运行时间</th>
+              <th class="text-left px-6 py-3 text-xs font-semibold text-slate-500">操作</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200 dark:divide-dark-700">
-            <tr v-for="(agent, idx) in agents" :key="idx">
-              <td class="px-6 py-3">
-                <span class="text-sm font-medium text-slate-900 dark:text-white">{{ agent.id || agent.agent_id || agent.agentId || '-' }}</span>
+            <tr v-for="agent in agents" :key="agent.id">
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <div :class="['w-3 h-3 rounded-full', agent.status === 'online' ? 'bg-green-500' : agent.status === 'offline' ? 'bg-gray-400' : 'bg-red-500']"></div>
+                  <span class="text-sm font-medium text-slate-900 dark:text-white">{{ agent.name }}</span>
+                </div>
               </td>
-              <td class="px-6 py-3 text-sm text-slate-700 dark:text-slate-200">{{ agent.hostname || agent.host_name || agent.name || '-' }}</td>
-              <td class="px-6 py-3 text-sm text-slate-500">{{ agent.ip || agent.ip_address || agent.ipAddress || '-' }}</td>
-              <td class="px-6 py-3 text-sm text-slate-500">{{ agent.version || agent.agent_version || '-' }}</td>
-              <td class="px-6 py-3">
-                <span :class="['text-xs px-2 py-1 rounded-full font-medium', statusClass(agent.status)]">
-                  {{ statusText(agent.status) }}
+              <td class="px-6 py-4 text-sm text-slate-500">{{ agent.ip }}</td>
+              <td class="px-6 py-4 text-sm text-slate-500">{{ agent.version }}</td>
+              <td class="px-6 py-4">
+                <span :class="['text-xs px-2 py-1 rounded-full font-medium', agent.status === 'online' ? 'bg-green-100 text-green-600' : agent.status === 'offline' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-600']">
+                  {{ agent.status === 'online' ? '在线' : agent.status === 'offline' ? '离线' : '异常' }}
                 </span>
               </td>
-              <td class="px-6 py-3 text-sm text-slate-500">{{ agent.last_heartbeat || agent.lastHeartbeat || agent.heartbeat || agent.updated_at || '-' }}</td>
+              <td class="px-6 py-4 text-sm text-slate-500">{{ agent.uptime }}</td>
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-2">
+                  <button class="text-xs text-primary-500 hover:text-primary-600">升级</button>
+                  <button class="text-xs text-amber-500 hover:text-amber-600">重启</button>
+                  <button class="text-xs text-blue-500 hover:text-blue-600">同步</button>
+                  <button class="text-xs text-red-500 hover:text-red-600">删除</button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -105,64 +128,21 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { Server, CheckCircle, AlertCircle, AlertTriangle, RefreshCw, Loader2, Inbox } from 'lucide-vue-next'
-import { controlPlaneService } from '../../../api'
+import { ref } from 'vue'
+import { Upload, Plus, Server, CheckCircle, AlertCircle, AlertTriangle, RefreshCw } from 'lucide-vue-next'
 
-const loading = ref(false)
-const agents = ref([])
-
-const normalizeStatus = (status) => {
-  if (!status) return 'unknown'
-  const s = String(status).toLowerCase()
-  if (s === 'online' || s === 'running' || s === 'active' || s === 'connected' || s === 'up') return 'online'
-  if (s === 'offline' || s === 'disconnected' || s === 'down' || s === 'inactive') return 'offline'
-  if (s === 'error' || s === 'failed' || s === 'critical' || s === 'abnormal') return 'error'
-  return s
-}
-
-const statusClass = (status) => {
-  const s = normalizeStatus(status)
-  if (s === 'online') return 'bg-green-100 text-green-600'
-  if (s === 'offline') return 'bg-gray-100 text-gray-600'
-  if (s === 'error') return 'bg-red-100 text-red-600'
-  return 'bg-slate-100 text-slate-600'
-}
-
-const statusText = (status) => {
-  const s = normalizeStatus(status)
-  if (s === 'online') return '在线'
-  if (s === 'offline') return '离线'
-  if (s === 'error') return '异常'
-  return status || '未知'
-}
-
-const agentStats = computed(() => {
-  const total = agents.value.length
-  let online = 0, offline = 0, error = 0
-  agents.value.forEach((a) => {
-    const s = normalizeStatus(a.status)
-    if (s === 'online') online++
-    else if (s === 'offline') offline++
-    else if (s === 'error') error++
-  })
-  return { total, online, offline, error }
+const agentStats = ref({
+  total: 24,
+  online: 20,
+  offline: 2,
+  error: 2,
 })
 
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const data = await controlPlaneService.getAgents()
-    const list = Array.isArray(data) ? data : (data.data || data.items || data.results || data.agents || [])
-    agents.value = list
-  } catch (err) {
-    agents.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(() => {
-  fetchData()
-})
+const agents = ref([
+  { id: 1, name: 'agent-01', ip: '192.168.1.10', version: 'v1.2.3', status: 'online', uptime: '5天' },
+  { id: 2, name: 'agent-02', ip: '192.168.1.11', version: 'v1.2.3', status: 'online', uptime: '3天' },
+  { id: 3, name: 'agent-03', ip: '192.168.1.12', version: 'v1.1.0', status: 'online', uptime: '10天' },
+  { id: 4, name: 'agent-04', ip: '192.168.1.13', version: 'v1.2.3', status: 'offline', uptime: '-' },
+  { id: 5, name: 'agent-05', ip: '192.168.1.14', version: 'v1.2.3', status: 'error', uptime: '2天' },
+])
 </script>

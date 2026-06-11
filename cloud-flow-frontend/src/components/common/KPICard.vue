@@ -61,7 +61,6 @@ const iconBgClass = computed(() => {
     success: 'bg-green-50 dark:bg-green-500/10',
     warning: 'bg-amber-50 dark:bg-amber-500/10',
     danger: 'bg-red-50 dark:bg-red-500/10',
-    violet: 'bg-violet-50 dark:bg-violet-500/10',
   }
   return classes[props.color] || classes.primary
 })
@@ -73,7 +72,6 @@ const iconColorClass = computed(() => {
     success: 'text-green-500',
     warning: 'text-amber-500',
     danger: 'text-red-500',
-    violet: 'text-violet-500',
   }
   return classes[props.color] || classes.primary
 })

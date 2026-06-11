@@ -35,8 +35,8 @@
 - **自动诊断**: 智能识别异常和性能瓶颈
 
 ### 📊 双前端设计
-- **前端分析页面** (`:8080`): 流量分析、服务拓扑、链路追踪、告警中心
-- **平台自监控前端** (`:3003`): 平台自身监控、探针管理
+- **业务监控前端** (`:8080`): 流量分析、服务拓扑、链路追踪、告警管理、用户与租户管理
+- **平台自监控前端** (`:3003`): 平台自身监控、探针管理、AI 智能分析
 
 ---
 
@@ -49,10 +49,10 @@
 │                                                                      │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │                    前端层 (容器化)                            │   │
-│  │  ┌─────────────┐  ┌─────────────┐              │   │
-│  │  │  前端分析页面 │  │ 平台监控前端 │              │   │
-│  │  │   (:8080)   │  │   (:3003)   │              │   │
-│  │  └─────────────┘  └─────────────┘              │   │
+│  │        ┌─────────────┐              ┌─────────────┐          │   │
+│  │        │ 业务监控前端 │              │ 平台监控前端 │          │   │
+│  │        │   (:8080)   │              │   (:3003)   │          │   │
+│  │        └─────────────┘              └─────────────┘          │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 │                                    │                                 │
 │  ┌────────────────────────────────────────────────────────────────┐│
@@ -175,8 +175,8 @@ sudo ./install.sh --debug
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| 前端分析页面 | http://服务器IP:8080 | 流量分析、服务拓扑、链路追踪、告警中心 |
-| 平台自监控前端 | http://服务器IP:3003 | 平台自监控、探针管理 |
+| 业务监控前端 | http://服务器IP:8080 | 流量分析、服务拓扑、链路追踪、告警管理 |
+| 平台自监控前端 | http://服务器IP:3003 | 平台自监控、探针管理、AI 分析 |
 | Grafana | http://服务器IP:3001 | 监控仪表盘 |
 | Prometheus | http://服务器IP:9091 | 指标查询 |
 | AI 服务 | http://服务器IP:8082 | AI 分析 API |
@@ -304,15 +304,21 @@ cloudflow/
 │   ├── deployments/migrations/ # 数据库迁移
 │   └── shared/                 # 共享库
 │
-├── cloud-flow-frontend/         # 前端分析页面 (容器化, :8080)
+├── cloud-flow-frontend/         # 业务监控前端 (容器化, :8080)
+│   ├── src/
+│   │   ├── components/         # 组件 (Dashboard、流量分析、拓扑、追踪、告警、管理等)
+│   │   ├── api/index.js       # API 配置 (相对路径 + nginx 代理)
+│   │   └── App.vue            # 入口
+│   ├── nginx.conf             # 多服务代理配置 (auth/tenant/control/query/alert/dataplane)
+│   └── Dockerfile
 │
 ├── cloud-flow-platform/         # 平台自监控前端 (容器化, :3003)
 │   ├── src/
-│   │   ├── components/         # 组件
-│   │   ├── views/             # 页面
+│   │   ├── components/modules/ # 组件 (Dashboard、探针管理、健康检查、AI 分析、配置管理、告警)
+│   │   ├── api/index.js       # API 配置 (相对路径 + nginx 代理)
 │   │   └── App.vue           # 入口
-│   ├── Dockerfile
-│   └── nginx.conf
+│   ├── nginx.conf             # 代理配置 (control/prometheus/loki/alert)
+│   └── Dockerfile
 │
 ├── monitoring/                  # 监控配置
 │   ├── prometheus/             # Prometheus
@@ -385,13 +391,12 @@ kubernetes:
 
 ## 📊 功能特性
 
-### 前端分析页面 (`:8080`)
+### 业务监控前端 (`:8080`)
 - 🌐 **流量分析**: 实时业务流量监控和分析
 - 🔗 **服务拓扑**: 服务依赖关系可视化
-- 📈 **链路追踪**: 分布式链路追踪
-- 🚨 **告警中心**: 智能告警规则和通知
-- 🔍 **根因分析**: AI 辅助故障根因定位
-- 📊 **指标监控**: 主机/容器/服务指标
+- 📈 **链路追踪**: 分布式调用链追踪与分析
+- 🚨 **告警管理**: 智能告警规则和通知
+- 👥 **用户与租户管理**: 多租户、用户权限、API Key 管理
 
 ### 平台自监控前端 (`:3003`)
 - 🖥️ **探针管理**: 三种部署方式一键下发
@@ -449,10 +454,10 @@ docker compose logs -f cloudflow-agent
 docker compose ps frontend
 
 # 检查 Nginx 配置
-docker exec -it cloudflow-frontend cat /etc/nginx/nginx.conf
+docker exec -it cloudflow-business-frontend cat /etc/nginx/nginx.conf
 
 # 重启前端
-docker compose restart frontend platform-frontend
+docker compose restart business-frontend platform-frontend
 ```
 
 ---
@@ -528,8 +533,8 @@ cd cloudflow
 go mod download
 
 # 安装前端依赖
-cd cloud-flow-frontend && npm install
-cd ../cloud-flow-platform && npm install
+cd cloud-flow-platform && npm install
+cd ../cloud-flow-business && npm install
 
 # 运行测试
 go test ./...
