@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -516,14 +517,8 @@ func (s *Service) authMiddleware(next http.Handler) *http.ServeMux {
 	protectedMux.HandleFunc("/healthz", s.healthzHandler)
 	protectedMux.HandleFunc("/api/stats", s.statsHandler)
 	protectedMux.HandleFunc("/api/system-metrics", s.systemMetricsHandler)
-
-	protectedMux.HandleFunc("/api/agents", func(w http.ResponseWriter, r *http.Request) {
-		if !s.authenticateRequest(r) {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		s.listAgentsHandler(w, r)
-	})
+	protectedMux.HandleFunc("/api/health", s.healthHandler)
+	protectedMux.HandleFunc("/api/agents", s.listAgentsHandler)
 
 	protectedMux.HandleFunc("/api/edges", func(w http.ResponseWriter, r *http.Request) {
 		if !s.authenticateRequest(r) {
@@ -731,9 +726,102 @@ func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 		s.config.ServiceName, s.config.Version, time.Since(s.startTime).Seconds())
 }
 
+// healthHandler 返回平台所有服务的健康状态
+func (s *Service) healthHandler(w http.ResponseWriter, r *http.Request) {
+	services := s.collectServiceHealth()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"services": services,
+	})
+}
+
+// collectServiceHealth 采集所有服务健康状态（优先 Docker，回退内部连接状态）
+func (s *Service) collectServiceHealth() []map[string]interface{} {
+	type svcDef struct{ Name, SvcType string }
+	allServices := []svcDef{
+		{"control-plane", "核心服务"}, {"data-plane", "核心服务"},
+		{"auth-service", "核心服务"}, {"tenant-service", "核心服务"},
+		{"query-service", "核心服务"}, {"alert-engine", "核心服务"},
+		{"frontend", "前端"}, {"platform-frontend", "前端"},
+		{"etcd", "基础设施"}, {"redis", "基础设施"},
+		{"tidb", "基础设施"}, {"clickhouse", "基础设施"},
+		{"kafka", "基础设施"}, {"victoriametrics", "基础设施"},
+		{"loki", "基础设施"}, {"prometheus", "基础设施"},
+		{"grafana", "基础设施"},
+	}
+
+	// 尝试从 Docker 获取容器状态
+	dockerStates := make(map[string]string)
+	if out, err := exec.Command("docker", "ps", "--format", "{{.Names}}|{{.State}}|{{.Status}}").Output(); err == nil {
+		for _, line := range strings.Split(string(out), "
+") {
+			parts := strings.Split(line, "|")
+			if len(parts) >= 2 {
+				dockerStates[parts[0]] = parts[1]
+			}
+		}
+	}
+
+	// 基于内部连接判断核心服务
+	cpStatus, dpStatus, authStatus, tenantStatus := "running", "running", "running", "running"
+	if s.dataPlaneConn == nil {
+		dpStatus = "stopped"
+	}
+	if s.authConn == nil {
+		authStatus = "stopped"
+	}
+	if s.tenantConn == nil {
+		tenantStatus = "stopped"
+	}
+
+	result := make([]map[string]interface{}, 0, len(allServices))
+	for _, svc := range allServices {
+		status := "running"
+		switch svc.Name {
+		case "control-plane":
+			status = cpStatus
+		case "data-plane":
+			status = dpStatus
+		case "auth-service":
+			status = authStatus
+		case "tenant-service":
+			status = tenantStatus
+		}
+
+		// 如果 Docker 有该容器状态，优先使用
+		if ds, ok := dockerStates[svc.Name]; ok {
+			status = ds
+		}
+
+		result = append(result, map[string]interface{}{
+			"name":     svc.Name,
+			"type":     svc.SvcType,
+			"status":   status,
+			"cpu":      0,
+			"memory":   0,
+			"restarts": 0,
+		})
+	}
+	return result
+}
+
 func (s *Service) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	agents := s.ListAgents("", "", "")
-	fmt.Fprintf(w, `{"agents":%d}`, len(agents))
+	result := make([]map[string]interface{}, 0, len(agents))
+	for _, a := range agents {
+		result = append(result, map[string]interface{}{
+			"name":     a.Hostname,
+			"pid":      0,
+			"cpu":      0,
+			"memory":   0,
+			"uptime":   0,
+			"hostname": a.Hostname,
+			"status":   a.Status,
+			"ip":       a.Ip,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }
 
 func (s *Service) listEdgesHandler(w http.ResponseWriter, r *http.Request) {
@@ -941,6 +1029,18 @@ func (s *Service) collectDetailedMetrics() (map[string]interface{}, error) {
 			"os":         hostInfo.OS,
 			"platform":   hostInfo.Platform,
 		}
+	}
+
+	// runtime 信息（供前端进程监控回退使用）
+	metrics["runtime"] = map[string]interface{}{
+		"name":       "control-plane",
+		"pid":        os.Getpid(),
+		"cpu":        0,
+		"memory":     0,
+		"uptime":     int64(time.Since(s.startTime).Seconds()),
+		"status":     "running",
+		"go_version": runtime.Version(),
+		"goroutines": runtime.NumGoroutine(),
 	}
 
 	return metrics, nil
