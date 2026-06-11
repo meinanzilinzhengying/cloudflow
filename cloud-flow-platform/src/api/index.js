@@ -8,44 +8,38 @@ const api = axios.create({
 api.interceptors.response.use(
   response => response.data,
   error => {
-    console.error('API Error:', error)
-    return Promise.reject(error)
+    console.error('API Error:', error.config?.url, error.response?.status)
+    // 不抛出错误，返回 null 让调用方自行处理
+    return Promise.resolve(null)
   }
 )
 
 export default {
-  // 平台概览数据 - 调用控制面 /api/stats 接口
   getPlatformStats() {
-    return api.get('/control/stats')
+    return api.get('/control/stats').catch(() => null)
   },
 
-  // 系统指标 - 调用控制面 /api/system-metrics 接口
   getSystemMetrics() {
-    return api.get('/control/system-metrics')
+    return api.get('/control/system-metrics').catch(() => null)
   },
 
-  // 探针管理 - 调用控制面 /api/agents 接口
   getProbes() {
-    return api.get('/control/agents')
+    return api.get('/control/agents').catch(() => null)
   },
 
-  // 健康检查 - 调用控制面 /health 接口
   getHealthStatus() {
-    return api.get('/control/health')
+    return api.get('/control/health').catch(() => null)
   },
 
-  // 配置管理 - 调用控制面 /api/configs 接口
   getConfigs() {
-    return api.get('/control/configs')
+    return api.get('/control/configs').catch(() => null)
   },
 
-  // 告警列表 - 调用告警引擎 /api/alerts 接口
   getAlerts() {
-    return api.get('/alert/alerts')
+    return api.get('/alert/alerts').catch(() => null)
   },
 
-  // Data Plane 系统指标 - 调用 data-plane /api/system-metrics 接口
   getDataPlaneMetrics() {
-    return api.get('/data/system-metrics')
+    return api.get('/data/system-metrics').catch(() => null)
   }
 }

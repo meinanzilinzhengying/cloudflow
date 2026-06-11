@@ -295,12 +295,18 @@ function pushChartPoint(chartRef, newDataValues, labelSuffix = '') {
 // --- 轮询数据 ---
 async function fetchData() {
   try {
-    const [platformStats, healthStatus, probes, systemMetrics] = await Promise.all([
+    // 使用 allSettled 避免单个 API 失败拖垮整个面板
+    const results = await Promise.allSettled([
       api.getPlatformStats(),
       api.getHealthStatus(),
       api.getProbes(),
       api.getSystemMetrics()
     ])
+
+    const platformStats = results[0].status === 'fulfilled' ? results[0].value : null
+    const healthStatus = results[1].status === 'fulfilled' ? results[1].value : null
+    const probes       = results[2].status === 'fulfilled' ? results[2].value : null
+    const systemMetrics = results[3].status === 'fulfilled' ? results[3].value : null
 
     // 1. 顶栏统计
     if (platformStats) {
@@ -311,7 +317,7 @@ async function fetchData() {
         disk: platformStats.disk?.usage ?? 0,
         network: Math.round((platformStats.network?.inbound ?? 0) + (platformStats.network?.outbound ?? 0))
       }
-      // 计算变化趋势（与上次采样的差值）
+      // 计算变化趋势
       if (!loading.value) {
         changes.value = {
           cpu: +(stats.value.cpu - prev.cpu).toFixed(1),
@@ -321,7 +327,7 @@ async function fetchData() {
         }
       }
 
-      // 推进实时图表（分钟级颗粒度）
+      // 推进实时图表（每轮一个新点）
       pushChartPoint(cpuChartData, [stats.value.cpu])
       pushChartPoint(memoryChartData, [stats.value.memory])
       pushChartPoint(networkChartData, [
@@ -334,25 +340,24 @@ async function fetchData() {
       ])
     }
 
-    // 2. 服务状态 — 从 health API 获取各服务的健康状态
-    const healthMap = {}
-    if (healthStatus?.services) {
-      healthStatus.services.forEach(s => { healthMap[s.name] = s })
-    }
-
+    // 2. 服务状态 — 只要有 ALL_SERVICES 就能显示表格
     services.value = ALL_SERVICES.map(s => {
-      const h = healthMap[s.name] || {}
-      return {
-        name: s.name,
-        type: s.type,
-        status: h.status === 'healthy' ? 'running' : h.status === 'unhealthy' ? 'error' : 'running',
-        cpu: h.cpu ?? 0,
-        memory: h.memory ?? 0,
-        restarts: h.restarts ?? 0
+      // 从 health API 查找对应服务的健康状态
+      let status = 'running'
+      let cpu = 0, memory = 0, restarts = 0
+      if (healthStatus?.services) {
+        const h = healthStatus.services.find(hs => hs.name === s.name)
+        if (h) {
+          status = h.status === 'healthy' ? 'running' : h.status === 'unhealthy' ? 'error' : 'running'
+          cpu = h.cpu ?? 0
+          memory = h.memory ?? 0
+          restarts = h.restarts ?? 0
+        }
       }
+      return { name: s.name, type: s.type, status, cpu, memory, restarts }
     })
 
-    // 3. 进程监控 — 从探针列表 + 系统指标获取
+    // 3. 进程监控
     const procList = []
     if (probes && probes.length > 0) {
       probes.slice(0, 5).forEach(p => {
@@ -365,28 +370,19 @@ async function fetchData() {
         })
       })
     }
-    // 如果探针列表为空，用系统指标补
     if (procList.length === 0 && systemMetrics?.runtime) {
-      procList.push({ name: 'control-plane', pid: 1, cpu: stats.value.cpu, memory: stats.value.memory, uptime: formatUptime(systemMetrics.host?.uptime ?? 0) })
+      procList.push({
+        name: 'control-plane',
+        pid: 1,
+        cpu: stats.value.cpu,
+        memory: stats.value.memory,
+        uptime: formatUptime(systemMetrics.host?.uptime ?? 0)
+      })
     }
     processes.value = procList
 
   } catch (error) {
     console.error('Dashboard fetch error:', error)
-
-    // 首次加载失败时只是静默，后面轮询会重试
-    if (loading.value) {
-      // 仍然推进时间标签，让图表有时间轴
-      pushChartPoint(cpuChartData, [0])
-      pushChartPoint(memoryChartData, [0])
-      pushChartPoint(networkChartData, [0, 0])
-      pushChartPoint(diskChartData, [0, 0])
-
-      // 保持服务列表显示（用默认 running 状态）
-      if (services.value.length === 0) {
-        services.value = ALL_SERVICES.map(s => ({ ...s, status: 'running', cpu: 0, memory: 0, restarts: 0 }))
-      }
-    }
   } finally {
     loading.value = false
   }
