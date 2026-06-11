@@ -180,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, onMounted, onUnmounted } from 'vue'
 import { Cpu, HardDrive, Database, Network } from 'lucide-vue-next'
 import StatCard from '../common/StatCard.vue'
 import TrendChart from '../common/TrendChart.vue'
@@ -219,14 +219,14 @@ const processes = ref([])
 // --- 实时图表数据（分钟级颗粒度）---
 const MAX_POINTS = 30         // 展示最近 30 个数据点
 
-// 用 ref 而不是 computed — 每次轮询推进一个新点
-const cpuChartData = ref({ labels: [], datasets: [{ label: 'CPU 使用率', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] })
-const memoryChartData = ref({ labels: [], datasets: [{ label: '内存使用', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] })
-const networkChartData = ref({ labels: [], datasets: [
+// 用 shallowRef — 只追踪 .value 替换，不深层代理内部数组，彻底避免 Proxy 递归
+const cpuChartData = shallowRef({ labels: [], datasets: [{ label: 'CPU 使用率', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] })
+const memoryChartData = shallowRef({ labels: [], datasets: [{ label: '内存使用', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] })
+const networkChartData = shallowRef({ labels: [], datasets: [
   { label: '入站', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 },
   { label: '出站', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }
 ]})
-const diskChartData = ref({ labels: [], datasets: [
+const diskChartData = shallowRef({ labels: [], datasets: [
   { label: '读取', data: [], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 },
   { label: '写入', data: [], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4 }
 ]})
@@ -392,20 +392,23 @@ async function fetchData() {
 let refreshInterval = null
 
 onMounted(() => {
-  // 初始化时间标签（空数据占位）
+  // 初始化：一次性构造完整数据对象再赋值，绝不用 .push() 触碰响应式数组
+  const labels = []
   for (let i = MAX_POINTS - 1; i >= 0; i--) {
-    const ts = formatTime(i)
-    cpuChartData.value.labels.push(ts)
-    cpuChartData.value.datasets[0].data.push(0)
-    memoryChartData.value.labels.push(ts)
-    memoryChartData.value.datasets[0].data.push(0)
-    networkChartData.value.labels.push(ts)
-    networkChartData.value.datasets[0].data.push(0)
-    networkChartData.value.datasets[1].data.push(0)
-    diskChartData.value.labels.push(ts)
-    diskChartData.value.datasets[0].data.push(0)
-    diskChartData.value.datasets[1].data.push(0)
+    labels.push(formatTime(i))
   }
+  const zeros = new Array(MAX_POINTS).fill(0)
+
+  cpuChartData.value = { labels: [...labels], datasets: [{ label: 'CPU 使用率', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] }
+  memoryChartData.value = { labels: [...labels], datasets: [{ label: '内存使用', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] }
+  networkChartData.value = { labels: [...labels], datasets: [
+    { label: '入站', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 },
+    { label: '出站', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }
+  ]}
+  diskChartData.value = { labels: [...labels], datasets: [
+    { label: '读取', data: [...zeros], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 },
+    { label: '写入', data: [...zeros], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4 }
+  ]}
 
   fetchData()
   refreshInterval = setInterval(fetchData, 10000)  // 每 10 秒轮询一次
