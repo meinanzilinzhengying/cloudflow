@@ -3,6 +3,7 @@ package authservice
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -127,6 +128,15 @@ type Service struct {
 	startTime time.Time
 }
 
+// HealthCheck 健康检查
+func (s *Service) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
+	return &svcproto.HealthCheckResponse{
+		Healthy: true,
+		Version: s.config.Version,
+		Uptime:  int64(time.Since(s.startTime).Seconds()),
+	}, nil
+}
+
 // UserInfo 用户信息
 type UserInfo struct {
 	UserID   string
@@ -154,7 +164,7 @@ func New(config *Config) (*Service, error) {
 		Issuer:          config.JWTIssuer,
 		ExpireDuration:  time.Duration(config.JWTExpireSec) * time.Second,
 		RefreshDuration: time.Duration(config.JWTRefreshSec) * time.Second,
-		Blacklist:       secManager.Blacklist(),
+		Blacklist:       auth.NewInMemoryBlacklist(time.Duration(config.JWTExpireSec) * time.Second),
 	}
 	
 	authenticator, err := auth.NewAuthenticatorWithConfig(authConfig)
@@ -219,7 +229,7 @@ func New(config *Config) (*Service, error) {
 		grpcOptions = append(grpcOptions, grpc.Creds(s.grpcCreds))
 	}
 	s.grpcServer = grpc.NewServer(grpcOptions...)
-	RegisterAuthService(s.grpcServer, s)
+	svcproto.RegisterAuthServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
 	return s, nil
@@ -470,7 +480,7 @@ func (s *Service) Authenticate(ctx context.Context, req *svcproto.AuthenticateRe
 
 	// 5. 检查 token 生成速率限制
 	if s.securityManager != nil {
-		limited, err := s.securityManager.RateLimiter().CheckAndConsume(user.UserID)
+		limited, err := s.securityManager.TokenRateLimiter().CheckAndConsume(user.UserID)
 		if err != nil {
 			return nil, fmt.Errorf("rate limiter error: %w", err)
 		}
@@ -556,7 +566,7 @@ func (s *Service) CreateRole(ctx context.Context, req *svcproto.CreateRoleReques
 
 // BindUserRole 绑定用户角色
 func (s *Service) BindUserRole(ctx context.Context, req *svcproto.BindUserRoleRequest) (*svcproto.BindUserRoleResponse, error) {
-	tc := tenant.MustFromContext(ctx)
+	_ = tenant.MustFromContext(ctx)
 
 	err := s.rbacEngine.AddRoleForUser(req.UserId, req.RoleId, req.TenantId, req.ProjectId)
 	if err != nil {
@@ -662,16 +672,19 @@ func (s *Service) ValidateAPIKey(ctx context.Context, req *svcproto.ValidateAPIK
 		return &svcproto.ValidateAPIKeyResponse{Valid: false}, nil
 	}
 
-	// 从 securityManager 验证
-	if s.securityManager != nil {
-		valid, err := s.securityManager.ValidateAPIKey(ctx, req.ApiKey)
-		if err != nil {
-			return &svcproto.ValidateAPIKeyResponse{Valid: false}, nil
-		}
-		return &svcproto.ValidateAPIKeyResponse{Valid: valid}, nil
+	// 使用 authenticator 的 apiKeyManager 验证 API Key
+	claims, err := s.authenticator.Authenticate(ctx, req.ApiKey)
+	if err != nil {
+		return &svcproto.ValidateAPIKeyResponse{Valid: false}, nil
 	}
 
-	return &svcproto.ValidateAPIKeyResponse{Valid: false}, nil
+	return &svcproto.ValidateAPIKeyResponse{
+		Valid:    true,
+		UserId:   claims.Subject,
+		Username: claims.Username,
+		Role:     claims.Role,
+		TenantId: claims.TenantID,
+	}, nil
 }
 
 // ============================================================================
@@ -848,7 +861,7 @@ func (s *Service) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newToken, err := s.authenticator.JWTManager().RefreshToken(body.RefreshToken)
+	newToken, err := s.authenticator.JWTManager().RefreshToken(r.Context(), body.RefreshToken)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
