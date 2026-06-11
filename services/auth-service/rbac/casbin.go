@@ -211,7 +211,7 @@ func (a *MemoryAdapter) SavePolicy(m model.Model) error {
 	a.roleMappings = a.roleMappings[:0]
 
 	// 保存 p 策略
-	policy := m.GetPolicy("p", "p")
+	policy, _ := m.GetPolicy("p", "p")
 	for _, rule := range policy {
 		pr := PolicyRule{
 			Type: "p",
@@ -235,7 +235,7 @@ func (a *MemoryAdapter) SavePolicy(m model.Model) error {
 	}
 
 	// 保存 g 策略
-	grouping := m.GetPolicy("g", "g")
+	grouping, _ := m.GetPolicy("g", "g")
 	for _, rule := range grouping {
 		rm := RoleMapping{}
 		if len(rule) > 0 {
@@ -484,7 +484,7 @@ func (e *RBACEngine) Start(ctx context.Context) error {
 
 	// 检查是否需要初始化默认策略（仅当策略为空时）
 	if e.config.DefaultPoliciesEnabled {
-		policies := e.enforcer.GetPolicy()
+		policies, _ := e.enforcer.GetPolicy()
 		if len(policies) == 0 {
 			e.AddBuiltinRoles()
 			// 保存默认策略到持久化存储
@@ -503,7 +503,7 @@ func (e *RBACEngine) Stop() {
 	defer e.mu.Unlock()
 
 	if e.enforcer != nil {
-		e.enforcer.Stop()
+		e.enforcer.Close()
 	}
 }
 
@@ -649,7 +649,8 @@ func (e *RBACEngine) GetPoliciesForRole(role, tenantID, projectID string) [][]st
 	}
 
 	domain := tenantID + ":" + projectID
-	return e.enforcer.GetFilteredPolicy(0, role, domain)
+	result, _ := e.enforcer.GetFilteredPolicy(0, role, domain)
+	return result
 }
 
 // ---------------------------------------------------------------------------
@@ -731,7 +732,7 @@ func (e *RBACEngine) DeleteTenant(tenantID string) {
 
 	// 删除所有匹配该租户的策略 (p 策略中 domain 在 V1 位置)
 	// 遍历所有策略，移除 domain 前缀为 tenantID: 的策略
-	policies := e.enforcer.GetPolicy()
+	policies, _ := e.enforcer.GetPolicy()
 	for _, policy := range policies {
 		if len(policy) > 1 && strings.HasPrefix(policy[1], tenantID+":") {
 			args := make([]interface{}, len(policy))
@@ -743,7 +744,7 @@ func (e *RBACEngine) DeleteTenant(tenantID string) {
 	}
 
 	// 删除所有匹配该租户的角色映射 (g 策略中 domain 在 V2 位置)
-	groupingPolicies := e.enforcer.GetGroupingPolicy()
+	groupingPolicies, _ := e.enforcer.GetGroupingPolicy()
 	for _, gp := range groupingPolicies {
 		if len(gp) > 2 && strings.HasPrefix(gp[2], tenantID+":") {
 			args := make([]interface{}, len(gp))

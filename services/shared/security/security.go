@@ -24,6 +24,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -575,11 +576,12 @@ func (m *SecurityManager) IsTokenRevoked(ctx context.Context, jti string) (bool,
 
 // ==================== 服务身份与 JWT 令牌 ====================
 
-// ServiceClaims JWT 服务身份声明
+// ServiceClaims 服务令牌声明
 type ServiceClaims struct {
-	ServiceName string   `json:"service_name"`
-	ServiceID   string   `json:"service_id"`
-	Permissions []string `json:"permissions"`
+	ServiceName      string   `json:"service_name"`
+	ServiceID        string   `json:"service_id"`
+	Permissions      []string `json:"permissions"`
+	IsAuthenticated  bool     `json:"is_authenticated"`
 	jwt.RegisteredClaims
 }
 

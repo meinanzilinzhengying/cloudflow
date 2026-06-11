@@ -146,7 +146,7 @@ func (a *GormAdapter) SavePolicy(model model.Model) error {
 	}
 
 	// 保存 p 策略
-	policy := model.GetPolicy("p", "p")
+	policy, _ := model.GetPolicy("p", "p")
 	for _, rule := range policy {
 		cr := CasbinRule{
 			PType: "p",
@@ -169,7 +169,7 @@ func (a *GormAdapter) SavePolicy(model model.Model) error {
 	}
 
 	// 保存 g 策略
-	grouping := model.GetPolicy("g", "g")
+	grouping, _ := model.GetPolicy("g", "g")
 	for _, rule := range grouping {
 		cr := CasbinRule{
 			PType: "g",
