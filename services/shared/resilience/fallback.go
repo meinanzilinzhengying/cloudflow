@@ -37,7 +37,7 @@ func DefaultFallbackConfig() FallbackConfig {
 }
 
 func NewFallbackHandler(config FallbackConfig) *FallbackHandler {
-	return &amp;FallbackHandler{
+	return &FallbackHandler{
 		fallbacks:    make(map[string]FallbackFunc),
 		timeout:      config.Timeout,
 		fallbackCache: make(map[string]*cachedFallback),
@@ -104,7 +104,7 @@ func (h *FallbackHandler) setCachedFallback(name string, value interface{}, ttl 
 	h.cacheMu.Lock()
 	defer h.cacheMu.Unlock()
 
-	h.fallbackCache[name] = &amp;cachedFallback{
+	h.fallbackCache[name] = &cachedFallback{
 		value:  value,
 		expiry: time.Now().Add(ttl),
 	}
@@ -162,7 +162,7 @@ type DegradationHandler struct {
 }
 
 func NewDegradationHandler() *DegradationHandler {
-	return &amp;DegradationHandler{
+	return &DegradationHandler{
 		level: DegradationNone,
 	}
 }
@@ -197,7 +197,7 @@ func (h *DegradationHandler) SetLevel(level DegradationLevel) {
 	oldLevel := h.level
 	h.level = level
 
-	if oldLevel != level &amp;&amp; h.onLevelChange != nil {
+	if oldLevel != level && h.onLevelChange != nil {
 		go h.onLevelChange(oldLevel, level)
 	}
 }
@@ -250,7 +250,7 @@ func DefaultBulkheadConfig() BulkheadConfig {
 }
 
 func NewBulkhead(config BulkheadConfig) *Bulkhead {
-	return &amp;Bulkhead{
+	return &Bulkhead{
 		maxConcurrent: config.MaxConcurrent,
 		semaphore:     make(chan struct{}, config.MaxConcurrent),
 		maxWaitTime:   config.MaxWaitTime,
@@ -264,8 +264,8 @@ func (b *Bulkhead) Execute(fn func() error) error {
 }
 
 func (b *Bulkhead) ExecuteWithContext(ctx context.Context, fn func(ctx context.Context) error) error {
-	atomic.AddInt64(&amp;b.activeCount, 1)
-	defer atomic.AddInt64(&amp;b.activeCount, -1)
+	atomic.AddInt64(&b.activeCount, 1)
+	defer atomic.AddInt64(&b.activeCount, -1)
 
 	select {
 	case b.semaphore &lt;- struct{}{}:
@@ -279,7 +279,7 @@ func (b *Bulkhead) ExecuteWithContext(ctx context.Context, fn func(ctx context.C
 }
 
 func (b *Bulkhead) GetActiveCount() int64 {
-	return atomic.LoadInt64(&amp;b.activeCount)
+	return atomic.LoadInt64(&b.activeCount)
 }
 
 func (b *Bulkhead) GetMaxConcurrent() int {
@@ -290,12 +290,12 @@ func (b *Bulkhead) IsAvailable() bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	active := atomic.LoadInt64(&amp;b.activeCount)
+	active := atomic.LoadInt64(&b.activeCount)
 	return int(active) &lt; b.maxConcurrent
 }
 
 func (b *Bulkhead) GetUtilization() float64 {
-	active := atomic.LoadInt64(&amp;b.activeCount)
+	active := atomic.LoadInt64(&b.activeCount)
 	return float64(active) / float64(b.maxConcurrent) * 100
 }
 

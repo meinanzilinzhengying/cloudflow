@@ -321,7 +321,9 @@ func (g *Graph) RemoveInactiveNodes() int {
 
 	// 移除关联边
 	for key, e := range g.edges {
-		if _, ok := inactiveNodes[key.Source]; ok || _, ok := inactiveNodes[key.Target]; ok {
+		_, srcInactive := inactiveNodes[key.Source]
+		_, tgtInactive := inactiveNodes[key.Target]
+		if srcInactive || tgtInactive {
 			delete(g.edges, key)
 			e.Active = false
 		}
