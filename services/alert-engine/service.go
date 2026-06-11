@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -181,7 +180,7 @@ func New(config *Config) (*Service, error) {
 		grpcOptions = append(grpcOptions, grpc.Creds(s.grpcCreds))
 	}
 	s.grpcServer = grpc.NewServer(grpcOptions...)
-	RegisterAlertService(s.grpcServer, s)
+	svcproto.RegisterAlertServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
 	return s, nil
@@ -649,6 +648,15 @@ func (s *Service) validateRuleOwnership(ctx context.Context, ruleId string) erro
 	return nil
 }
 
+// HealthCheck 健康检查
+func (s *Service) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
+	return &svcproto.HealthCheckResponse{
+		Healthy: true,
+		Version: s.config.Version,
+		Uptime:  int64(time.Since(s.startTime).Seconds()),
+	}, nil
+}
+
 // CreateRule 创建告警规则
 func (s *Service) CreateRule(ctx context.Context, req *svcproto.CreateAlertRuleRequest) (*svcproto.CreateAlertRuleResponse, error) {
 	ruleID := fmt.Sprintf("rule-%d", time.Now().UnixNano())
@@ -1089,16 +1097,16 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 
 					// 添加到响应
 					firedAlerts = append(firedAlerts, &svcproto.Alert{
-						Id:         alertID,
-						RuleId:     ruleID,
-						Name:       name,
-						TenantId:   tenantID,
-						Severity:   severity,
-						Message:    alertMessage,
-						StartedAt:  time.Now().Unix(),
-						FiredAt:    time.Now().Unix(),
-						ResolvedAt: 0,
-						Status:     "firing",
+						AlertId:   alertID,
+						RuleId:    ruleID,
+						Title:     name,
+						TenantId:  tenantID,
+						Severity:  severity,
+						Message:   alertMessage,
+						StartsAt:  time.Now().Format(time.RFC3339),
+						EndsAt:    "",
+						Status:    "firing",
+						Labels:    labels,
 					})
 
 					// 创建通知
