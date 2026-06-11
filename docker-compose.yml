@@ -723,9 +723,9 @@ services:
       - "--storageDataPath=/var/lib/victoria-metrics-data"
       - "--retentionPeriod=30d"
     volumes:
-      - victoriametrics-data:/var/lib/victorial-metrics-data
+      - victoriametrics-data:/var/lib/victoria-metrics-data
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8428/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8428/health"]
       interval: 10s
       timeout: 5s
       retries: 3
