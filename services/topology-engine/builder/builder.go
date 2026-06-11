@@ -103,8 +103,6 @@ func (b *ServiceGraphBuilder) Build(flows []*flow.UnifiedFlow) *graph.Graph {
 
 	for _, f := range flows {
 		ns := resolveNamespace(f)
-		protocol := resolveProtocol(f)
-		port := f.DstPort
 		errorCount := resolveErrorCount(f)
 
 		srcID := resolveServiceNodeID(f, true)
