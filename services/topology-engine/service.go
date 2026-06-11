@@ -222,7 +222,7 @@ func New(config *Config) (*Service, error) {
 		grpcOptions = append(grpcOptions, grpc.Creds(s.grpcCreds))
 	}
 	s.grpcServer = grpc.NewServer(grpcOptions...)
-	RegisterTopologyService(s.grpcServer, s)
+	svcproto.RegisterTopologyServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
 	return s, nil
@@ -278,6 +278,15 @@ func (s *Service) Stop() {
 // ============================================================================
 // gRPC 服务方法实现
 // ============================================================================
+
+// HealthCheck 健康检查
+func (s *Service) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
+	return &svcproto.HealthCheckResponse{
+		Healthy: true,
+		Version: s.config.Version,
+		Uptime:  int64(time.Since(s.startTime).Seconds()),
+	}, nil
+}
 
 // QueryTopology 查询拓扑 (自动判断实时/历史)
 func (s *Service) QueryTopology(ctx context.Context, req *svcproto.TopologyQueryRequest) (*svcproto.TopologyQueryResponse, error) {
