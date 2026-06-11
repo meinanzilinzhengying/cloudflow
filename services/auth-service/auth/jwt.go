@@ -890,6 +890,11 @@ func (a *Authenticator) JWTManager() *JWTManager {
 	return a.jwtManager
 }
 
+// APIKeyManager 暴露 API Key 管理器
+func (a *Authenticator) APIKeyManager() *APIKeyManager {
+	return a.apiKeyManager
+}
+
 // RevokeToken 撤销 token
 func (a *Authenticator) RevokeToken(ctx context.Context, token string) error {
 	return a.jwtManager.RevokeToken(ctx, token)

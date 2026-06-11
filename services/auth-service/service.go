@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -480,11 +479,11 @@ func (s *Service) Authenticate(ctx context.Context, req *svcproto.AuthenticateRe
 
 	// 5. 检查 token 生成速率限制
 	if s.securityManager != nil {
-		limited, err := s.securityManager.TokenRateLimiter().CheckAndConsume(user.UserID)
+		limited, err := s.securityManager.TokenRateLimiter().Allow(user.UserID)
 		if err != nil {
 			return nil, fmt.Errorf("rate limiter error: %w", err)
 		}
-		if limited {
+		if !limited {
 			return nil, fmt.Errorf("too many token requests, please try again later")
 		}
 	}
@@ -954,7 +953,7 @@ func (s *Service) apiKeyHandler(w http.ResponseWriter, r *http.Request) {
 			Name string `json:"name"`
 		}
 		json.NewDecoder(r.Body).Decode(&body)
-		key, err := s.authenticator.GenerateAPIKey(tc.UserID, tc.TenantID, body.Name, 30*24*time.Hour)
+		key, err := s.authenticator.APIKeyManager().GenerateAPIKey(tc.UserID, tc.TenantID, body.Name, 30*24*time.Hour)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -963,7 +962,7 @@ func (s *Service) apiKeyHandler(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodDelete:
 		key := r.URL.Query().Get("key")
-		s.authenticator.RevokeAPIKey(key)
+		s.authenticator.APIKeyManager().RevokeAPIKey(key)
 		writeJSON(w, map[string]string{"status": "revoked"})
 
 	default:
