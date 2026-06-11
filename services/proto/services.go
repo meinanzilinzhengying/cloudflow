@@ -697,6 +697,20 @@ type RevokeTokenResponse struct {
 	Message string `json:"message"`
 }
 
+// ValidateAPIKeyRequest API Key 验证请求
+type ValidateAPIKeyRequest struct {
+	ApiKey string `json:"api_key"`
+}
+
+// ValidateAPIKeyResponse API Key 验证响应
+type ValidateAPIKeyResponse struct {
+	Valid    bool   `json:"valid"`
+	UserId   string `json:"user_id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	TenantId string `json:"tenant_id"`
+}
+
 // ============================================================================
 // tenant-service
 // ============================================================================
@@ -1396,4 +1410,127 @@ func (UnimplementedTenantServiceServer) CreateProject(ctx context.Context, req *
 
 func (UnimplementedTenantServiceServer) ListProjects(ctx context.Context, req *ListProjectsRequest) (*ListProjectsResponse, error) {
 	return nil, nil
+}
+
+// AuthServiceClient AuthService gRPC 客户端接口
+type AuthServiceClient interface {
+	HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
+	Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error)
+	ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error)
+	Authorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*AuthorizeResponse, error)
+	CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*CreateRoleResponse, error)
+	BindUserRole(ctx context.Context, in *BindUserRoleRequest, opts ...grpc.CallOption) (*BindUserRoleResponse, error)
+	CreatePolicy(ctx context.Context, in *CreatePolicyRequest, opts ...grpc.CallOption) (*CreatePolicyResponse, error)
+	CheckPermission(ctx context.Context, in *CheckPermissionRequest, opts ...grpc.CallOption) (*CheckPermissionResponse, error)
+	OIDCCallback(ctx context.Context, in *OIDCCallbackRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error)
+	RevokeToken(ctx context.Context, in *RevokeTokenRequest, opts ...grpc.CallOption) (*RevokeTokenResponse, error)
+	ValidateAPIKey(ctx context.Context, in *ValidateAPIKeyRequest, opts ...grpc.CallOption) (*ValidateAPIKeyResponse, error)
+}
+
+// NewAuthServiceClient 创建 AuthService gRPC 客户端
+func NewAuthServiceClient(cc *grpc.ClientConn) AuthServiceClient {
+	return &authServiceClient{cc}
+}
+
+type authServiceClient struct {
+	cc *grpc.ClientConn
+}
+
+func (c *authServiceClient) HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error) {
+	out := new(HealthCheckResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/HealthCheck", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error) {
+	out := new(AuthenticateResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/Authenticate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ValidateToken(ctx context.Context, in *ValidateTokenRequest, opts ...grpc.CallOption) (*ValidateTokenResponse, error) {
+	out := new(ValidateTokenResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/ValidateToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) Authorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*AuthorizeResponse, error) {
+	out := new(AuthorizeResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/Authorize", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*CreateRoleResponse, error) {
+	out := new(CreateRoleResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreateRole", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) BindUserRole(ctx context.Context, in *BindUserRoleRequest, opts ...grpc.CallOption) (*BindUserRoleResponse, error) {
+	out := new(BindUserRoleResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/BindUserRole", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreatePolicy(ctx context.Context, in *CreatePolicyRequest, opts ...grpc.CallOption) (*CreatePolicyResponse, error) {
+	out := new(CreatePolicyResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CreatePolicy", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CheckPermission(ctx context.Context, in *CheckPermissionRequest, opts ...grpc.CallOption) (*CheckPermissionResponse, error) {
+	out := new(CheckPermissionResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CheckPermission", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) OIDCCallback(ctx context.Context, in *OIDCCallbackRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error) {
+	out := new(AuthenticateResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/OIDCCallback", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) RevokeToken(ctx context.Context, in *RevokeTokenRequest, opts ...grpc.CallOption) (*RevokeTokenResponse, error) {
+	out := new(RevokeTokenResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/RevokeToken", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ValidateAPIKey(ctx context.Context, in *ValidateAPIKeyRequest, opts ...grpc.CallOption) (*ValidateAPIKeyResponse, error) {
+	out := new(ValidateAPIKeyResponse)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/ValidateAPIKey", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
