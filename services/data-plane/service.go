@@ -29,8 +29,9 @@ import (
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
+	gopsutil_host "github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/net"
+	gopsutil_net "github.com/shirou/gopsutil/v3/net"
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -1175,13 +1176,13 @@ func (s *Service) systemMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 网络接口统计
-	netIO, err := net.IOCounters(true)
+	netIO, err := gopsutil_net.IOCounters(true)
 	if err == nil {
 		metrics["network_interfaces"] = netIO
 	}
 
 	// 主机信息
-	hostInfo, err := host.Info()
+	hostInfo, err := gopsutil_host.Info()
 	if err == nil {
 		metrics["host"] = map[string]interface{}{
 			"hostname":   hostInfo.Hostname,

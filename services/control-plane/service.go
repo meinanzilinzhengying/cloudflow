@@ -28,9 +28,9 @@ import (
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
-	"github.com/shirou/gopsutil/v3/host"
+	gopsutil_host "github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/net"
+	gopsutil_net "github.com/shirou/gopsutil/v3/net"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -871,7 +871,7 @@ func (s *Service) collectSystemStats() (map[string]interface{}, error) {
 	}
 
 	// 网络 I/O
-	netIO, err := net.IOCounters(false)
+	netIO, err := gopsutil_net.IOCounters(false)
 	if err == nil && len(netIO) > 0 {
 		stats["network"] = map[string]interface{}{
 			"inbound":  netIO[0].BytesRecv / 1024 / 1024,  // MB
@@ -883,8 +883,6 @@ func (s *Service) collectSystemStats() (map[string]interface{}, error) {
 	stats["uptime"] = int64(time.Since(s.startTime).Seconds())
 
 	// 服务状态
-	agents := s.ListAgents("", "", "")
-	edges := s.ListEdges("", "", "")
 	running := 2 // control-plane 和 data-plane
 	if s.dataPlaneConn != nil {
 		running++
@@ -928,13 +926,13 @@ func (s *Service) collectDetailedMetrics() (map[string]interface{}, error) {
 	}
 
 	// 网络接口统计
-	netIO, err := net.IOCounters(true)
+	netIO, err := gopsutil_net.IOCounters(true)
 	if err == nil {
 		metrics["network_interfaces"] = netIO
 	}
 
 	// 主机信息
-	hostInfo, err := host.Info()
+	hostInfo, err := gopsutil_host.Info()
 	if err == nil {
 		metrics["host"] = map[string]interface{}{
 			"hostname":   hostInfo.Hostname,
