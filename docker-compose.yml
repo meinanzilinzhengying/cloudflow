@@ -333,9 +333,9 @@ services:
       clickhouse:
         condition: service_healthy
       victoriametrics:
-        condition: service_healthy
+        condition: service_started
       loki:
-        condition: service_healthy
+        condition: service_started
       control-plane:
         condition: service_healthy
     ports:
