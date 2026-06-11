@@ -29,7 +29,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	svcproto "github.com/meinanzilinzhengying/cloudflow/proto"
+	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
@@ -1076,15 +1076,16 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 					"expression": expression,
 					"rule_id":    ruleID,
 				})
-				labels, _ := json.Marshal(map[string]string{
+				alertLabels := map[string]string{
 					"tenant_id": tenantID,
 					"rule_name": name,
 					"severity":  severity,
-				})
+				}
+				labelsJSON, _ := json.Marshal(alertLabels)
 
 				_, err := s.db.Exec(
 					"INSERT INTO alerts (alert_id, rule_id, tenant_id, project_id, severity, title, message, status, annotations, labels) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-					alertID, ruleID, tenantID, projectID, severity, alertTitle, alertMessage, "firing", string(annotations), string(labels),
+					alertID, ruleID, tenantID, projectID, severity, alertTitle, alertMessage, "firing", string(annotations), string(labelsJSON),
 				)
 				if err == nil {
 					s.activeAlerts.Store(key, &activeAlert{
@@ -1106,7 +1107,7 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 						StartsAt:  time.Now().Format(time.RFC3339),
 						EndsAt:    "",
 						Status:    "firing",
-						Labels:    labels,
+						Labels:    alertLabels,
 					})
 
 					// 创建通知
