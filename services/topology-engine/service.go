@@ -280,7 +280,7 @@ func (s *Service) Stop() {
 // ============================================================================
 
 // QueryTopology 查询拓扑 (自动判断实时/历史)
-func (s *Service) QueryTopology(ctx context.Context, req *proto.TopologyQueryRequest) (*proto.TopologyQueryResponse, error) {
+func (s *Service) QueryTopology(ctx context.Context, req *svcproto.TopologyQueryRequest) (*svcproto.TopologyQueryResponse, error) {
 	graphType := req.Type
 	if graphType == "" {
 		graphType = "service"
@@ -298,13 +298,13 @@ func (s *Service) QueryTopology(ctx context.Context, req *proto.TopologyQueryReq
 }
 
 // GetServiceGraph 获取服务拓扑图
-func (s *Service) GetServiceGraph(ctx context.Context, req *proto.TopologyQueryRequest) (*proto.TopologyQueryResponse, error) {
+func (s *Service) GetServiceGraph(ctx context.Context, req *svcproto.TopologyQueryRequest) (*svcproto.TopologyQueryResponse, error) {
 	req.Type = "service"
 	return s.QueryTopology(ctx, req)
 }
 
 // GetDependencyGraph 获取依赖关系图 (带方向的 service graph)
-func (s *Service) GetDependencyGraph(ctx context.Context, req *proto.TopologyQueryRequest) (*proto.TopologyQueryResponse, error) {
+func (s *Service) GetDependencyGraph(ctx context.Context, req *svcproto.TopologyQueryRequest) (*svcproto.TopologyQueryResponse, error) {
 	req.Type = "service"
 	resp, err := s.QueryTopology(ctx, req)
 	if err != nil {
@@ -315,7 +315,7 @@ func (s *Service) GetDependencyGraph(ctx context.Context, req *proto.TopologyQue
 	if req.TenantId == "" {
 		return resp, nil
 	}
-	var filteredEdges []*proto.TopologyEdge
+	var filteredEdges []*svcproto.TopologyEdge
 	for _, edge := range resp.Edges {
 		// 找到 source 和 target 节点的 namespace
 		srcNS := findNodeNamespace(resp.Nodes, edge.Source)
@@ -329,7 +329,7 @@ func (s *Service) GetDependencyGraph(ctx context.Context, req *proto.TopologyQue
 }
 
 // GetLatencyHeatmap 获取延迟热力图
-func (s *Service) GetLatencyHeatmap(ctx context.Context, req *proto.TopologyQueryRequest) (*proto.HeatmapResponse, error) {
+func (s *Service) GetLatencyHeatmap(ctx context.Context, req *svcproto.TopologyQueryRequest) (*svcproto.HeatmapResponse, error) {
 	graphType := req.Type
 	if graphType == "" {
 		graphType = "service"
@@ -350,7 +350,7 @@ func (s *Service) GetLatencyHeatmap(ctx context.Context, req *proto.TopologyQuer
 }
 
 // GetErrorHeatmap 获取错误热力图
-func (s *Service) GetErrorHeatmap(ctx context.Context, req *proto.TopologyQueryRequest) (*proto.HeatmapResponse, error) {
+func (s *Service) GetErrorHeatmap(ctx context.Context, req *svcproto.TopologyQueryRequest) (*svcproto.HeatmapResponse, error) {
 	graphType := req.Type
 	if graphType == "" {
 		graphType = "service"
@@ -371,7 +371,7 @@ func (s *Service) GetErrorHeatmap(ctx context.Context, req *proto.TopologyQueryR
 }
 
 // GetTopologyDiff 获取拓扑变更
-func (s *Service) GetTopologyDiff(ctx context.Context, req *proto.TopologyDiffRequest) (*proto.TopologyDiffResponse, error) {
+func (s *Service) GetTopologyDiff(ctx context.Context, req *svcproto.TopologyDiffRequest) (*svcproto.TopologyDiffResponse, error) {
 	graphType := req.Type
 	if graphType == "" {
 		graphType = "service"
@@ -387,9 +387,9 @@ func (s *Service) GetTopologyDiff(ctx context.Context, req *proto.TopologyDiffRe
 }
 
 // IngestFlows 接收实时流量数据
-func (s *Service) IngestFlows(ctx context.Context, req *proto.FlowIngestRequest) (*proto.FlowIngestResponse, error) {
+func (s *Service) IngestFlows(ctx context.Context, req *svcproto.FlowIngestRequest) (*svcproto.FlowIngestResponse, error) {
 	if req.Count == 0 || len(req.Flows) == 0 {
-		return &proto.FlowIngestResponse{Accepted: 0, Rejected: 0}, nil
+		return &svcproto.FlowIngestResponse{Accepted: 0, Rejected: 0}, nil
 	}
 
 	// 反序列化 UnifiedFlow 批次
@@ -404,14 +404,14 @@ func (s *Service) IngestFlows(ctx context.Context, req *proto.FlowIngestRequest)
 		return nil, fmt.Errorf("flow ingestion failed: %w", err)
 	}
 
-	return &proto.FlowIngestResponse{
+	return &svcproto.FlowIngestResponse{
 		Accepted: accepted,
 		Rejected: int(req.Count) - accepted,
 	}, nil
 }
 
 // GetSnapshot 获取拓扑快照
-func (s *Service) GetSnapshot(ctx context.Context, req *proto.TopologyQueryRequest) (*proto.TopologySnapshot, error) {
+func (s *Service) GetSnapshot(ctx context.Context, req *svcproto.TopologyQueryRequest) (*svcproto.TopologySnapshot, error) {
 	graphType := req.Type
 	if graphType == "" {
 		graphType = "service"
@@ -419,11 +419,11 @@ func (s *Service) GetSnapshot(ctx context.Context, req *proto.TopologyQueryReque
 
 	snapshot, ok := s.updater.GetGraph(req.TenantId, graphType)
 	if !ok {
-		return &proto.TopologySnapshot{
+		return &svcproto.TopologySnapshot{
 			TenantId: req.TenantId,
 			Type:     graphType,
-			Nodes:    []*proto.TopologyNode{},
-			Edges:    []*proto.TopologyEdge{},
+			Nodes:    []*svcproto.TopologyNode{},
+			Edges:    []*svcproto.TopologyEdge{},
 		}, nil
 	}
 
@@ -435,12 +435,12 @@ func (s *Service) GetSnapshot(ctx context.Context, req *proto.TopologyQueryReque
 // ============================================================================
 
 // queryRealtimeTopology 查询实时拓扑
-func (s *Service) queryRealtimeTopology(ctx context.Context, tenantID, graphType string) (*proto.TopologyQueryResponse, error) {
+func (s *Service) queryRealtimeTopology(ctx context.Context, tenantID, graphType string) (*svcproto.TopologyQueryResponse, error) {
 	snapshot, ok := s.updater.GetGraph(tenantID, graphType)
 	if !ok {
-		return &proto.TopologyQueryResponse{
-			Nodes: []*proto.TopologyNode{},
-			Edges: []*proto.TopologyEdge{},
+		return &svcproto.TopologyQueryResponse{
+			Nodes: []*svcproto.TopologyNode{},
+			Edges: []*svcproto.TopologyEdge{},
 		}, nil
 	}
 
@@ -448,7 +448,7 @@ func (s *Service) queryRealtimeTopology(ctx context.Context, tenantID, graphType
 }
 
 // queryHistoricalTopology 查询历史拓扑
-func (s *Service) queryHistoricalTopology(ctx context.Context, req *proto.TopologyQueryRequest) (*proto.TopologyQueryResponse, error) {
+func (s *Service) queryHistoricalTopology(ctx context.Context, req *svcproto.TopologyQueryRequest) (*svcproto.TopologyQueryResponse, error) {
 	g, err := s.historical.QueryTopology(ctx, req.TenantId, req.StartTime, req.EndTime, req.Type)
 	if err != nil {
 		return nil, fmt.Errorf("historical topology query failed: %w", err)
@@ -469,7 +469,7 @@ func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) topologyHTTPHandler(w http.ResponseWriter, r *http.Request) {
-	resp, _ := s.QueryTopology(r.Context(), &proto.TopologyQueryRequest{})
+	resp, _ := s.QueryTopology(r.Context(), &svcproto.TopologyQueryRequest{})
 	writeJSON(w, map[string]interface{}{
 		"nodes": len(resp.Nodes),
 		"edges": len(resp.Edges),
@@ -494,7 +494,7 @@ func (s *Service) namespaceGraphHTTPHandler(w http.ResponseWriter, r *http.Reque
 
 func (s *Service) handleGraphHTTP(w http.ResponseWriter, r *http.Request, graphType string) {
 	tenantID := r.URL.Query().Get("tenant_id")
-	resp, _ := s.QueryTopology(r.Context(), &proto.TopologyQueryRequest{
+	resp, _ := s.QueryTopology(r.Context(), &svcproto.TopologyQueryRequest{
 		TenantId: tenantID,
 		Type:     graphType,
 	})
@@ -503,7 +503,7 @@ func (s *Service) handleGraphHTTP(w http.ResponseWriter, r *http.Request, graphT
 
 func (s *Service) latencyHeatmapHTTPHandler(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.URL.Query().Get("tenant_id")
-	resp, _ := s.GetLatencyHeatmap(r.Context(), &proto.TopologyQueryRequest{
+	resp, _ := s.GetLatencyHeatmap(r.Context(), &svcproto.TopologyQueryRequest{
 		TenantId: tenantID,
 	})
 	writeJSON(w, resp)
@@ -511,7 +511,7 @@ func (s *Service) latencyHeatmapHTTPHandler(w http.ResponseWriter, r *http.Reque
 
 func (s *Service) errorHeatmapHTTPHandler(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.URL.Query().Get("tenant_id")
-	resp, _ := s.GetErrorHeatmap(r.Context(), &proto.TopologyQueryRequest{
+	resp, _ := s.GetErrorHeatmap(r.Context(), &svcproto.TopologyQueryRequest{
 		TenantId: tenantID,
 	})
 	writeJSON(w, resp)
@@ -520,7 +520,7 @@ func (s *Service) errorHeatmapHTTPHandler(w http.ResponseWriter, r *http.Request
 func (s *Service) diffHTTPHandler(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.URL.Query().Get("tenant_id")
 	graphType := r.URL.Query().Get("type")
-	resp, _ := s.GetTopologyDiff(r.Context(), &proto.TopologyDiffRequest{
+	resp, _ := s.GetTopologyDiff(r.Context(), &svcproto.TopologyDiffRequest{
 		TenantId:     tenantID,
 		Type:         graphType,
 		BaseTime:     time.Now().Add(-10 * time.Minute).Unix(),
@@ -534,14 +534,14 @@ func (s *Service) diffHTTPHandler(w http.ResponseWriter, r *http.Request) {
 // ============================================================================
 
 // convertSnapshotToResponse 将 GraphSnapshot 转换为 proto Response
-func convertSnapshotToResponse(snapshot *graph.GraphSnapshot) *proto.TopologyQueryResponse {
-	resp := &proto.TopologyQueryResponse{
-		Nodes: make([]*proto.TopologyNode, 0, len(snapshot.Nodes)),
-		Edges: make([]*proto.TopologyEdge, 0, len(snapshot.Edges)),
+func convertSnapshotToResponse(snapshot *graph.GraphSnapshot) *svcproto.TopologyQueryResponse {
+	resp := &svcproto.TopologyQueryResponse{
+		Nodes: make([]*svcproto.TopologyNode, 0, len(snapshot.Nodes)),
+		Edges: make([]*svcproto.TopologyEdge, 0, len(snapshot.Edges)),
 	}
 
 	for _, n := range snapshot.Nodes {
-		resp.Nodes = append(resp.Nodes, &proto.TopologyNode{
+		resp.Nodes = append(resp.Nodes, &svcproto.TopologyNode{
 			Id:        string(n.ID),
 			Name:      n.Name,
 			Type:      n.Type,
@@ -554,7 +554,7 @@ func convertSnapshotToResponse(snapshot *graph.GraphSnapshot) *proto.TopologyQue
 	}
 
 	for _, e := range snapshot.Edges {
-		resp.Edges = append(resp.Edges, &proto.TopologyEdge{
+		resp.Edges = append(resp.Edges, &svcproto.TopologyEdge{
 			Source:   string(e.Source),
 			Target:   string(e.Target),
 			Protocol: e.Protocol,
@@ -569,18 +569,18 @@ func convertSnapshotToResponse(snapshot *graph.GraphSnapshot) *proto.TopologyQue
 }
 
 // convertSnapshot 将 GraphSnapshot 转换为 proto TopologySnapshot
-func convertSnapshot(snapshot *graph.GraphSnapshot, tenantID, graphType string) *proto.TopologySnapshot {
-	resp := &proto.TopologySnapshot{
+func convertSnapshot(snapshot *graph.GraphSnapshot, tenantID, graphType string) *svcproto.TopologySnapshot {
+	resp := &svcproto.TopologySnapshot{
 		Version:   snapshot.Version,
 		Timestamp: snapshot.Timestamp,
 		TenantId:  tenantID,
 		Type:      graphType,
-		Nodes:     make([]*proto.TopologyNode, 0, len(snapshot.Nodes)),
-		Edges:     make([]*proto.TopologyEdge, 0, len(snapshot.Edges)),
+		Nodes:     make([]*svcproto.TopologyNode, 0, len(snapshot.Nodes)),
+		Edges:     make([]*svcproto.TopologyEdge, 0, len(snapshot.Edges)),
 	}
 
 	for _, n := range snapshot.Nodes {
-		resp.Nodes = append(resp.Nodes, &proto.TopologyNode{
+		resp.Nodes = append(resp.Nodes, &svcproto.TopologyNode{
 			Id:        string(n.ID),
 			Name:      n.Name,
 			Type:      n.Type,
@@ -593,7 +593,7 @@ func convertSnapshot(snapshot *graph.GraphSnapshot, tenantID, graphType string) 
 	}
 
 	for _, e := range snapshot.Edges {
-		resp.Edges = append(resp.Edges, &proto.TopologyEdge{
+		resp.Edges = append(resp.Edges, &svcproto.TopologyEdge{
 			Source:   string(e.Source),
 			Target:   string(e.Target),
 			Protocol: e.Protocol,
@@ -607,45 +607,45 @@ func convertSnapshot(snapshot *graph.GraphSnapshot, tenantID, graphType string) 
 	return resp
 }
 
-// convertTopologyDiff 将 graph.TopologyDiff 转换为 proto.TopologyDiffResponse
-func convertTopologyDiff(diff *graph.TopologyDiff, baseTime, compareTime int64) *proto.TopologyDiffResponse {
-	resp := &proto.TopologyDiffResponse{
+// convertTopologyDiff 将 graph.TopologyDiff 转换为 svcproto.TopologyDiffResponse
+func convertTopologyDiff(diff *graph.TopologyDiff, baseTime, compareTime int64) *svcproto.TopologyDiffResponse {
+	resp := &svcproto.TopologyDiffResponse{
 		BaseTime:    baseTime,
 		CompareTime: compareTime,
-		Summary: &proto.DiffSummary{
+		Summary: &svcproto.DiffSummary{
 			AddedNodes:   len(diff.AddedNodes),
 			RemovedNodes: len(diff.RemovedNodes),
 			AddedEdges:   len(diff.AddedEdges),
 			RemovedEdges: len(diff.RemovedEdges),
 			ChangedEdges: len(diff.ChangedEdges),
 		},
-		Diffs: make([]*proto.TopologyDiff, 0,
+		Diffs: make([]*svcproto.TopologyDiff, 0,
 			len(diff.AddedNodes)+len(diff.RemovedNodes)+
 				len(diff.AddedEdges)+len(diff.RemovedEdges)+
 				len(diff.ChangedEdges)),
 	}
 
 	for _, n := range diff.AddedNodes {
-		resp.Diffs = append(resp.Diffs, &proto.TopologyDiff{
+		resp.Diffs = append(resp.Diffs, &svcproto.TopologyDiff{
 			DiffType: "added_node",
 			NodeId:   string(n.ID),
 		})
 	}
 	for _, n := range diff.RemovedNodes {
-		resp.Diffs = append(resp.Diffs, &proto.TopologyDiff{
+		resp.Diffs = append(resp.Diffs, &svcproto.TopologyDiff{
 			DiffType: "removed_node",
 			NodeId:   string(n.ID),
 		})
 	}
 	for _, e := range diff.AddedEdges {
-		resp.Diffs = append(resp.Diffs, &proto.TopologyDiff{
+		resp.Diffs = append(resp.Diffs, &svcproto.TopologyDiff{
 			DiffType: "added_edge",
 			Source:   string(e.Source),
 			Target:   string(e.Target),
 		})
 	}
 	for _, e := range diff.RemovedEdges {
-		resp.Diffs = append(resp.Diffs, &proto.TopologyDiff{
+		resp.Diffs = append(resp.Diffs, &svcproto.TopologyDiff{
 			DiffType: "removed_edge",
 			Source:   string(e.Source),
 			Target:   string(e.Target),
@@ -653,7 +653,7 @@ func convertTopologyDiff(diff *graph.TopologyDiff, baseTime, compareTime int64) 
 	}
 	for _, c := range diff.ChangedEdges {
 		if c.BytesDelta != 0 {
-			resp.Diffs = append(resp.Diffs, &proto.TopologyDiff{
+			resp.Diffs = append(resp.Diffs, &svcproto.TopologyDiff{
 				DiffType: "weight_change",
 				Source:   string(c.Source),
 				Target:   string(c.Target),
@@ -663,7 +663,7 @@ func convertTopologyDiff(diff *graph.TopologyDiff, baseTime, compareTime int64) 
 			})
 		}
 		if c.LatencyDelta != 0 {
-			resp.Diffs = append(resp.Diffs, &proto.TopologyDiff{
+			resp.Diffs = append(resp.Diffs, &svcproto.TopologyDiff{
 				DiffType: "weight_change",
 				Source:   string(c.Source),
 				Target:   string(c.Target),
@@ -673,7 +673,7 @@ func convertTopologyDiff(diff *graph.TopologyDiff, baseTime, compareTime int64) 
 			})
 		}
 		if c.ErrorsDelta != 0 {
-			resp.Diffs = append(resp.Diffs, &proto.TopologyDiff{
+			resp.Diffs = append(resp.Diffs, &svcproto.TopologyDiff{
 				DiffType: "weight_change",
 				Source:   string(c.Source),
 				Target:   string(c.Target),
@@ -688,7 +688,7 @@ func convertTopologyDiff(diff *graph.TopologyDiff, baseTime, compareTime int64) 
 }
 
 // findNodeNamespace 从节点列表中查找节点的 namespace
-func findNodeNamespace(nodes []*proto.TopologyNode, nodeID string) string {
+func findNodeNamespace(nodes []*svcproto.TopologyNode, nodeID string) string {
 	for _, n := range nodes {
 		if n.Id == nodeID {
 			return n.Namespace
