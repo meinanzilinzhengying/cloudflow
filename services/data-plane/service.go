@@ -667,8 +667,6 @@ func parseLabels(labels string) map[string]string {
 // IngestFlow 接收 Flow（含采样决策）
 func (s *Service) IngestFlow(ctx context.Context, batch *svcproto.FlowBatch) (*svcproto.IngestResponse, error) {
 	accepted := 0
-	_ = sampled
-		var sampled int
 
 	for _, flowMap := range batch.Flows {
 		// 反序列化 UnifiedFlow
