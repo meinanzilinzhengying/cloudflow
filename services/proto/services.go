@@ -43,12 +43,12 @@ type HealthCheckResponse struct {
 
 // ServiceInfo 服务信息
 type ServiceInfo struct {
-	Name      string `json:"name"`
-	Version   string `json:"version"`
-	Addr      string `json:"addr"`
-	GrpcPort  int    `json:"grpc_port"`
-	HttpPort  int    `json:"http_port"`
-	Status    string `json:"status"`
+	Name     string `json:"name"`
+	Version  string `json:"version"`
+	Addr     string `json:"addr"`
+	GrpcPort int    `json:"grpc_port"`
+	HttpPort int    `json:"http_port"`
+	Status   string `json:"status"`
 }
 
 // ============================================================================
@@ -62,10 +62,10 @@ type IngestConfig struct {
 	BatchSize     int    `json:"batch_size"`
 	FlushInterval int64  `json:"flush_interval_ms"`
 	// 采集策略
-	CollectCPU    bool `json:"collect_cpu"`
-	CollectMemory bool `json:"collect_memory"`
+	CollectCPU     bool `json:"collect_cpu"`
+	CollectMemory  bool `json:"collect_memory"`
 	CollectNetwork bool `json:"collect_network"`
-	CollectL7     bool `json:"collect_l7"`
+	CollectL7      bool `json:"collect_l7"`
 }
 
 // UpdateIngestConfigRequest 更新数据面配置
@@ -86,27 +86,27 @@ type UpdateIngestConfigResponse struct {
 
 // AgentInfo Agent 信息
 type AgentInfo struct {
-	AgentId     string `json:"agent_id"`
-	Hostname    string `json:"hostname"`
-	Ip          string `json:"ip"`
-	Os          string `json:"os"`
-	Arch        string `json:"arch"`
-	Version     string `json:"version"`
-	Status      string `json:"status"`
-	EdgeId      string `json:"edge_id"`
-	Region      string `json:"region"`
-	TenantId    string `json:"tenant_id"`
+	AgentId  string `json:"agent_id"`
+	Hostname string `json:"hostname"`
+	Ip       string `json:"ip"`
+	Os       string `json:"os"`
+	Arch     string `json:"arch"`
+	Version  string `json:"version"`
+	Status   string `json:"status"`
+	EdgeId   string `json:"edge_id"`
+	Region   string `json:"region"`
+	TenantId string `json:"tenant_id"`
 }
 
 // EdgeInfo Edge 信息
 type EdgeInfo struct {
-	EdgeId      string `json:"edge_id"`
-	Address     string `json:"address"`
-	Region      string `json:"region"`
-	Version     string `json:"version"`
-	Status      string `json:"status"`
-	AgentCount  int    `json:"agent_count"`
-	TenantId    string `json:"tenant_id"`
+	EdgeId     string `json:"edge_id"`
+	Address    string `json:"address"`
+	Region     string `json:"region"`
+	Version    string `json:"version"`
+	Status     string `json:"status"`
+	AgentCount int    `json:"agent_count"`
+	TenantId   string `json:"tenant_id"`
 }
 
 // ListAgentsRequest 列出 Agent
@@ -141,21 +141,21 @@ type ListEdgesResponse struct {
 
 // FlowBatch 流量批量数据
 type FlowBatch struct {
-	TenantId string            `json:"tenant_id"`
+	TenantId string                   `json:"tenant_id"`
 	Flows    []map[string]interface{} `json:"flows"`
-	Count    int               `json:"count"`
+	Count    int                      `json:"count"`
 }
 
 // QueryFlowRequest 流量查询请求
 type QueryFlowRequest struct {
-	TenantId   string `json:"tenant_id"`
-	StartTime  int64  `json:"start_time"`
-	EndTime    int64  `json:"end_time"`
-	SrcIp      string `json:"src_ip"`
-	DstIp      string `json:"dst_ip"`
-	Namespace  string `json:"namespace"`
-	Service    string `json:"service"`
-	Limit      int    `json:"limit"`
+	TenantId  string `json:"tenant_id"`
+	StartTime int64  `json:"start_time"`
+	EndTime   int64  `json:"end_time"`
+	SrcIp     string `json:"src_ip"`
+	DstIp     string `json:"dst_ip"`
+	Namespace string `json:"namespace"`
+	Service   string `json:"service"`
+	Limit     int    `json:"limit"`
 }
 
 // QueryFlowResponse 流量查询响应
@@ -231,10 +231,10 @@ type HeatmapResponse struct {
 
 // TopologyDiffRequest 拓扑差异请求
 type TopologyDiffRequest struct {
-	TenantId     string `json:"tenant_id"`
-	BaseTime     int64  `json:"base_time"`
-	CompareTime  int64  `json:"compare_time"`
-	Type         string `json:"type"` // service/pod/namespace/process
+	TenantId    string `json:"tenant_id"`
+	BaseTime    int64  `json:"base_time"`
+	CompareTime int64  `json:"compare_time"`
+	Type        string `json:"type"` // service/pod/namespace/process
 }
 
 // TopologyDiff 单个差异项
@@ -243,7 +243,7 @@ type TopologyDiff struct {
 	NodeId   string `json:"node_id,omitempty"`
 	Source   string `json:"source,omitempty"`
 	Target   string `json:"target,omitempty"`
-	Field    string `json:"field,omitempty"`     // for weight_change: "bytes"/"latency"/"errors"
+	Field    string `json:"field,omitempty"` // for weight_change: "bytes"/"latency"/"errors"
 	OldValue uint64 `json:"old_value,omitempty"`
 	NewValue uint64 `json:"new_value,omitempty"`
 }
@@ -267,12 +267,12 @@ type DiffSummary struct {
 
 // TopologySnapshot 版本化拓扑快照（用于缓存）
 type TopologySnapshot struct {
-	Version   uint64             `json:"version"`
-	Timestamp int64              `json:"timestamp"`
-	TenantId  string             `json:"tenant_id"`
-	Type      string             `json:"type"`
-	Nodes     []*TopologyNode    `json:"nodes"`
-	Edges     []*TopologyEdge    `json:"edges"`
+	Version   uint64          `json:"version"`
+	Timestamp int64           `json:"timestamp"`
+	TenantId  string          `json:"tenant_id"`
+	Type      string          `json:"type"`
+	Nodes     []*TopologyNode `json:"nodes"`
+	Edges     []*TopologyEdge `json:"edges"`
 }
 
 // FlowIngestRequest 实时流量摄入请求（来自数据面）
@@ -284,9 +284,9 @@ type FlowIngestRequest struct {
 
 // FlowIngestResponse 流量摄入响应
 type FlowIngestResponse struct {
-	Accepted int     `json:"accepted"`
-	Rejected int     `json:"rejected"`
-	Version  uint64  `json:"version"` // new topology version after processing
+	Accepted int    `json:"accepted"`
+	Rejected int    `json:"rejected"`
+	Version  uint64 `json:"version"` // new topology version after processing
 }
 
 // ============================================================================
@@ -322,12 +322,12 @@ type SpanInfo struct {
 
 // TraceInfo Trace 信息
 type TraceInfo struct {
-	TraceId     string     `json:"trace_id"`
-	ServiceName string     `json:"service_name"`
-	SpanCount   int        `json:"span_count"`
-	ErrorCount  int        `json:"error_count"`
-	DurationNs  int64      `json:"duration_ns"`
-	StartTime   int64      `json:"start_time"`
+	TraceId     string      `json:"trace_id"`
+	ServiceName string      `json:"service_name"`
+	SpanCount   int         `json:"span_count"`
+	ErrorCount  int         `json:"error_count"`
+	DurationNs  int64       `json:"duration_ns"`
+	StartTime   int64       `json:"start_time"`
 	Spans       []*SpanInfo `json:"spans"`
 }
 
@@ -441,7 +441,7 @@ type Alert struct {
 
 // EvaluateAlertsRequest 评估告警请求
 type EvaluateAlertsRequest struct {
-	TenantId string            `json:"tenant_id"`
+	TenantId string             `json:"tenant_id"`
 	Metrics  map[string]float64 `json:"metrics"`
 }
 
@@ -483,12 +483,12 @@ type GetAlertRuleResponse struct {
 
 // UpdateAlertRuleRequest 更新告警规则请求
 type UpdateAlertRuleRequest struct {
-	RuleId        string `json:"rule_id"`
-	DisplayName   string `json:"display_name"`
-	Description   string `json:"description"`
-	Severity      string `json:"severity"`
-	Expression    string `json:"expression"`
-	Enabled       bool   `json:"enabled"`
+	RuleId         string `json:"rule_id"`
+	DisplayName    string `json:"display_name"`
+	Description    string `json:"description"`
+	Severity       string `json:"severity"`
+	Expression     string `json:"expression"`
+	Enabled        bool   `json:"enabled"`
 	NotifyChannels string `json:"notify_channels"`
 	NotifyInterval int32  `json:"notify_interval"`
 }
@@ -594,10 +594,10 @@ type CreateNotificationResponse struct {
 // UpdateNotificationRequest 更新通知请求
 type UpdateNotificationRequest struct {
 	NotificationId string `json:"notification_id"`
-	Status          string `json:"status"`
-	ErrorMessage    string `json:"error_message"`
-	Attempts        int32  `json:"attempts"`
-	NextAttemptAt   string `json:"next_attempt_at"`
+	Status         string `json:"status"`
+	ErrorMessage   string `json:"error_message"`
+	Attempts       int32  `json:"attempts"`
+	NextAttemptAt  string `json:"next_attempt_at"`
 }
 
 // UpdateNotificationResponse 更新通知响应
@@ -619,13 +619,13 @@ type ListNotificationsResponse struct {
 // Notification 通知
 type Notification struct {
 	NotificationId string `json:"notification_id"`
-	AlertId       string `json:"alert_id"`
-	RuleId        string `json:"rule_id"`
-	TenantId      string `json:"tenant_id"`
-	ChannelType   string `json:"channel_type"`
-	Status        string `json:"status"`
-	Attempts      int32  `json:"attempts"`
-	CreatedAt     string `json:"created_at"`
+	AlertId        string `json:"alert_id"`
+	RuleId         string `json:"rule_id"`
+	TenantId       string `json:"tenant_id"`
+	ChannelType    string `json:"channel_type"`
+	Status         string `json:"status"`
+	Attempts       int32  `json:"attempts"`
+	CreatedAt      string `json:"created_at"`
 }
 
 // EvaluateRulesRequest 评估规则请求
@@ -673,9 +673,9 @@ type ValidateTokenResponse struct {
 
 // AuthorizeRequest 鉴权请求
 type AuthorizeRequest struct {
-	UserId string `json:"user_id"`
-	Role   string `json:"role"`
-	Action string `json:"action"`
+	UserId   string `json:"user_id"`
+	Role     string `json:"role"`
+	Action   string `json:"action"`
 	Resource string `json:"resource"`
 }
 
@@ -717,25 +717,25 @@ type ValidateAPIKeyResponse struct {
 
 // Tenant 租户
 type Tenant struct {
-	TenantId    string `json:"tenant_id"`
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
-	Description string `json:"description"`
-	Status      string `json:"status"`
-	Plan        string `json:"plan"`
+	TenantId    string       `json:"tenant_id"`
+	Name        string       `json:"name"`
+	DisplayName string       `json:"display_name"`
+	Description string       `json:"description"`
+	Status      string       `json:"status"`
+	Plan        string       `json:"plan"`
 	Quota       *TenantQuota `json:"quota"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	CreatedAt   int64        `json:"created_at"`
+	UpdatedAt   int64        `json:"updated_at"`
 }
 
 // TenantQuota 租户配额
 type TenantQuota struct {
-	MaxAgents       int   `json:"max_agents"`
-	MaxEdges        int   `json:"max_edges"`
-	MaxFlowsPerDay  int64 `json:"max_flows_per_day"`
-	MaxStorageGB    int   `json:"max_storage_gb"`
-	MaxAlertRules   int   `json:"max_alert_rules"`
-	RetentionDays   int   `json:"retention_days"`
+	MaxAgents      int   `json:"max_agents"`
+	MaxEdges       int   `json:"max_edges"`
+	MaxFlowsPerDay int64 `json:"max_flows_per_day"`
+	MaxStorageGB   int   `json:"max_storage_gb"`
+	MaxAlertRules  int   `json:"max_alert_rules"`
+	RetentionDays  int   `json:"retention_days"`
 }
 
 // CreateTenantRequest 创建租户请求
@@ -942,9 +942,9 @@ type Policy struct {
 	ProjectId   string            `json:"project_id"`
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
-	Effect      string            `json:"effect"`    // allow/deny
-	Actions     []string          `json:"actions"`   // e.g. ["flow:read", "alert:write"]
-	Resources   []string          `json:"resources"` // e.g. ["flow:*", "alert:rule:*"]
+	Effect      string            `json:"effect"`     // allow/deny
+	Actions     []string          `json:"actions"`    // e.g. ["flow:read", "alert:write"]
+	Resources   []string          `json:"resources"`  // e.g. ["flow:*", "alert:rule:*"]
 	Conditions  map[string]string `json:"conditions"` // e.g. {"namespace": "production"}
 	Priority    int               `json:"priority"`   // higher = evaluated first
 	CreatedAt   int64             `json:"created_at"`
@@ -1247,39 +1247,39 @@ var _TopologyService_serviceDesc = grpc.ServiceDesc{
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "HealthCheck",
-			Handler:     topologyServiceHealthCheckHandler,
+			Handler:    topologyServiceHealthCheckHandler,
 		},
 		{
 			MethodName: "QueryTopology",
-			Handler:     topologyServiceQueryTopologyHandler,
+			Handler:    topologyServiceQueryTopologyHandler,
 		},
 		{
 			MethodName: "GetServiceGraph",
-			Handler:     topologyServiceGetServiceGraphHandler,
+			Handler:    topologyServiceGetServiceGraphHandler,
 		},
 		{
 			MethodName: "GetDependencyGraph",
-			Handler:     topologyServiceGetDependencyGraphHandler,
+			Handler:    topologyServiceGetDependencyGraphHandler,
 		},
 		{
 			MethodName: "GetLatencyHeatmap",
-			Handler:     topologyServiceGetLatencyHeatmapHandler,
+			Handler:    topologyServiceGetLatencyHeatmapHandler,
 		},
 		{
 			MethodName: "GetErrorHeatmap",
-			Handler:     topologyServiceGetErrorHeatmapHandler,
+			Handler:    topologyServiceGetErrorHeatmapHandler,
 		},
 		{
 			MethodName: "GetTopologyDiff",
-			Handler:     topologyServiceGetTopologyDiffHandler,
+			Handler:    topologyServiceGetTopologyDiffHandler,
 		},
 		{
 			MethodName: "IngestFlows",
-			Handler:     topologyServiceIngestFlowsHandler,
+			Handler:    topologyServiceIngestFlowsHandler,
 		},
 		{
 			MethodName: "GetSnapshot",
-			Handler:     topologyServiceGetSnapshotHandler,
+			Handler:    topologyServiceGetSnapshotHandler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -1810,50 +1810,86 @@ var _ControlPlaneService_serviceDesc = grpc.ServiceDesc{
 
 func controlPlaneServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthCheckRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(ControlPlaneServiceServer).HealthCheck(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).HealthCheck(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/HealthCheck"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(ControlPlaneServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func controlPlaneServiceListAgentsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAgentsRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(ControlPlaneServiceServer).ListAgents(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).ListAgents(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/ListAgents"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(ControlPlaneServiceServer).ListAgents(ctx, req.(*ListAgentsRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).ListAgents(ctx, req.(*ListAgentsRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func controlPlaneServiceGetAgentHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AgentInfo)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(ControlPlaneServiceServer).GetAgent(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).GetAgent(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/GetAgent"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(ControlPlaneServiceServer).GetAgent(ctx, req.(*AgentInfo)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).GetAgent(ctx, req.(*AgentInfo))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func controlPlaneServiceListEdgesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListEdgesRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(ControlPlaneServiceServer).ListEdges(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).ListEdges(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/ListEdges"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(ControlPlaneServiceServer).ListEdges(ctx, req.(*ListEdgesRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).ListEdges(ctx, req.(*ListEdgesRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func controlPlaneServiceGetEdgeHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EdgeInfo)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(ControlPlaneServiceServer).GetEdge(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).GetEdge(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/GetEdge"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(ControlPlaneServiceServer).GetEdge(ctx, req.(*EdgeInfo)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).GetEdge(ctx, req.(*EdgeInfo))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func controlPlaneServiceUpdateIngestConfigHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateIngestConfigRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(ControlPlaneServiceServer).UpdateIngestConfig(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).UpdateIngestConfig(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.ControlPlaneService/UpdateIngestConfig"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(ControlPlaneServiceServer).UpdateIngestConfig(ctx, req.(*UpdateIngestConfigRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).UpdateIngestConfig(ctx, req.(*UpdateIngestConfigRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 
@@ -1877,34 +1913,58 @@ var _DataPlaneService_serviceDesc = grpc.ServiceDesc{
 
 func dataPlaneServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthCheckRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(DataPlaneServiceServer).HealthCheck(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataPlaneServiceServer).HealthCheck(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.DataPlaneService/HealthCheck"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(DataPlaneServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataPlaneServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func dataPlaneServiceIngestFlowsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(FlowBatch)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(DataPlaneServiceServer).IngestFlows(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataPlaneServiceServer).IngestFlows(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.DataPlaneService/IngestFlows"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(DataPlaneServiceServer).IngestFlows(ctx, req.(*FlowBatch)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataPlaneServiceServer).IngestFlows(ctx, req.(*FlowBatch))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func dataPlaneServiceIngestMetricsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(FlowBatch)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(DataPlaneServiceServer).IngestMetrics(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataPlaneServiceServer).IngestMetrics(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.DataPlaneService/IngestMetrics"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(DataPlaneServiceServer).IngestMetrics(ctx, req.(*FlowBatch)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataPlaneServiceServer).IngestMetrics(ctx, req.(*FlowBatch))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func dataPlaneServiceApplyConfigHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateIngestConfigRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(DataPlaneServiceServer).ApplyConfig(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataPlaneServiceServer).ApplyConfig(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.DataPlaneService/ApplyConfig"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(DataPlaneServiceServer).ApplyConfig(ctx, req.(*UpdateIngestConfigRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataPlaneServiceServer).ApplyConfig(ctx, req.(*UpdateIngestConfigRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 
@@ -1933,74 +1993,128 @@ var _QueryService_serviceDesc = grpc.ServiceDesc{
 
 func queryServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthCheckRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(QueryServiceServer).HealthCheck(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).HealthCheck(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.QueryService/HealthCheck"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(QueryServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func queryServiceQueryFlowsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryFlowRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(QueryServiceServer).QueryFlows(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryFlows(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.QueryService/QueryFlows"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(QueryServiceServer).QueryFlows(ctx, req.(*QueryFlowRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryFlows(ctx, req.(*QueryFlowRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func queryServiceQueryMetricsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryFlowRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(QueryServiceServer).QueryMetrics(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryMetrics(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.QueryService/QueryMetrics"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(QueryServiceServer).QueryMetrics(ctx, req.(*QueryFlowRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryMetrics(ctx, req.(*QueryFlowRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func queryServiceQueryTracesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryFlowRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(QueryServiceServer).QueryTraces(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryTraces(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.QueryService/QueryTraces"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(QueryServiceServer).QueryTraces(ctx, req.(*QueryFlowRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryTraces(ctx, req.(*QueryFlowRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func queryServiceQueryDashboardHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryFlowRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(QueryServiceServer).QueryDashboard(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryDashboard(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.QueryService/QueryDashboard"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(QueryServiceServer).QueryDashboard(ctx, req.(*QueryFlowRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryDashboard(ctx, req.(*QueryFlowRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func queryServiceQueryOTLPTracesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(TraceQueryRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(QueryServiceServer).QueryOTLPTraces(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryOTLPTraces(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.QueryService/QueryOTLPTraces"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(QueryServiceServer).QueryOTLPTraces(ctx, req.(*TraceQueryRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryOTLPTraces(ctx, req.(*TraceQueryRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func queryServiceGetRootCauseAnalysisHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RootCauseRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(QueryServiceServer).GetRootCauseAnalysis(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetRootCauseAnalysis(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.QueryService/GetRootCauseAnalysis"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(QueryServiceServer).GetRootCauseAnalysis(ctx, req.(*RootCauseRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetRootCauseAnalysis(ctx, req.(*RootCauseRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func queryServiceQueryCorrelationHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CorrelationQueryRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(QueryServiceServer).QueryCorrelation(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).QueryCorrelation(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.QueryService/QueryCorrelation"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(QueryServiceServer).QueryCorrelation(ctx, req.(*CorrelationQueryRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).QueryCorrelation(ctx, req.(*CorrelationQueryRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func queryServiceGetOTLPStatsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthCheckRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(QueryServiceServer).GetOTLPStats(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetOTLPStats(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.QueryService/GetOTLPStats"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(QueryServiceServer).GetOTLPStats(ctx, req.(*HealthCheckRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetOTLPStats(ctx, req.(*HealthCheckRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 
@@ -2035,122 +2149,212 @@ var _AlertService_serviceDesc = grpc.ServiceDesc{
 
 func alertServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthCheckRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).HealthCheck(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).HealthCheck(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/HealthCheck"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceCreateRuleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateAlertRuleRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).CreateRule(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).CreateRule(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/CreateRule"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).CreateRule(ctx, req.(*CreateAlertRuleRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).CreateRule(ctx, req.(*CreateAlertRuleRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceGetRuleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAlertRuleRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).GetRule(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetRule(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/GetRule"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).GetRule(ctx, req.(*GetAlertRuleRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetRule(ctx, req.(*GetAlertRuleRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceListRulesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAlertRulesRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).ListRules(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).ListRules(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/ListRules"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).ListRules(ctx, req.(*ListAlertRulesRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).ListRules(ctx, req.(*ListAlertRulesRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceUpdateRuleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateAlertRuleRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).UpdateRule(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).UpdateRule(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/UpdateRule"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).UpdateRule(ctx, req.(*UpdateAlertRuleRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).UpdateRule(ctx, req.(*UpdateAlertRuleRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceDeleteRuleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteAlertRuleRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).DeleteRule(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).DeleteRule(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/DeleteRule"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).DeleteRule(ctx, req.(*DeleteAlertRuleRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).DeleteRule(ctx, req.(*DeleteAlertRuleRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceCreateAlertHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateAlertRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).CreateAlert(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).CreateAlert(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/CreateAlert"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).CreateAlert(ctx, req.(*CreateAlertRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).CreateAlert(ctx, req.(*CreateAlertRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceGetAlertHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAlertRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).GetAlert(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).GetAlert(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/GetAlert"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).GetAlert(ctx, req.(*GetAlertRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).GetAlert(ctx, req.(*GetAlertRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceUpdateAlertHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateAlertRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).UpdateAlert(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).UpdateAlert(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/UpdateAlert"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).UpdateAlert(ctx, req.(*UpdateAlertRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).UpdateAlert(ctx, req.(*UpdateAlertRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceListAlertsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAlertsRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).ListAlerts(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).ListAlerts(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/ListAlerts"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).ListAlerts(ctx, req.(*ListAlertsRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).ListAlerts(ctx, req.(*ListAlertsRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceCreateNotificationHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateNotificationRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).CreateNotification(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).CreateNotification(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/CreateNotification"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).CreateNotification(ctx, req.(*CreateNotificationRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).CreateNotification(ctx, req.(*CreateNotificationRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceUpdateNotificationHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateNotificationRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).UpdateNotification(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).UpdateNotification(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/UpdateNotification"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).UpdateNotification(ctx, req.(*UpdateNotificationRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).UpdateNotification(ctx, req.(*UpdateNotificationRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceListNotificationsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListNotificationsRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).ListNotifications(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).ListNotifications(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/ListNotifications"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).ListNotifications(ctx, req.(*ListNotificationsRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).ListNotifications(ctx, req.(*ListNotificationsRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceEvaluateRulesHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EvaluateRulesRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).EvaluateRules(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).EvaluateRules(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/EvaluateRules"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).EvaluateRules(ctx, req.(*EvaluateRulesRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).EvaluateRules(ctx, req.(*EvaluateRulesRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func alertServiceEvaluateAlertsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EvaluateAlertsRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AlertServiceServer).EvaluateAlerts(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AlertServiceServer).EvaluateAlerts(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AlertService/EvaluateAlerts"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AlertServiceServer).EvaluateAlerts(ctx, req.(*EvaluateAlertsRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AlertServiceServer).EvaluateAlerts(ctx, req.(*EvaluateAlertsRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 
@@ -2181,90 +2385,156 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 
 func authServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthCheckRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).HealthCheck(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).HealthCheck(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/HealthCheck"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceAuthenticateHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AuthenticateRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).Authenticate(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).Authenticate(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/Authenticate"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).Authenticate(ctx, req.(*AuthenticateRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).Authenticate(ctx, req.(*AuthenticateRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceValidateTokenHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ValidateTokenRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).ValidateToken(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateToken(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/ValidateToken"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).ValidateToken(ctx, req.(*ValidateTokenRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateToken(ctx, req.(*ValidateTokenRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceAuthorizeHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AuthorizeRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).Authorize(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).Authorize(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/Authorize"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).Authorize(ctx, req.(*AuthorizeRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).Authorize(ctx, req.(*AuthorizeRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceCreateRoleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateRoleRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).CreateRole(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreateRole(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/CreateRole"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).CreateRole(ctx, req.(*CreateRoleRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreateRole(ctx, req.(*CreateRoleRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceBindUserRoleHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BindUserRoleRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).BindUserRole(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).BindUserRole(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/BindUserRole"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).BindUserRole(ctx, req.(*BindUserRoleRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).BindUserRole(ctx, req.(*BindUserRoleRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceCreatePolicyHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreatePolicyRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).CreatePolicy(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CreatePolicy(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/CreatePolicy"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).CreatePolicy(ctx, req.(*CreatePolicyRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CreatePolicy(ctx, req.(*CreatePolicyRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceCheckPermissionHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CheckPermissionRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).CheckPermission(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CheckPermission(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/CheckPermission"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).CheckPermission(ctx, req.(*CheckPermissionRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CheckPermission(ctx, req.(*CheckPermissionRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceOIDCCallbackHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(OIDCCallbackRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).OIDCCallback(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).OIDCCallback(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/OIDCCallback"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).OIDCCallback(ctx, req.(*OIDCCallbackRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).OIDCCallback(ctx, req.(*OIDCCallbackRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceRevokeTokenHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RevokeTokenRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).RevokeToken(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).RevokeToken(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/RevokeToken"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).RevokeToken(ctx, req.(*RevokeTokenRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).RevokeToken(ctx, req.(*RevokeTokenRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func authServiceValidateAPIKeyHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ValidateAPIKeyRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(AuthServiceServer).ValidateAPIKey(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateAPIKey(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.AuthService/ValidateAPIKey"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(AuthServiceServer).ValidateAPIKey(ctx, req.(*ValidateAPIKeyRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateAPIKey(ctx, req.(*ValidateAPIKeyRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 
@@ -2297,105 +2567,183 @@ var _TenantService_serviceDesc = grpc.ServiceDesc{
 
 func tenantServiceHealthCheckHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthCheckRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).HealthCheck(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).HealthCheck(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/HealthCheck"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceCreateTenantHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateTenantRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).CreateTenant(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).CreateTenant(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/CreateTenant"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).CreateTenant(ctx, req.(*CreateTenantRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).CreateTenant(ctx, req.(*CreateTenantRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceGetTenantHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetTenantRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).GetTenant(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).GetTenant(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/GetTenant"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).GetTenant(ctx, req.(*GetTenantRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).GetTenant(ctx, req.(*GetTenantRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceUpdateTenantHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateTenantRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).UpdateTenant(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).UpdateTenant(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/UpdateTenant"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).UpdateTenant(ctx, req.(*UpdateTenantRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).UpdateTenant(ctx, req.(*UpdateTenantRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceDeleteTenantHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteTenantRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).DeleteTenant(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).DeleteTenant(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/DeleteTenant"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).DeleteTenant(ctx, req.(*DeleteTenantRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).DeleteTenant(ctx, req.(*DeleteTenantRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceListTenantsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListTenantsRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).ListTenants(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).ListTenants(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/ListTenants"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).ListTenants(ctx, req.(*ListTenantsRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).ListTenants(ctx, req.(*ListTenantsRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceUpdateQuotaHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateTenantQuotaRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).UpdateQuota(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).UpdateQuota(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/UpdateQuota"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).UpdateQuota(ctx, req.(*UpdateTenantQuotaRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).UpdateQuota(ctx, req.(*UpdateTenantQuotaRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceCreateProjectHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateProjectRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).CreateProject(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).CreateProject(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/CreateProject"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).CreateProject(ctx, req.(*CreateProjectRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).CreateProject(ctx, req.(*CreateProjectRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceGetProjectHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetProjectRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).GetProject(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).GetProject(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/GetProject"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).GetProject(ctx, req.(*GetProjectRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).GetProject(ctx, req.(*GetProjectRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceListProjectsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListProjectsRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).ListProjects(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).ListProjects(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/ListProjects"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).ListProjects(ctx, req.(*ListProjectsRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).ListProjects(ctx, req.(*ListProjectsRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceAddTenantMemberHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddTenantMemberRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).AddTenantMember(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).AddTenantMember(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/AddTenantMember"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).AddTenantMember(ctx, req.(*AddTenantMemberRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).AddTenantMember(ctx, req.(*AddTenantMemberRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceRemoveTenantMemberHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RemoveTenantMemberRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).RemoveTenantMember(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).RemoveTenantMember(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/RemoveTenantMember"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).RemoveTenantMember(ctx, req.(*RemoveTenantMemberRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).RemoveTenantMember(ctx, req.(*RemoveTenantMemberRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }
 func tenantServiceListTenantMembersHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListTenantMembersRequest)
-	if err := dec(in); err != nil { return nil, err }
-	if interceptor == nil { return srv.(TenantServiceServer).ListTenantMembers(ctx, in) }
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantServiceServer).ListTenantMembers(ctx, in)
+	}
 	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/proto.TenantService/ListTenantMembers"}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return srv.(TenantServiceServer).ListTenantMembers(ctx, req.(*ListTenantMembersRequest)) }
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantServiceServer).ListTenantMembers(ctx, req.(*ListTenantMembersRequest))
+	}
 	return interceptor(ctx, in, info, handler)
 }

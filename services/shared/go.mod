@@ -18,3 +18,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230803162951-92d19b093157 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 )
+
+replace github.com/meinanzilinzhengying/cloudflow/services/proto => ../proto
+
+replace github.com/meinanzilinzhengying/cloudflow/pkg => ../../pkg

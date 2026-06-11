@@ -268,12 +268,12 @@ func (b *Bulkhead) ExecuteWithContext(ctx context.Context, fn func(ctx context.C
 	defer atomic.AddInt64(&b.activeCount, -1)
 
 	select {
-	case b.semaphore &lt;- struct{}{}:
-		defer func() { &lt;-b.semaphore }()
+	case b.semaphore <- struct{}{}:
+		defer func() { <-b.semaphore }()
 		return fn(ctx)
-	case &lt;-ctx.Done():
+	case <-ctx.Done():
 		return fmt.Errorf("bulkhead: context cancelled while waiting for semaphore: %w", ctx.Err())
-	case &lt;-time.After(b.maxWaitTime):
+	case <-time.After(b.maxWaitTime):
 		return fmt.Errorf("bulkhead: timeout while waiting for semaphore after %v", b.maxWaitTime)
 	}
 }
