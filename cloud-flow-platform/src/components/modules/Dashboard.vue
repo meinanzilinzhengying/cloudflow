@@ -345,9 +345,9 @@ async function fetchData() {
         name: s.name + ' Service',
         type: 'Microservice',
         status: s.status === 'healthy' ? 'running' : 'error',
-        cpu: Math.round(Math.random() * 40 + 10),
-        memory: Math.round(Math.random() * 50 + 20),
-        restarts: index % 3 === 0 ? 1 : 0
+        cpu: s.cpu || 0,  // 使用真实数据
+        memory: s.memory || 0,  // 使用真实数据
+        restarts: s.restarts || 0  // 使用真实数据
       }))
     }
 
@@ -355,17 +355,178 @@ async function fetchData() {
     if (probes) {
       processes.value = probes.slice(0, 5).map((p, index) => ({
         name: p.name,
-        pid: 1000 + index,
-        cpu: Math.round(Math.random() * 30 + 5),
-        memory: Math.round(Math.random() * 20 + 5),
-        uptime: formatUptime(Math.round(Math.random() * 86400 + 3600))
+        pid: p.pid || 1000 + index,
+        cpu: p.cpu || 0,  // 使用真实数据
+        memory: p.memory || 0,  // 使用真实数据
+        uptime: formatUptime(p.uptime || 0)  // 使用真实数据
       }))
+    }
+
+    // 获取系统指标（用于图表）
+    const systemMetrics = await api.getSystemMetrics()
+    if (systemMetrics) {
+      updateChartData(systemMetrics)
     }
   } catch (error) {
     console.error('Failed to fetch data:', error)
-    loadMockData()
+    // 不再使用 Mock 数据，而是显示错误信息
+    stats.value = { cpu: 0, memory: 0, disk: 0, network: 0 }
+    services.value = []
+    processes.value = []
   } finally {
     loading.value = false
+  }
+}
+
+// 更新图表数据
+function updateChartData(metrics) {
+  // 如果 API 返回了历史数据，使用它
+  if (metrics.cpu_history) {
+    cpuChartData.value = {
+      labels: metrics.cpu_history.labels || [],
+      datasets: [{
+        label: 'CPU 使用率',
+        data: metrics.cpu_history.data || [],
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    }
+  } else {
+    // 如果没有历史数据，使用当前值创建一个简单的图表
+    cpuChartData.value = {
+      labels: ['当前'],
+      datasets: [{
+        label: 'CPU 使用率',
+        data: [stats.value.cpu],
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    }
+  }
+
+  // 内存图表（类似逻辑）
+  if (metrics.memory_history) {
+    memoryChartData.value = {
+      labels: metrics.memory_history.labels || [],
+      datasets: [{
+        label: '内存使用',
+        data: metrics.memory_history.data || [],
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    }
+  } else {
+    memoryChartData.value = {
+      labels: ['当前'],
+      datasets: [{
+        label: '内存使用',
+        data: [stats.value.memory],
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    }
+  }
+
+  // 网络图表
+  if (metrics.network_history) {
+    networkChartData.value = {
+      labels: metrics.network_history.labels || [],
+      datasets: [
+        {
+          label: '入站',
+          data: metrics.network_history.inbound || [],
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          fill: true,
+          tension: 0.4
+        },
+        {
+          label: '出站',
+          data: metrics.network_history.outbound || [],
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          fill: true,
+          tension: 0.4
+        }
+      ]
+    }
+  } else {
+    networkChartData.value = {
+      labels: ['当前'],
+      datasets: [
+        {
+          label: '入站',
+          data: [stats.value.network / 2],
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          fill: true,
+          tension: 0.4
+        },
+        {
+          label: '出站',
+          data: [stats.value.network / 2],
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          fill: true,
+          tension: 0.4
+        }
+      ]
+    }
+  }
+
+  // 磁盘 I/O 图表
+  if (metrics.disk_history) {
+    diskChartData.value = {
+      labels: metrics.disk_history.labels || [],
+      datasets: [
+        {
+          label: '读取',
+          data: metrics.disk_history.read || [],
+          borderColor: '#8b5cf6',
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          fill: true,
+          tension: 0.4
+        },
+        {
+          label: '写入',
+          data: metrics.disk_history.write || [],
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          fill: true,
+          tension: 0.4
+        }
+      ]
+    }
+  } else {
+    diskChartData.value = {
+      labels: ['当前'],
+      datasets: [
+        {
+          label: '读取',
+          data: [0],
+          borderColor: '#8b5cf6',
+          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          fill: true,
+          tension: 0.4
+        },
+        {
+          label: '写入',
+          data: [0],
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          fill: true,
+          tension: 0.4
+        }
+      ]
+    }
   }
 }
 
@@ -376,34 +537,6 @@ function formatUptime(seconds) {
   if (days > 0) return `${days}天 ${hours}小时`
   if (hours > 0) return `${hours}小时 ${minutes}分钟`
   return `${minutes}分钟`
-}
-
-function loadMockData() {
-  stats.value = {
-    cpu: Math.round(Math.random() * 40 + 20),
-    memory: Math.round(Math.random() * 30 + 40),
-    disk: Math.round(Math.random() * 30 + 40),
-    network: Math.round(Math.random() * 100 + 50)
-  }
-
-  services.value = [
-    { name: 'Auth Service', type: 'Microservice', status: 'running', cpu: 25, memory: 45, restarts: 0 },
-    { name: 'Control Plane', type: 'Microservice', status: 'running', cpu: 32, memory: 52, restarts: 0 },
-    { name: 'Query Service', type: 'Microservice', status: 'running', cpu: 45, memory: 68, restarts: 1 },
-    { name: 'Alert Engine', type: 'Microservice', status: 'running', cpu: 18, memory: 35, restarts: 0 },
-    { name: 'Data Plane', type: 'Microservice', status: 'running', cpu: 52, memory: 72, restarts: 0 },
-    { name: 'Topology Engine', type: 'Microservice', status: 'running', cpu: 28, memory: 48, restarts: 0 },
-    { name: 'Tenant Service', type: 'Microservice', status: 'running', cpu: 15, memory: 32, restarts: 0 },
-    { name: 'AI Service', type: 'Microservice', status: 'running', cpu: 38, memory: 58, restarts: 0 }
-  ]
-
-  processes.value = [
-    { name: 'cloudflow-agent', pid: 1001, cpu: 12, memory: 8, uptime: '2天 5小时' },
-    { name: 'cloudflow-control', pid: 1002, cpu: 8, memory: 15, uptime: '2天 5小时' },
-    { name: 'cloudflow-query', pid: 1003, cpu: 15, memory: 22, uptime: '2天 5小时' },
-    { name: 'cloudflow-alert', pid: 1004, cpu: 6, memory: 12, uptime: '2天 5小时' },
-    { name: 'cloudflow-data', pid: 1005, cpu: 20, memory: 28, uptime: '2天 5小时' }
-  ]
 }
 
 let refreshInterval = null

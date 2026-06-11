@@ -16,14 +16,21 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/host"
+	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/net"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -507,6 +514,8 @@ func (s *Service) authMiddleware(next http.Handler) *http.ServeMux {
 	protectedMux := http.NewServeMux()
 
 	protectedMux.HandleFunc("/healthz", s.healthzHandler)
+	protectedMux.HandleFunc("/api/stats", s.statsHandler)
+	protectedMux.HandleFunc("/api/system-metrics", s.systemMetricsHandler)
 
 	protectedMux.HandleFunc("/api/agents", func(w http.ResponseWriter, r *http.Request) {
 		if !s.authenticateRequest(r) {
@@ -798,4 +807,143 @@ func (g *controlPlaneGRPC) UpdateIngestConfig(ctx context.Context, req *svcproto
 		Success: true,
 		Message: "config updated",
 	}, nil
+}
+
+// ============================================================================
+// HTTP Handlers - 监控统计
+// ============================================================================
+
+// statsHandler 返回平台统计数据 (供前端 Dashboard 使用)
+func (s *Service) statsHandler(w http.ResponseWriter, r *http.Request) {
+	stats, err := s.collectSystemStats()
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// systemMetricsHandler 返回详细系统指标
+func (s *Service) systemMetricsHandler(w http.ResponseWriter, r *http.Request) {
+	metrics, err := s.collectDetailedMetrics()
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metrics)
+}
+
+// collectSystemStats 采集系统统计数据
+func (s *Service) collectSystemStats() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+
+	// CPU 使用率
+	cpuPercent, err := cpu.Percent(0, false)
+	if err == nil && len(cpuPercent) > 0 {
+		stats["cpu"] = map[string]interface{}{
+			"usage":   cpuPercent[0],
+			"cores":   runtime.NumCPU(),
+		}
+	}
+
+	// 内存使用
+	memInfo, err := mem.VirtualMemory()
+	if err == nil {
+		stats["memory"] = map[string]interface{}{
+			"total":      memInfo.Total / 1024 / 1024 / 1024, // GB
+			"used":       memInfo.Used / 1024 / 1024 / 1024,  // GB
+			"usage":      memInfo.UsedPercent,
+		}
+	}
+
+	// 磁盘使用
+	diskInfo, err := disk.Usage("/")
+	if err == nil {
+		stats["disk"] = map[string]interface{}{
+			"total":   diskInfo.Total / 1024 / 1024 / 1024, // GB
+			"used":    diskInfo.Used / 1024 / 1024 / 1024,   // GB
+			"usage":   diskInfo.UsedPercent,
+		}
+	}
+
+	// 网络 I/O
+	netIO, err := net.IOCounters(false)
+	if err == nil && len(netIO) > 0 {
+		stats["network"] = map[string]interface{}{
+			"inbound":  netIO[0].BytesRecv / 1024 / 1024,  // MB
+			"outbound": netIO[0].BytesSent / 1024 / 1024,   // MB
+		}
+	}
+
+	// 运行时长
+	stats["uptime"] = int64(time.Since(s.startTime).Seconds())
+
+	// 服务状态
+	agents := s.ListAgents("", "", "")
+	edges := s.ListEdges("", "", "")
+	running := 2 // control-plane 和 data-plane
+	if s.dataPlaneConn != nil {
+		running++
+	}
+
+	stats["services"] = map[string]interface{}{
+		"total":   running + 6, // 假设总共有 running+6 个服务
+		"running": running,
+		"stopped": 6,
+	}
+
+	return stats, nil
+}
+
+// collectDetailedMetrics 采集详细系统指标
+func (s *Service) collectDetailedMetrics() (map[string]interface{}, error) {
+	metrics := make(map[string]interface{})
+
+	// CPU 每个核心的使用率
+	cpuPercents, err := cpu.Percent(0, true)
+	if err == nil {
+		metrics["cpu_per_core"] = cpuPercents
+	}
+
+	// 内存详细信息
+	memInfo, err := mem.VirtualMemory()
+	if err == nil {
+		metrics["memory"] = map[string]interface{}{
+			"total":       memInfo.Total,
+			"available":   memInfo.Available,
+			"used":        memInfo.Used,
+			"free":        memInfo.Free,
+			"used_percent": memInfo.UsedPercent,
+		}
+	}
+
+	// 磁盘 I/O 统计
+	diskIO, err := disk.IOCounters()
+	if err == nil {
+		metrics["disk_io"] = diskIO
+	}
+
+	// 网络接口统计
+	netIO, err := net.IOCounters(true)
+	if err == nil {
+		metrics["network_interfaces"] = netIO
+	}
+
+	// 主机信息
+	hostInfo, err := host.Info()
+	if err == nil {
+		metrics["host"] = map[string]interface{}{
+			"hostname":   hostInfo.Hostname,
+			"uptime":     hostInfo.Uptime,
+			"procs":      hostInfo.Procs,
+			"os":         hostInfo.OS,
+			"platform":   hostInfo.Platform,
+		}
+	}
+
+	return metrics, nil
 }

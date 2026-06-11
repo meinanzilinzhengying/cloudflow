@@ -21,11 +21,16 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/net"
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -314,6 +319,7 @@ func (s *Service) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthzHandler)
 	mux.HandleFunc("/metrics", s.statsHandler)
+	mux.HandleFunc("/api/system-metrics", s.systemMetricsHandler)
 	mux.HandleFunc("/api/sampling/config", s.samplingConfigHandler)
 	mux.HandleFunc("/api/sampling/stats", s.samplingStatsHandler)
 	mux.HandleFunc("/api/ingest/metrics", s.ingestMetricsHandler)  // P0-06 新增: 接收指标
@@ -322,7 +328,7 @@ func (s *Service) Start() error {
 	// P0-3 修复: 应用认证中间件
 	var handler http.Handler = mux
 	if s.auth != nil {
-		handler = s.auth.Middleware("/health", "/metrics")(handler)
+		handler = s.auth.Middleware("/health", "/metrics", "/api/system-metrics")(handler)
 	}
 	handler = tenant.HTTPMiddleware(handler)
 
@@ -1127,4 +1133,92 @@ func mapToUnifiedFlow(m map[string]interface{}) *flow.UnifiedFlow {
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
+}
+
+// systemMetricsHandler 返回详细系统指标
+func (s *Service) systemMetricsHandler(w http.ResponseWriter, r *http.Request) {
+	metrics := make(map[string]interface{})
+
+	// CPU 每个核心的使用率
+	cpuPercents, err := cpu.Percent(0, true)
+	if err == nil {
+		metrics["cpu_per_core"] = cpuPercents
+	}
+
+	// 内存详细信息
+	memInfo, err := mem.VirtualMemory()
+	if err == nil {
+		metrics["memory"] = map[string]interface{}{
+			"total":       memInfo.Total,
+			"available":   memInfo.Available,
+			"used":        memInfo.Used,
+			"free":        memInfo.Free,
+			"used_percent": memInfo.UsedPercent,
+		}
+	}
+
+	// 磁盘 I/O 统计
+	diskIO, err := disk.IOCounters()
+	if err == nil {
+		metrics["disk_io"] = diskIO
+	}
+
+	// 磁盘使用率
+	diskUsage, err := disk.Usage("/")
+	if err == nil {
+		metrics["disk_usage"] = map[string]interface{}{
+			"total":       diskUsage.Total,
+			"used":        diskUsage.Used,
+			"free":        diskUsage.Free,
+			"used_percent": diskUsage.UsedPercent,
+		}
+	}
+
+	// 网络接口统计
+	netIO, err := net.IOCounters(true)
+	if err == nil {
+		metrics["network_interfaces"] = netIO
+	}
+
+	// 主机信息
+	hostInfo, err := host.Info()
+	if err == nil {
+		metrics["host"] = map[string]interface{}{
+			"hostname":   hostInfo.Hostname,
+			"uptime":     hostInfo.Uptime,
+			"procs":      hostInfo.Procs,
+			"os":         hostInfo.OS,
+			"platform":   hostInfo.Platform,
+			"kernel_version": hostInfo.KernelVersion,
+		}
+	}
+
+	// 运行时统计
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	metrics["runtime"] = map[string]interface{}{
+		"go_version":    runtime.Version(),
+		"num_cpu":       runtime.NumCPU(),
+		"num_goroutine": runtime.NumGoroutine(),
+		"mem_alloc":     m.Alloc,
+		"mem_total":     m.TotalAlloc,
+		"mem_sys":       m.Sys,
+		"gc_num":        m.NumGC,
+	}
+
+	// data-plane 业务统计
+	stats := s.GetStats()
+	metrics["data_plane_stats"] = map[string]interface{}{
+		"flows_ingested":   stats.FlowsIngested,
+		"flows_dropped":    stats.FlowsDropped,
+		"flows_sampled":    stats.FlowsSampled,
+		"flows_written":    stats.FlowsWritten,
+		"metrics_ingested": stats.MetricsIngested,
+		"logs_ingested":    stats.LogsIngested,
+		"write_errors":      stats.WriteErrors,
+		"avg_latency_ms":   stats.AvgLatencyMs,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(metrics)
 }
