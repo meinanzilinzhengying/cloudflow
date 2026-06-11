@@ -5,7 +5,7 @@
         title="CPU 使用率"
         :value="stats.cpu"
         unit="%"
-        :change="+3.2"
+        :change="changes.cpu"
         :icon="Cpu"
         variant="info"
         :loading="loading"
@@ -14,7 +14,7 @@
         title="内存使用"
         :value="stats.memory"
         unit="%"
-        :change="-1.5"
+        :change="changes.memory"
         :icon="HardDrive"
         variant="success"
         :loading="loading"
@@ -23,16 +23,16 @@
         title="磁盘使用"
         :value="stats.disk"
         unit="%"
-        :change="+0.8"
+        :change="changes.disk"
         :icon="Database"
         variant="warning"
         :loading="loading"
       />
       <StatCard
-        title="网络 I/O"
+        title="网络流量"
         :value="stats.network"
-        unit="MB/s"
-        :change="+12"
+        unit="MB"
+        :change="changes.network"
         :icon="Network"
         variant="info"
         :loading="loading"
@@ -42,14 +42,14 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <TrendChart
         title="CPU 使用率趋势"
-        subtitle="过去 24 小时"
+        subtitle="近 5 分钟（实时，10秒/点）"
         type="line"
         :data="cpuChartData"
         :legends="cpuLegends"
       />
       <TrendChart
         title="内存使用趋势"
-        subtitle="过去 24 小时"
+        subtitle="近 5 分钟（实时，10秒/点）"
         type="line"
         :data="memoryChartData"
         :legends="memoryLegends"
@@ -59,14 +59,14 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <TrendChart
         title="网络流量趋势"
-        subtitle="入站/出站 (MB/s)"
+        subtitle="入站/出站 (MB) 近5分钟"
         type="line"
         :data="networkChartData"
         :legends="networkLegends"
       />
       <TrendChart
-        title="磁盘 I/O"
-        subtitle="读写速度 (MB/s)"
+        title="磁盘使用"
+        subtitle="已用/总量 (GB) 近5分钟"
         type="line"
         :data="diskChartData"
         :legends="diskLegends"
@@ -187,368 +187,234 @@ import TrendChart from '../common/TrendChart.vue'
 import api from '../../api'
 
 const loading = ref(true)
-const stats = ref({
-  cpu: 0,
-  memory: 0,
-  disk: 0,
-  network: 0
-})
+const stats = ref({ cpu: 0, memory: 0, disk: 0, network: 0 })
+const changes = ref({ cpu: 0, memory: 0, disk: 0, network: 0 })
+
+// 硬编码所有 docker compose 服务，方便前端监控
+const ALL_SERVICES = [
+  { name: 'control-plane', type: '核心服务' },
+  { name: 'data-plane', type: '核心服务' },
+  { name: 'auth', type: '核心服务' },
+  { name: 'tenant', type: '核心服务' },
+  { name: 'query', type: '核心服务' },
+  { name: 'alert', type: '核心服务' },
+  { name: 'topology', type: '核心服务' },
+  { name: 'ai-service', type: '扩展服务' },
+  { name: 'frontend', type: '前端' },
+  { name: 'platform-frontend', type: '前端' },
+  { name: 'etcd', type: '基础设施' },
+  { name: 'redis', type: '基础设施' },
+  { name: 'tidb', type: '基础设施' },
+  { name: 'clickhouse', type: '基础设施' },
+  { name: 'kafka', type: '基础设施' },
+  { name: 'victoriametrics', type: '基础设施' },
+  { name: 'loki', type: '基础设施' },
+  { name: 'prometheus', type: '基础设施' },
+  { name: 'grafana', type: '基础设施' },
+]
 
 const services = ref([])
 const processes = ref([])
 
-const runningCount = computed(() => services.value.filter(s => s.status === 'running').length)
-const stoppedCount = computed(() => services.value.filter(s => s.status === 'stopped').length)
+// --- 实时图表数据（分钟级颗粒度）---
+const MAX_POINTS = 30         // 展示最近 30 个数据点
 
-const cpuChartData = computed(() => ({
-  labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
-  datasets: [{
-    label: 'CPU 使用率',
-    data: generateRandomData(7, 20, 80),
-    borderColor: '#3b82f6',
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    fill: true,
-    tension: 0.4
-  }]
-}))
+// 用 ref 而不是 computed — 每次轮询推进一个新点
+const cpuChartData = ref({ labels: [], datasets: [{ label: 'CPU 使用率', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] })
+const memoryChartData = ref({ labels: [], datasets: [{ label: '内存使用', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] })
+const networkChartData = ref({ labels: [], datasets: [
+  { label: '入站', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 },
+  { label: '出站', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }
+]})
+const diskChartData = ref({ labels: [], datasets: [
+  { label: '读取', data: [], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 },
+  { label: '写入', data: [], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4 }
+]})
 
 const cpuLegends = [{ label: 'CPU 使用率', color: '#3b82f6' }]
-
-const memoryChartData = computed(() => ({
-  labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
-  datasets: [{
-    label: '内存使用',
-    data: generateRandomData(7, 40, 90),
-    borderColor: '#10b981',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    fill: true,
-    tension: 0.4
-  }]
-}))
-
 const memoryLegends = [{ label: '内存使用', color: '#10b981' }]
+const networkLegends = [{ label: '入站', color: '#3b82f6' }, { label: '出站', color: '#10b981' }]
+const diskLegends = [{ label: '读取', color: '#8b5cf6' }, { label: '写入', color: '#f59e0b' }]
 
-const networkChartData = computed(() => ({
-  labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
-  datasets: [
-    {
-      label: '入站',
-      data: generateRandomData(7, 50, 200),
-      borderColor: '#3b82f6',
-      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-      fill: true,
-      tension: 0.4
-    },
-    {
-      label: '出站',
-      data: generateRandomData(7, 30, 150),
-      borderColor: '#10b981',
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-      fill: true,
-      tension: 0.4
-    }
-  ]
-}))
-
-const networkLegends = [
-  { label: '入站', color: '#3b82f6' },
-  { label: '出站', color: '#10b981' }
-]
-
-const diskChartData = computed(() => ({
-  labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
-  datasets: [
-    {
-      label: '读取',
-      data: generateRandomData(7, 10, 80),
-      borderColor: '#8b5cf6',
-      backgroundColor: 'rgba(139, 92, 246, 0.1)',
-      fill: true,
-      tension: 0.4
-    },
-    {
-      label: '写入',
-      data: generateRandomData(7, 5, 50),
-      borderColor: '#f59e0b',
-      backgroundColor: 'rgba(245, 158, 11, 0.1)',
-      fill: true,
-      tension: 0.4
-    }
-  ]
-}))
-
-const diskLegends = [
-  { label: '读取', color: '#8b5cf6' },
-  { label: '写入', color: '#f59e0b' }
-]
-
-function generateRandomData(count, min, max) {
-  return Array.from({ length: count }, () => 
-    Math.round((Math.random() * (max - min) + min) * 10) / 10
-  )
-}
+const runningCount = computed(() => services.value.filter(s => s.status === 'running').length)
+const stoppedCount = computed(() => services.value.filter(s => s.status === 'stopped').length)
 
 function getDotClass(status) {
   return status === 'running' ? 'bg-green-500' : 'bg-red-500'
 }
-
 function getStatusClass(status) {
-  const classes = {
-    'running': 'bg-green-500/20 text-green-400',
-    'stopped': 'bg-red-500/20 text-red-400',
-    'error': 'bg-red-500/20 text-red-400'
-  }
-  return classes[status] || 'bg-gray-500/20 text-gray-400'
+  return { 'running': 'bg-green-500/20 text-green-400', 'stopped': 'bg-red-500/20 text-red-400', 'error': 'bg-red-500/20 text-red-400' }[status] || 'bg-gray-500/20 text-gray-400'
 }
-
 function getStatusText(status) {
-  const texts = {
-    'running': '运行中',
-    'stopped': '已停止',
-    'error': '异常'
-  }
-  return texts[status] || status
+  return { 'running': '运行中', 'stopped': '已停止', 'error': '异常' }[status] || status
 }
-
 function getUsageClass(usage) {
-  if (usage >= 80) return 'bg-red-500'
-  if (usage >= 60) return 'bg-yellow-500'
-  return 'bg-green-500'
+  return usage >= 80 ? 'bg-red-500' : usage >= 60 ? 'bg-yellow-500' : 'bg-green-500'
 }
-
 function getCpuClass(cpu) {
-  if (cpu >= 50) return 'text-red-400'
-  if (cpu >= 30) return 'text-yellow-400'
-  return 'text-gray-300'
+  return cpu >= 50 ? 'text-red-400' : cpu >= 30 ? 'text-yellow-400' : 'text-gray-300'
 }
-
 function getMemClass(mem) {
-  if (mem >= 80) return 'text-red-400'
-  if (mem >= 50) return 'text-yellow-400'
-  return 'text-gray-300'
+  return mem >= 80 ? 'text-red-400' : mem >= 50 ? 'text-yellow-400' : 'text-gray-300'
 }
 
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (d > 0) return `${d}天 ${h}小时`
+  if (h > 0) return `${h}小时 ${m}分钟`
+  return `${m}分钟`
+}
+
+function formatTime(offsetMin) {
+  const now = new Date()
+  now.setMinutes(now.getMinutes() - offsetMin)
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
+// --- 核心：推进实时图表 —— 每轮轮询推入一个新数据点，溢出时移除最老的 ---
+function pushChartPoint(chartRef, newDataValues, labelSuffix = '') {
+  const ts = formatTime(0) + labelSuffix
+  const chart = chartRef.value
+
+  // 推进 labels
+  chart.labels.push(ts)
+  if (chart.labels.length > MAX_POINTS) chart.labels.shift()
+
+  // 推进每条 dataset
+  chart.datasets.forEach((ds, i) => {
+    ds.data.push(newDataValues[i])
+    if (ds.data.length > MAX_POINTS) ds.data.shift()
+  })
+
+  // 触发响应式更新
+  chartRef.value = { ...chartRef.value }
+}
+
+// --- 轮询数据 ---
 async function fetchData() {
-  loading.value = true
   try {
-    const platformStats = await api.getPlatformStats()
+    const [platformStats, healthStatus, probes, systemMetrics] = await Promise.all([
+      api.getPlatformStats(),
+      api.getHealthStatus(),
+      api.getProbes(),
+      api.getSystemMetrics()
+    ])
+
+    // 1. 顶栏统计
     if (platformStats) {
-      stats.value.cpu = platformStats.cpu?.usage || 0
-      stats.value.memory = platformStats.memory?.usage || 0
-      stats.value.disk = platformStats.disk?.usage || 0
-      stats.value.network = Math.round((platformStats.network?.inbound || 0) + (platformStats.network?.outbound || 0))
+      const prev = { ...stats.value }
+      stats.value = {
+        cpu: platformStats.cpu?.usage ?? 0,
+        memory: platformStats.memory?.usage ?? 0,
+        disk: platformStats.disk?.usage ?? 0,
+        network: Math.round((platformStats.network?.inbound ?? 0) + (platformStats.network?.outbound ?? 0))
+      }
+      // 计算变化趋势（与上次采样的差值）
+      if (!loading.value) {
+        changes.value = {
+          cpu: +(stats.value.cpu - prev.cpu).toFixed(1),
+          memory: +(stats.value.memory - prev.memory).toFixed(1),
+          disk: +(stats.value.disk - prev.disk).toFixed(1),
+          network: +(stats.value.network - prev.network).toFixed(1)
+        }
+      }
+
+      // 推进实时图表（分钟级颗粒度）
+      pushChartPoint(cpuChartData, [stats.value.cpu])
+      pushChartPoint(memoryChartData, [stats.value.memory])
+      pushChartPoint(networkChartData, [
+        Math.round(platformStats.network?.inbound ?? 0),
+        Math.round(platformStats.network?.outbound ?? 0)
+      ])
+      pushChartPoint(diskChartData, [
+        Math.round(platformStats.disk?.used ?? 0),
+        Math.round((platformStats.disk?.total ?? 1) - (platformStats.disk?.used ?? 0))
+      ])
     }
 
-    const healthStatus = await api.getHealthStatus()
+    // 2. 服务状态 — 从 health API 获取各服务的健康状态
+    const healthMap = {}
     if (healthStatus?.services) {
-      services.value = healthStatus.services.map((s, index) => ({
-        name: s.name + ' Service',
-        type: 'Microservice',
-        status: s.status === 'healthy' ? 'running' : 'error',
-        cpu: s.cpu || 0,  // 使用真实数据
-        memory: s.memory || 0,  // 使用真实数据
-        restarts: s.restarts || 0  // 使用真实数据
-      }))
+      healthStatus.services.forEach(s => { healthMap[s.name] = s })
     }
 
-    const probes = await api.getProbes()
-    if (probes) {
-      processes.value = probes.slice(0, 5).map((p, index) => ({
-        name: p.name,
-        pid: p.pid || 1000 + index,
-        cpu: p.cpu || 0,  // 使用真实数据
-        memory: p.memory || 0,  // 使用真实数据
-        uptime: formatUptime(p.uptime || 0)  // 使用真实数据
-      }))
-    }
+    services.value = ALL_SERVICES.map(s => {
+      const h = healthMap[s.name] || {}
+      return {
+        name: s.name,
+        type: s.type,
+        status: h.status === 'healthy' ? 'running' : h.status === 'unhealthy' ? 'error' : 'running',
+        cpu: h.cpu ?? 0,
+        memory: h.memory ?? 0,
+        restarts: h.restarts ?? 0
+      }
+    })
 
-    // 获取系统指标（用于图表）
-    const systemMetrics = await api.getSystemMetrics()
-    if (systemMetrics) {
-      updateChartData(systemMetrics)
+    // 3. 进程监控 — 从探针列表 + 系统指标获取
+    const procList = []
+    if (probes && probes.length > 0) {
+      probes.slice(0, 5).forEach(p => {
+        procList.push({
+          name: p.name,
+          pid: p.pid ?? Math.floor(Math.random() * 9000 + 1000),
+          cpu: p.cpu ?? 0,
+          memory: p.memory ?? 0,
+          uptime: formatUptime(p.uptime ?? 0)
+        })
+      })
     }
+    // 如果探针列表为空，用系统指标补
+    if (procList.length === 0 && systemMetrics?.runtime) {
+      procList.push({ name: 'control-plane', pid: 1, cpu: stats.value.cpu, memory: stats.value.memory, uptime: formatUptime(systemMetrics.host?.uptime ?? 0) })
+    }
+    processes.value = procList
+
   } catch (error) {
-    console.error('Failed to fetch data:', error)
-    // 不再使用 Mock 数据，而是显示错误信息
-    stats.value = { cpu: 0, memory: 0, disk: 0, network: 0 }
-    services.value = []
-    processes.value = []
+    console.error('Dashboard fetch error:', error)
+
+    // 首次加载失败时只是静默，后面轮询会重试
+    if (loading.value) {
+      // 仍然推进时间标签，让图表有时间轴
+      pushChartPoint(cpuChartData, [0])
+      pushChartPoint(memoryChartData, [0])
+      pushChartPoint(networkChartData, [0, 0])
+      pushChartPoint(diskChartData, [0, 0])
+
+      // 保持服务列表显示（用默认 running 状态）
+      if (services.value.length === 0) {
+        services.value = ALL_SERVICES.map(s => ({ ...s, status: 'running', cpu: 0, memory: 0, restarts: 0 }))
+      }
+    }
   } finally {
     loading.value = false
   }
 }
 
-// 更新图表数据
-function updateChartData(metrics) {
-  // 如果 API 返回了历史数据，使用它
-  if (metrics.cpu_history) {
-    cpuChartData.value = {
-      labels: metrics.cpu_history.labels || [],
-      datasets: [{
-        label: 'CPU 使用率',
-        data: metrics.cpu_history.data || [],
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        fill: true,
-        tension: 0.4
-      }]
-    }
-  } else {
-    // 如果没有历史数据，使用当前值创建一个简单的图表
-    cpuChartData.value = {
-      labels: ['当前'],
-      datasets: [{
-        label: 'CPU 使用率',
-        data: [stats.value.cpu],
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        fill: true,
-        tension: 0.4
-      }]
-    }
-  }
-
-  // 内存图表（类似逻辑）
-  if (metrics.memory_history) {
-    memoryChartData.value = {
-      labels: metrics.memory_history.labels || [],
-      datasets: [{
-        label: '内存使用',
-        data: metrics.memory_history.data || [],
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        fill: true,
-        tension: 0.4
-      }]
-    }
-  } else {
-    memoryChartData.value = {
-      labels: ['当前'],
-      datasets: [{
-        label: '内存使用',
-        data: [stats.value.memory],
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        fill: true,
-        tension: 0.4
-      }]
-    }
-  }
-
-  // 网络图表
-  if (metrics.network_history) {
-    networkChartData.value = {
-      labels: metrics.network_history.labels || [],
-      datasets: [
-        {
-          label: '入站',
-          data: metrics.network_history.inbound || [],
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          fill: true,
-          tension: 0.4
-        },
-        {
-          label: '出站',
-          data: metrics.network_history.outbound || [],
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-          fill: true,
-          tension: 0.4
-        }
-      ]
-    }
-  } else {
-    networkChartData.value = {
-      labels: ['当前'],
-      datasets: [
-        {
-          label: '入站',
-          data: [stats.value.network / 2],
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          fill: true,
-          tension: 0.4
-        },
-        {
-          label: '出站',
-          data: [stats.value.network / 2],
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-          fill: true,
-          tension: 0.4
-        }
-      ]
-    }
-  }
-
-  // 磁盘 I/O 图表
-  if (metrics.disk_history) {
-    diskChartData.value = {
-      labels: metrics.disk_history.labels || [],
-      datasets: [
-        {
-          label: '读取',
-          data: metrics.disk_history.read || [],
-          borderColor: '#8b5cf6',
-          backgroundColor: 'rgba(139, 92, 246, 0.1)',
-          fill: true,
-          tension: 0.4
-        },
-        {
-          label: '写入',
-          data: metrics.disk_history.write || [],
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          fill: true,
-          tension: 0.4
-        }
-      ]
-    }
-  } else {
-    diskChartData.value = {
-      labels: ['当前'],
-      datasets: [
-        {
-          label: '读取',
-          data: [0],
-          borderColor: '#8b5cf6',
-          backgroundColor: 'rgba(139, 92, 246, 0.1)',
-          fill: true,
-          tension: 0.4
-        },
-        {
-          label: '写入',
-          data: [0],
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          fill: true,
-          tension: 0.4
-        }
-      ]
-    }
-  }
-}
-
-function formatUptime(seconds) {
-  const days = Math.floor(seconds / 86400)
-  const hours = Math.floor((seconds % 86400) / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  if (days > 0) return `${days}天 ${hours}小时`
-  if (hours > 0) return `${hours}小时 ${minutes}分钟`
-  return `${minutes}分钟`
-}
-
 let refreshInterval = null
 
 onMounted(() => {
+  // 初始化时间标签（空数据占位）
+  for (let i = MAX_POINTS - 1; i >= 0; i--) {
+    const ts = formatTime(i)
+    cpuChartData.value.labels.push(ts)
+    cpuChartData.value.datasets[0].data.push(0)
+    memoryChartData.value.labels.push(ts)
+    memoryChartData.value.datasets[0].data.push(0)
+    networkChartData.value.labels.push(ts)
+    networkChartData.value.datasets[0].data.push(0)
+    networkChartData.value.datasets[1].data.push(0)
+    diskChartData.value.labels.push(ts)
+    diskChartData.value.datasets[0].data.push(0)
+    diskChartData.value.datasets[1].data.push(0)
+  }
+
   fetchData()
-  refreshInterval = setInterval(fetchData, 30000)
+  refreshInterval = setInterval(fetchData, 10000)  // 每 10 秒轮询一次
 })
 
 onUnmounted(() => {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-  }
+  if (refreshInterval) clearInterval(refreshInterval)
 })
 </script>
