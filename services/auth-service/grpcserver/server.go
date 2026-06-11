@@ -54,3 +54,11 @@ func (g *authGRPC) CheckPermission(ctx context.Context, req *svcproto.CheckPermi
 func (g *authGRPC) OIDCCallback(ctx context.Context, req *svcproto.OIDCCallbackRequest) (*svcproto.AuthenticateResponse, error) {
 	return g.svc.OIDCCallback(ctx, req)
 }
+
+func (g *authGRPC) RevokeToken(ctx context.Context, req *svcproto.RevokeTokenRequest) (*svcproto.RevokeTokenResponse, error) {
+	return g.svc.RevokeToken(ctx, req)
+}
+
+func (g *authGRPC) ValidateAPIKey(ctx context.Context, req *svcproto.ValidateAPIKeyRequest) (*svcproto.ValidateAPIKeyResponse, error) {
+	return g.svc.ValidateAPIKey(ctx, req)
+}

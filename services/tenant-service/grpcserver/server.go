@@ -31,6 +31,14 @@ func (g *tenantGRPC) GetTenant(ctx context.Context, req *svcproto.GetTenantReque
 	return g.svc.GetTenant(ctx, req)
 }
 
+func (g *tenantGRPC) UpdateTenant(ctx context.Context, req *svcproto.UpdateTenantRequest) (*svcproto.UpdateTenantResponse, error) {
+	return g.svc.UpdateTenant(ctx, req)
+}
+
+func (g *tenantGRPC) DeleteTenant(ctx context.Context, req *svcproto.DeleteTenantRequest) (*svcproto.DeleteTenantResponse, error) {
+	return g.svc.DeleteTenant(ctx, req)
+}
+
 func (g *tenantGRPC) ListTenants(ctx context.Context, req *svcproto.ListTenantsRequest) (*svcproto.ListTenantsResponse, error) {
 	return g.svc.ListTenants(ctx, req)
 }
@@ -43,6 +51,22 @@ func (g *tenantGRPC) CreateProject(ctx context.Context, req *svcproto.CreateProj
 	return g.svc.CreateProject(ctx, req)
 }
 
+func (g *tenantGRPC) GetProject(ctx context.Context, req *svcproto.GetProjectRequest) (*svcproto.GetProjectResponse, error) {
+	return g.svc.GetProject(ctx, req)
+}
+
 func (g *tenantGRPC) ListProjects(ctx context.Context, req *svcproto.ListProjectsRequest) (*svcproto.ListProjectsResponse, error) {
 	return g.svc.ListProjects(ctx, req)
+}
+
+func (g *tenantGRPC) AddTenantMember(ctx context.Context, req *svcproto.AddTenantMemberRequest) (*svcproto.AddTenantMemberResponse, error) {
+	return g.svc.AddTenantMember(ctx, req)
+}
+
+func (g *tenantGRPC) RemoveTenantMember(ctx context.Context, req *svcproto.RemoveTenantMemberRequest) (*svcproto.RemoveTenantMemberResponse, error) {
+	return g.svc.RemoveTenantMember(ctx, req)
+}
+
+func (g *tenantGRPC) ListTenantMembers(ctx context.Context, req *svcproto.ListTenantMembersRequest) (*svcproto.ListTenantMembersResponse, error) {
+	return g.svc.ListTenantMembers(ctx, req)
 }
