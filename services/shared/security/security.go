@@ -269,7 +269,7 @@ func (m *LoginLockoutManager) RecordFailedAttempt(userID string) error {
 
 	// 更新尝试次数
 	attempt.Attempts++
-	if attempt.Attempts &gt;= m.config.LoginMaxAttempts {
+	if attempt.Attempts >= m.config.LoginMaxAttempts {
 		attempt.LockedUntil = now.Add(m.config.LoginLockoutDuration)
 		attempt.Attempts = m.config.LoginMaxAttempts // 防止溢出
 	}
@@ -935,7 +935,7 @@ func (im *InterceptorManager) extractAndVerifyIdentity(ctx context.Context) (*Se
 	// 1. 从 mTLS 证书提取身份
 	if p, ok := peer.FromContext(ctx); ok && im.config.MTLSEnabled {
 		if tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo); ok {
-			if len(tlsInfo.State.VerifiedChains) &gt; 0 && len(tlsInfo.State.VerifiedChains[0]) &gt; 0 {
+			if len(tlsInfo.State.VerifiedChains) > 0 && len(tlsInfo.State.VerifiedChains[0]) > 0 {
 				cert := tlsInfo.State.VerifiedChains[0][0]
 				identity.Cert = cert
 				identity.Name = cert.Subject.CommonName
@@ -1079,7 +1079,7 @@ func (hm *HTTPMiddleware) authenticateHTTPRequest(r *http.Request) (*ServiceIden
 	identity := &ServiceIdentity{}
 
 	// 检查 mTLS 证书
-	if hm.config.MTLSEnabled && r.TLS != nil && len(r.TLS.PeerCertificates) &gt; 0 {
+	if hm.config.MTLSEnabled && r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
 		cert := r.TLS.PeerCertificates[0]
 		identity.Cert = cert
 		identity.Name = cert.Subject.CommonName

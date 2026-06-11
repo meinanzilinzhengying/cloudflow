@@ -162,7 +162,7 @@ func (cb *CircuitBreaker) AllowWithContext(ctx interface{}) bool {
 		lastChange := atomic.LoadInt64(&cb.lastStateChange)
 		elapsed := now.Sub(time.Unix(0, lastChange))
 
-		if elapsed &gt;= cb.config.OpenTimeout {
+		if elapsed >= cb.config.OpenTimeout {
 			cb.mu.Lock()
 			if cb.getState() == StateOpen {
 				atomic.StoreInt64(&cb.halfOpenCount, 0)
@@ -177,7 +177,7 @@ func (cb *CircuitBreaker) AllowWithContext(ctx interface{}) bool {
 
 	case StateHalfOpen:
 		currentCount := atomic.LoadInt64(&cb.halfOpenCount)
-		if currentCount &gt;= cb.config.MaxHalfOpenRequests {
+		if currentCount >= cb.config.MaxHalfOpenRequests {
 			atomic.AddInt64(&cb.rejectionCount, 1)
 			return false
 		}
@@ -200,7 +200,7 @@ func (cb *CircuitBreaker) RecordSuccessWithLatency(latency time.Duration) {
 	atomic.AddInt64(&cb.successCount, 1)
 	atomic.StoreInt64(&cb.lastSuccessTime, time.Now().UnixNano())
 
-	if latency &gt; 0 {
+	if latency > 0 {
 		atomic.AddInt64(&cb.totalLatencyNs, latency.Nanoseconds())
 		atomic.AddInt64(&cb.successLatencyNs, latency.Nanoseconds())
 	}
@@ -218,7 +218,7 @@ func (cb *CircuitBreaker) RecordSuccessWithLatency(latency time.Duration) {
 
 	case StateHalfOpen:
 		consecutiveSuccesses := atomic.LoadInt64(&cb.consecutiveSuccesses)
-		if float64(consecutiveSuccesses) &gt;= cb.config.SuccessThreshold {
+		if float64(consecutiveSuccesses) >= cb.config.SuccessThreshold {
 			cb.mu.Lock()
 			if cb.getState() == StateHalfOpen {
 				atomic.StoreInt64(&cb.successCount, 0)
@@ -243,7 +243,7 @@ func (cb *CircuitBreaker) RecordFailureWithLatency(latency time.Duration, err er
 	atomic.AddInt64(&cb.failureCount, 1)
 	atomic.StoreInt64(&cb.lastFailureTime, time.Now().UnixNano())
 
-	if latency &gt; 0 {
+	if latency > 0 {
 		atomic.AddInt64(&cb.totalLatencyNs, latency.Nanoseconds())
 	}
 
@@ -273,14 +273,14 @@ func (cb *CircuitBreaker) RecordFailureWithLatency(latency time.Duration, err er
 
 func (cb *CircuitBreaker) evaluateClosedState() {
 	total := atomic.LoadInt64(&cb.totalRequests)
-	if total &lt; cb.config.MinRequests {
+	if total < cb.config.MinRequests {
 		return
 	}
 
 	failures := atomic.LoadInt64(&cb.failureCount)
 	errorRate := float64(failures) / float64(total)
 
-	if errorRate &gt;= cb.config.FailureThreshold {
+	if errorRate >= cb.config.FailureThreshold {
 		cb.mu.Lock()
 		if cb.getState() == StateClosed {
 			atomic.StoreInt64(&cb.lastStateChange, time.Now().UnixNano())
@@ -297,14 +297,14 @@ func (cb *CircuitBreaker) GetMetrics() CircuitBreakerMetrics {
 	rejections := atomic.LoadInt64(&cb.rejectionCount)
 
 	var successRate, errorRate float64
-	if total &gt; 0 {
+	if total > 0 {
 		successRate = math.Round(float64(successes)/float64(total)*10000) / 100
 		errorRate = math.Round(float64(failures)/float64(total)*10000) / 100
 	}
 
 	totalLatency := atomic.LoadInt64(&cb.totalLatencyNs)
 	var avgLatencyMs float64
-	if successes &gt; 0 {
+	if successes > 0 {
 		avgLatencyMs = math.Round(float64(totalLatency)/float64(successes)/10000) / 100
 	}
 
@@ -326,10 +326,10 @@ func (cb *CircuitBreaker) GetMetrics() CircuitBreakerMetrics {
 		LastStateChangeTime: time.Unix(0, lastChange).Format(time.RFC3339),
 	}
 
-	if lastSuccess &gt; 0 {
+	if lastSuccess > 0 {
 		metrics.LastSuccessTime = time.Unix(0, lastSuccess).Format(time.RFC3339)
 	}
-	if lastFail &gt; 0 {
+	if lastFail > 0 {
 		metrics.LastFailureTime = time.Unix(0, lastFail).Format(time.RFC3339)
 	}
 	if cb.getState() == StateOpen {

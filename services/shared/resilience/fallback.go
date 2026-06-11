@@ -209,11 +209,11 @@ func (h *DegradationHandler) Evaluate(errorRate float64, avgLatencyMs int64, tim
 	var newLevel DegradationLevel
 
 	switch {
-	case errorRate &gt;= 0.5 || timeoutRatio &gt;= 0.3:
+	case errorRate >= 0.5 || timeoutRatio >= 0.3:
 		newLevel = DegradationFallback
-	case errorRate &gt;= 0.2 || avgLatencyMs &gt;= h.thresholds.LatencyMs*2:
+	case errorRate >= 0.2 || avgLatencyMs >= h.thresholds.LatencyMs*2:
 		newLevel = DegradationMinimal
-	case errorRate &gt;= 0.1 || avgLatencyMs &gt;= h.thresholds.LatencyMs:
+	case errorRate >= 0.1 || avgLatencyMs >= h.thresholds.LatencyMs:
 		newLevel = DegradationGraceful
 	default:
 		newLevel = DegradationNone
@@ -291,7 +291,7 @@ func (b *Bulkhead) IsAvailable() bool {
 	defer b.mu.RUnlock()
 
 	active := atomic.LoadInt64(&b.activeCount)
-	return int(active) &lt; b.maxConcurrent
+	return int(active) < b.maxConcurrent
 }
 
 func (b *Bulkhead) GetUtilization() float64 {
