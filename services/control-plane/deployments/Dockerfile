@@ -34,7 +34,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 
 # Final stage
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates tzdata curl
+RUN apk add --no-cache ca-certificates tzdata curl docker-cli
 ENV TZ=Asia/Shanghai
 WORKDIR /app
 COPY --from=builder /build/control-plane .

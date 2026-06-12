@@ -313,6 +313,7 @@ services:
       TLS_INSECURE_SKIP: "false"
     volumes:
       - ./certs:/certs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
       interval: 10s

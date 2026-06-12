@@ -193,25 +193,25 @@ const changes = ref({ cpu: 0, memory: 0, disk: 0, network: 0 })
 
 // 硬编码所有 docker compose 服务，方便前端监控
 const ALL_SERVICES = [
-  { name: 'control-plane', type: '核心服务' },
-  { name: 'data-plane', type: '核心服务' },
-  { name: 'auth', type: '核心服务' },
-  { name: 'tenant', type: '核心服务' },
-  { name: 'query', type: '核心服务' },
-  { name: 'alert', type: '核心服务' },
-  { name: 'topology', type: '核心服务' },
-  { name: 'ai-service', type: '扩展服务' },
-  { name: 'frontend', type: '前端' },
-  { name: 'platform-frontend', type: '前端' },
-  { name: 'etcd', type: '基础设施' },
-  { name: 'redis', type: '基础设施' },
-  { name: 'tidb', type: '基础设施' },
-  { name: 'clickhouse', type: '基础设施' },
-  { name: 'kafka', type: '基础设施' },
-  { name: 'victoriametrics', type: '基础设施' },
-  { name: 'loki', type: '基础设施' },
-  { name: 'prometheus', type: '基础设施' },
-  { name: 'grafana', type: '基础设施' },
+  { name: 'control-plane', displayName: '控制平面', type: '控制平面' },
+  { name: 'data-plane', displayName: '数据平面', type: '数据平面' },
+  { name: 'auth', displayName: '认证服务', type: '认证服务' },
+  { name: 'tenant', displayName: '租户服务', type: '租户服务' },
+  { name: 'query', displayName: '查询服务', type: '查询服务' },
+  { name: 'alert', displayName: '告警引擎', type: '告警引擎' },
+  { name: 'topology', displayName: '拓扑引擎', type: '拓扑引擎' },
+  { name: 'ai-service', displayName: 'AI 服务', type: 'AI 服务' },
+  { name: 'frontend', displayName: '前端', type: '前端' },
+  { name: 'platform-frontend', displayName: '平台前端', type: '平台前端' },
+  { name: 'etcd', displayName: 'etcd 存储', type: 'etcd 存储' },
+  { name: 'redis', displayName: 'Redis 缓存', type: 'Redis 缓存' },
+  { name: 'tidb', displayName: 'TiDB 数据库', type: 'TiDB 数据库' },
+  { name: 'clickhouse', displayName: 'ClickHouse 数据库', type: 'ClickHouse 数据库' },
+  { name: 'kafka', displayName: 'Kafka 消息队列', type: 'Kafka 消息队列' },
+  { name: 'victoriametrics', displayName: 'VictoriaMetrics 时序库', type: 'VictoriaMetrics 时序库' },
+  { name: 'loki', displayName: 'Loki 日志', type: 'Loki 日志' },
+  { name: 'prometheus', displayName: 'Prometheus 监控', type: 'Prometheus 监控' },
+  { name: 'grafana', displayName: 'Grafana 可视化', type: 'Grafana 可视化' },
 ]
 
 const services = ref([])
@@ -398,6 +398,7 @@ async function fetchData() {
       // 从 health API 查找对应服务的健康状态
       let status = 'running'
       let cpu = 0, memory = 0, restarts = 0
+      let backendType = s.type
       if (healthStatus?.services) {
         const h = healthStatus.services.find(hs => hs.name === s.name)
         if (h) {
@@ -405,9 +406,10 @@ async function fetchData() {
           cpu = h.cpu ?? 0
           memory = h.memory ?? 0
           restarts = h.restarts ?? 0
+          backendType = h.type || s.type
         }
       }
-      return { name: s.name, type: h?.type || s.type, status, cpu, memory, restarts }
+      return { name: s.displayName, type: backendType, status, cpu, memory, restarts }
     })
 
     // 3. 进程监控
