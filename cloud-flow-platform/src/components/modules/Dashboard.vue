@@ -180,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, computed, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, inject, watch, onMounted, onUnmounted } from 'vue'
 import { Cpu, HardDrive, Database, Network } from 'lucide-vue-next'
 import StatCard from '../common/StatCard.vue'
 import TrendChart from '../common/TrendChart.vue'
@@ -216,8 +216,32 @@ const ALL_SERVICES = [
 const services = ref([])
 const processes = ref([])
 
+// 时间范围配置
+const TIME_RANGE_CONFIG = {
+  '5m':  { points: 30, interval: 10000,  label: '5分钟' },
+  '15m': { points: 30, interval: 30000,  label: '15分钟' },
+  '1h':  { points: 30, interval: 120000, label: '1小时' },
+  '6h':  { points: 36, interval: 600000, label: '6小时' },
+  '1d':  { points: 48, interval: 1800000, label: '1天' },
+  '7d':  { points: 42, interval: 7200000, label: '7天' },
+}
+
+const timeRange = inject('timeRange', ref('6h'))
+const MAX_POINTS = ref(TIME_RANGE_CONFIG['6h'].points)
+const POLL_INTERVAL = ref(TIME_RANGE_CONFIG['6h'].interval)
+
+watch(timeRange, (val) => {
+  const cfg = TIME_RANGE_CONFIG[val] || TIME_RANGE_CONFIG['6h']
+  MAX_POINTS.value = cfg.points
+  POLL_INTERVAL.value = cfg.interval
+  reinitializeCharts()
+  // 重新设置轮询间隔
+  if (refreshInterval) clearInterval(refreshInterval)
+  refreshInterval = setInterval(fetchData, POLL_INTERVAL.value)
+})
+
 // --- 实时图表数据（分钟级颗粒度）---
-const MAX_POINTS = 30         // 展示最近 30 个数据点
+// MAX_POINTS 已改为 ref，从时间范围配置动态获取
 
 // 用 shallowRef — 只追踪 .value 替换，不深层代理内部数组，彻底避免 Proxy 递归
 const cpuChartData = shallowRef({ labels: [], datasets: [{ label: 'CPU 使用率', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] })
@@ -267,6 +291,27 @@ function formatUptime(seconds) {
   return `${m}分钟`
 }
 
+function reinitializeCharts() {
+  const cfg = TIME_RANGE_CONFIG[timeRange.value] || TIME_RANGE_CONFIG['6h']
+  const labels = []
+  const points = cfg.points
+  for (let i = points - 1; i >= 0; i--) {
+    labels.push(formatTime(i * (cfg.interval / 60000)))
+  }
+  const zeros = new Array(points).fill(0)
+
+  cpuChartData.value = { labels: [...labels], datasets: [{ label: 'CPU 使用率', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] }
+  memoryChartData.value = { labels: [...labels], datasets: [{ label: '内存使用', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] }
+  networkChartData.value = { labels: [...labels], datasets: [
+    { label: '入站', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 },
+    { label: '出站', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }
+  ]}
+  diskChartData.value = { labels: [...labels], datasets: [
+    { label: '读取', data: [...zeros], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 },
+    { label: '写入', data: [...zeros], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4 }
+  ]}
+}
+
 function formatTime(offsetMin) {
   const now = new Date()
   now.setMinutes(now.getMinutes() - offsetMin)
@@ -280,12 +325,12 @@ function pushChartPoint(chartRef, newDataValues, labelSuffix = '') {
 
   // 全新创建 labels 数组（不要直接 push，避免 Proxy 循环）
   const newLabels = [...old.labels, ts]
-  if (newLabels.length > MAX_POINTS) newLabels.shift()
+  if (newLabels.length > MAX_POINTS.value) newLabels.shift()
 
   // 全新创建 datasets（每条 dataset 的 data 也是新数组）
   const newDatasets = old.datasets.map((ds, i) => {
     const newData = [...ds.data, newDataValues[i]]
-    if (newData.length > MAX_POINTS) newData.shift()
+    if (newData.length > MAX_POINTS.value) newData.shift()
     return { ...ds, data: newData }
   })
 
@@ -394,10 +439,10 @@ let refreshInterval = null
 onMounted(() => {
   // 初始化：一次性构造完整数据对象再赋值，绝不用 .push() 触碰响应式数组
   const labels = []
-  for (let i = MAX_POINTS - 1; i >= 0; i--) {
+  for (let i = MAX_POINTS.value - 1; i >= 0; i--) {
     labels.push(formatTime(i))
   }
-  const zeros = new Array(MAX_POINTS).fill(0)
+  const zeros = new Array(MAX_POINTS.value).fill(0)
 
   cpuChartData.value = { labels: [...labels], datasets: [{ label: 'CPU 使用率', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] }
   memoryChartData.value = { labels: [...labels], datasets: [{ label: '内存使用', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] }
@@ -411,7 +456,7 @@ onMounted(() => {
   ]}
 
   fetchData()
-  refreshInterval = setInterval(fetchData, 10000)  // 每 10 秒轮询一次
+  refreshInterval = setInterval(fetchData, POLL_INTERVAL.value)
 })
 
 onUnmounted(() => {

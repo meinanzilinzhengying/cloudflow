@@ -6,7 +6,7 @@
       @select="handleModuleSelect"
     />
     <div class="flex-1 flex flex-col overflow-hidden">
-      <Header :title="activeModuleLabel" />
+      <Header :title="activeModuleLabel" @time-range-change="handleTimeRangeChange" />
       <main class="flex-1 overflow-auto p-6 bg-dark-900">
         <component :is="currentModuleComponent" />
       </main>
@@ -15,7 +15,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, provide, onMounted } from 'vue'
 import Header from './components/layout/Header.vue'
 import Sidebar from './components/layout/Sidebar.vue'
 import Dashboard from './components/modules/Dashboard.vue'
@@ -75,11 +75,19 @@ function getModuleIcon(key) {
   return icons[key] || 'Circle'
 }
 
+const timeRange = ref('6h')
+
 function handleModuleSelect(key) {
   if (features.value.modules[key]?.enabled) {
     activeModule.value = key
   }
 }
+
+function handleTimeRangeChange(range) {
+  timeRange.value = range
+}
+
+provide('timeRange', timeRange)
 
 onMounted(() => {
   const firstEnabled = enabledModules.value[0]

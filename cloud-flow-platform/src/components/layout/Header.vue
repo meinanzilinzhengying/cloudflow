@@ -59,7 +59,7 @@
 import { ref } from 'vue'
 import { Search, RefreshCw, Maximize2, Bell } from 'lucide-vue-next'
 
-defineEmits(['refresh'])
+const emit = defineEmits(['refresh', 'timeRangeChange'])
 
 const searchQuery = ref('')
 const selectedRange = ref('6h')
@@ -76,6 +76,7 @@ const timeRanges = [
 
 const selectTimeRange = (range) => {
   selectedRange.value = range
+  emit('timeRangeChange', range)
 }
 
 const toggleFullscreen = () => {
