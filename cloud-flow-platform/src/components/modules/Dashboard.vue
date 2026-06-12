@@ -234,7 +234,6 @@ watch(timeRange, (val) => {
   const cfg = TIME_RANGE_CONFIG[val] || TIME_RANGE_CONFIG['6h']
   MAX_POINTS.value = cfg.points
   POLL_INTERVAL.value = cfg.interval
-  reinitializeCharts()
   // 重新设置轮询间隔
   if (refreshInterval) clearInterval(refreshInterval)
   refreshInterval = setInterval(fetchData, POLL_INTERVAL.value)
@@ -289,27 +288,6 @@ function formatUptime(seconds) {
   if (d > 0) return `${d}天 ${h}小时`
   if (h > 0) return `${h}小时 ${m}分钟`
   return `${m}分钟`
-}
-
-function reinitializeCharts() {
-  const cfg = TIME_RANGE_CONFIG[timeRange.value] || TIME_RANGE_CONFIG['6h']
-  const labels = []
-  const points = cfg.points
-  for (let i = points - 1; i >= 0; i--) {
-    labels.push(formatTime(i * (cfg.interval / 60000)))
-  }
-  const zeros = new Array(points).fill(0)
-
-  cpuChartData.value = { labels: [...labels], datasets: [{ label: 'CPU 使用率', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] }
-  memoryChartData.value = { labels: [...labels], datasets: [{ label: '内存使用', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] }
-  networkChartData.value = { labels: [...labels], datasets: [
-    { label: '入站', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 },
-    { label: '出站', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }
-  ]}
-  diskChartData.value = { labels: [...labels], datasets: [
-    { label: '读取', data: [...zeros], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 },
-    { label: '写入', data: [...zeros], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4 }
-  ]}
 }
 
 function formatTime(offsetMin) {
