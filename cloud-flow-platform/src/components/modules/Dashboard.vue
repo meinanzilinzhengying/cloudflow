@@ -180,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, computed, inject, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
 import { Cpu, HardDrive, Database, Network } from 'lucide-vue-next'
 import StatCard from '../common/StatCard.vue'
 import TrendChart from '../common/TrendChart.vue'
@@ -226,7 +226,7 @@ const TIME_RANGE_CONFIG = {
   '7d':  { points: 42, interval: 7200000, label: '7天' },
 }
 
-const timeRange = inject('timeRange', ref('5m'))
+const timeRange = ref('5m')
 const MAX_POINTS = ref(TIME_RANGE_CONFIG['5m'].points)
 const POLL_INTERVAL = ref(TIME_RANGE_CONFIG['5m'].interval)
 
