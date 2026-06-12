@@ -757,6 +757,7 @@ func (s *Service) collectServiceHealth() []map[string]interface{} {
 ") {
 		parts := strings.Split(line, "|")
 		parts := strings.Split(line, "|")
+		parts := strings.Split(line, "|")
 			parts := strings.Split(line, "|")
 			if len(parts) >= 2 {
 				dockerStates[parts[0]] = parts[1]
