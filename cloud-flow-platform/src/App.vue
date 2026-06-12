@@ -75,7 +75,7 @@ function getModuleIcon(key) {
   return icons[key] || 'Circle'
 }
 
-const timeRange = ref('6h')
+const timeRange = ref('5m')
 
 function handleModuleSelect(key) {
   if (features.value.modules[key]?.enabled) {

@@ -62,7 +62,7 @@ import { Search, RefreshCw, Maximize2, Bell } from 'lucide-vue-next'
 const emit = defineEmits(['refresh', 'timeRangeChange'])
 
 const searchQuery = ref('')
-const selectedRange = ref('6h')
+const selectedRange = ref('5m')
 const refreshing = ref(false)
 
 const timeRanges = [

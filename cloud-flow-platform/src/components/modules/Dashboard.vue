@@ -226,17 +226,28 @@ const TIME_RANGE_CONFIG = {
   '7d':  { points: 42, interval: 7200000, label: '7天' },
 }
 
-const timeRange = inject('timeRange', ref('6h'))
-const MAX_POINTS = ref(TIME_RANGE_CONFIG['6h'].points)
-const POLL_INTERVAL = ref(TIME_RANGE_CONFIG['6h'].interval)
+const timeRange = inject('timeRange', ref('5m'))
+const MAX_POINTS = ref(TIME_RANGE_CONFIG['5m'].points)
+const POLL_INTERVAL = ref(TIME_RANGE_CONFIG['5m'].interval)
 
 watch(timeRange, (val) => {
-  const cfg = TIME_RANGE_CONFIG[val] || TIME_RANGE_CONFIG['6h']
+  const cfg = TIME_RANGE_CONFIG[val] || TIME_RANGE_CONFIG['5m']
   MAX_POINTS.value = cfg.points
   POLL_INTERVAL.value = cfg.interval
+  // 更新 X 轴标签
+  const labels = []
+  for (let i = MAX_POINTS.value - 1; i >= 0; i--) {
+    labels.push(formatTime(i))
+  }
+  cpuChartData.value = { ...cpuChartData.value, labels: [...labels] }
+  memoryChartData.value = { ...memoryChartData.value, labels: [...labels] }
+  networkChartData.value = { ...networkChartData.value, labels: [...labels] }
+  diskChartData.value = { ...diskChartData.value, labels: [...labels] }
   // 重新设置轮询间隔
   if (refreshInterval) clearInterval(refreshInterval)
   refreshInterval = setInterval(fetchData, POLL_INTERVAL.value)
+  // 立即刷新数据
+  fetchData()
 })
 
 // --- 实时图表数据（分钟级颗粒度）---
