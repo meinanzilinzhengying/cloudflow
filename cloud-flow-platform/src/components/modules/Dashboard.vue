@@ -82,8 +82,12 @@
             <span class="w-2 h-2 rounded-full bg-green-500"></span>
             <span class="text-gray-400">{{ runningCount }} 运行中</span>
           </span>
-          <span class="flex items-center gap-2">
+          <span v-if="errorCount > 0" class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-red-500"></span>
+            <span class="text-red-400">{{ errorCount }} 异常</span>
+          </span>
+          <span v-if="stoppedCount > 0" class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-gray-500"></span>
             <span class="text-gray-400">{{ stoppedCount }} 已停止</span>
           </span>
         </div>
@@ -280,6 +284,7 @@ const networkLegends = [{ label: '入站', color: '#3b82f6' }, { label: '出站'
 const diskLegends = [{ label: '读取', color: '#8b5cf6' }, { label: '写入', color: '#f59e0b' }]
 
 const runningCount = computed(() => services.value.filter(s => s.status === 'running').length)
+const errorCount = computed(() => services.value.filter(s => s.status === 'error').length)
 const stoppedCount = computed(() => services.value.filter(s => s.status === 'stopped').length)
 
 function getDotClass(status) {
