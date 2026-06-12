@@ -254,8 +254,12 @@ watch(timeRange, (val) => {
   const cfg = TIME_RANGE_CONFIG[val] || TIME_RANGE_CONFIG['5m']
   MAX_POINTS.value = cfg.points
   POLL_INTERVAL.value = cfg.interval
-  // 重新初始化图表（labels 时间间隔 = POLL_INTERVAL，总时长 = points × interval）
-  initCharts()
+  // 尝试从 localStorage 恢复数据（时间范围匹配时直接恢复）
+  const restored = loadChartData()
+  if (!restored) {
+    // 无历史数据则重新初始化空图表
+    initCharts()
+  }
   // 重新设置轮询间隔
   if (refreshInterval) clearInterval(refreshInterval)
   refreshInterval = setInterval(fetchData, POLL_INTERVAL.value)
@@ -330,6 +334,43 @@ function formatTime(offsetMs) {
   return `${hours}:${minutes}`
 }
 
+
+// --- localStorage 图表持久化 ---
+const CHART_STORAGE_KEY = 'cloudflow_dashboard_charts'
+const CHART_META_KEY = 'cloudflow_dashboard_charts_meta'
+
+function saveChartData() {
+  try {
+    const data = {
+      cpu: cpuChartData.value,
+      memory: memoryChartData.value,
+      network: networkChartData.value,
+      disk: diskChartData.value,
+    }
+    const meta = { timeRange: timeRange.value, savedAt: Date.now() }
+    localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(data))
+    localStorage.setItem(CHART_META_KEY, JSON.stringify(meta))
+  } catch (e) {}
+}
+
+function loadChartData() {
+  try {
+    const rawData = localStorage.getItem(CHART_STORAGE_KEY)
+    const rawMeta = localStorage.getItem(CHART_META_KEY)
+    if (!rawData || !rawMeta) return false
+    const data = JSON.parse(rawData)
+    const meta = JSON.parse(rawMeta)
+    if (meta.timeRange !== timeRange.value) { localStorage.removeItem(CHART_STORAGE_KEY); localStorage.removeItem(CHART_META_KEY); return false }
+    const maxAge = POLL_INTERVAL.value * MAX_POINTS.value * 2
+    if (Date.now() - meta.savedAt > maxAge) { localStorage.removeItem(CHART_STORAGE_KEY); localStorage.removeItem(CHART_META_KEY); return false }
+    if (data.cpu) cpuChartData.value = data.cpu
+    if (data.memory) memoryChartData.value = data.memory
+    if (data.network) networkChartData.value = data.network
+    if (data.disk) diskChartData.value = data.disk
+    return true
+  } catch (e) { return false }
+}
+
 // --- 核心：推进实时图表 —— 每轮轮询推入一个新数据点，溢出时移除最老的 ---
 function pushChartPoint(chartRef, newDataValues, labelSuffix = '') {
   const ts = formatTime(0) + labelSuffix
@@ -348,6 +389,8 @@ function pushChartPoint(chartRef, newDataValues, labelSuffix = '') {
 
   // 一次性赋值新对象，彻底切断 Proxy 链
   chartRef.value = { labels: newLabels, datasets: newDatasets }
+  // 持久化到 localStorage
+  saveChartData()
 }
 
 // --- 轮询数据 ---
@@ -472,7 +515,12 @@ function initCharts() {
 let refreshInterval = null
 
 onMounted(() => {
-  initCharts()
+  // 尝试从 localStorage 恢复历史图表数据
+  const restored = loadChartData()
+  if (!restored) {
+    // 无历史数据则初始化空图表
+    initCharts()
+  }
   fetchData()
   refreshInterval = setInterval(fetchData, POLL_INTERVAL.value)
 })
