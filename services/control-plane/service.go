@@ -755,10 +755,7 @@ func (s *Service) collectServiceHealth() []map[string]interface{} {
 	if out, err := exec.Command("docker", "ps", "--format", "{{.Names}}|{{.State}}|{{.Status}}").Output(); err == nil {
 		for _, line := range strings.Split(string(out), "\n") {
 		parts := strings.Split(line, "|")
-		parts := strings.Split(line, "|")
-		parts := strings.Split(line, "|")
-		parts := strings.Split(line, "|")
-			parts := strings.Split(line, "|")
+
 			if len(parts) >= 2 {
 				dockerStates[parts[0]] = parts[1]
 			}
