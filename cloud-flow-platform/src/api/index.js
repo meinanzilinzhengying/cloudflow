@@ -24,7 +24,7 @@ export default {
   },
 
   getProbes() {
-    return api.get('/control/agents').catch(() => null)
+    return api.get('/control/processes').catch(() => null)
   },
 
   getHealthStatus() {

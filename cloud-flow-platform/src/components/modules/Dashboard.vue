@@ -174,7 +174,12 @@
             <td class="px-4 py-3 text-sm" :class="getMemClass(process.memory)">{{ process.memory }}%</td>
             <td class="px-4 py-3 text-sm text-gray-400">{{ process.uptime }}</td>
             <td class="px-4 py-3">
-              <span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400">运行中</span>
+              <span 
+                :class="process.status === 'running' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'"
+                class="px-2 py-1 text-xs rounded-full"
+              >
+                {{ process.status === 'running' ? '运行中' : '已停止' }}
+              </span>
             </td>
           </tr>
         </tbody>
@@ -475,26 +480,20 @@ async function fetchData() {
       return { name: s.displayName, type: backendType, status, cpu, memory, restarts }
     })
 
-    // 3. 进程监控
+    // 3. 进程监控（从 /api/processes 获取所有 Docker 容器）
     const procList = []
     if (probes && probes.length > 0) {
-      probes.slice(0, 5).forEach(p => {
+      // 只显示运行中的容器，最多 10 个
+      const running = probes.filter(p => p.status === 'running')
+      running.slice(0, 10).forEach(p => {
         procList.push({
-          name: p.name,
-          pid: p.pid ?? Math.floor(Math.random() * 9000 + 1000),
+          name: p.name || p.container || 'unknown',
+          pid: p.pid ?? 0,
           cpu: p.cpu ?? 0,
           memory: p.memory ?? 0,
-          uptime: formatUptime(p.uptime ?? 0)
+          uptime: p.uptime || 'N/A',
+          status: p.status || 'unknown'
         })
-      })
-    }
-    if (procList.length === 0 && systemMetrics?.runtime) {
-      procList.push({
-        name: 'control-plane',
-        pid: 1,
-        cpu: stats.value.cpu,
-        memory: stats.value.memory,
-        uptime: formatUptime(systemMetrics.host?.uptime ?? 0)
       })
     }
     processes.value = procList

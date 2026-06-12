@@ -521,6 +521,7 @@ func (s *Service) authMiddleware(next http.Handler) *http.ServeMux {
 	protectedMux.HandleFunc("/api/health", s.healthHandler)
 	protectedMux.HandleFunc("/api/agents", s.listAgentsHandler)
 	protectedMux.HandleFunc("/api/agents/register", s.registerAgentHandler)
+	protectedMux.HandleFunc("/api/processes", s.processesHandler)
 
 	protectedMux.HandleFunc("/api/edges", func(w http.ResponseWriter, r *http.Request) {
 		if !s.authenticateRequest(r) {
@@ -871,6 +872,133 @@ func (s *Service) collectServiceHealth() []map[string]interface{} {
 	}
 	return result
 }
+// processesHandler 返回所有 Docker 容器的进程信息（用于前端进程监控）
+func (s *Service) processesHandler(w http.ResponseWriter, r *http.Request) {
+	type containerInfo struct {
+		Name      string  `json:"name"`
+		Container string  `json:"container"`
+		Status    string  `json:"status"`
+		PID       int     `json:"pid"`
+		CPU       float64 `json:"cpu"`
+		Memory    float64 `json:"memory"`
+		Uptime    string  `json:"uptime"`
+	}
+
+	// 1. 获取所有容器（包含已停止的）
+	containers := make([]string, 0)
+	if out, err := exec.Command("docker", "ps", "-a", "--format", "{{.Names}}|{{.Status}}").Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			containers = append(containers, line)
+		}
+	}
+
+	// 2. 获取 CPU / 内存
+	statsMap := make(map[string]struct{ CPU, Mem string })
+	if out, err := exec.Command("docker", "stats", "--no-stream", "--format", "{{.Name}}|{{.CPUPerc}}|{{.MemPerc}}").Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, "|")
+			if len(parts) >= 3 {
+				name := strings.TrimPrefix(parts[0], "/")
+				statsMap[name] = struct{ CPU, Mem string }{parts[1], parts[2]}
+			}
+		}
+	}
+
+	// 3. 批量获取 PID 和启动时间
+	type inspectInfo struct {
+		PID    int    `json:"pid"`
+		Uptime string `json:"uptime"`
+	}
+	inspectMap := make(map[string]inspectInfo)
+	containerNames := make([]string, 0)
+	for _, c := range containers {
+		parts := strings.Split(c, "|")
+		if len(parts) >= 1 {
+			containerNames = append(containerNames, parts[0])
+		}
+	}
+
+	if len(containerNames) > 0 {
+		// 使用 docker inspect 获取 PID
+		if out, err := exec.Command("docker", append([]string{"inspect", "-f", "{{.Name}}|{{.State.Pid}}|{{.State.StartedAt}}"}, containerNames...)...).Output(); err == nil {
+			for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+				if line == "" {
+					continue
+				}
+				parts := strings.Split(line, "|")
+				if len(parts) >= 2 {
+					name := strings.TrimPrefix(parts[0], "/")
+					pid, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
+					uptime := "N/A"
+					if len(parts) >= 3 && parts[2] != "" {
+						// 计算运行时长
+						if t, err := time.Parse(time.RFC3339, strings.TrimSpace(parts[2])); err == nil {
+							duration := time.Since(t)
+							days := int(duration.Hours() / 24)
+							hours := int(duration.Hours()) % 24
+							minutes := int(duration.Minutes()) % 60
+							if days > 0 {
+								uptime = fmt.Sprintf("%d天%02d:%02d", days, hours, minutes)
+							} else {
+								uptime = fmt.Sprintf("%02d:%02d", hours, minutes)
+							}
+						}
+					}
+					inspectMap[name] = inspectInfo{PID: pid, Uptime: uptime}
+				}
+			}
+		}
+	}
+
+	// 4. 组装结果
+	result := make([]containerInfo, 0, len(containers))
+	for _, c := range containers {
+		parts := strings.Split(c, "|")
+		if len(parts) < 2 {
+			continue
+		}
+		name := parts[0]
+		status := "stopped"
+		if strings.Contains(parts[1], "Up") {
+			status = "running"
+		}
+
+		cpuVal, memVal := 0.0, 0.0
+		if st, ok := statsMap[name]; ok {
+			cpuStr := strings.TrimSuffix(st.CPU, "%")
+			cpuVal, _ = strconv.ParseFloat(cpuStr, 64)
+			memStr := strings.TrimSuffix(st.Mem, "%")
+			memVal, _ = strconv.ParseFloat(memStr, 64)
+		}
+
+		pid := 0
+		uptime := "N/A"
+		if info, ok := inspectMap[name]; ok {
+			pid = info.PID
+			uptime = info.Uptime
+		}
+
+		result = append(result, containerInfo{
+			Name:      name,
+			Container: name,
+			Status:    status,
+			PID:       pid,
+			CPU:       cpuVal,
+			Memory:    memVal,
+			Uptime:    uptime,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
 func (s *Service) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	agents := s.ListAgents("", "", "")
 	result := make([]map[string]interface{}, 0, len(agents))
