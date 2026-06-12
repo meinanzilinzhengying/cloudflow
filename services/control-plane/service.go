@@ -519,6 +519,7 @@ func (s *Service) authMiddleware(next http.Handler) *http.ServeMux {
 	protectedMux.HandleFunc("/api/system-metrics", s.systemMetricsHandler)
 	protectedMux.HandleFunc("/api/health", s.healthHandler)
 	protectedMux.HandleFunc("/api/agents", s.listAgentsHandler)
+	protectedMux.HandleFunc("/api/agents/register", s.registerAgentHandler)
 
 	protectedMux.HandleFunc("/api/edges", func(w http.ResponseWriter, r *http.Request) {
 		if !s.authenticateRequest(r) {
@@ -737,46 +738,57 @@ func (s *Service) healthHandler(w http.ResponseWriter, r *http.Request) {
 
 // collectServiceHealth 采集所有服务健康状态（优先 Docker，回退内部连接状态）
 func (s *Service) collectServiceHealth() []map[string]interface{} {
-	type svcDef struct{ Name, SvcType string }
+	type svcDef struct{ Name, ContainerName, SvcType string }
 	allServices := []svcDef{
-		{"control-plane", "核心服务"}, {"data-plane", "核心服务"},
-		{"auth-service", "核心服务"}, {"tenant-service", "核心服务"},
-		{"query-service", "核心服务"}, {"alert-engine", "核心服务"},
-		{"frontend", "前端"}, {"platform-frontend", "前端"},
-		{"etcd", "基础设施"}, {"redis", "基础设施"},
-		{"tidb", "基础设施"}, {"clickhouse", "基础设施"},
-		{"kafka", "基础设施"}, {"victoriametrics", "基础设施"},
-		{"loki", "基础设施"}, {"prometheus", "基础设施"},
-		{"grafana", "基础设施"},
+		{"control-plane", "cloudflow-control-plane", "核心服务"},
+		{"data-plane", "cloudflow-data-plane", "核心服务"},
+		{"auth-service", "cloudflow-auth", "核心服务"},
+		{"tenant-service", "cloudflow-tenant", "核心服务"},
+		{"query-service", "cloudflow-query", "核心服务"},
+		{"alert-engine", "cloudflow-alert", "核心服务"},
+		{"frontend", "cloudflow-frontend", "前端"},
+		{"platform-frontend", "cloudflow-platform-frontend", "前端"},
+		{"etcd", "cloudflow-etcd", "基础设施"},
+		{"redis", "cloudflow-redis", "基础设施"},
+		{"tidb", "cloudflow-tidb", "基础设施"},
+		{"clickhouse", "cloudflow-clickhouse", "基础设施"},
+		{"kafka", "cloudflow-kafka", "基础设施"},
+		{"victoriametrics", "cloudflow-victoriametrics", "基础设施"},
+		{"loki", "cloudflow-loki", "基础设施"},
+		{"prometheus", "cloudflow-prometheus", "基础设施"},
+		{"grafana", "cloudflow-grafana", "基础设施"},
 	}
 
-	// 尝试从 Docker 获取容器状态
+	// 尝试从 Docker 获取容器状态（使用 -a 参数获取所有容器，包括停止的）
 	dockerStates := make(map[string]string)
-	if out, err := exec.Command("docker", "ps", "--format", "{{.Names}}|{{.State}}|{{.Status}}").Output(); err == nil {
-		for _, line := range strings.Split(string(out), "\n") {
-		parts := strings.Split(line, "|")
-
+	if out, err := exec.Command("docker", "ps", "-a", "--format", "{{.Names}}|{{.State}}|{{.Status}}").Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, "|")
 			if len(parts) >= 2 {
-				dockerStates[parts[0]] = parts[1]
+				// 将 Docker 状态映射为标准化状态
+				dockerStates[parts[0]] = parts[1] // State: running, exited, paused, etc.
 			}
 		}
 	}
 
 	// 基于内部连接判断核心服务
-	cpStatus, dpStatus, authStatus, tenantStatus := "running", "running", "running", "running"
+	cpStatus, dpStatus, authStatus, tenantStatus := "healthy", "healthy", "healthy", "healthy"
 	if s.dataPlaneConn == nil {
-		dpStatus = "stopped"
+		dpStatus = "unhealthy"
 	}
 	if s.authConn == nil {
-		authStatus = "stopped"
+		authStatus = "unhealthy"
 	}
 	if s.tenantConn == nil {
-		tenantStatus = "stopped"
+		tenantStatus = "unhealthy"
 	}
 
 	result := make([]map[string]interface{}, 0, len(allServices))
 	for _, svc := range allServices {
-		status := "running"
+		status := "healthy"
 		switch svc.Name {
 		case "control-plane":
 			status = cpStatus
@@ -788,9 +800,14 @@ func (s *Service) collectServiceHealth() []map[string]interface{} {
 			status = tenantStatus
 		}
 
-		// 如果 Docker 有该容器状态，优先使用
-		if ds, ok := dockerStates[svc.Name]; ok {
-			status = ds
+		// 如果 Docker 有该容器状态，使用 Docker 状态
+		if ds, ok := dockerStates[svc.ContainerName]; ok {
+			// 将 Docker 状态映射为 healthy/unhealthy
+			if ds == "running" {
+				status = "healthy"
+			} else {
+				status = "unhealthy"
+			}
 		}
 
 		result = append(result, map[string]interface{}{
@@ -822,6 +839,59 @@ func (s *Service) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+func (s *Service) registerAgentHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Hostname string `json:"hostname"`
+		Ip       string `json:"ip"`
+		Os       string `json:"os"`
+		Arch     string `json:"arch"`
+		Version  string `json:"version"`
+		EdgeId   string `json:"edge_id"`
+		Region   string `json:"region"`
+		TenantId string `json:"tenant_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	// 生成 AgentId（如果未提供，使用 hostname+ip）
+	agentId := req.Hostname + "-" + req.Ip
+	if agentId == "-" {
+		agentId = fmt.Sprintf("agent-%d", time.Now().UnixNano())
+	}
+
+	// 创建 AgentInfo
+	agent := &svcproto.AgentInfo{
+		AgentId:  agentId,
+		Hostname: req.Hostname,
+		Ip:       req.Ip,
+		Os:       req.Os,
+		Arch:     req.Arch,
+		Version:  req.Version,
+		Status:   "online",
+		EdgeId:   req.EdgeId,
+		Region:   req.Region,
+		TenantId: req.TenantId,
+	}
+
+	// 注册 Agent
+	s.RegisterAgent(agent)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":  true,
+		"message":  "Agent registered successfully",
+		"agent_id": agentId,
+	})
 }
 
 func (s *Service) listEdgesHandler(w http.ResponseWriter, r *http.Request) {

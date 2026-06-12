@@ -20,7 +20,7 @@
           @click="selectTimeRange(range.value)"
           :class="[
             'px-3 py-1.5 text-xs font-medium rounded-md transition',
-            selectedRange === range.value
+            timeRange === range.value
               ? 'bg-primary-500 text-white'
               : 'text-gray-400 hover:text-white hover:bg-dark-600'
           ]"
@@ -56,13 +56,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { Search, RefreshCw, Maximize2, Bell } from 'lucide-vue-next'
+import { timeRange } from '../../stores/timeRange'
 
 defineEmits(['refresh'])
 
 const searchQuery = ref('')
-const selectedRange = ref('5m')
 const refreshing = ref(false)
 
 const timeRanges = [
@@ -75,7 +75,7 @@ const timeRanges = [
 ]
 
 const selectTimeRange = (range) => {
-  selectedRange.value = range
+  timeRange.value = range
 }
 
 const toggleFullscreen = () => {
