@@ -67,6 +67,43 @@
       </div>
     </div>
 
+    <!-- 时间筛选 -->
+    <div class="mb-4 p-4 bg-dark-800 rounded-xl border border-dark-600">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-sm text-gray-400">时间范围：</span>
+        <button
+          v-for="preset in timePresets"
+          :key="preset.value"
+          @click="setTimePreset(preset.value)"
+          class="px-3 py-1.5 text-xs rounded-lg transition"
+          :class="activePreset === preset.value ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' : 'bg-dark-700 text-gray-400 border border-dark-600 hover:bg-dark-600'"
+        >
+          {{ preset.label }}
+        </button>
+        <span class="text-gray-600 mx-1">|</span>
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-gray-500">从</label>
+          <input
+            v-model="customStartTime"
+            type="datetime-local"
+            class="bg-dark-700 border border-dark-600 text-white text-xs px-2 py-1.5 rounded-lg focus:outline-none focus:border-primary-500"
+          />
+          <label class="text-xs text-gray-500">至</label>
+          <input
+            v-model="customEndTime"
+            type="datetime-local"
+            class="bg-dark-700 border border-dark-600 text-white text-xs px-2 py-1.5 rounded-lg focus:outline-none focus:border-primary-500"
+          />
+          <button
+            @click="applyCustomTime"
+            class="px-3 py-1.5 text-xs rounded-lg bg-primary-500/20 text-primary-400 border border-primary-500/30 hover:bg-primary-500/30 transition"
+          >
+            应用
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 日志搜索 -->
     <div class="mb-6">
       <div class="relative">
@@ -84,7 +121,7 @@
     <div class="bg-dark-800 rounded-xl border border-dark-600 overflow-hidden">
       <div class="px-4 py-3 border-b border-dark-600 flex items-center justify-between">
         <div class="flex items-center gap-4">
-          <span class="text-sm text-gray-400">共 {{ filteredLogs.length }} 条日志</span>
+          <span class="text-sm text-gray-400">共 {{ totalLogs }} 条日志</span>
           <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
             <input
               type="checkbox"
@@ -101,14 +138,14 @@
       </div>
       <div class="max-h-[500px] overflow-y-auto font-mono text-sm">
         <div
-          v-if="filteredLogs.length === 0"
+          v-if="pagedLogs.length === 0"
           class="px-4 py-8 text-center text-gray-500"
         >
           <FileText class="w-12 h-12 mx-auto mb-2 opacity-50" />
           <p>{{ loading ? '正在加载日志...' : '暂无日志数据' }}</p>
         </div>
         <div
-          v-for="(log, index) in filteredLogs"
+          v-for="(log, index) in pagedLogs"
           :key="index"
           class="px-4 py-2 border-b border-dark-700 hover:bg-dark-700/50 transition"
         >
@@ -125,6 +162,54 @@
           </div>
         </div>
       </div>
+
+      <!-- 分页 -->
+      <div class="px-4 py-3 border-t border-dark-600 flex items-center justify-between">
+        <div class="flex items-center gap-2 text-sm text-gray-400">
+          <span>每页 50 条</span>
+          <span class="text-gray-600">|</span>
+          <span>第 {{ currentPage }} / {{ totalPages }} 页</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            @click="goToPage(1)"
+            :disabled="currentPage <= 1"
+            class="px-2 py-1 text-xs rounded bg-dark-700 border border-dark-600 text-gray-400 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-dark-600 transition"
+          >
+            首页
+          </button>
+          <button
+            @click="goToPage(currentPage - 1)"
+            :disabled="currentPage <= 1"
+            class="px-2 py-1 text-xs rounded bg-dark-700 border border-dark-600 text-gray-400 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-dark-600 transition"
+          >
+            上一页
+          </button>
+          <button
+            v-for="p in displayPages"
+            :key="p"
+            @click="goToPage(p)"
+            class="px-3 py-1 text-xs rounded border transition"
+            :class="p === currentPage ? 'bg-primary-500/20 text-primary-400 border-primary-500/30' : 'bg-dark-700 border-dark-600 text-gray-400 hover:bg-dark-600'"
+          >
+            {{ p }}
+          </button>
+          <button
+            @click="goToPage(currentPage + 1)"
+            :disabled="currentPage >= totalPages"
+            class="px-2 py-1 text-xs rounded bg-dark-700 border border-dark-600 text-gray-400 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-dark-600 transition"
+          >
+            下一页
+          </button>
+          <button
+            @click="goToPage(totalPages)"
+            :disabled="currentPage >= totalPages"
+            class="px-2 py-1 text-xs rounded bg-dark-700 border border-dark-600 text-gray-400 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-dark-600 transition"
+          >
+            末页
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -134,6 +219,8 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { RefreshCw, Search, Download, FileText, Info, AlertTriangle, XCircle } from 'lucide-vue-next'
 import api from '../../api/index.js'
 
+const PAGE_SIZE = 50
+
 const loading = ref(false)
 const selectedService = ref('all')
 const logLevel = ref('all')
@@ -142,6 +229,66 @@ const autoRefresh = ref(false)
 const logs = ref([])
 const availableServices = ref([])
 let refreshTimer = null
+
+// 分页
+const currentPage = ref(1)
+
+// 时间筛选
+const activePreset = ref('1h')
+const customStartTime = ref('')
+const customEndTime = ref('')
+const timeStart = ref(0)
+const timeEnd = ref(0)
+
+const timePresets = [
+  { label: '15分钟', value: '15m' },
+  { label: '1小时', value: '1h' },
+  { label: '6小时', value: '6h' },
+  { label: '24小时', value: '24h' },
+  { label: '7天', value: '7d' }
+]
+
+function setTimePreset(preset) {
+  activePreset.value = preset
+  const now = Date.now()
+  let start = now
+  switch (preset) {
+    case '15m': start = now - 15 * 60 * 1000; break
+    case '1h':  start = now - 60 * 60 * 1000; break
+    case '6h':  start = now - 6 * 60 * 60 * 1000; break
+    case '24h': start = now - 24 * 60 * 60 * 1000; break
+    case '7d':  start = now - 7 * 24 * 60 * 60 * 1000; break
+  }
+  timeStart.value = start
+  timeEnd.value = now
+  currentPage.value = 1
+  fetchLogs()
+}
+
+function applyCustomTime() {
+  if (!customStartTime.value || !customEndTime.value) return
+  timeStart.value = new Date(customStartTime.value).getTime()
+  timeEnd.value = new Date(customEndTime.value).getTime()
+  if (timeStart.value >= timeEnd.value) {
+    console.warn('开始时间必须早于结束时间')
+    return
+  }
+  activePreset.value = ''
+  currentPage.value = 1
+  fetchLogs()
+}
+
+function initTimePreset() {
+  const now = Date.now()
+  timeStart.value = now - 60 * 60 * 1000
+  timeEnd.value = now
+  // 初始化自定义时间输入框
+  const pad = (n) => String(n).padStart(2, '0')
+  const s = new Date(timeStart.value)
+  const e = new Date(timeEnd.value)
+  customStartTime.value = `${s.getFullYear()}-${pad(s.getMonth()+1)}-${pad(s.getDate())}T${pad(s.getHours())}:${pad(s.getMinutes())}`
+  customEndTime.value = `${e.getFullYear()}-${pad(e.getMonth()+1)}-${pad(e.getDate())}T${pad(e.getHours())}:${pad(e.getMinutes())}`
+}
 
 // 从 Loki 响应解析日志数据
 function parseLokiResponse(data) {
@@ -153,11 +300,8 @@ function parseLokiResponse(data) {
     const service = labels.service || labels.container || 'unknown'
 
     for (const [timestamp, message] of stream.values || []) {
-      // 从消息内容提取日志级别
       const level = extractLogLevel(message)
-      // 将纳秒时间戳转为可读格式
       const time = formatTimestamp(timestamp)
-
       parsed.push({
         service,
         level,
@@ -168,11 +312,9 @@ function parseLokiResponse(data) {
     }
   }
 
-  // 按时间倒序排列
   return parsed.sort((a, b) => b.rawTime - a.rawTime)
 }
 
-// 从日志消息中提取级别
 function extractLogLevel(message) {
   if (!message) return 'info'
   const upper = message.toUpperCase()
@@ -182,7 +324,6 @@ function extractLogLevel(message) {
   return 'info'
 }
 
-// 格式化纳秒时间戳
 function formatTimestamp(ns) {
   try {
     const ms = Math.floor(Number(ns) / 1e6)
@@ -194,6 +335,7 @@ function formatTimestamp(ns) {
   }
 }
 
+// 过滤后的全部日志
 const filteredLogs = computed(() => {
   let result = logs.value
 
@@ -216,10 +358,37 @@ const filteredLogs = computed(() => {
   return result
 })
 
+// 分页后的日志
+const pagedLogs = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return filteredLogs.value.slice(start, start + PAGE_SIZE)
+})
+
 const totalLogs = computed(() => filteredLogs.value.length)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredLogs.value.length / PAGE_SIZE)))
 const infoCount = computed(() => filteredLogs.value.filter(l => l.level === 'info').length)
 const warningCount = computed(() => filteredLogs.value.filter(l => l.level === 'warning').length)
 const errorCount = computed(() => filteredLogs.value.filter(l => l.level === 'error').length)
+
+// 分页导航显示（最多显示 5 个页码）
+const displayPages = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  const pages = []
+  let startPage = Math.max(1, current - 2)
+  let endPage = Math.min(total, current + 2)
+  if (endPage - startPage < 4) {
+    if (startPage === 1) endPage = Math.min(total, startPage + 4)
+    else startPage = Math.max(1, endPage - 4)
+  }
+  for (let i = startPage; i <= endPage; i++) pages.push(i)
+  return pages
+})
+
+function goToPage(page) {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+}
 
 function getLevelClass(level) {
   const classes = {
@@ -234,26 +403,22 @@ function getLevelClass(level) {
 async function fetchLogs() {
   loading.value = true
   try {
-    // 构建 Loki 查询
     let query = '{service=~".+"}'
     if (selectedService.value !== 'all') {
       query = `{service=~".+",service="${selectedService.value}"}`
     }
 
-    // 查询最近 1 小时的日志
-    const end = Date.now() * 1e6  // 纳秒
-    const start = end - 60 * 60 * 1e9  // 1 小时前
-
     const data = await api.getLogs({
       query,
-      start: String(start),
-      end: String(end),
-      limit: 500,
+      start: String(timeStart.value * 1e6),
+      end: String(timeEnd.value * 1e6),
+      limit: 1000,
       direction: 'backward'
     })
 
     if (data) {
       logs.value = parseLokiResponse(data)
+      currentPage.value = 1
     }
   } catch (err) {
     console.error('获取日志失败:', err)
@@ -276,6 +441,12 @@ async function fetchServices() {
 }
 
 function refreshLogs() {
+  // 刷新时更新时间范围
+  if (!activePreset.value) {
+    // 自定义时间不自动更新
+  } else {
+    setTimePreset(activePreset.value)
+  }
   fetchLogs()
 }
 
@@ -295,11 +466,11 @@ function exportLogs() {
   URL.revokeObjectURL(url)
 }
 
-// 自动刷新
 watch(autoRefresh, (val) => {
   if (val) {
     refreshTimer = setInterval(() => {
-      fetchLogs()
+      if (!activePreset.value) return
+      setTimePreset(activePreset.value)
     }, 5000)
   } else {
     if (refreshTimer) {
@@ -309,7 +480,17 @@ watch(autoRefresh, (val) => {
   }
 })
 
+watch(selectedService, () => {
+  currentPage.value = 1
+  fetchLogs()
+})
+
+watch(logLevel, () => {
+  currentPage.value = 1
+})
+
 onMounted(() => {
+  initTimePreset()
   fetchServices()
   fetchLogs()
 })
