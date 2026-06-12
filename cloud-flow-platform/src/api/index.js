@@ -45,7 +45,7 @@ export default {
   },
 
   getAlerts() {
-    return api.get('/alert/alerts').catch(() => null)
+    return api.get('/control/alerts').catch(() => null)
   },
 
   getDataPlaneMetrics() {

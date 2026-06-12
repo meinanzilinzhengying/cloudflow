@@ -109,6 +109,7 @@ type RuntimeConfig struct {
 	Key         string `json:"key"`
 	Value       string `json:"value"`
 	Type        string `json:"type"`        // threshold / notification / general
+	Level       string `json:"level"`       // critical / warning / info (仅 threshold 类型有效)
 	Description string `json:"description"`
 	UpdatedAt   int64  `json:"updated_at"`
 }
@@ -168,16 +169,16 @@ func New(config *Config) (*Service, error) {
 
 	// 初始化默认配置
 	defaultConfigs := []*RuntimeConfig{
-		{ID: 1, Key: "cpu_usage_threshold", Value: "85", Type: "threshold", Description: "CPU使用率告警阈值(%)", UpdatedAt: time.Now().Unix()},
-		{ID: 2, Key: "memory_usage_threshold", Value: "90", Type: "threshold", Description: "内存使用率告警阈值(%)", UpdatedAt: time.Now().Unix()},
-		{ID: 3, Key: "disk_usage_threshold", Value: "95", Type: "threshold", Description: "磁盘使用率告警阈值(%)", UpdatedAt: time.Now().Unix()},
-		{ID: 4, Key: "network_in_threshold", Value: "100", Type: "threshold", Description: "网络入站流量告警阈值(MB/s)", UpdatedAt: time.Now().Unix()},
-		{ID: 5, Key: "network_out_threshold", Value: "100", Type: "threshold", Description: "网络出站流量告警阈值(MB/s)", UpdatedAt: time.Now().Unix()},
-		{ID: 6, Key: "disk_io_read_threshold", Value: "50", Type: "threshold", Description: "磁盘读取IO告警阈值(MB/s)", UpdatedAt: time.Now().Unix()},
-		{ID: 7, Key: "disk_io_write_threshold", Value: "50", Type: "threshold", Description: "磁盘写入IO告警阈值(MB/s)", UpdatedAt: time.Now().Unix()},
-		{ID: 8, Key: "container_restart_threshold", Value: "3", Type: "threshold", Description: "容器重启次数告警阈值(次/小时)", UpdatedAt: time.Now().Unix()},
-		{ID: 9, Key: "service_response_time_threshold", Value: "500", Type: "threshold", Description: "服务响应时间告警阈值(ms)", UpdatedAt: time.Now().Unix()},
-		{ID: 10, Key: "error_rate_threshold", Value: "5", Type: "threshold", Description: "错误率告警阈值(%)", UpdatedAt: time.Now().Unix()},
+		{ID: 1, Key: "cpu_usage_threshold", Value: "85", Type: "threshold", Level: "critical", Description: "CPU使用率告警阈值(%)", UpdatedAt: time.Now().Unix()},
+		{ID: 2, Key: "memory_usage_threshold", Value: "90", Type: "threshold", Level: "critical", Description: "内存使用率告警阈值(%)", UpdatedAt: time.Now().Unix()},
+		{ID: 3, Key: "disk_usage_threshold", Value: "95", Type: "threshold", Level: "warning", Description: "磁盘使用率告警阈值(%)", UpdatedAt: time.Now().Unix()},
+		{ID: 4, Key: "network_in_threshold", Value: "100", Type: "threshold", Level: "warning", Description: "网络入站流量告警阈值(MB/s)", UpdatedAt: time.Now().Unix()},
+		{ID: 5, Key: "network_out_threshold", Value: "100", Type: "threshold", Level: "warning", Description: "网络出站流量告警阈值(MB/s)", UpdatedAt: time.Now().Unix()},
+		{ID: 6, Key: "disk_io_read_threshold", Value: "50", Type: "threshold", Level: "warning", Description: "磁盘读取IO告警阈值(MB/s)", UpdatedAt: time.Now().Unix()},
+		{ID: 7, Key: "disk_io_write_threshold", Value: "50", Type: "threshold", Level: "warning", Description: "磁盘写入IO告警阈值(MB/s)", UpdatedAt: time.Now().Unix()},
+		{ID: 8, Key: "container_restart_threshold", Value: "3", Type: "threshold", Level: "critical", Description: "容器重启次数告警阈值(次/小时)", UpdatedAt: time.Now().Unix()},
+		{ID: 9, Key: "service_response_time_threshold", Value: "500", Type: "threshold", Level: "warning", Description: "服务响应时间告警阈值(ms)", UpdatedAt: time.Now().Unix()},
+		{ID: 10, Key: "error_rate_threshold", Value: "5", Type: "threshold", Level: "critical", Description: "错误率告警阈值(%)", UpdatedAt: time.Now().Unix()},
 		{ID: 11, Key: "webhook_url", Value: "https://hooks.slack.com/services/xxx", Type: "notification", Description: "告警通知Webhook地址", UpdatedAt: time.Now().Unix()},
 		{ID: 12, Key: "notification_email", Value: "", Type: "notification", Description: "告警通知邮箱地址", UpdatedAt: time.Now().Unix()},
 		{ID: 13, Key: "notification_interval", Value: "60", Type: "notification", Description: "告警通知间隔(秒)", UpdatedAt: time.Now().Unix()},
@@ -565,8 +566,9 @@ func (s *Service) authMiddleware(next http.Handler) *http.ServeMux {
 	protectedMux.HandleFunc("/api/health", s.healthHandler)
 	protectedMux.HandleFunc("/api/agents", s.listAgentsHandler)
 	protectedMux.HandleFunc("/api/agents/register", s.registerAgentHandler)
-	protectedMux.HandleFunc("/api/processes", s.processesHandler)
-	protectedMux.HandleFunc("/api/configs", s.configsHandler)
+		protectedMux.HandleFunc("/api/processes", s.processesHandler)
+		protectedMux.HandleFunc("/api/alerts", s.alertsHandler)
+		protectedMux.HandleFunc("/api/configs", s.configsHandler)
 
 	protectedMux.HandleFunc("/api/edges", func(w http.ResponseWriter, r *http.Request) {
 		if !s.authenticateRequest(r) {
@@ -1062,6 +1064,7 @@ func (s *Service) configsHandler(w http.ResponseWriter, r *http.Request) {
 			Key         string `json:"key"`
 			Value       string `json:"value"`
 			Type        string `json:"type"`
+			Level       string `json:"level"`
 			Description string `json:"description"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1083,6 +1086,7 @@ func (s *Service) configsHandler(w http.ResponseWriter, r *http.Request) {
 			Key:         req.Key,
 			Value:       req.Value,
 			Type:        req.Type,
+			Level:       req.Level,
 			Description: req.Description,
 			UpdatedAt:   time.Now().Unix(),
 		}
@@ -1096,6 +1100,7 @@ func (s *Service) configsHandler(w http.ResponseWriter, r *http.Request) {
 			Key         string `json:"key"`
 			Value       string `json:"value"`
 			Type        string `json:"type"`
+			Level       string `json:"level"`
 			Description string `json:"description"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1116,6 +1121,9 @@ func (s *Service) configsHandler(w http.ResponseWriter, r *http.Request) {
 		existing.Value = req.Value
 		if req.Type != "" {
 			existing.Type = req.Type
+		}
+		if req.Level != "" {
+			existing.Level = req.Level
 		}
 		if req.Description != "" {
 			existing.Description = req.Description
@@ -1139,6 +1147,146 @@ func (s *Service) configsHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// alertsHandler 根据当前系统指标+阈值配置动态生成告警实例
+func (s *Service) alertsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	type alertInstance struct {
+		ID        int64  `json:"id"`
+		Level     string `json:"level"`
+		Title     string `json:"title"`
+		Source    string `json:"source"`
+		Time      string `json:"time"`
+		Status    string `json:"status"`
+		Value     string `json:"value,omitempty"`
+		Threshold string `json:"threshold,omitempty"`
+	}
+
+	// 1. 采集当前系统指标
+	stats, err := s.collectSystemStats()
+	if err != nil {
+		// 如果采集失败，返回空列表而不是错误
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]interface{}{})
+		return
+	}
+
+	// 2. 采集服务健康状态
+	services := s.collectServiceHealth()
+
+	// 3. 获取阈值配置
+	s.configsMu.RLock()
+	thresholdConfigs := make([]*RuntimeConfig, 0)
+	for _, c := range s.configs {
+		if c.Type == "threshold" {
+			thresholdConfigs = append(thresholdConfigs, c)
+		}
+	}
+	s.configsMu.RUnlock()
+
+	// 4. 生成告警实例
+	alerts := make([]alertInstance, 0)
+	alertID := int64(1000)
+
+	// 4.1 根据阈值检查 CPU
+	if cpuMap, ok := stats["cpu"].(map[string]interface{}); ok {
+		if cpuUsage, ok := cpuMap["usage"].(float64); ok {
+			for _, c := range thresholdConfigs {
+				if c.Key == "cpu_usage_threshold" {
+					threshold, _ := strconv.ParseFloat(c.Value, 64)
+					if cpuUsage >= threshold {
+						alerts = append(alerts, alertInstance{
+							ID:        alertID,
+							Level:     c.Level,
+							Title:     fmt.Sprintf("CPU 使用率过高 (%.1f%% >= %s%%)", cpuUsage, c.Value),
+							Source:    "system",
+							Time:      time.Now().Format("2006-01-02 15:04:05"),
+							Status:    "firing",
+							Value:     fmt.Sprintf("%.1f%%", cpuUsage),
+							Threshold: c.Value + "%",
+						})
+						alertID++
+					}
+				}
+			}
+		}
+	}
+
+	// 4.2 根据阈值检查内存
+	if memMap, ok := stats["memory"].(map[string]interface{}); ok {
+		if memUsage, ok := memMap["usage"].(float64); ok {
+			for _, c := range thresholdConfigs {
+				if c.Key == "memory_usage_threshold" {
+					threshold, _ := strconv.ParseFloat(c.Value, 64)
+					if memUsage >= threshold {
+						alerts = append(alerts, alertInstance{
+							ID:        alertID,
+							Level:     c.Level,
+							Title:     fmt.Sprintf("内存使用率过高 (%.1f%% >= %s%%)", memUsage, c.Value),
+							Source:    "system",
+							Time:      time.Now().Format("2006-01-02 15:04:05"),
+							Status:    "firing",
+							Value:     fmt.Sprintf("%.1f%%", memUsage),
+							Threshold: c.Value + "%",
+						})
+						alertID++
+					}
+				}
+			}
+		}
+	}
+
+	// 4.3 根据阈值检查磁盘
+	if diskMap, ok := stats["disk"].(map[string]interface{}); ok {
+		if diskUsage, ok := diskMap["usage"].(float64); ok {
+			for _, c := range thresholdConfigs {
+				if c.Key == "disk_usage_threshold" {
+					threshold, _ := strconv.ParseFloat(c.Value, 64)
+					if diskUsage >= threshold {
+						alerts = append(alerts, alertInstance{
+							ID:        alertID,
+							Level:     c.Level,
+							Title:     fmt.Sprintf("磁盘使用率过高 (%.1f%% >= %s%%)", diskUsage, c.Value),
+							Source:    "system",
+							Time:      time.Now().Format("2006-01-02 15:04:05"),
+							Status:    "firing",
+							Value:     fmt.Sprintf("%.1f%%", diskUsage),
+							Threshold: c.Value + "%",
+						})
+						alertID++
+					}
+				}
+			}
+		}
+	}
+
+	// 4.4 检查服务健康状态
+	for _, svc := range services {
+		if status, ok := svc["status"].(string); ok && status != "healthy" {
+			svcName, _ := svc["name"].(string)
+			displayName, _ := svc["displayName"].(string)
+			if displayName == "" {
+				displayName = svcName
+			}
+			alerts = append(alerts, alertInstance{
+				ID:     alertID,
+				Level:  "critical",
+				Title:  fmt.Sprintf("%s 服务异常", displayName),
+				Source: svcName,
+				Time:   time.Now().Format("2006-01-02 15:04:05"),
+				Status: "firing",
+			})
+			alertID++
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(alerts)
 }
 
 func (s *Service) listAgentsHandler(w http.ResponseWriter, r *http.Request) {

@@ -37,6 +37,7 @@
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">当前值</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">描述</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">类型</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">告警级别</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">操作</th>
           </tr>
         </thead>
@@ -52,6 +53,16 @@
               >
                 {{ config.type }}
               </span>
+            </td>
+            <td class="px-4 py-3">
+              <span 
+                v-if="config.type === 'threshold'"
+                class="px-2 py-1 text-xs rounded-full font-medium"
+                :class="getLevelClass(config.level)"
+              >
+                {{ getLevelText(config.level) }}
+              </span>
+              <span v-else class="text-xs text-gray-500">-</span>
             </td>
             <td class="px-4 py-3">
               <button @click="editConfig(config)" class="p-1.5 hover:bg-dark-600 rounded text-primary-400 mr-1">
@@ -96,6 +107,14 @@
             <label class="block text-sm text-gray-400 mb-1">描述</label>
             <textarea v-model="formData.description" rows="2" class="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-primary-500"></textarea>
           </div>
+          <div v-if="formData.type === 'threshold'">
+            <label class="block text-sm text-gray-400 mb-1">告警级别</label>
+            <select v-model="formData.level" class="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-primary-500">
+              <option value="critical">严重</option>
+              <option value="warning">警告</option>
+              <option value="info">信息</option>
+            </select>
+          </div>
         </div>
         <div class="flex justify-end gap-3 mt-6">
           <button @click="closeModal" class="px-4 py-2 text-gray-400 hover:text-white transition">取消</button>
@@ -131,6 +150,7 @@ const formData = ref({
   key: '',
   value: '',
   type: 'threshold',
+  level: 'warning',
   description: ''
 })
 
@@ -167,6 +187,18 @@ function getTypeClass(type) {
   return 'bg-gray-500/20 text-gray-400'
 }
 
+function getLevelClass(level) {
+  if (level === 'critical') return 'bg-red-500/20 text-red-400'
+  if (level === 'warning') return 'bg-yellow-500/20 text-yellow-400'
+  return 'bg-blue-500/20 text-blue-400'
+}
+
+function getLevelText(level) {
+  if (level === 'critical') return '严重'
+  if (level === 'warning') return '警告'
+  return '信息'
+}
+
 function editConfig(config) {
   editingConfig.value = config
   formData.value = { ...config }
@@ -175,7 +207,7 @@ function editConfig(config) {
 function closeModal() {
   showAddModal.value = false
   editingConfig.value = null
-  formData.value = { key: '', value: '', type: 'threshold', description: '' }
+  formData.value = { key: '', value: '', type: 'threshold', level: 'warning', description: '' }
 }
 
 async function saveConfig() {

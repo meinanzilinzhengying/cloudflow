@@ -2,9 +2,9 @@
   <div>
     <div class="flex items-center justify-between mb-6">
       <h3 class="font-semibold text-white">平台告警</h3>
-      <button @click="showRuleModal = true" class="px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition flex items-center gap-2">
-        <Plus class="w-4 h-4" />
-        添加规则
+      <button @click="fetchAlerts" :disabled="loading" class="px-4 py-2 bg-dark-700 text-white text-sm font-medium rounded-lg hover:bg-dark-600 transition flex items-center gap-2 disabled:opacity-50">
+        <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
+        刷新
       </button>
     </div>
     
@@ -22,39 +22,60 @@
         <div class="text-2xl font-bold text-green-400">{{ resolvedCount }}</div>
       </div>
       <div class="bg-dark-800 rounded-xl p-4 border border-dark-600">
-        <div class="text-sm text-gray-400 mb-1">规则总数</div>
-        <div class="text-2xl font-bold text-white">12</div>
+        <div class="text-sm text-gray-400 mb-1">严重告警</div>
+        <div class="text-2xl font-bold text-red-400">{{ criticalCount }}</div>
       </div>
     </div>
     
     <div class="bg-dark-800 rounded-xl border border-dark-600 overflow-hidden">
-      <div class="px-4 py-3 border-b border-dark-600 flex items-center justify-between">
+      <div class="px-4 py-3 border-b border-dark-600 flex items-center justify-between flex-wrap gap-2">
         <h3 class="font-medium text-white">告警列表</h3>
-        <div class="flex gap-2">
+        <div class="flex gap-2 flex-wrap">
           <button 
-            v-for="status in alertStatuses" 
+            v-for="status in statusFilters" 
             :key="status.value"
             @click="activeStatus = status.value"
             :class="[
               'px-3 py-1 rounded text-xs font-medium transition',
               activeStatus === status.value 
                 ? 'bg-primary-500 text-white' 
-                : 'bg-dark-700 text-gray-400'
+                : 'bg-dark-700 text-gray-400 hover:text-white'
             ]"
           >
             {{ status.label }}
           </button>
+          <button 
+            v-for="lv in levelFilters" 
+            :key="lv.value"
+            @click="activeLevel = lv.value"
+            :class="[
+              'px-3 py-1 rounded text-xs font-medium transition',
+              activeLevel === lv.value 
+                ? getLevelBtnClass(lv.value)
+                : 'bg-dark-700 text-gray-400 hover:text-white'
+            ]"
+          >
+            {{ lv.label }}
+          </button>
         </div>
       </div>
-      <table class="w-full">
+      <div v-if="loading" class="p-8 text-center text-gray-500">
+        <RefreshCw class="w-6 h-6 animate-spin mx-auto mb-2" />
+        加载中...
+      </div>
+      <div v-else-if="error" class="p-8 text-center text-red-400">
+        {{ error }}
+      </div>
+      <table v-else class="w-full">
         <thead>
           <tr class="border-b border-dark-600">
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">告警级别</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">告警标题</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">来源</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">当前值</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">阈值</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">发生时间</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">状态</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -69,6 +90,8 @@
             </td>
             <td class="px-4 py-3 text-sm text-white">{{ alert.title }}</td>
             <td class="px-4 py-3 text-sm text-gray-400">{{ alert.source }}</td>
+            <td class="px-4 py-3 text-sm text-yellow-400 font-mono">{{ alert.value || '-' }}</td>
+            <td class="px-4 py-3 text-sm text-gray-400 font-mono">{{ alert.threshold || '-' }}</td>
             <td class="px-4 py-3 text-sm text-gray-400">{{ alert.time }}</td>
             <td class="px-4 py-3">
               <span 
@@ -78,95 +101,68 @@
                 {{ alert.status === 'firing' ? '触发中' : '已解决' }}
               </span>
             </td>
-            <td class="px-4 py-3">
-              <div class="flex gap-2">
-                <button v-if="alert.status === 'firing'" @click="resolveAlert(alert)" class="p-1.5 hover:bg-dark-600 rounded text-green-400" title="标记已解决">
-                  <CheckCircle class="w-4 h-4" />
-                </button>
-                <button class="p-1.5 hover:bg-dark-600 rounded text-gray-400" title="详情">
-                  <Eye class="w-4 h-4" />
-                </button>
-              </div>
+          </tr>
+          <tr v-if="filteredAlerts.length === 0">
+            <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+              当前筛选条件下暂无告警
             </td>
           </tr>
         </tbody>
       </table>
-    </div>
-    
-    <!-- 添加规则弹窗 -->
-    <div v-if="showRuleModal" class="fixed inset-0 bg-dark-900/80 flex items-center justify-center z-50">
-      <div class="bg-dark-800 rounded-xl p-6 w-full max-w-lg border border-dark-600">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold text-white">添加告警规则</h3>
-          <button @click="showRuleModal = false" class="text-gray-400 hover:text-white">
-            <X class="w-5 h-5" />
-          </button>
-        </div>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm text-gray-400 mb-1">规则名称</label>
-            <input v-model="ruleForm.name" type="text" class="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-primary-500" placeholder="输入规则名称" />
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1">告警级别</label>
-            <select v-model="ruleForm.level" class="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-primary-500">
-              <option value="critical">严重</option>
-              <option value="warning">警告</option>
-              <option value="info">信息</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1">条件表达式</label>
-            <input v-model="ruleForm.condition" type="text" class="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-primary-500 font-mono" placeholder="cpu_usage > 80" />
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1">告警间隔 (秒)</label>
-            <input v-model="ruleForm.interval" type="number" class="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-primary-500" />
-          </div>
-        </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button @click="showRuleModal = false" class="px-4 py-2 text-gray-400 hover:text-white transition">取消</button>
-          <button @click="saveRule" class="px-4 py-2 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-600 transition">保存</button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Plus, CheckCircle, Eye, X } from 'lucide-vue-next'
+import { RefreshCw } from 'lucide-vue-next'
+import api from '../../api'
 
-const alertStatuses = [
+const statusFilters = [
   { label: '全部', value: 'all' },
   { label: '触发中', value: 'firing' },
   { label: '已解决', value: 'resolved' }
 ]
 
-const activeStatus = ref('all')
-const showRuleModal = ref(false)
+const levelFilters = [
+  { label: '全部级别', value: 'all' },
+  { label: '严重', value: 'critical' },
+  { label: '警告', value: 'warning' },
+  { label: '信息', value: 'info' }
+]
 
-const ruleForm = ref({
-  name: '',
-  level: 'warning',
-  condition: '',
-  interval: 60
-})
+const activeStatus = ref('all')
+const activeLevel = ref('all')
+const loading = ref(false)
+const error = ref('')
 
 const alerts = ref([])
 
-const filteredAlerts = computed(() => {
-  if (activeStatus.value === 'all') return alerts.value
-  return alerts.value.filter(a => a.status === activeStatus.value)
-})
-
 const firingCount = computed(() => alerts.value.filter(a => a.status === 'firing').length)
 const resolvedCount = computed(() => alerts.value.filter(a => a.status === 'resolved').length)
+const criticalCount = computed(() => alerts.value.filter(a => a.level === 'critical').length)
+
+const filteredAlerts = computed(() => {
+  let result = alerts.value
+  if (activeStatus.value !== 'all') {
+    result = result.filter(a => a.status === activeStatus.value)
+  }
+  if (activeLevel.value !== 'all') {
+    result = result.filter(a => a.level === activeLevel.value)
+  }
+  return result
+})
 
 function getLevelClass(level) {
   if (level === 'critical') return 'bg-red-500/20 text-red-400'
   if (level === 'warning') return 'bg-yellow-500/20 text-yellow-400'
   return 'bg-blue-500/20 text-blue-400'
+}
+
+function getLevelBtnClass(level) {
+  if (level === 'critical') return 'bg-red-500 text-white'
+  if (level === 'warning') return 'bg-yellow-500 text-white'
+  return 'bg-blue-500 text-white'
 }
 
 function getLevelText(level) {
@@ -175,11 +171,27 @@ function getLevelText(level) {
   return '信息'
 }
 
-function resolveAlert(alert) {
-  alert.status = 'resolved'
+async function fetchAlerts() {
+  loading.value = true
+  error.value = ''
+  try {
+    const data = await api.getAlerts()
+    if (data && Array.isArray(data)) {
+      alerts.value = data
+    } else {
+      alerts.value = []
+      if (data === null) {
+        error.value = '无法连接到后端，请检查 control-plane 是否正常运行'
+      }
+    }
+  } catch (e) {
+    error.value = '加载告警失败: ' + (e.message || '未知错误')
+  } finally {
+    loading.value = false
+  }
 }
 
-function saveRule() {
-  showRuleModal.value = false
-}
+onMounted(() => {
+  fetchAlerts()
+})
 </script>
