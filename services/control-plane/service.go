@@ -753,8 +753,8 @@ func (s *Service) collectServiceHealth() []map[string]interface{} {
 	// 尝试从 Docker 获取容器状态
 	dockerStates := make(map[string]string)
 	if out, err := exec.Command("docker", "ps", "--format", "{{.Names}}|{{.State}}|{{.Status}}").Output(); err == nil {
-		for _, line := range strings.Split(string(out), "
-") {
+		for _, line := range strings.Split(string(out), "\n") {
+		parts := strings.Split(line, "|")
 		parts := strings.Split(line, "|")
 		parts := strings.Split(line, "|")
 		parts := strings.Split(line, "|")
