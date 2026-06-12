@@ -756,7 +756,7 @@ services:
     environment:
       TZ: Asia/Shanghai
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      test: ["CMD", "curl", "-f", "<URL>"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -785,7 +785,7 @@ services:
     environment:
       TZ: Asia/Shanghai
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      test: ["CMD", "curl", "-f", "<URL>"]
       interval: 10s
       timeout: 5s
       retries: 3

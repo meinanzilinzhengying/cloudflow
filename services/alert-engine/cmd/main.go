@@ -13,7 +13,41 @@ import (
 func main() {
 	cfg := alertengine.DefaultConfig()
 	flag.StringVar(&cfg.GrpcAddr, "grpc-addr", cfg.GrpcAddr, "gRPC listen address")
+	flag.StringVar(&cfg.HttpAddr, "http-addr", cfg.HttpAddr, "HTTP listen address")
 	flag.Parse()
+
+	// 从环境变量读取服务地址配置
+	if v := os.Getenv("GRPC_ADDR"); v != "" {
+		cfg.GrpcAddr = v
+	}
+	if v := os.Getenv("HTTP_ADDR"); v != "" {
+		cfg.HttpAddr = v
+	}
+
+	// 从环境变量读取 TiDB 配置
+	if v := os.Getenv("TIDB_ADDR"); v != "" {
+		cfg.TiDBAddr = v
+	}
+	if v := os.Getenv("TIDB_USER"); v != "" {
+		cfg.TiDBUser = v
+	}
+	if v := os.Getenv("TIDB_PASSWORD"); v != "" {
+		cfg.TiDBPassword = v
+	}
+	if v := os.Getenv("TIDB_DATABASE"); v != "" {
+		cfg.TiDBDatabase = v
+	}
+
+	// 从环境变量读取其他服务地址
+	if v := os.Getenv("AUTH_ADDR"); v != "" {
+		cfg.AuthAddr = v
+	}
+	if v := os.Getenv("DATA_PLANE_ADDR"); v != "" {
+		cfg.DataPlaneAddr = v
+	}
+	if v := os.Getenv("TENANT_ADDR"); v != "" {
+		cfg.TenantAddr = v
+	}
 
 	// P0-2 修复: 从环境变量读取 TLS 配置
 	if v := os.Getenv("TLS_ENABLED"); v == "true" {
