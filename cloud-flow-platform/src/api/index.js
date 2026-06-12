@@ -9,7 +9,20 @@ api.interceptors.response.use(
   response => response.data,
   error => {
     console.error('API Error:', error.config?.url, error.response?.status)
-    // 不抛出错误，返回 null 让调用方自行处理
+    return Promise.resolve(null)
+  }
+)
+
+// Loki API client
+const lokiApi = axios.create({
+  baseURL: '/api/loki',
+  timeout: 30000
+})
+
+lokiApi.interceptors.response.use(
+  response => response.data,
+  error => {
+    console.error('Loki API Error:', error.config?.url, error.response?.status)
     return Promise.resolve(null)
   }
 )
@@ -50,5 +63,26 @@ export default {
 
   getDataPlaneMetrics() {
     return api.get('/data/system-metrics').catch(() => null)
+  },
+
+  // Loki 日志查询
+  getLogs({ query = '{job="docker"}', start, end, limit = 100, direction = 'backward' } = {}) {
+    const params = new URLSearchParams()
+    params.append('query', query)
+    if (start) params.append('start', start)
+    if (end) params.append('end', end)
+    params.append('limit', String(limit))
+    params.append('direction', direction)
+    return lokiApi.get(`/loki/api/v1/query_range?${params.toString()}`).catch(() => null)
+  },
+
+  // 获取 Loki 标签列表
+  getLogLabels() {
+    return lokiApi.get('/loki/api/v1/label/job/values').catch(() => null)
+  },
+
+  // 获取服务名称列表
+  getLogServices() {
+    return lokiApi.get('/loki/api/v1/label/service/values').catch(() => null)
   }
 }
