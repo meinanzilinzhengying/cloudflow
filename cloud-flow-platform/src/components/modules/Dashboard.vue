@@ -38,41 +38,41 @@
         :loading="loading"
       />
     </div>
-    
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <TrendChart
         title="CPU 使用率趋势"
-        subtitle="近 5 分钟（实时，10秒/点）"
+        :subtitle="chartSubtitle"
         type="line"
         :data="cpuChartData"
         :legends="cpuLegends"
       />
       <TrendChart
         title="内存使用趋势"
-        subtitle="近 5 分钟（实时，10秒/点）"
+        :subtitle="chartSubtitle"
         type="line"
         :data="memoryChartData"
         :legends="memoryLegends"
       />
     </div>
-    
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <TrendChart
         title="网络流量趋势"
-        subtitle="入站/出站 (MB) 近5分钟"
+        :subtitle="networkChartSubtitle"
         type="line"
         :data="networkChartData"
         :legends="networkLegends"
       />
       <TrendChart
         title="磁盘使用"
-        subtitle="已用/总量 (GB) 近5分钟"
+        :subtitle="diskChartSubtitle"
         type="line"
         :data="diskChartData"
         :legends="diskLegends"
       />
     </div>
-    
+
     <!-- 服务状态 -->
     <div class="bg-dark-800 rounded-xl border border-dark-600 overflow-hidden mb-6">
       <div class="px-4 py-3 border-b border-dark-600 flex items-center justify-between">
@@ -109,7 +109,7 @@
             </td>
             <td class="px-4 py-3 text-sm text-gray-300">{{ service.type }}</td>
             <td class="px-4 py-3">
-              <span 
+              <span
                 class="px-2 py-1 text-xs rounded-full"
                 :class="getStatusClass(service.status)"
               >
@@ -119,7 +119,7 @@
             <td class="px-4 py-3">
               <div class="flex items-center gap-2">
                 <div class="w-16 h-2 bg-dark-700 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     class="h-full rounded-full"
                     :class="getUsageClass(service.cpu)"
                     :style="{ width: service.cpu + '%' }"
@@ -131,7 +131,7 @@
             <td class="px-4 py-3">
               <div class="flex items-center gap-2">
                 <div class="w-16 h-2 bg-dark-700 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     class="h-full rounded-full"
                     :class="getUsageClass(service.memory)"
                     :style="{ width: service.memory + '%' }"
@@ -145,7 +145,7 @@
         </tbody>
       </table>
     </div>
-    
+
     <!-- 进程监控 -->
     <div class="bg-dark-800 rounded-xl border border-dark-600 overflow-hidden">
       <div class="px-4 py-3 border-b border-dark-600">
@@ -230,6 +230,22 @@ const TIME_RANGE_CONFIG = {
 const MAX_POINTS = ref(TIME_RANGE_CONFIG['5m'].points)
 const POLL_INTERVAL = ref(TIME_RANGE_CONFIG['5m'].interval)
 
+// 动态计算图表副标题
+const chartSubtitle = computed(() => {
+  const cfg = TIME_RANGE_CONFIG[timeRange.value] || TIME_RANGE_CONFIG['5m']
+  return `近 ${cfg.label}（实时，${cfg.interval / 1000}秒/点）`
+})
+
+const networkChartSubtitle = computed(() => {
+  const cfg = TIME_RANGE_CONFIG[timeRange.value] || TIME_RANGE_CONFIG['5m']
+  return `入站/出站 (MB) 近${cfg.label}`
+})
+
+const diskChartSubtitle = computed(() => {
+  const cfg = TIME_RANGE_CONFIG[timeRange.value] || TIME_RANGE_CONFIG['5m']
+  return `已用/总量 (GB) 近${cfg.label}`
+})
+
 watch(timeRange, (val) => {
   const cfg = TIME_RANGE_CONFIG[val] || TIME_RANGE_CONFIG['5m']
   MAX_POINTS.value = cfg.points
@@ -303,8 +319,76 @@ function formatUptime(seconds) {
 
 function formatTime(offsetMin) {
   const now = new Date()
-  now.setMinutes(now.getMinutes() - offsetMin)
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const target = new Date(now.getTime() - offsetMin * 60000)
+  const hours = String(target.getHours()).padStart(2, '0')
+  const minutes = String(target.getMinutes()).padStart(2, '0')
+
+  // 如果跨天（或跨月），显示月-日 时:分
+  if (target.getDate() !== now.getDate() || target.getMonth() !== now.getMonth()) {
+    const month = String(target.getMonth() + 1).padStart(2, '0')
+    const day = String(target.getDate()).padStart(2, '0')
+    return `${month}-${day} ${hours}:${minutes}`
+  }
+  return `${hours}:${minutes}`
+}
+
+// --- localStorage 持久化 ---
+const CHART_STORAGE_KEY = 'cloudflow_dashboard_charts'
+const CHART_META_KEY = 'cloudflow_dashboard_charts_meta'
+
+function saveChartData() {
+  try {
+    const data = {
+      cpu: cpuChartData.value,
+      memory: memoryChartData.value,
+      network: networkChartData.value,
+      disk: diskChartData.value,
+    }
+    const meta = {
+      timeRange: timeRange.value,
+      savedAt: Date.now(),
+    }
+    localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(data))
+    localStorage.setItem(CHART_META_KEY, JSON.stringify(meta))
+  } catch (e) {
+    console.warn('Failed to save chart data:', e)
+  }
+}
+
+function loadChartData() {
+  try {
+    const rawData = localStorage.getItem(CHART_STORAGE_KEY)
+    const rawMeta = localStorage.getItem(CHART_META_KEY)
+    if (!rawData || !rawMeta) return false
+
+    const data = JSON.parse(rawData)
+    const meta = JSON.parse(rawMeta)
+
+    // 检查时间范围是否匹配（不匹配则丢弃）
+    if (meta.timeRange !== timeRange.value) {
+      localStorage.removeItem(CHART_STORAGE_KEY)
+      localStorage.removeItem(CHART_META_KEY)
+      return false
+    }
+
+    // 检查数据是否过期（超过当前时间范围覆盖时长的 2 倍）
+    const maxAge = POLL_INTERVAL.value * MAX_POINTS.value * 2
+    if (Date.now() - meta.savedAt > maxAge) {
+      localStorage.removeItem(CHART_STORAGE_KEY)
+      localStorage.removeItem(CHART_META_KEY)
+      return false
+    }
+
+    // 恢复数据
+    if (data.cpu) cpuChartData.value = data.cpu
+    if (data.memory) memoryChartData.value = data.memory
+    if (data.network) networkChartData.value = data.network
+    if (data.disk) diskChartData.value = data.disk
+    return true
+  } catch (e) {
+    console.warn('Failed to load chart data:', e)
+    return false
+  }
 }
 
 // --- 核心：推进实时图表 —— 每轮轮询推入一个新数据点，溢出时移除最老的 ---
@@ -325,6 +409,9 @@ function pushChartPoint(chartRef, newDataValues, labelSuffix = '') {
 
   // 一次性赋值新对象，彻底切断 Proxy 链
   chartRef.value = { labels: newLabels, datasets: newDatasets }
+
+  // 持久化到 localStorage
+  saveChartData()
 }
 
 // --- 轮询数据 ---
@@ -426,23 +513,28 @@ async function fetchData() {
 let refreshInterval = null
 
 onMounted(() => {
-  // 初始化：一次性构造完整数据对象再赋值，绝不用 .push() 触碰响应式数组
-  const labels = []
-  for (let i = MAX_POINTS.value - 1; i >= 0; i--) {
-    labels.push(formatTime(i))
-  }
-  const zeros = new Array(MAX_POINTS.value).fill(0)
+  // 先尝试从 localStorage 恢复图表数据
+  const restored = loadChartData()
 
-  cpuChartData.value = { labels: [...labels], datasets: [{ label: 'CPU 使用率', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] }
-  memoryChartData.value = { labels: [...labels], datasets: [{ label: '内存使用', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] }
-  networkChartData.value = { labels: [...labels], datasets: [
-    { label: '入站', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 },
-    { label: '出站', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }
-  ]}
-  diskChartData.value = { labels: [...labels], datasets: [
-    { label: '读取', data: [...zeros], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 },
-    { label: '写入', data: [...zeros], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4 }
-  ]}
+  if (!restored) {
+    // 初始化：一次性构造完整数据对象再赋值，绝不用 .push() 触碰响应式数组
+    const labels = []
+    for (let i = MAX_POINTS.value - 1; i >= 0; i--) {
+      labels.push(formatTime(i))
+    }
+    const zeros = new Array(MAX_POINTS.value).fill(0)
+
+    cpuChartData.value = { labels: [...labels], datasets: [{ label: 'CPU 使用率', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] }
+    memoryChartData.value = { labels: [...labels], datasets: [{ label: '内存使用', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] }
+    networkChartData.value = { labels: [...labels], datasets: [
+      { label: '入站', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 },
+      { label: '出站', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }
+    ]}
+    diskChartData.value = { labels: [...labels], datasets: [
+      { label: '读取', data: [...zeros], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 },
+      { label: '写入', data: [...zeros], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4 }
+    ]}
+  }
 
   fetchData()
   refreshInterval = setInterval(fetchData, POLL_INTERVAL.value)
