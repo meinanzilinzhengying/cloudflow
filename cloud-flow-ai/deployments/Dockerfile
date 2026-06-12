@@ -1,6 +1,8 @@
 FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache git
 ENV GOPROXY=https://goproxy.cn,direct
+ENV GONOSUMCHECK=*
+ENV GONOSUMDB=*
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -8,13 +10,14 @@ RUN go mod download
 
 COPY . .
 ENV GOWORK=off
-RUN go mod tidy -e && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server ./cmd/main.go
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server ./cmd/main.go
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates tzdata
 ENV TZ=Asia/Shanghai
 WORKDIR /app
 COPY --from=builder /app/server .
+COPY --from=builder /app/configs /app/configs
+RUN mkdir -p /app/data /app/logs
 EXPOSE 8082
 CMD ["./server"]

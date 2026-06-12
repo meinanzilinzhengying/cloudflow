@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
 
 	_ "github.com/go-sql-driver/mysql"
 
@@ -356,6 +357,7 @@ func (s *Service) Start() error {
 
 	// 启动 HTTP
 	mux := http.NewServeMux()
+	mux.Handle("/metrics", metrics.Handler())
 	mux.HandleFunc("/healthz", s.healthzHandler)
 	mux.HandleFunc("/api/tenants", s.tenantsHandler)
 	mux.HandleFunc("/api/tenants/create", s.createTenantHandler)

@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/meinanzilinzhengying/cloudflow/ai/internal/config"
@@ -10,154 +11,268 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/ai/pkg/logger"
 )
 
-type Server struct {
-	llmClient *llm.Client
-	log       *logger.Logger
-	config    *config.Config
-	analysisHistory []AnalysisRecord
-}
-
+// AnalysisRecord stores the result of a traffic analysis request.
 type AnalysisRecord struct {
-	ID         string      `json:"id"`
-	Query      string      `json:"query"`
-	Result     string      `json:"result"`
-	Model      string      `json:"model"`
-	CreatedAt  time.Time   `json:"created_at"`
+	ID        string    `json:"id"`
+	Timestamp time.Time `json:"timestamp"`
+	Prompt    string    `json:"prompt"`
+	Response  string    `json:"response"`
+	ModelUsed string    `json:"model_used"`
 }
 
-type AnalyzeRequest struct {
-	Query   string `json:"query"`
-	Model   string `json:"model,omitempty"`
+// Server is the HTTP server for the CloudFlow AI service.
+type Server struct {
+	llmClient       *llm.Client
+	log             *logger.Logger
+	cfg             *config.Config
+	analysisHistory []AnalysisRecord
+	mu              sync.RWMutex
 }
 
-type AnalyzeResponse struct {
-	ID       string `json:"id"`
-	Result   string `json:"result"`
-	Model    string `json:"model"`
-}
-
+// NewServer creates a new Server with the given dependencies.
+// Parameters: cfg, log, llmClient (matching existing main.go call signature).
 func NewServer(cfg *config.Config, log *logger.Logger, llmClient *llm.Client) *Server {
 	return &Server{
-		config: cfg,
-		log: log,
-		llmClient: llmClient,
-		analysisHistory: []AnalysisRecord{},
+		llmClient:       llmClient,
+		log:             log,
+		cfg:             cfg,
+		analysisHistory: make([]AnalysisRecord, 0),
 	}
 }
 
-func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
+// corsMiddleware wraps an http.Handler with CORS headers.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-	mux.HandleFunc("GET /health", s.Health)
-	mux.HandleFunc("GET /api/v1/models", s.ListModels)
-	mux.HandleFunc("POST /api/v1/analyze", s.Analyze)
-	mux.HandleFunc("GET /api/v1/history", s.GetHistory)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 
-	return mux
-}
-
-func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
+		next.ServeHTTP(w, r)
 	})
 }
 
-func (s *Server) ListModels(w http.ResponseWriter, r *http.Request) {
-	type ModelInfo struct {
-		Name          string  `json:"name"`
-		Provider      string  `json:"provider"`
-		MaxTokens     int     `json:"max_tokens"`
-		Temperature   float64 `json:"temperature"`
+// Handler returns the HTTP handler with all routes registered.
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+
+	// Existing routes
+	mux.HandleFunc("GET /health", s.Health)
+	mux.HandleFunc("GET /api/v1/models", s.GetModels)
+	mux.HandleFunc("POST /api/v1/analyze", s.Analyze)
+	mux.HandleFunc("GET /api/v1/history", s.GetHistory)
+
+	// New configuration routes
+	mux.HandleFunc("GET /api/v1/config/models", s.GetConfigModels)
+	mux.HandleFunc("POST /api/v1/config/models", s.SaveConfigModels)
+
+	// New connection test route
+	mux.HandleFunc("POST /api/v1/test", s.TestConnection)
+
+	// New Ollama discovery route
+	mux.HandleFunc("GET /api/v1/ollama/models", s.GetOllamaModels)
+
+	return corsMiddleware(mux)
+}
+
+// Health returns a simple health-check response.
+func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// GetModels returns the list of available model names from the LLM client.
+func (s *Server) GetModels(w http.ResponseWriter, r *http.Request) {
+	models := s.llmClient.ListModels()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string][]string{"models": models})
+}
+
+// Analyze accepts a traffic analysis prompt and returns the AI-generated response.
+func (s *Server) Analyze(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Model   string `json:"model"`
+		Content string `json:"content"`
 	}
-	models := []ModelInfo{}
-	for _, m := range s.config.AI.LLM.Models {
-		models = append(models, ModelInfo{
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.Content == "" {
+		http.Error(w, `{"error":"content is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	modelName := req.Model
+	if modelName == "" {
+		modelName = s.cfg.AI.LLM.DefaultModel
+	}
+
+	messages := []llm.ChatMessage{
+		{Role: "system", Content: "You are a network traffic analysis expert. Analyze the provided data and return structured insights."},
+		{Role: "user", Content: req.Content},
+	}
+
+	resp, err := s.llmClient.Chat(modelName, messages)
+	if err != nil {
+		s.log.Error("LLM chat failed", "error", err)
+		http.Error(w, `{"error":"analysis request failed"}`, http.StatusInternalServerError)
+		return
+	}
+
+	responseText := ""
+	if len(resp.Choices) > 0 {
+		responseText = resp.Choices[0].Message.Content
+	}
+
+	record := AnalysisRecord{
+		ID:        resp.ID,
+		Timestamp: time.Now(),
+		Prompt:    req.Content,
+		Response:  responseText,
+		ModelUsed: modelName,
+	}
+
+	s.mu.Lock()
+	s.analysisHistory = append(s.analysisHistory, record)
+	s.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// GetHistory returns the full analysis history.
+func (s *Server) GetHistory(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	history := make([]AnalysisRecord, len(s.analysisHistory))
+	copy(history, s.analysisHistory)
+	s.mu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"history": history,
+		"total":   len(history),
+	})
+}
+
+// modelResponse is a safe representation of a model config without the API key.
+type modelResponse struct {
+	Name        string  `json:"name"`
+	Provider    string  `json:"provider"`
+	APIURL      string  `json:"api_url"`
+	MaxTokens   int     `json:"max_tokens"`
+	Temperature float64 `json:"temperature"`
+	IsDefault   bool    `json:"is_default"`
+}
+
+// GetConfigModels returns all configured models without exposing API keys.
+func (s *Server) GetConfigModels(w http.ResponseWriter, r *http.Request) {
+	models := s.cfg.AI.LLM.Models
+	defaultModel := s.cfg.AI.LLM.DefaultModel
+
+	respModels := make([]modelResponse, 0, len(models))
+	for _, m := range models {
+		respModels = append(respModels, modelResponse{
 			Name:        m.Name,
 			Provider:    m.Provider,
+			APIURL:      m.APIURL,
 			MaxTokens:   m.MaxTokens,
 			Temperature: m.Temperature,
+			IsDefault:   m.Name == defaultModel,
 		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"models": models,
-		"default": s.config.AI.LLM.DefaultModel,
+		"models":  respModels,
+		"default": defaultModel,
 	})
 }
 
-func (s *Server) Analyze(w http.ResponseWriter, r *http.Request) {
-	var req AnalyzeRequest
+// SaveConfigModels updates the in-memory model configuration.
+func (s *Server) SaveConfigModels(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Models  []config.LLMModel `json:"models"`
+		Default string            `json:"default"`
+	}
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
-	model := req.Model
-	if model == "" {
-		model = s.config.AI.LLM.DefaultModel
+	if req.Default != "" {
+		s.cfg.AI.LLM.DefaultModel = req.Default
+	}
+	if req.Models != nil {
+		s.cfg.AI.LLM.Models = req.Models
+		s.llmClient.SetModels(req.Models)
 	}
 
-	messages := []llm.ChatMessage{
-		{
-			Role: "system",
-			Content: `你是一位专业的网络流量分析专家，你需要帮助用户分析和解释网络流量数据。
-你的任务包括：
-1. 解释网络流量异常现象
-2. 提供流量优化建议
-3. 分析网络性能瓶颈
-4. 检测潜在的安全问题
-5. 提供数据洞察和报告
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
 
-回答请用中文，简洁且专业。`,
-		},
-		{
-			Role: "user",
-			Content: req.Query,
-		},
+// TestConnection tests connectivity to a model API provider.
+func (s *Server) TestConnection(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Provider string `json:"provider"`
+		APIURL   string `json:"api_url"`
+		APIKey   string `json:"api_key"`
+		Model    string `json:"model"`
 	}
 
-	resp, err := s.llmClient.Chat(model, messages)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"result":  "",
+			"error":   "invalid request body",
+		})
+		return
+	}
+
+	result, err := s.llmClient.TestConnection(req.Provider, req.APIURL, req.APIKey, req.Model)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	resp := map[string]interface{}{
+		"success": err == nil,
+		"result":  result,
+	}
 	if err != nil {
-		s.log.Error("Analysis failed", "error", err)
-		http.Error(w, "Analysis failed: "+err.Error(), http.StatusInternalServerError)
-		return
+		resp["error"] = err.Error()
 	}
-
-	result := ""
-	if len(resp.Choices) > 0 {
-		result = resp.Choices[0].Message.Content
-	}
-
-	record := AnalysisRecord{
-		ID:        generateID(),
-		Query:     req.Query,
-		Result:    result,
-		Model:     model,
-		CreatedAt: time.Now(),
-	}
-
-	s.analysisHistory = append(s.analysisHistory, record)
-	if len(s.analysisHistory) > s.config.AI.Analysis.MaxAnalysisHistory {
-		s.analysisHistory = s.analysisHistory[1:]
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(AnalyzeResponse{
-		ID:      record.ID,
-		Result:  result,
-		Model:   model,
-	})
+	json.NewEncoder(w).Encode(resp)
 }
 
-func (s *Server) GetHistory(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"history": s.analysisHistory,
-	})
-}
+// GetOllamaModels discovers models from a local Ollama instance.
+func (s *Server) GetOllamaModels(w http.ResponseWriter, r *http.Request) {
+	ollamaURL := r.URL.Query().Get("url")
+	if ollamaURL == "" {
+		ollamaURL = "http://localhost:11434"
+	}
 
-func generateID() string {
-	return time.Now().Format("20060102150405")
+	models, err := s.llmClient.DiscoverOllamaModels(ollamaURL)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	resp := map[string]interface{}{
+		"success": err == nil,
+		"models":  models,
+	}
+	if err != nil {
+		resp["error"] = err.Error()
+	}
+	json.NewEncoder(w).Encode(resp)
 }

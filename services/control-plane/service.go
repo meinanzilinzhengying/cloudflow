@@ -39,7 +39,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
+	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
 	"google.golang.org/grpc/status"
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
@@ -251,6 +253,7 @@ func (s *Service) Start() error {
 	// 启动 HTTP (管理 API)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthzHandler)
+	mux.Handle("/metrics", metrics.Handler())
 	
 	protected := s.authMiddleware(mux)
 

@@ -36,6 +36,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/meinanzilinzhengying/cloudflow/pkg/flow"
@@ -319,7 +320,8 @@ func (s *Service) Start() error {
 	// 启动 Metrics HTTP
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthzHandler)
-	mux.HandleFunc("/metrics", s.statsHandler)
+	mux.Handle("/metrics", metrics.Handler())
+	mux.HandleFunc("/api/stats", s.statsHandler)
 	mux.HandleFunc("/api/system-metrics", s.systemMetricsHandler)
 	mux.HandleFunc("/api/sampling/config", s.samplingConfigHandler)
 	mux.HandleFunc("/api/sampling/stats", s.samplingStatsHandler)

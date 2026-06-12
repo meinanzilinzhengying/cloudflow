@@ -141,7 +141,7 @@ services:
       TZ: Asia/Shanghai
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9094"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
       KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093"
       KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
@@ -545,16 +545,18 @@ services:
     container_name: cloudflow-alertmanager
     restart: unless-stopped
     ports:
-      - "9093:9093"
+      - "9094:9093"
     volumes:
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
       - alertmanager-data:/data
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/data"
-      - "--web.external-url=http://localhost:9093"
+      - "--web.external-url=http://localhost:9094"
+      - "--cluster.listen-address="
+      - "--cluster.advertise-address=127.0.0.1:9094"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9094/-/healthy"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -661,7 +663,7 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_INSTALL_PLUGINS: "grafana-clickhouse-datasource"
+      # GF_INSTALL_PLUGINS: "" # disabled to avoid network timeout
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning

@@ -30,7 +30,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
+	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service/correlation"
@@ -270,6 +272,7 @@ func (s *Service) Start() error {
 	// HTTP API Gateway
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthzHandler)
+	mux.Handle("/metrics", metrics.Handler())
 	mux.HandleFunc("/api/overview", s.overviewHandler)
 	mux.HandleFunc("/api/metrics", s.metricsHandler)
 	mux.HandleFunc("/api/flows", s.flowsHandler)

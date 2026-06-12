@@ -16,7 +16,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
+	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
@@ -380,6 +382,7 @@ func (s *Service) Start() error {
 	// 启动 HTTP (带租户中间件)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthzHandler)
+	mux.Handle("/metrics", metrics.Handler())
 	mux.HandleFunc("/api/login", s.loginHandler)
 	mux.HandleFunc("/api/verify", s.verifyHandler)
 	mux.HandleFunc("/api/refresh", s.refreshHandler)

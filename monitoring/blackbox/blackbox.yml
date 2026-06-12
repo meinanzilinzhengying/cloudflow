@@ -1,10 +1,15 @@
-# =============================================================================
-# Blackbox Exporter 配置 - CloudFlow
-# =============================================================================
 modules:
   http_2xx:
     prober: http
+    timeout: 5s
     http:
       valid_status_codes: [200, 201, 204]
       preferred_ip_protocol: ip4
-      timeout: 5s
+
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+
+  icmp:
+    prober: icmp
+    timeout: 5s
