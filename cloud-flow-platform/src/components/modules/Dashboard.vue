@@ -335,9 +335,19 @@ function formatTime(offsetMs) {
 }
 
 
-// --- localStorage 图表持久化 ---
-const CHART_STORAGE_KEY = 'cloudflow_dashboard_charts'
-const CHART_META_KEY = 'cloudflow_dashboard_charts_meta'
+// --- localStorage 图表持久化（按时间范围独立存储）---
+function getChartStorageKey(range) {
+  return `cloudflow_dashboard_charts_${range}`
+}
+function getChartMetaKey(range) {
+  return `cloudflow_dashboard_charts_meta_${range}`
+}
+
+// 清理旧的统一 key（兼容旧版本）
+try {
+  localStorage.removeItem('cloudflow_dashboard_charts')
+  localStorage.removeItem('cloudflow_dashboard_charts_meta')
+} catch (e) {}
 
 function saveChartData() {
   try {
@@ -348,21 +358,26 @@ function saveChartData() {
       disk: diskChartData.value,
     }
     const meta = { timeRange: timeRange.value, savedAt: Date.now() }
-    localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(data))
-    localStorage.setItem(CHART_META_KEY, JSON.stringify(meta))
+    localStorage.setItem(getChartStorageKey(timeRange.value), JSON.stringify(data))
+    localStorage.setItem(getChartMetaKey(timeRange.value), JSON.stringify(meta))
   } catch (e) {}
 }
 
-function loadChartData() {
+function loadChartData(range = timeRange.value) {
   try {
-    const rawData = localStorage.getItem(CHART_STORAGE_KEY)
-    const rawMeta = localStorage.getItem(CHART_META_KEY)
+    const rawData = localStorage.getItem(getChartStorageKey(range))
+    const rawMeta = localStorage.getItem(getChartMetaKey(range))
     if (!rawData || !rawMeta) return false
     const data = JSON.parse(rawData)
     const meta = JSON.parse(rawMeta)
-    if (meta.timeRange !== timeRange.value) { localStorage.removeItem(CHART_STORAGE_KEY); localStorage.removeItem(CHART_META_KEY); return false }
-    const maxAge = POLL_INTERVAL.value * MAX_POINTS.value * 2
-    if (Date.now() - meta.savedAt > maxAge) { localStorage.removeItem(CHART_STORAGE_KEY); localStorage.removeItem(CHART_META_KEY); return false }
+    // 使用对应时间范围的配置判断数据是否过期
+    const cfg = TIME_RANGE_CONFIG[range] || TIME_RANGE_CONFIG['5m']
+    const maxAge = cfg.interval * cfg.points * 2
+    if (Date.now() - meta.savedAt > maxAge) {
+      localStorage.removeItem(getChartStorageKey(range))
+      localStorage.removeItem(getChartMetaKey(range))
+      return false
+    }
     if (data.cpu) cpuChartData.value = data.cpu
     if (data.memory) memoryChartData.value = data.memory
     if (data.network) networkChartData.value = data.network
