@@ -28,8 +28,11 @@ import ExternalTools from './components/modules/ExternalTools.vue'
 import AIAnalysis from './components/modules/AIAnalysis.vue'
 import featuresConfig from './config/features.json'
 
+const ACTIVE_MODULE_KEY = 'cloudflow_active_module'
+
 const features = ref(featuresConfig)
-const activeModule = ref('dashboard')
+const savedModule = localStorage.getItem(ACTIVE_MODULE_KEY)
+const activeModule = ref(savedModule || 'dashboard')
 
 const moduleComponents = {
   dashboard: Dashboard,
@@ -78,13 +81,19 @@ function getModuleIcon(key) {
 function handleModuleSelect(key) {
   if (features.value.modules[key]?.enabled) {
     activeModule.value = key
+    localStorage.setItem(ACTIVE_MODULE_KEY, key)
   }
 }
 
 onMounted(() => {
-  const firstEnabled = enabledModules.value[0]
-  if (firstEnabled) {
-    activeModule.value = firstEnabled.key
+  const saved = localStorage.getItem(ACTIVE_MODULE_KEY)
+  if (saved && features.value.modules[saved]?.enabled) {
+    activeModule.value = saved
+  } else {
+    const firstEnabled = enabledModules.value[0]
+    if (firstEnabled) {
+      activeModule.value = firstEnabled.key
+    }
   }
 })
 </script>
