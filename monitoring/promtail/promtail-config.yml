@@ -27,7 +27,7 @@ scrape_configs:
         refresh_interval: 5s
         filters:
           - name: label
-            values: ["com.docker.compose.project=cloud-flow"]
+            values: ["com.docker.compose.project=cloudflow"]
     relabel_configs:
       # 容器名称作为标签
       - source_labels: [__meta_docker_container_name]
@@ -121,13 +121,3 @@ scrape_configs:
   # ---------------------------------------------------------------------------
   # 系统日志
   # ---------------------------------------------------------------------------
-  - job_name: syslog
-    journal:
-      json: false
-      max_age: 12h
-      path: /var/log/journal
-      labels:
-        job: systemd
-    relabel_configs:
-      - source_labels: ['__journal__systemd_unit']
-        target_label: 'unit'

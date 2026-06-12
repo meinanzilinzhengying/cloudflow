@@ -235,9 +235,9 @@ async function fetchLogs() {
   loading.value = true
   try {
     // 构建 Loki 查询
-    let query = '{job="docker"}'
+    let query = '{service=~".+"}'
     if (selectedService.value !== 'all') {
-      query = `{job="docker",service="${selectedService.value}"}`
+      query = `{service=~".+",service="${selectedService.value}"}`
     }
 
     // 查询最近 1 小时的日志

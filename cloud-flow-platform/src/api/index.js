@@ -66,7 +66,7 @@ export default {
   },
 
   // Loki 日志查询
-  getLogs({ query = '{job="docker"}', start, end, limit = 100, direction = 'backward' } = {}) {
+  getLogs({ query = '{service=~".+"}', start, end, limit = 100, direction = 'backward' } = {}) {
     const params = new URLSearchParams()
     params.append('query', query)
     if (start) params.append('start', start)
