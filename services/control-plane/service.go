@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -737,29 +738,33 @@ func (s *Service) healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // collectServiceHealth 采集所有服务健康状态（优先 Docker，回退内部连接状态）
+
+// collectServiceHealth 采集所有服务健康状态（优先 Docker，回退内部连接状态）
 func (s *Service) collectServiceHealth() []map[string]interface{} {
-	type svcDef struct{ Name, ContainerName, SvcType string }
+	type svcDef struct{ Name, ContainerName, DisplayName string }
 	allServices := []svcDef{
-		{"control-plane", "cloudflow-control-plane", "核心服务"},
-		{"data-plane", "cloudflow-data-plane", "核心服务"},
-		{"auth-service", "cloudflow-auth", "核心服务"},
-		{"tenant-service", "cloudflow-tenant", "核心服务"},
-		{"query-service", "cloudflow-query", "核心服务"},
-		{"alert-engine", "cloudflow-alert", "核心服务"},
+		{"control-plane", "cloudflow-control-plane", "控制平面"},
+		{"data-plane", "cloudflow-data-plane", "数据平面"},
+		{"auth", "cloudflow-auth", "认证服务"},
+		{"tenant", "cloudflow-tenant", "租户服务"},
+		{"query", "cloudflow-query", "查询服务"},
+		{"alert", "cloudflow-alert", "告警引擎"},
+		{"topology", "cloudflow-topology", "拓扑引擎"},
+		{"ai-service", "cloudflow-ai-service", "AI 服务"},
 		{"frontend", "cloudflow-frontend", "前端"},
-		{"platform-frontend", "cloudflow-platform-frontend", "前端"},
-		{"etcd", "cloudflow-etcd", "基础设施"},
-		{"redis", "cloudflow-redis", "基础设施"},
-		{"tidb", "cloudflow-tidb", "基础设施"},
-		{"clickhouse", "cloudflow-clickhouse", "基础设施"},
-		{"kafka", "cloudflow-kafka", "基础设施"},
-		{"victoriametrics", "cloudflow-victoriametrics", "基础设施"},
-		{"loki", "cloudflow-loki", "基础设施"},
-		{"prometheus", "cloudflow-prometheus", "基础设施"},
-		{"grafana", "cloudflow-grafana", "基础设施"},
+		{"platform-frontend", "cloudflow-platform-frontend", "平台前端"},
+		{"etcd", "cloudflow-etcd", "etcd 存储"},
+		{"redis", "cloudflow-redis", "Redis 缓存"},
+		{"tidb", "cloudflow-tidb", "TiDB 数据库"},
+		{"clickhouse", "cloudflow-clickhouse", "ClickHouse 数据库"},
+		{"kafka", "cloudflow-kafka", "Kafka 消息队列"},
+		{"victoriametrics", "cloudflow-victoriametrics", "VictoriaMetrics 时序库"},
+		{"loki", "cloudflow-loki", "Loki 日志"},
+		{"prometheus", "cloudflow-prometheus", "Prometheus 监控"},
+		{"grafana", "cloudflow-grafana", "Grafana 可视化"},
 	}
 
-	// 尝试从 Docker 获取容器状态（使用 -a 参数获取所有容器，包括停止的）
+	// 1. 从 Docker 获取容器运行状态（-a 包含已停止的）
 	dockerStates := make(map[string]string)
 	if out, err := exec.Command("docker", "ps", "-a", "--format", "{{.Names}}|{{.State}}|{{.Status}}").Output(); err == nil {
 		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -768,8 +773,42 @@ func (s *Service) collectServiceHealth() []map[string]interface{} {
 			}
 			parts := strings.Split(line, "|")
 			if len(parts) >= 2 {
-				// 将 Docker 状态映射为标准化状态
-				dockerStates[parts[0]] = parts[1] // State: running, exited, paused, etc.
+				dockerStates[parts[0]] = parts[1]
+			}
+		}
+	}
+
+	// 2. 从 Docker stats 获取 CPU / 内存使用率
+	dockerStats := make(map[string]struct{ CPU, Mem string })
+	if out, err := exec.Command("docker", "stats", "--no-stream", "--format", "{{.Name}}|{{.CPUPerc}}|{{.MemPerc}}").Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, "|")
+			if len(parts) >= 3 {
+				  name := strings.TrimPrefix(parts[0], "/")
+				dockerStats[name] = struct{ CPU, Mem string }{parts[1], parts[2]}
+			}
+		}
+	}
+
+	// 3. 从 Docker inspect 获取重启次数（批量）
+	restartCounts := make(map[string]int)
+	containerNames := make([]string, 0, len(allServices))
+	for _, svc := range allServices {
+		containerNames = append(containerNames, svc.ContainerName)
+	}
+	if out, err := exec.Command("docker", append([]string{"inspect", "-f", "{{.Name}}|{{.RestartCount}}"}, containerNames...)...).Output(); err == nil {
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, "|")
+			if len(parts) >= 2 {
+				name := strings.TrimPrefix(parts[0], "/")
+				count, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
+				restartCounts[name] = count
 			}
 		}
 	}
@@ -794,15 +833,14 @@ func (s *Service) collectServiceHealth() []map[string]interface{} {
 			status = cpStatus
 		case "data-plane":
 			status = dpStatus
-		case "auth-service":
+		case "auth":
 			status = authStatus
-		case "tenant-service":
+		case "tenant":
 			status = tenantStatus
 		}
 
 		// 如果 Docker 有该容器状态，使用 Docker 状态
 		if ds, ok := dockerStates[svc.ContainerName]; ok {
-			// 将 Docker 状态映射为 healthy/unhealthy
 			if ds == "running" {
 				status = "healthy"
 			} else {
@@ -810,18 +848,29 @@ func (s *Service) collectServiceHealth() []map[string]interface{} {
 			}
 		}
 
+		// 获取 CPU / 内存 / 重启次数
+		cpuVal, memVal, restartVal := 0.0, 0.0, 0
+		if st, ok := dockerStats[svc.ContainerName]; ok {
+			cpuStr := strings.TrimSuffix(st.CPU, "%")
+			cpuVal, _ = strconv.ParseFloat(cpuStr, 64)
+			memStr := strings.TrimSuffix(st.Mem, "%")
+			memVal, _ = strconv.ParseFloat(memStr, 64)
+		}
+		if rc, ok := restartCounts[svc.ContainerName]; ok {
+			restartVal = rc
+		}
+
 		result = append(result, map[string]interface{}{
 			"name":     svc.Name,
-			"type":     svc.SvcType,
+			"type":     svc.DisplayName,
 			"status":   status,
-			"cpu":      0,
-			"memory":   0,
-			"restarts": 0,
+			"cpu":      cpuVal,
+			"memory":   memVal,
+			"restarts": restartVal,
 		})
 	}
 	return result
 }
-
 func (s *Service) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	agents := s.ListAgents("", "", "")
 	result := make([]map[string]interface{}, 0, len(agents))

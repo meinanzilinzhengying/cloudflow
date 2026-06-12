@@ -407,7 +407,7 @@ async function fetchData() {
           restarts = h.restarts ?? 0
         }
       }
-      return { name: s.name, type: s.type, status, cpu, memory, restarts }
+      return { name: s.name, type: h?.type || s.type, status, cpu, memory, restarts }
     })
 
     // 3. 进程监控
