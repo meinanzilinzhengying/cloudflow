@@ -217,14 +217,14 @@ const ALL_SERVICES = [
 const services = ref([])
 const processes = ref([])
 
-// 时间范围配置
+// 时间范围配置：points × interval = 总时间范围
 const TIME_RANGE_CONFIG = {
-  '5m':  { points: 30, interval: 10000,  label: '5分钟' },
-  '15m': { points: 30, interval: 30000,  label: '15分钟' },
-  '1h':  { points: 30, interval: 120000, label: '1小时' },
-  '6h':  { points: 36, interval: 600000, label: '6小时' },
-  '1d':  { points: 48, interval: 1800000, label: '1天' },
-  '7d':  { points: 42, interval: 7200000, label: '7天' },
+  '5m':  { points: 30, interval: 10000,   label: '5分钟' },   // 30 × 10s  = 5m
+  '15m': { points: 30, interval: 30000,   label: '15分钟' },  // 30 × 30s  = 15m
+  '1h':  { points: 30, interval: 120000,  label: '1小时' },   // 30 × 2m   = 1h
+  '6h':  { points: 36, interval: 600000,  label: '6小时' },   // 36 × 10m  = 6h
+  '1d':  { points: 48, interval: 1800000, label: '1天' },     // 48 × 30m  = 24h
+  '7d':  { points: 42, interval: 14400000, label: '7天' },    // 42 × 4h   = 7d
 }
 
 const MAX_POINTS = ref(TIME_RANGE_CONFIG['5m'].points)
@@ -250,15 +250,8 @@ watch(timeRange, (val) => {
   const cfg = TIME_RANGE_CONFIG[val] || TIME_RANGE_CONFIG['5m']
   MAX_POINTS.value = cfg.points
   POLL_INTERVAL.value = cfg.interval
-  // 更新 X 轴标签
-  const labels = []
-  for (let i = MAX_POINTS.value - 1; i >= 0; i--) {
-    labels.push(formatTime(i))
-  }
-  cpuChartData.value = { ...cpuChartData.value, labels: [...labels] }
-  memoryChartData.value = { ...memoryChartData.value, labels: [...labels] }
-  networkChartData.value = { ...networkChartData.value, labels: [...labels] }
-  diskChartData.value = { ...diskChartData.value, labels: [...labels] }
+  // 重新初始化图表（labels 时间间隔 = POLL_INTERVAL，总时长 = points × interval）
+  initCharts()
   // 重新设置轮询间隔
   if (refreshInterval) clearInterval(refreshInterval)
   refreshInterval = setInterval(fetchData, POLL_INTERVAL.value)
@@ -317,78 +310,19 @@ function formatUptime(seconds) {
   return `${m}分钟`
 }
 
-function formatTime(offsetMin) {
+function formatTime(offsetMs) {
   const now = new Date()
-  const target = new Date(now.getTime() - offsetMin * 60000)
+  const target = new Date(now.getTime() - offsetMs)
   const hours = String(target.getHours()).padStart(2, '0')
   const minutes = String(target.getMinutes()).padStart(2, '0')
 
-  // 如果跨天（或跨月），显示月-日 时:分
+  // 跨天时显示 月-日 时:分
   if (target.getDate() !== now.getDate() || target.getMonth() !== now.getMonth()) {
     const month = String(target.getMonth() + 1).padStart(2, '0')
     const day = String(target.getDate()).padStart(2, '0')
     return `${month}-${day} ${hours}:${minutes}`
   }
   return `${hours}:${minutes}`
-}
-
-// --- localStorage 持久化 ---
-const CHART_STORAGE_KEY = 'cloudflow_dashboard_charts'
-const CHART_META_KEY = 'cloudflow_dashboard_charts_meta'
-
-function saveChartData() {
-  try {
-    const data = {
-      cpu: cpuChartData.value,
-      memory: memoryChartData.value,
-      network: networkChartData.value,
-      disk: diskChartData.value,
-    }
-    const meta = {
-      timeRange: timeRange.value,
-      savedAt: Date.now(),
-    }
-    localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(data))
-    localStorage.setItem(CHART_META_KEY, JSON.stringify(meta))
-  } catch (e) {
-    console.warn('Failed to save chart data:', e)
-  }
-}
-
-function loadChartData() {
-  try {
-    const rawData = localStorage.getItem(CHART_STORAGE_KEY)
-    const rawMeta = localStorage.getItem(CHART_META_KEY)
-    if (!rawData || !rawMeta) return false
-
-    const data = JSON.parse(rawData)
-    const meta = JSON.parse(rawMeta)
-
-    // 检查时间范围是否匹配（不匹配则丢弃）
-    if (meta.timeRange !== timeRange.value) {
-      localStorage.removeItem(CHART_STORAGE_KEY)
-      localStorage.removeItem(CHART_META_KEY)
-      return false
-    }
-
-    // 检查数据是否过期（超过当前时间范围覆盖时长的 2 倍）
-    const maxAge = POLL_INTERVAL.value * MAX_POINTS.value * 2
-    if (Date.now() - meta.savedAt > maxAge) {
-      localStorage.removeItem(CHART_STORAGE_KEY)
-      localStorage.removeItem(CHART_META_KEY)
-      return false
-    }
-
-    // 恢复数据
-    if (data.cpu) cpuChartData.value = data.cpu
-    if (data.memory) memoryChartData.value = data.memory
-    if (data.network) networkChartData.value = data.network
-    if (data.disk) diskChartData.value = data.disk
-    return true
-  } catch (e) {
-    console.warn('Failed to load chart data:', e)
-    return false
-  }
 }
 
 // --- 核心：推进实时图表 —— 每轮轮询推入一个新数据点，溢出时移除最老的 ---
@@ -409,9 +343,6 @@ function pushChartPoint(chartRef, newDataValues, labelSuffix = '') {
 
   // 一次性赋值新对象，彻底切断 Proxy 链
   chartRef.value = { labels: newLabels, datasets: newDatasets }
-
-  // 持久化到 localStorage
-  saveChartData()
 }
 
 // --- 轮询数据 ---
@@ -510,32 +441,31 @@ async function fetchData() {
   }
 }
 
+// --- 初始化图表 labels：按 POLL_INTERVAL 均匀分布，覆盖所选时间范围 ---
+function initCharts() {
+  const labels = []
+  for (let i = MAX_POINTS.value - 1; i >= 0; i--) {
+    const offsetMs = i * POLL_INTERVAL.value
+    labels.push(formatTime(offsetMs))
+  }
+  const zeros = new Array(MAX_POINTS.value).fill(0)
+
+  cpuChartData.value = { labels: [...labels], datasets: [{ label: 'CPU 使用率', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] }
+  memoryChartData.value = { labels: [...labels], datasets: [{ label: '内存使用', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] }
+  networkChartData.value = { labels: [...labels], datasets: [
+    { label: '入站', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 },
+    { label: '出站', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }
+  ]}
+  diskChartData.value = { labels: [...labels], datasets: [
+    { label: '读取', data: [...zeros], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 },
+    { label: '写入', data: [...zeros], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4 }
+  ]}
+}
+
 let refreshInterval = null
 
 onMounted(() => {
-  // 先尝试从 localStorage 恢复图表数据
-  const restored = loadChartData()
-
-  if (!restored) {
-    // 初始化：一次性构造完整数据对象再赋值，绝不用 .push() 触碰响应式数组
-    const labels = []
-    for (let i = MAX_POINTS.value - 1; i >= 0; i--) {
-      labels.push(formatTime(i))
-    }
-    const zeros = new Array(MAX_POINTS.value).fill(0)
-
-    cpuChartData.value = { labels: [...labels], datasets: [{ label: 'CPU 使用率', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 }] }
-    memoryChartData.value = { labels: [...labels], datasets: [{ label: '内存使用', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] }
-    networkChartData.value = { labels: [...labels], datasets: [
-      { label: '入站', data: [...zeros], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4 },
-      { label: '出站', data: [...zeros], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }
-    ]}
-    diskChartData.value = { labels: [...labels], datasets: [
-      { label: '读取', data: [...zeros], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 },
-      { label: '写入', data: [...zeros], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4 }
-    ]}
-  }
-
+  initCharts()
   fetchData()
   refreshInterval = setInterval(fetchData, POLL_INTERVAL.value)
 })
