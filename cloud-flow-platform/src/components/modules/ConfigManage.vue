@@ -22,7 +22,14 @@
       </button>
     </div>
     
-    <div class="bg-dark-800 rounded-xl border border-dark-600 overflow-hidden">
+    <div v-if="loading" class="bg-dark-800 rounded-xl border border-dark-600 p-8 text-center text-gray-500">
+      <RefreshCw class="w-6 h-6 animate-spin mx-auto mb-2" />
+      加载中...
+    </div>
+    <div v-else-if="error" class="bg-dark-800 rounded-xl border border-dark-600 p-8 text-center text-red-400">
+      {{ error }}
+    </div>
+    <div v-else class="bg-dark-800 rounded-xl border border-dark-600 overflow-hidden">
       <table class="w-full">
         <thead>
           <tr class="border-b border-dark-600">
@@ -47,8 +54,11 @@
               </span>
             </td>
             <td class="px-4 py-3">
-              <button @click="editConfig(config)" class="p-1.5 hover:bg-dark-600 rounded text-primary-400">
+              <button @click="editConfig(config)" class="p-1.5 hover:bg-dark-600 rounded text-primary-400 mr-1">
                 <Pencil class="w-4 h-4" />
+              </button>
+              <button @click="deleteConfigItem(config)" class="p-1.5 hover:bg-dark-600 rounded text-red-400">
+                <Trash2 class="w-4 h-4" />
               </button>
             </td>
           </tr>
@@ -89,7 +99,9 @@
         </div>
         <div class="flex justify-end gap-3 mt-6">
           <button @click="closeModal" class="px-4 py-2 text-gray-400 hover:text-white transition">取消</button>
-          <button @click="saveConfig" class="px-4 py-2 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-600 transition">保存</button>
+          <button @click="saveConfig" :disabled="saving" class="px-4 py-2 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-600 transition disabled:opacity-50">
+            {{ saving ? '保存中...' : '保存' }}
+          </button>
         </div>
       </div>
     </div>
@@ -97,8 +109,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { Plus, Pencil, X } from 'lucide-vue-next'
+import { ref, computed, onMounted } from 'vue'
+import { Plus, Pencil, X, Trash2, RefreshCw } from 'lucide-vue-next'
+import api from '../../api'
 
 const configTypes = [
   { label: '全部', value: 'all' },
@@ -110,6 +123,9 @@ const configTypes = [
 const activeType = ref('all')
 const showAddModal = ref(false)
 const editingConfig = ref(null)
+const loading = ref(false)
+const saving = ref(false)
+const error = ref('')
 
 const formData = ref({
   key: '',
@@ -118,20 +134,32 @@ const formData = ref({
   description: ''
 })
 
-const configs = ref([
-  { id: 1, key: 'cpu_usage_threshold', value: '85', type: 'threshold', description: 'CPU使用率告警阈值(%)' },
-  { id: 2, key: 'memory_usage_threshold', value: '90', type: 'threshold', description: '内存使用率告警阈值(%)' },
-  { id: 3, key: 'disk_usage_threshold', value: '95', type: 'threshold', description: '磁盘使用率告警阈值(%)' },
-  { id: 4, key: 'webhook_url', value: 'https://hooks.slack.com/services/xxx', type: 'notification', description: '告警通知Webhook地址' },
-  { id: 5, key: 'notification_interval', value: '60', type: 'notification', description: '告警通知间隔(秒)' },
-  { id: 6, key: 'log_level', value: 'info', type: 'general', description: '系统日志级别' },
-  { id: 7, key: 'retention_days', value: '30', type: 'general', description: '数据保留天数' }
-])
+const configs = ref([])
 
 const filteredConfigs = computed(() => {
   if (activeType.value === 'all') return configs.value
   return configs.value.filter(c => c.type === activeType.value)
 })
+
+async function fetchConfigs() {
+  loading.value = true
+  error.value = ''
+  try {
+    const data = await api.getConfigs()
+    if (data && Array.isArray(data)) {
+      configs.value = data
+    } else {
+      configs.value = []
+      if (data === null) {
+        error.value = '无法连接到配置服务，请检查后端是否正常运行'
+      }
+    }
+  } catch (e) {
+    error.value = '加载配置失败: ' + (e.message || '未知错误')
+  } finally {
+    loading.value = false
+  }
+}
 
 function getTypeClass(type) {
   if (type === 'threshold') return 'bg-blue-500/20 text-blue-400'
@@ -150,18 +178,42 @@ function closeModal() {
   formData.value = { key: '', value: '', type: 'threshold', description: '' }
 }
 
-function saveConfig() {
-  if (editingConfig.value) {
-    const index = configs.value.findIndex(c => c.id === editingConfig.value.id)
-    if (index !== -1) {
-      configs.value[index] = { ...editingConfig.value, ...formData.value }
+async function saveConfig() {
+  saving.value = true
+  try {
+    if (editingConfig.value) {
+      const updated = await api.updateConfig(formData.value)
+      if (updated) {
+        const index = configs.value.findIndex(c => c.key === updated.key)
+        if (index !== -1) {
+          configs.value[index] = updated
+        }
+      }
+    } else {
+      const created = await api.createConfig(formData.value)
+      if (created) {
+        configs.value.push(created)
+      }
     }
-  } else {
-    configs.value.push({
-      id: Date.now(),
-      ...formData.value
-    })
+    closeModal()
+  } catch (e) {
+    error.value = '保存失败: ' + (e.message || '未知错误')
+  } finally {
+    saving.value = false
   }
-  closeModal()
 }
+
+async function deleteConfigItem(config) {
+  if (!confirm(`确定要删除配置 "${config.key}" 吗？`)) return
+  try {
+    await api.deleteConfig(config.key)
+    configs.value = configs.value.filter(c => c.key !== config.key)
+  } catch (e) {
+    error.value = '删除失败: ' + (e.message || '未知错误')
+  }
+}
+
+onMounted(() => {
+  fetchConfigs()
+})
 </script>

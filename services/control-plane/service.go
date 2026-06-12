@@ -100,6 +100,20 @@ func DefaultConfig() *Config {
 }
 
 // ============================================================================
+// 运行时配置
+// ============================================================================
+
+// RuntimeConfig 动态配置项
+type RuntimeConfig struct {
+	ID          int64  `json:"id"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	Type        string `json:"type"`        // threshold / notification / general
+	Description string `json:"description"`
+	UpdatedAt   int64  `json:"updated_at"`
+}
+
+// ============================================================================
 // 服务
 // ============================================================================
 
@@ -130,6 +144,10 @@ type Service struct {
 	authConn      *grpc.ClientConn
 	tenantConn    *grpc.ClientConn
 
+	// 动态配置存储
+	configs     map[string]*RuntimeConfig
+	configsMu   sync.RWMutex
+
 	// 运行状态
 	startTime time.Time
 	running   bool
@@ -145,6 +163,21 @@ func New(config *Config) (*Service, error) {
 		config:    config,
 		startTime: time.Now(),
 		health:    health.NewServer(),
+		configs:   make(map[string]*RuntimeConfig),
+	}
+
+	// 初始化默认配置
+	defaultConfigs := []*RuntimeConfig{
+		{ID: 1, Key: "cpu_usage_threshold", Value: "85", Type: "threshold", Description: "CPU使用率告警阈值(%)", UpdatedAt: time.Now().Unix()},
+		{ID: 2, Key: "memory_usage_threshold", Value: "90", Type: "threshold", Description: "内存使用率告警阈值(%)", UpdatedAt: time.Now().Unix()},
+		{ID: 3, Key: "disk_usage_threshold", Value: "95", Type: "threshold", Description: "磁盘使用率告警阈值(%)", UpdatedAt: time.Now().Unix()},
+		{ID: 4, Key: "webhook_url", Value: "https://hooks.slack.com/services/xxx", Type: "notification", Description: "告警通知Webhook地址", UpdatedAt: time.Now().Unix()},
+		{ID: 5, Key: "notification_interval", Value: "60", Type: "notification", Description: "告警通知间隔(秒)", UpdatedAt: time.Now().Unix()},
+		{ID: 6, Key: "log_level", Value: "info", Type: "general", Description: "系统日志级别", UpdatedAt: time.Now().Unix()},
+		{ID: 7, Key: "retention_days", Value: "30", Type: "general", Description: "数据保留天数", UpdatedAt: time.Now().Unix()},
+	}
+	for _, c := range defaultConfigs {
+		s.configs[c.Key] = c
 	}
 
 	// P1-01 新增: 初始化 TLS credentials
@@ -522,6 +555,7 @@ func (s *Service) authMiddleware(next http.Handler) *http.ServeMux {
 	protectedMux.HandleFunc("/api/agents", s.listAgentsHandler)
 	protectedMux.HandleFunc("/api/agents/register", s.registerAgentHandler)
 	protectedMux.HandleFunc("/api/processes", s.processesHandler)
+	protectedMux.HandleFunc("/api/configs", s.configsHandler)
 
 	protectedMux.HandleFunc("/api/edges", func(w http.ResponseWriter, r *http.Request) {
 		if !s.authenticateRequest(r) {
@@ -997,6 +1031,103 @@ func (s *Service) processesHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+// configsHandler 配置管理 API：GET 列表，POST 创建，PUT 更新
+func (s *Service) configsHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		s.configsMu.RLock()
+		result := make([]*RuntimeConfig, 0, len(s.configs))
+		for _, c := range s.configs {
+			result = append(result, c)
+		}
+		s.configsMu.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+
+	case http.MethodPost:
+		var req struct {
+			Key         string `json:"key"`
+			Value       string `json:"value"`
+			Type        string `json:"type"`
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if req.Key == "" {
+			http.Error(w, "key is required", http.StatusBadRequest)
+			return
+		}
+		s.configsMu.Lock()
+		if _, exists := s.configs[req.Key]; exists {
+			s.configsMu.Unlock()
+			http.Error(w, "key already exists", http.StatusConflict)
+			return
+		}
+		cfg := &RuntimeConfig{
+			ID:          time.Now().UnixNano(),
+			Key:         req.Key,
+			Value:       req.Value,
+			Type:        req.Type,
+			Description: req.Description,
+			UpdatedAt:   time.Now().Unix(),
+		}
+		s.configs[req.Key] = cfg
+		s.configsMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(cfg)
+
+	case http.MethodPut:
+		var req struct {
+			Key         string `json:"key"`
+			Value       string `json:"value"`
+			Type        string `json:"type"`
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if req.Key == "" {
+			http.Error(w, "key is required", http.StatusBadRequest)
+			return
+		}
+		s.configsMu.Lock()
+		existing, ok := s.configs[req.Key]
+		if !ok {
+			s.configsMu.Unlock()
+			http.Error(w, "key not found", http.StatusNotFound)
+			return
+		}
+		existing.Value = req.Value
+		if req.Type != "" {
+			existing.Type = req.Type
+		}
+		if req.Description != "" {
+			existing.Description = req.Description
+		}
+		existing.UpdatedAt = time.Now().Unix()
+		s.configsMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(existing)
+
+	case http.MethodDelete:
+		key := r.URL.Query().Get("key")
+		if key == "" {
+			http.Error(w, "key is required", http.StatusBadRequest)
+			return
+		}
+		s.configsMu.Lock()
+		delete(s.configs, key)
+		s.configsMu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 func (s *Service) listAgentsHandler(w http.ResponseWriter, r *http.Request) {

@@ -34,6 +34,15 @@ export default {
   getConfigs() {
     return api.get('/control/configs').catch(() => null)
   },
+  createConfig(data) {
+    return api.post('/control/configs', data).catch(() => null)
+  },
+  updateConfig(data) {
+    return api.put('/control/configs', data).catch(() => null)
+  },
+  deleteConfig(key) {
+    return api.delete(`/control/configs?key=${encodeURIComponent(key)}`).catch(() => null)
+  },
 
   getAlerts() {
     return api.get('/alert/alerts').catch(() => null)
