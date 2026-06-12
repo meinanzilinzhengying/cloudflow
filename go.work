@@ -1,7 +1,6 @@
 go 1.25.1
 
 use (
-	./cloud-flow-agent
 	./cloud-flow-ai
 	./cloud-flow-center
 	./cloud-flow-edge

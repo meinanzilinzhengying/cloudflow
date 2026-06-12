@@ -3,7 +3,6 @@ package metrics
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"

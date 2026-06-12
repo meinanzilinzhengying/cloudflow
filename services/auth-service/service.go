@@ -16,9 +16,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
-	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
+	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
@@ -77,7 +76,7 @@ type Config struct {
 
 // DefaultConfig 默认配置
 func DefaultConfig() *Config {
-	return &Config{
+	cfg := &Config{
 		ServiceName:    "auth-service",
 		Version:        "1.0.0",
 		GrpcAddr:       ":9006",
@@ -90,6 +89,23 @@ func DefaultConfig() *Config {
 		TLSEnabled:     false,
 		TLSInsecureSkip: false,
 	}
+
+	// "TIDB_ADDR" from env, default tidb:4000
+	if v := os.Getenv("TIDB_ADDR"); v != "" {
+		cfg.TiDBAddr = v
+	} else {
+		cfg.TiDBAddr = "tidb:4000"
+	}
+	if v := os.Getenv("TIDB_USER"); v != "" {
+		cfg.TiDBUser = v
+	} else {
+		cfg.TiDBUser = "root"
+	}
+	cfg.TiDBPassword = os.Getenv("TIDB_PASSWORD")
+	if v := os.Getenv("TIDB_DATABASE"); v != "" {
+		cfg.TiDBDatabase = v
+	}
+	return cfg
 }
 
 // ============================================================================
@@ -383,21 +399,21 @@ func (s *Service) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthzHandler)
 	mux.Handle("/metrics", metrics.Handler())
-	mux.HandleFunc("/api/login", s.loginHandler)
-	mux.HandleFunc("/api/verify", s.verifyHandler)
-	mux.HandleFunc("/api/refresh", s.refreshHandler)
-	mux.HandleFunc("/api/revoke", s.revokeHandler)
-	mux.HandleFunc("/api/oidc/callback", s.oidcCallbackHandler)
-	mux.HandleFunc("/api/oidc/auth", s.oidcAuthHandler)
-	mux.HandleFunc("/api/roles", s.rolesHandler)
-	mux.HandleFunc("/api/permissions/check", s.checkPermissionHandler)
-	mux.HandleFunc("/api/apikeys", s.apiKeyHandler)
+	mux.HandleFunc("/login", s.loginHandler)
+	mux.HandleFunc("/verify", s.verifyHandler)
+	mux.HandleFunc("/refresh", s.refreshHandler)
+	mux.HandleFunc("/revoke", s.revokeHandler)
+	mux.HandleFunc("/oidc/callback", s.oidcCallbackHandler)
+	mux.HandleFunc("/oidc/auth", s.oidcAuthHandler)
+	mux.HandleFunc("/roles", s.rolesHandler)
+	mux.HandleFunc("/permissions/check", s.checkPermissionHandler)
+	mux.HandleFunc("/apikeys", s.apiKeyHandler)
 	
 	// P0-02 修复: 添加用户管理 API
-	mux.HandleFunc("/api/users", s.usersHandler)
-	mux.HandleFunc("/api/users/create", s.createUserHandler)
-	mux.HandleFunc("/api/users/update", s.updateUserHandler)
-	mux.HandleFunc("/api/users/delete", s.deleteUserHandler)
+	mux.HandleFunc("/users", s.usersHandler)
+	mux.HandleFunc("/users/create", s.createUserHandler)
+	mux.HandleFunc("/users/update", s.updateUserHandler)
+	mux.HandleFunc("/users/delete", s.deleteUserHandler)
 
 	s.httpServer = &http.Server{
 		Addr:    s.config.HttpAddr,

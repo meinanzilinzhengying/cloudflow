@@ -228,6 +228,7 @@ services:
       JWT_EXPIRE_SEC: 86400
       JWT_REFRESH_SEC: 604800
       SUPER_ADMIN_ROLE: super_admin
+      ADMIN_INITIAL_PASSWORD: "admin123"
       TIDB_ADDR: "tidb:4000"
       TIDB_USER: root
       TIDB_PASSWORD: ""
@@ -758,7 +759,7 @@ services:
     environment:
       TZ: Asia/Shanghai
     healthcheck:
-      test: ["CMD", "curl", "-f", "<URL>"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -787,7 +788,7 @@ services:
     environment:
       TZ: Asia/Shanghai
     healthcheck:
-      test: ["CMD", "curl", "-f", "<URL>"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 10s
       timeout: 5s
       retries: 3
