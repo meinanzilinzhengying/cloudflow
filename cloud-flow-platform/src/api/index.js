@@ -79,5 +79,15 @@ export default {
 
   uninstallAgent(id) {
     return api.delete(`/agents/${id}`).catch(() => null)
+  },
+  // ========= eBPF 探针管理 (VM2 :9090) =========
+  getEBPFStatus() {
+    return fetch('http://192.168.58.131:9090/api/probe/status').then(r => r.json()).catch(() => null)
+  },
+
+  controlEBPF(action) {
+    return fetch(`http://192.168.58.131:9090/api/probe/${action}`, { method: 'POST' })
+      .then(r => r.json())
+      .catch(() => null)
   }
 }

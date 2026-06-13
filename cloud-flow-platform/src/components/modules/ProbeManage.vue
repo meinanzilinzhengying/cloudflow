@@ -118,23 +118,37 @@
               </span>
             </td>
             <td class="px-4 py-3 text-sm text-gray-400">{{ probe.lastHeartbeat }}</td>
+            <td class="px-4 py-3 text-sm text-gray-400">{{ probe.flows || '-' }}</td>
             <td class="px-4 py-3">
               <div class="flex gap-2">
-                <button @click="editProbe(probe)" class="p-1.5 hover:bg-dark-600 rounded text-blue-400" title="编辑配置">
-                  <Pencil class="w-4 h-4" />
-                </button>
-                <button @click="stopProbe(probe)" :disabled="probe.status !== 'online'" class="p-1.5 hover:bg-dark-600 rounded text-yellow-400 disabled:opacity-30 disabled:cursor-not-allowed" title="停止">
-                  <Power class="w-4 h-4" />
-                </button>
-                <button @click="restartProbe(probe)" :disabled="probe.status === 'offline'" class="p-1.5 hover:bg-dark-600 rounded text-green-400 disabled:opacity-30 disabled:cursor-not-allowed" title="重启">
-                  <RotateCcw class="w-4 h-4" />
-                </button>
-                <button @click="upgradeProbe(probe)" class="p-1.5 hover:bg-dark-600 rounded text-primary-400" title="升级">
-                  <ArrowUpCircle class="w-4 h-4" />
-                </button>
-                <button @click="uninstallProbe(probe)" class="p-1.5 hover:bg-dark-600 rounded text-red-400" title="卸载">
-                  <Trash2 class="w-4 h-4" />
-                </button>
+                <template v-if="probe.type === 'eBPF'">
+                  <button @click="startProbe(probe)" :disabled="probe.status === 'online'" class="p-1.5 hover:bg-dark-600 rounded text-green-400 disabled:opacity-30 disabled:cursor-not-allowed" title="启动">
+                    <Play class="w-4 h-4" />
+                  </button>
+                  <button @click="stopProbe(probe)" :disabled="probe.status !== 'online'" class="p-1.5 hover:bg-dark-600 rounded text-yellow-400 disabled:opacity-30 disabled:cursor-not-allowed" title="停止">
+                    <Power class="w-4 h-4" />
+                  </button>
+                  <button @click="restartProbe(probe)" :disabled="probe.status === 'offline'" class="p-1.5 hover:bg-dark-600 rounded text-blue-400 disabled:opacity-30 disabled:cursor-not-allowed" title="重启">
+                    <RotateCcw class="w-4 h-4" />
+                  </button>
+                </template>
+                <template v-else>
+                  <button @click="editProbe(probe)" class="p-1.5 hover:bg-dark-600 rounded text-blue-400" title="编辑配置">
+                    <Pencil class="w-4 h-4" />
+                  </button>
+                  <button @click="stopProbe(probe)" :disabled="probe.status !== 'online'" class="p-1.5 hover:bg-dark-600 rounded text-yellow-400 disabled:opacity-30 disabled:cursor-not-allowed" title="停止">
+                    <Power class="w-4 h-4" />
+                  </button>
+                  <button @click="restartProbe(probe)" :disabled="probe.status === 'offline'" class="p-1.5 hover:bg-dark-600 rounded text-green-400 disabled:opacity-30 disabled:cursor-not-allowed" title="重启">
+                    <RotateCcw class="w-4 h-4" />
+                  </button>
+                  <button @click="upgradeProbe(probe)" class="p-1.5 hover:bg-dark-600 rounded text-primary-400" title="升级">
+                    <ArrowUpCircle class="w-4 h-4" />
+                  </button>
+                  <button @click="uninstallProbe(probe)" class="p-1.5 hover:bg-dark-600 rounded text-red-400" title="卸载">
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </template>
               </div>
             </td>
           </tr>
@@ -278,7 +292,10 @@
                     placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
                   ></textarea>
                 </div>
-              </template>
+              
+    
+
+</template>
             </div>
           </div>
           
@@ -1033,6 +1050,7 @@ const sshForm = ref({
 
 const groups = ref([])
 const probes = ref([])
+const ebpfStatus = ref(null)
 
 // ========== 数据加载 ==========
 async function fetchProbes() {
@@ -1041,14 +1059,47 @@ async function fetchProbes() {
     const res = await api.getAgents()
     if (res && Array.isArray(res)) {
       probes.value = res
-      // 自动提取分组
       const groupSet = new Set(res.map(p => p.group).filter(Boolean))
       groups.value = Array.from(groupSet)
+    } else {
+      probes.value = []
     }
   } catch (e) {
     console.error('获取探针列表失败:', e)
+    probes.value = []
   } finally {
     loading.value = false
+  }
+  
+  // 获取 eBPF 探针状态并加入列表
+  try {
+    const ebpfRes = await fetch('http://192.168.58.131:9090/api/probe/status')
+    if (ebpfRes.ok) {
+      const ebpfData = await ebpfRes.json()
+      ebpfStatus.value = ebpfData
+      // 构建 eBPF 探针条目，匹配表格字段
+      const ebpfEntry = {
+        id: 'ebpf-vm2',
+        name: 'eBPF-VM2',
+        type: 'eBPF',
+        group: '默认',
+        version: '1.0.0',
+        ip: '192.168.58.131',
+        status: ebpfData.status === 'running' ? 'online' : 'offline',
+        lastHeartbeat: new Date().toISOString(),
+        flows: ebpfData.flows_total || '-',
+        uptime: ebpfData.uptime || '',
+        recent_logs: ebpfData.recent_logs || ''
+      }
+      const idx = probes.value.findIndex(p => p.id === 'ebpf-vm2')
+      if (idx >= 0) {
+        probes.value[idx] = ebpfEntry
+      } else {
+        probes.value.push(ebpfEntry)
+      }
+    }
+  } catch (e) {
+    console.error('获取 eBPF 探针状态失败:', e)
   }
 }
 
@@ -1188,6 +1239,18 @@ async function saveProbeEdit() {
 }
 
 // ========== 停止 / 重启探针 ==========
+async function startProbe(probe) {
+  if (probe && probe.type === 'eBPF') {
+    try {
+      const r = await fetch('http://192.168.58.131:9090/api/probe/start', { method: 'POST' })
+      const d = await r.json()
+      ElMessage.success(d.success ? 'eBPF 启动成功' : 'eBPF 启动失败')
+    } catch(e) { ElMessage.error('启动失败: ' + e.message) }
+    await fetchProbes()
+    return
+  }
+}
+
 async function stopProbe(probe) {
   if (probe.status !== 'online') return
   if (!confirm(`确定要停止探针 ${probe.name} 吗？`)) return
@@ -1365,4 +1428,25 @@ async function startSSHInstall() {
     installing.value = false
   }
 }
+
+
+
+async function controlEBPF(action) {
+  try {
+    const res = await fetch('http://192.168.58.131:9090/api/probe/' + action, { method: 'POST' })
+    if (res.ok) {
+      const data = await res.json()
+      ElMessage.success('eBPF ' + (action === 'start' ? '启动' : action === 'stop' ? '停止' : '重启') + '成功')
+    } else {
+      ElMessage.error('操作失败')
+    }
+  } catch (e) {
+    ElMessage.error('操作异常: ' + e.message)
+  } finally {
+    await fetchEBPFStatus()
+  }
+}
+
+// Also call fetchEBPFStatus in onMounted
+
 </script>
