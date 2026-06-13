@@ -882,19 +882,93 @@ func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
-	req := &svcproto.QueryFlowRequest{
-		TenantId:  r.URL.Query().Get("tenant_id"),
-		StartTime: parseInt64(r.URL.Query().Get("start_time")),
-		EndTime:   parseInt64(r.URL.Query().Get("end_time")),
-	}
-	resp, err := s.QueryDashboard(r.Context(), req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	ctx := r.Context()
+
+	if s.clickHouseDB == nil {
+		writeJSON(w, map[string]interface{}{
+			"totalFlows": 0, "activeAgents": 0, "activeServices": 0,
+			"trafficLabels": []string{}, "trafficInbound": []int64{}, "trafficOutbound": []int64{},
+			"topServices": []map[string]interface{}{}, "resources": []map[string]interface{}{},
+			"avgLatency": 0,
+		})
 		return
 	}
-	writeJSON(w, resp)
-}
 
+	var totalFlows, activeAgents, activeServices int64
+	s.clickHouseDB.QueryRowContext(ctx, "SELECT count() FROM cloudflow.flows").Scan(&totalFlows)
+	s.clickHouseDB.QueryRowContext(ctx, "SELECT count(DISTINCT probe_id) FROM cloudflow.flows WHERE probe_id != '' AND probe_id != 'test'").Scan(&activeAgents)
+	s.clickHouseDB.QueryRowContext(ctx, "SELECT count(DISTINCT dst_ip) FROM cloudflow.flows WHERE dst_ip != '' AND dst_ip NOT IN ('test','cpu','memory','network')").Scan(&activeServices)
+
+	rows, _ := s.clickHouseDB.QueryContext(ctx, `
+		SELECT toStartOfMinute(timestamp) as t, sum(bytes) as total
+		FROM cloudflow.flows
+		WHERE timestamp > now() - INTERVAL 30 MINUTE
+		GROUP BY t ORDER BY t
+	`)
+	var trafficLabels []string
+	var trafficInbound []int64
+	if rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var t time.Time
+			var total int64
+			if rows.Scan(&t, &total) == nil {
+				trafficLabels = append(trafficLabels, t.Format("15:04"))
+				trafficInbound = append(trafficInbound, total)
+			}
+		}
+	}
+
+	topRows, _ := s.clickHouseDB.QueryContext(ctx, `
+		SELECT dst_ip, count() as cnt
+		FROM cloudflow.flows
+		WHERE timestamp > now() - INTERVAL 30 MINUTE AND dst_ip != '' AND dst_ip NOT IN ('test','cpu','memory','network')
+		GROUP BY dst_ip ORDER BY cnt DESC LIMIT 5
+	`)
+	var topServices []map[string]interface{}
+	if topRows != nil {
+		defer topRows.Close()
+		maxCnt := int64(0)
+		for topRows.Next() {
+			var name string
+			var cnt int64
+			if topRows.Scan(&name, &cnt) == nil {
+				if cnt > maxCnt { maxCnt = cnt }
+				topServices = append(topServices, map[string]interface{}{"name": name, "qps": cnt, "percentage": 0.0})
+			}
+		}
+		if maxCnt > 0 {
+			for _, svc := range topServices {
+				svc["percentage"] = float64(svc["qps"].(int64)) / float64(maxCnt) * 100.0
+			}
+		}
+	}
+
+	cpuVal, memVal, netVal := 0.0, 0.0, 0.0
+	s.clickHouseDB.QueryRowContext(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='cpu_percent' ORDER BY timestamp DESC LIMIT 1").Scan(&cpuVal)
+	s.clickHouseDB.QueryRowContext(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='memory' ORDER BY timestamp DESC LIMIT 1").Scan(&memVal)
+	s.clickHouseDB.QueryRowContext(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='network' ORDER BY timestamp DESC LIMIT 1").Scan(&netVal)
+	resources := []map[string]interface{}{
+		{"name": "CPU", "percentage": cpuVal, "color": "stroke-primary-500"},
+		{"name": "Memory", "percentage": memVal, "color": "stroke-accent-500"},
+		{"name": "NetworkIO", "percentage": netVal / 10000.0, "color": "stroke-amber-500"},
+		{"name": "Disk", "percentage": 0.0, "color": "stroke-emerald-500"},
+	}
+
+	var avgLatency float64
+	s.clickHouseDB.QueryRowContext(ctx, "SELECT avg(latency_ms) FROM cloudflow.flows WHERE latency_ms > 0 AND timestamp > now() - INTERVAL 30 MINUTE").Scan(&avgLatency)
+
+	result := map[string]interface{}{
+		"totalFlows": totalFlows, "activeAgents": activeAgents, "activeServices": activeServices,
+		"trafficLabels": trafficLabels, "trafficInbound": trafficInbound, "trafficOutbound": []int64{},
+		"topServices": topServices, "resources": resources,
+		"avgLatency": avgLatency,
+		"traceCount": 0, "alertCount": 0,
+		"flowsChange": "0%", "agentsChange": "0", "servicesChange": "0",
+		"tracesChange": "0%", "alertsChange": "0%", "latencyChange": "0ms",
+	}
+	writeJSON(w, result)
+}
 func (s *Service) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	req := &svcproto.QueryFlowRequest{
 		TenantId:  r.URL.Query().Get("tenant_id"),

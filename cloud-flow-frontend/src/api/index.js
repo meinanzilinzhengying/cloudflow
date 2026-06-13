@@ -128,7 +128,7 @@ export const queryService = {
     queryApi.get('/overview'),
 
   getMetrics: (params) =>
-    queryApi.get('/metrics', { params }),
+    queryApi.get('/metrics-data', { params }),
 
   getFlows: (params) =>
     queryApi.get('/flows', { params }),

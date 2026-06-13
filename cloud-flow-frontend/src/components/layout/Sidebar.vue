@@ -1,7 +1,7 @@
 <template>
   <aside
     :class="[
-      'fixed left-0 top-0 bottom-0 z-40 flex flex-col',
+      'relative h-screen flex flex-col',
       'bg-slate-900 dark:bg-dark-950',
       'border-r border-slate-800 dark:border-dark-800',
       'transition-all duration-300 ease-in-out',

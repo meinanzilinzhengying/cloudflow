@@ -274,6 +274,7 @@ func New(config *Config) (*Service, error) {
 	s.grpcServer = grpc.NewServer(grpcOptions...)
 
 	RegisterDataPlaneService(s.grpcServer, s)
+	RegisterProbeService(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
 	// P0-3 修复: 初始化认证中间件
@@ -1224,4 +1225,11 @@ func (s *Service) systemMetricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(metrics)
+}
+
+// addMetricsIngested 增加指标采集统计
+func (s *Service) addMetricsIngested(n uint64) {
+	s.statsMu.Lock()
+	s.stats.MetricsIngested += n
+	s.statsMu.Unlock()
 }
