@@ -36,12 +36,12 @@ use([CanvasRenderer, BarChart, TooltipComponent, GridComponent])
 const slowRequestOption = computed(() => ({
   tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.95)', textStyle: { color: '#1e293b' } },
   grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
-  xAxis: { type: 'category', data: ['API Gateway', 'User Service', 'Order Service', 'Payment Service', 'Product Service'], axisLabel: { color: '#64748b', fontSize: 11 } },
+  xAxis: { type: 'category', data: [], axisLabel: { fontSize: 11 } },
   yAxis: { type: 'value', name: '平均延迟(ms)', axisLabel: { color: '#64748b', fontSize: 11 }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
   series: [{
     type: 'bar',
     itemStyle: { color: '#ef4444', borderRadius: [4, 4, 0, 0] },
-    data: [156, 234, 456, 123, 89],
+    data: [],
   }],
 }))
 </script>

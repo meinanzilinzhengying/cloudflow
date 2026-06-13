@@ -30,11 +30,11 @@ const containerOption = computed(() => ({
   tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.95)', textStyle: { color: '#1e293b' } },
   legend: { bottom: 0, textStyle: { color: '#64748b' } },
   grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
-  xAxis: { type: 'category', data: ['api-gw', 'user-svc', 'order-svc', 'pay-svc', 'prod-svc'], axisLabel: { color: '#64748b' } },
+  xAxis: { type: 'category', data: [], axisLabel: { color: '#64748b' } },
   yAxis: { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
   series: [
-    { name: 'CPU(cores)', type: 'bar', itemStyle: { color: '#2563eb' }, data: [0.8, 0.5, 1.2, 0.3, 0.6] },
-    { name: 'Memory(GB)', type: 'bar', itemStyle: { color: '#14b8a6' }, data: [1.2, 0.8, 1.5, 0.5, 0.6] },
+    { name: 'CPU(cores)', type: 'bar', itemStyle: { color: '#2563eb' }, data: [] },
+    { name: 'Memory(GB)', type: 'bar', itemStyle: { color: '#14b8a6' }, data: [] },
   ],
 }))
 </script>

@@ -178,11 +178,7 @@ const tabs = [
   { id: 'namespace', label: 'Namespace' },
 ]
 
-const serviceStats = ref({
-  total: 12,
-  calls: 156,
-  errorRate: 2.3,
-})
+const serviceStats = ref({ services: [], edges: [], trafficStats: { totalTraffic: '0 B', activeConnections: 0, protocolDist: [] } })
 
 const selectedService = ref(null)
 

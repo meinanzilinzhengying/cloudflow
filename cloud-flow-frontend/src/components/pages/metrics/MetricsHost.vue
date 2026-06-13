@@ -10,19 +10,19 @@
     <div class="grid grid-cols-4 gap-4">
       <div class="card p-4">
         <p class="text-sm text-slate-500">CPU使用率</p>
-        <p class="text-2xl font-bold text-primary-500 mt-1">45%</p>
+        <p class="text-2xl font-bold text-primary-500 mt-1">--</p>
       </div>
       <div class="card p-4">
         <p class="text-sm text-slate-500">内存使用</p>
-        <p class="text-2xl font-bold text-accent-500 mt-1">6.2 GB / 16 GB</p>
+        <p class="text-2xl font-bold text-accent-500 mt-1">--</p>
       </div>
       <div class="card p-4">
         <p class="text-sm text-slate-500">磁盘I/O</p>
-        <p class="text-2xl font-bold text-emerald-500 mt-1">120 MB/s</p>
+        <p class="text-2xl font-bold text-emerald-500 mt-1">-- MB/s</p>
       </div>
       <div class="card p-4">
         <p class="text-sm text-slate-500">网络带宽</p>
-        <p class="text-2xl font-bold text-amber-500 mt-1">230 Mbps</p>
+        <p class="text-2xl font-bold text-amber-500 mt-1">-- Mbps</p>
       </div>
     </div>
 
@@ -56,7 +56,7 @@ use([CanvasRenderer, LineChart, TooltipComponent, GridComponent])
 const cpuOption = computed(() => ({
   tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.95)', textStyle: { color: '#1e293b' } },
   grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
-  xAxis: { type: 'category', data: ['00:00', '06:00', '12:00', '18:00', '24:00'], axisLabel: { color: '#64748b' } },
+  xAxis: { type: 'category', data: [], axisLabel: {} },
   yAxis: { type: 'value', max: 100, axisLabel: { color: '#64748b', formatter: '{value}%' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
   series: [{ 
     type: 'line', 
@@ -69,14 +69,14 @@ const cpuOption = computed(() => ({
         colorStops: [{ offset: 0, color: 'rgba(37,99,235,0.15)' }, { offset: 1, color: 'rgba(37,99,235,0)' }] 
       } 
     }, 
-    data: [35, 45, 62, 48, 45] 
+    data: [] 
   }],
 }))
 
 const memoryOption = computed(() => ({
   tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.95)', textStyle: { color: '#1e293b' } },
   grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
-  xAxis: { type: 'category', data: ['00:00', '06:00', '12:00', '18:00', '24:00'], axisLabel: { color: '#64748b' } },
+  xAxis: { type: 'category', data: [], axisLabel: {} },
   yAxis: { type: 'value', max: 16, axisLabel: { color: '#64748b', formatter: '{value} GB' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
   series: [{ 
     type: 'line', 
@@ -89,7 +89,7 @@ const memoryOption = computed(() => ({
         colorStops: [{ offset: 0, color: 'rgba(20,184,166,0.15)' }, { offset: 1, color: 'rgba(20,184,166,0)' }] 
       } 
     }, 
-    data: [4.2, 5.1, 6.8, 5.9, 6.2] 
+    data: [] 
   }],
 }))
 </script>

@@ -339,12 +339,7 @@ const alerts = ref([
   { id: 5, title: '连接池耗尽', severity: 'high', service: 'Order Service', description: '数据库连接池已耗尽', time: '25分钟前', status: '已恢复', duration: '15分钟', instance: 'order-svc-1', logSample: '[ERROR] connection pool exhausted' },
 ])
 
-const rules = ref([
-  { id: 1, name: 'CPU使用率告警', metric: 'cpu_usage', threshold: '> 80%', severity: 'high', enabled: true },
-  { id: 2, name: '内存使用告警', metric: 'memory_usage', threshold: '> 85%', severity: 'medium', enabled: true },
-  { id: 3, name: '服务延迟告警', metric: 'latency', threshold: '> 500ms', severity: 'critical', enabled: true },
-  { id: 4, name: '错误率告警', metric: 'error_rate', threshold: '> 5%', severity: 'high', enabled: false },
-])
+const rules = ref([])
 
 const notificationPolicies = ref([
   { id: 1, name: '邮件通知', description: '发送告警邮件到指定邮箱', icon: Mail, color: 'text-blue-500' },

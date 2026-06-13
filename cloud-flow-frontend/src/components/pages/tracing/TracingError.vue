@@ -10,15 +10,15 @@
     <div class="grid grid-cols-3 gap-4">
       <div class="card p-4">
         <p class="text-sm text-slate-500">总错误数</p>
-        <p class="text-2xl font-bold text-red-500 mt-1">156</p>
+        <p class="text-2xl font-bold text-red-500 mt-1">--</p>
       </div>
       <div class="card p-4">
         <p class="text-sm text-slate-500">4xx错误</p>
-        <p class="text-2xl font-bold text-amber-500 mt-1">89</p>
+        <p class="text-2xl font-bold text-amber-500 mt-1">--</p>
       </div>
       <div class="card p-4">
         <p class="text-sm text-slate-500">5xx错误</p>
-        <p class="text-2xl font-bold text-red-500 mt-1">67</p>
+        <p class="text-2xl font-bold text-red-500 mt-1">--</p>
       </div>
     </div>
 
@@ -50,12 +50,7 @@ const errorOption = computed(() => ({
     itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
     label: { show: false },
     emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
-    data: [
-      { value: 45, name: '500 内部错误', itemStyle: { color: '#ef4444' } },
-      { value: 30, name: '400 请求错误', itemStyle: { color: '#f59e0b' } },
-      { value: 15, name: '401 未授权', itemStyle: { color: '#8b5cf6' } },
-      { value: 10, name: '其他', itemStyle: { color: '#94a3b8' } },
-    ],
+    data: [],
   }],
 }))
 </script>
