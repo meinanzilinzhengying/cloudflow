@@ -120,6 +120,15 @@
             <td class="px-4 py-3 text-sm text-gray-400">{{ probe.lastHeartbeat }}</td>
             <td class="px-4 py-3">
               <div class="flex gap-2">
+                <button @click="editProbe(probe)" class="p-1.5 hover:bg-dark-600 rounded text-blue-400" title="编辑配置">
+                  <Pencil class="w-4 h-4" />
+                </button>
+                <button @click="stopProbe(probe)" :disabled="probe.status !== 'online'" class="p-1.5 hover:bg-dark-600 rounded text-yellow-400 disabled:opacity-30 disabled:cursor-not-allowed" title="停止">
+                  <Power class="w-4 h-4" />
+                </button>
+                <button @click="restartProbe(probe)" :disabled="probe.status === 'offline'" class="p-1.5 hover:bg-dark-600 rounded text-green-400 disabled:opacity-30 disabled:cursor-not-allowed" title="重启">
+                  <RotateCcw class="w-4 h-4" />
+                </button>
                 <button @click="upgradeProbe(probe)" class="p-1.5 hover:bg-dark-600 rounded text-primary-400" title="升级">
                   <ArrowUpCircle class="w-4 h-4" />
                 </button>
@@ -662,18 +671,173 @@
             <X class="w-5 h-5" />
           </button>
         </div>
-        <div class="space-y-2">
-          <div v-for="group in groups" :key="group" class="flex items-center justify-between p-3 bg-dark-700 rounded-lg">
-            <span class="text-white">{{ group }}</span>
-            <span class="text-sm text-gray-400">{{ getGroupCount(group) }} 个探针</span>
+        <!-- 现有分组列表 -->
+        <div v-if="groups.length > 0" class="space-y-2 mb-4 max-h-48 overflow-y-auto">
+          <div v-for="group in groups" :key="group" class="flex items-center justify-between p-3 bg-dark-700 rounded-lg group-item">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <span v-if="editingGroup !== group" class="text-white truncate">{{ group }}</span>
+              <input v-else v-model="editingGroupName" @keyup.enter="saveGroupRename(group)" @keyup.escape="cancelGroupRename"
+                type="text"
+                class="flex-1 px-2 py-1 bg-dark-600 border border-primary-500 rounded text-white text-sm focus:outline-none" />
+              <span class="text-sm text-gray-400 shrink-0">{{ getGroupCount(group) }} 个探针</span>
+            </div>
+            <div class="flex gap-1 ml-2 shrink-0">
+              <button v-if="editingGroup !== group" @click="startRenameGroup(group)" class="p-1 hover:bg-dark-500 rounded text-blue-400" title="重命名">
+                <Pencil class="w-3.5 h-3.5" />
+              </button>
+              <button v-if="editingGroup === group" @click="saveGroupRename(group)" class="p-1 hover:bg-dark-500 rounded text-green-400" title="保存">
+                <CheckCircle class="w-3.5 h-3.5" />
+              </button>
+              <button v-if="editingGroup !== group && group !== '默认'" @click="deleteGroup(group)" class="p-1 hover:bg-dark-500 rounded text-red-400" title="删除">
+                <Trash2 class="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
+        <div v-else class="text-center py-6 text-gray-500 text-sm mb-4">暂无分组，请创建新分组</div>
+        <!-- 新建分组 -->
         <div class="mt-4 flex gap-2">
-          <input v-model="newGroup" type="text" class="flex-1 px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-primary-500" placeholder="新建分组名称" />
+          <input v-model="newGroup" type="text" class="flex-1 px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-primary-500" placeholder="新建分组名称" @keyup.enter="addGroup" />
           <button @click="addGroup" class="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition">添加</button>
         </div>
         <div class="flex justify-end mt-6">
           <button @click="showGroupModal = false" class="px-4 py-2 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-600 transition">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑探针弹窗 -->
+    <div v-if="showEditModal" class="fixed inset-0 bg-dark-900/80 flex items-center justify-center z-50">
+      <div class="bg-dark-800 rounded-xl p-6 w-full max-w-2xl border border-dark-600 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+              <Pencil class="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold text-white">编辑探针配置</h3>
+              <p class="text-sm text-gray-400">{{ editTarget?.name }} ({{ editTarget?.ip }})</p>
+            </div>
+          </div>
+          <button @click="showEditModal = false" class="text-gray-400 hover:text-white">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <div v-if="editTarget" class="space-y-4">
+          <!-- 基本信息 -->
+          <div class="bg-dark-700/50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
+              <Settings class="w-4 h-4" />
+              基本信息
+            </h4>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">探针名称</label>
+                <input v-model="editForm.name" type="text" class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">所属分组</label>
+                <select v-model="editForm.group" class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                  <option v-for="g in groups" :key="g" :value="g">{{ g }}</option>
+                  <option value="">新建...</option>
+                </select>
+              </div>
+              <div v-if="!groups.includes(editForm.group)">
+                <label class="block text-sm text-gray-400 mb-1">新分组名</label>
+                <input v-model="editForm.newGroup" type="text" class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-blue-500" placeholder="输入新分组名称" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 资源限制 -->
+          <div class="bg-dark-700/50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
+              <Server class="w-4 h-4" />
+              资源限制
+            </h4>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">最大 CPU 核数</label>
+                <input v-model.number="editForm.maxCpuCore" type="number" min="0" step="1" class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-blue-500" placeholder="2" />
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">最大内存 (MB)</label>
+                <input v-model.number="editForm.maxMemoryMb" type="number" min="0" step="128" class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-blue-500" placeholder="2048" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 采集协议配置 -->
+          <div class="bg-dark-700/50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
+              <Activity class="w-4 h-4" />
+              采集协议 / 指标开关
+            </h4>
+            <div class="space-y-3">
+              <p class="text-xs text-gray-400">选择需要启用的数据采集模块：</p>
+              <div class="grid grid-cols-3 gap-3">
+                <label class="flex items-center gap-2 p-2 rounded-lg border border-dark-600 cursor-pointer hover:bg-dark-600 transition" :class="editForm.collect.cpu ? 'border-green-500/50 bg-green-500/5' : ''">
+                  <input type="checkbox" v-model="editForm.collect.cpu" class="rounded bg-dark-700 border-dark-600" />
+                  <span class="text-sm text-gray-200">CPU 指标</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 rounded-lg border border-dark-600 cursor-pointer hover:bg-dark-600 transition" :class="editForm.collect.memory ? 'border-green-500/50 bg-green-500/5' : ''">
+                  <input type="checkbox" v-model="editForm.collect.memory" class="rounded bg-dark-700 border-dark-600" />
+                  <span class="text-sm text-gray-200">内存指标</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 rounded-lg border border-dark-600 cursor-pointer hover:bg-dark-600 transition" :class="editForm.collect.network ? 'border-green-500/50 bg-green-500/5' : ''">
+                  <input type="checkbox" v-model="editForm.collect.network" class="rounded bg-dark-700 border-dark-600" />
+                  <span class="text-sm text-gray-200">网络流量</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 rounded-lg border border-dark-600 cursor-pointer hover:bg-dark-600 transition" :class="editForm.collect.disk ? 'border-green-500/50 bg-green-500/5' : ''">
+                  <input type="checkbox" v-model="editForm.collect.disk" class="rounded bg-dark-700 border-dark-600" />
+                  <span class="text-sm text-gray-200">磁盘 IO</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 rounded-lg border border-dark-600 cursor-pointer hover:bg-dark-600 transition" :class="editForm.ebpf.enabled ? 'border-purple-500/50 bg-purple-500/5' : ''">
+                  <input type="checkbox" v-model="editForm.ebpf.enabled" class="rounded bg-dark-700 border-dark-600" />
+                  <span class="text-sm text-gray-200">eBPF 采集</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 rounded-lg border border-dark-600 cursor-pointer hover:bg-dark-600 transition" :class="editForm.ebpf.tcpMetrics.enabled ? 'border-purple-500/50 bg-purple-500/5' : ''">
+                  <input type="checkbox" v-model="editForm.ebpf.tcpMetrics.enabled" :disabled="!editForm.ebpf.enabled" class="rounded bg-dark-700 border-dark-600" />
+                  <span class="text-sm text-gray-200">TCP 指标</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 rounded-lg border border-dark-600 cursor-pointer hover:bg-dark-600 transition" :class="editForm.ebpf.httpMetrics.enabled ? 'border-purple-500/50 bg-purple-500/5' : ''">
+                  <input type="checkbox" v-model="editForm.ebpf.httpMetrics.enabled" :disabled="!editForm.ebpf.enabled" class="rounded bg-dark-700 border-dark-600" />
+                  <span class="text-sm text-gray-200">HTTP 指标</span>
+                </label>
+                <label class="flex items-center gap-2 p-2 rounded-lg border border-dark-600 cursor-pointer hover:bg-dark-600 transition" :class="editForm.ebpf.protocolParsing.enabled ? 'border-purple-500/50 bg-purple-500/5' : ''">
+                  <input type="checkbox" v-model="editForm.ebpf.protocolParsing.enabled" :disabled="!editForm.ebpf.enabled" class="rounded bg-dark-700 border-dark-600" />
+                  <span class="text-sm text-gray-200">协议解析</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- eBPF 资源限制 -->
+          <div v-if="editForm.ebpf.enabled" class="bg-dark-700/50 rounded-lg p-4">
+            <h4 class="text-sm font-medium text-white mb-3 flex items-center gap-2">
+              <Database class="w-4 h-4" />
+              eBPF 资源限制
+            </h4>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">eBPF 最大 CPU 核数</label>
+                <input v-model.number="editForm.ebpf.resourceLimit.maxCpuCore" type="number" min="0" step="1" class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-blue-500" placeholder="0=不限制" />
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-1">eBPF 最大内存 (MB)</label>
+                <input v-model.number="editForm.ebpf.resourceLimit.maxMemoryMb" type="number" min="0" step="128" class="w-full px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-blue-500" placeholder="0=不限制" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-6">
+          <button @click="showEditModal = false" class="px-4 py-2 text-gray-400 hover:text-white transition">取消</button>
+          <button @click="saveProbeEdit" :disabled="savingEdit" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2">
+            <Loader2 v-if="savingEdit" class="w-4 h-4 animate-spin" />
+            {{ savingEdit ? '保存中...' : '保存配置' }}
+          </button>
         </div>
       </div>
     </div>
@@ -700,7 +864,10 @@ import {
   FileCode,
   HelpCircle,
   AlertCircle,
-  Database
+  Database,
+  Pencil,
+  Power,
+  RotateCcw
 } from 'lucide-vue-next'
 import api from '../../api'
 
@@ -824,6 +991,31 @@ function openK8sGuide() {
 const newProbe = ref({ name: '', type: 'agent', group: '' })
 const newGroup = ref('')
 const loading = ref(false)
+const savingEdit = ref(false)
+
+// 编辑探针状态
+const showEditModal = ref(false)
+const editTarget = ref(null)
+const editForm = ref({
+  name: '',
+  group: '',
+  newGroup: '',
+  maxCpuCore: 2,
+  maxMemoryMb: 2048,
+  collect: { cpu: false, memory: false, network: false, disk: false },
+  ebpf: {
+    enabled: false,
+    tcpMetrics: { enabled: false },
+    httpMetrics: { enabled: false },
+    protocolParsing: { enabled: false },
+    resourceLimit: { maxCpuCore: 0, maxMemoryMb: 0 }
+  }
+})
+
+// 分组编辑状态
+const editingGroup = ref('')
+const editingGroupName = ref('')
+
 let refreshTimer = null
 
 const sshForm = ref({
@@ -910,6 +1102,125 @@ async function uninstallProbe(probe) {
   }
 }
 
+// ========== 编辑探针 ==========
+function editProbe(probe) {
+  editTarget.value = probe
+  const cfg = probe.config || {}
+  editForm.value = {
+    name: probe.name,
+    group: probe.group || '',
+    newGroup: '',
+    maxCpuCore: cfg.resource_limit?.max_cpu_core ?? 2,
+    maxMemoryMb: cfg.resource_limit?.max_memory_mb ?? 2048,
+    collect: {
+      cpu: cfg.collect?.cpu ?? false,
+      memory: cfg.collect?.memory ?? false,
+      network: cfg.collect?.network ?? false,
+      disk: cfg.collect?.disk ?? false
+    },
+    ebpf: {
+      enabled: cfg.ebpf?.enabled ?? false,
+      tcpMetrics: { enabled: cfg.ebpf?.tcp_metrics?.enabled ?? false },
+      httpMetrics: { enabled: cfg.ebpf?.http_metrics?.enabled ?? false },
+      protocolParsing: { enabled: cfg.ebpf?.protocol_parsing?.enabled ?? false },
+      resourceLimit: {
+        maxCpuCore: cfg.ebpf?.resource_limit?.max_cpu_core ?? 0,
+        maxMemoryMb: cfg.ebpf?.resource_limit?.max_memory_mb ?? 0
+      }
+    }
+  }
+  showEditModal.value = true
+}
+
+async function saveProbeEdit() {
+  if (!editForm.value.name.trim()) { alert('探针名称不能为空'); return }
+
+  savingEdit.value = true
+
+  // 处理新分组
+  let finalGroup = editForm.value.group
+  if (editForm.value.newGroup.trim()) {
+    finalGroup = editForm.value.newGroup.trim()
+    if (!groups.value.includes(finalGroup)) {
+      groups.value.push(finalGroup)
+    }
+  }
+
+  const configPayload = {
+    name: editForm.value.name.trim(),
+    group: finalGroup,
+    resource_limit: {
+      max_cpu_core: editForm.value.maxCpuCore,
+      max_memory_mb: editForm.value.maxMemoryMb
+    },
+    collect: { ...editForm.value.collect },
+    ebpf: {
+      enabled: editForm.value.ebpf.enabled,
+      tcp_metrics: { enabled: editForm.value.ebpf.tcpMetrics.enabled },
+      http_metrics: { enabled: editForm.value.ebpf.httpMetrics.enabled },
+      protocol_parsing: { enabled: editForm.value.ebpf.protocolParsing.enabled },
+      resource_limit: {
+        max_cpu_core: editForm.value.ebpf.resourceLimit.maxCpuCore,
+        max_memory_mb: editForm.value.ebpf.resourceLimit.maxMemoryMb
+      }
+    }
+  }
+
+  try {
+    const res = await api.updateAgentConfig(editTarget.value.id, configPayload)
+    if (res !== null) {
+      // 更新本地数据
+      Object.assign(editTarget.value, {
+        name: configPayload.name,
+        group: finalGroup,
+        config: configPayload
+      })
+      showEditModal.value = false
+      alert('配置保存成功，探针将在下次心跳同步时应用新配置')
+    } else {
+      alert('保存失败，请重试')
+    }
+  } catch (e) {
+    alert('保存失败: ' + e.message)
+  } finally {
+    savingEdit.value = false
+  }
+}
+
+// ========== 停止 / 重启探针 ==========
+async function stopProbe(probe) {
+  if (probe.status !== 'online') return
+  if (!confirm(`确定要停止探针 ${probe.name} 吗？`)) return
+  try {
+    const res = await api.updateAgentConfig(probe.id, { action: 'stop' })
+    if (res !== null) {
+      probe.status = 'offline'
+      alert(`探针 ${probe.name} 已发送停止指令`)
+    } else {
+      alert('操作失败，请重试')
+    }
+  } catch (e) {
+    alert('操作失败: ' + e.message)
+  }
+}
+
+async function restartProbe(probe) {
+  if (probe.status === 'offline') return
+  if (!confirm(`确定要重启探针 ${probe.name} 吗？`)) return
+  try {
+    const res = await api.updateAgentConfig(probe.id, { action: 'restart' })
+    if (res !== null) {
+      alert(`探针 ${probe.name} 已发送重启指令`)
+      // 短暂延迟后刷新状态
+      setTimeout(fetchProbes, 3000)
+    } else {
+      alert('操作失败，请重试')
+    }
+  } catch (e) {
+    alert('操作失败: ' + e.message)
+  }
+}
+
 async function installProbe() {
   if (!newProbe.value.name) { alert('请输入探针名称'); return }
   try {
@@ -933,10 +1244,47 @@ async function installProbe() {
 }
 
 function addGroup() {
-  if (newGroup.value && !groups.includes(newGroup.value)) {
-    groups.push(newGroup.value)
+  const name = newGroup.value.trim()
+  if (name && !groups.value.includes(name)) {
+    groups.value.push(name)
     newGroup.value = ''
   }
+}
+
+function deleteGroup(group) {
+  if (!confirm(`确定删除分组「${group}」吗？该分组下的探针将变为未分组状态。`)) return
+  groups.value = groups.value.filter(g => g !== group)
+  // 将该分组下探针的 group 清空
+  probes.value.forEach(p => { if (p.group === group) p.group = '' })
+}
+
+function startRenameGroup(group) {
+  editingGroup.value = group
+  editingGroupName.value = group
+}
+
+async function saveGroupRename(oldName) {
+  const newName = editingGroupName.value.trim()
+  if (!newName || newName === oldName) { cancelGroupRename(); return }
+  if (groups.value.includes(newName)) { alert('分组名称已存在'); return }
+
+  // 更新本地分组名
+  const idx = groups.value.indexOf(oldName)
+  if (idx >= 0) groups.value[idx] = newName
+  // 更新探针的分组
+  probes.value.forEach(p => { if (p.group === oldName) p.group = newName })
+
+  // 尝试同步到后端（如果有 API）
+  try {
+    await api.updateAgentConfig('', { group_rename: { from: oldName, to: newName } })
+  } catch (e) { /* 本地更新即可 */ }
+
+  cancelGroupRename()
+}
+
+function cancelGroupRename() {
+  editingGroup.value = ''
+  editingGroupName.value = ''
 }
 
 function closeSSHModal() {
