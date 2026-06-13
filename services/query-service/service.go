@@ -273,7 +273,6 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/healthz", s.healthzHandler)
 	mux.Handle("/metrics", metrics.Handler())
 	mux.HandleFunc("/overview", s.overviewHandler)
-	mux.HandleFunc("/metrics", s.metricsHandler)
 	mux.HandleFunc("/flows", s.flowsHandler)
 	mux.HandleFunc("/traces", s.tracesHandler)
 	mux.HandleFunc("/topology", s.topologyHandler)
