@@ -4,9 +4,9 @@ import "testing"
 
 func TestIsPartition(t *testing.T) {
 	tests := []struct {
-		name     string
-		diskName string
-		wantTrue bool
+		name      string
+		diskName  string
+		wantTrue  bool
 	}{
 		// NVMe 分区
 		{"nvme partition", "nvme0n1p1", true},
@@ -39,9 +39,9 @@ func TestIsPartition(t *testing.T) {
 
 func TestParseMemLine(t *testing.T) {
 	tests := []struct {
-		name string
-		line string
-		want uint64
+		name  string
+		line  string
+		want  uint64
 	}{
 		{"normal", "MemTotal:       16384000 kB", 16384000},
 		{"with spaces", "MemAvailable:    8192000 kB", 8192000},

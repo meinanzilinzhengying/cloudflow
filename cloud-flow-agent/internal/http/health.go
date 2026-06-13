@@ -10,9 +10,9 @@ import (
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/collector"
-	// "github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfcollector"
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfcollector"
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/grpcclient"
-	// "github.com/meinanzilinzhengying/cloudflow/agent/internal/sqlaggregator"
+// sqlaggregator disabled
 	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 )
 
@@ -25,14 +25,14 @@ type ClientGetter interface {
 type HealthHandler struct {
 	clientGetter  ClientGetter
 	collector     *collector.Collector
-	ebpfCollector interface{} // *ebpfcollector.Collector
-	cpuProfiler interface{}
-	sqlAggregator interface{} // *sqlaggregator.SQLAggregator
+	ebpfCollector *ebpfcollector.Collector
+	cpuProfiler   interface{ IsEnabled() bool }
+	sqlAggregator *nil.SQLAggregator
 	logger        *logger.Logger
 	startTime     time.Time
 }
 
-func NewHealthHandler(clientGetter ClientGetter, collector *collector.Collector, ebpfCollector interface{}, cpuProfiler interface{}, sqlAggregator interface{}, log *logger.Logger) *HealthHandler {
+func NewHealthHandler(clientGetter ClientGetter, collector *collector.Collector, ebpfCollector *ebpfcollector.Collector, cpuProfiler interface{ IsEnabled() bool }, sqlAggregator *nil.SQLAggregator, log *logger.Logger) *HealthHandler {
 	return &HealthHandler{
 		clientGetter:  clientGetter,
 		collector:     collector,
@@ -82,22 +82,37 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	ebpfAvailable := h.ebpfCollector != nil
 	tcpMetricsEnabled := false
 	if h.ebpfCollector != nil {
-		tcpMetricsEnabled = false // 禁用 eBPF
+		tcpMetricsEnabled = h.ebpfCollector.IsTCPMetricsAvailable()
 	}
 	httpMetricsEnabled := false
 	if h.ebpfCollector != nil {
-		httpMetricsEnabled = false // 禁用 eBPF
+		httpMetricsEnabled = h.ebpfCollector.IsHTTPMetricsAvailable()
 	}
 	httpFullEnabled := false
 	dnsFullEnabled := false
 	mysqlFullEnabled := false
 	if h.ebpfCollector != nil {
-		httpFullEnabled = false // 禁用 eBPF
-		dnsFullEnabled = false // 禁用 eBPF
-		mysqlFullEnabled = false // 禁用 eBPF
+		httpFullEnabled = h.ebpfCollector.IsHTTPFullAvailable()
+		dnsFullEnabled = h.ebpfCollector.IsDNSFullAvailable()
+		mysqlFullEnabled = h.ebpfCollector.IsMySQLFullAvailable()
 	}
 	cpuProfilerEnabled := h.cpuProfiler != nil
 	sqlAggEnabled := h.sqlAggregator != nil
+	var sqlAggStats *SQLAggStats
+	if sqlAggEnabled {
+		stats := h.sqlAggregator.GetStats()
+		if enabled, ok := stats["enabled"].(bool); ok && enabled {
+			globalStats := h.sqlAggregator.GetGlobalStats()
+			sqlAggStats = &SQLAggStats{
+				TotalRequests: globalStats.TotalRequests,
+				SuccessRate:   globalStats.SuccessRate(),
+				AvgLatencyMs:  globalStats.AvgLatencyMs(),
+				SlowQueries:   globalStats.SlowQueries,
+				QueriesPerSec: globalStats.Queries1s,
+				ProcessCount:  len(h.sqlAggregator.GetDBProcessStats()),
+			}
+		}
+	}
 	response := HealthResponse{
 		Status:             "healthy",
 		Timestamp:          time.Now(),
@@ -110,7 +125,7 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 		DNSFullEnabled:     dnsFullEnabled,
 		MySQLFullEnabled:   mysqlFullEnabled,
 		SQLAggEnabled:      sqlAggEnabled,
-		SQLAggStats:        nil, // 禁用
+		SQLAggStats:        sqlAggStats,
 		CPUProfilerEnabled: cpuProfilerEnabled,
 		Version:            Version,
 	}

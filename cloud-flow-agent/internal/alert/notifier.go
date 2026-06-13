@@ -24,11 +24,11 @@ import (
 
 // KafkaNotifier Kafka通知器
 type KafkaNotifier struct {
-	config   KafkaConfig
-	producer interface{}
-	client   *http.Client
-	log      *logger.Logger
-
+	config    KafkaConfig
+	producer  interface{}
+	client    *http.Client
+	log       *logger.Logger
+	
 	stats struct {
 		sentCount   atomic.Uint64
 		failedCount atomic.Uint64
@@ -36,15 +36,15 @@ type KafkaNotifier struct {
 }
 
 type KafkaConfig struct {
-	Enabled      bool          `yaml:"enabled" json:"enabled"`
-	Brokers      []string      `yaml:"brokers" json:"brokers"`
-	Topic        string        `yaml:"topic" json:"topic"`
-	Partition    int           `yaml:"partition" json:"partition"`
-	SASLEnabled  bool          `yaml:"sasl_enabled" json:"sasl_enabled"`
-	SASLUser     string        `yaml:"sasl_user" json:"sasl_user"`
-	SASLPass     string        `yaml:"sasl_pass" json:"sasl_pass"`
-	TLSEnabled   bool          `yaml:"tls_enabled" json:"tls_enabled"`
-	CACert       string        `yaml:"ca_cert" json:"ca_cert"`
+	Enabled   bool     `yaml:"enabled" json:"enabled"`
+	Brokers   []string `yaml:"brokers" json:"brokers"`
+	Topic     string   `yaml:"topic" json:"topic"`
+	Partition int      `yaml:"partition" json:"partition"`
+	SASLEnabled bool   `yaml:"sasl_enabled" json:"sasl_enabled"`
+	SASLUser    string `yaml:"sasl_user" json:"sasl_user"`
+	SASLPass    string `yaml:"sasl_pass" json:"sasl_pass"`
+	TLSEnabled bool   `yaml:"tls_enabled" json:"tls_enabled"`
+	CACert     string `yaml:"ca_cert" json:"ca_cert"`
 	BatchSize    int           `yaml:"batch_size" json:"batch_size"`
 	BatchTimeout time.Duration `yaml:"batch_timeout" json:"batch_timeout"`
 }
@@ -57,7 +57,7 @@ func NewKafkaNotifier(config KafkaConfig, log *logger.Logger) *KafkaNotifier {
 			log.Warnf("[KafkaNotifier] 警告: SASL密码从配置文件加载，建议使用环境变量 CLOUD_FLOW_KAFKA_SASL_PASS")
 		}
 	}
-
+	
 	return &KafkaNotifier{
 		config: config,
 		client: &http.Client{Timeout: 10 * time.Second},
@@ -69,49 +69,49 @@ func (n *KafkaNotifier) Notify(ctx context.Context, event *AlertEvent) error {
 	if !n.config.Enabled {
 		return nil
 	}
-
+	
 	data, err := json.Marshal(event.ToMap())
 	if err != nil {
 		return fmt.Errorf("序列化告警事件失败: %w", err)
 	}
-
+	
 	if err := n.sendToKafka(ctx, data); err != nil {
 		n.stats.failedCount.Add(1)
 		return err
 	}
-
+	
 	n.stats.sentCount.Add(1)
 	n.log.Debugf("Kafka告警发送成功: %s", event.ID)
-
+	
 	return nil
 }
 
 func (n *KafkaNotifier) sendToKafka(ctx context.Context, data []byte) error {
 	for _, broker := range n.config.Brokers {
 		url := fmt.Sprintf("http://%s/topics/%s", broker, n.config.Topic)
-
+		
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(data))
 		if err != nil {
 			continue
 		}
-
+		
 		req.Header.Set("Content-Type", "application/vnd.kafka.json.v2+json")
 		req.Header.Set("Accept", "application/vnd.kafka.v2+json")
-
+		
 		resp, err := n.client.Do(req)
 		if err != nil {
 			continue
 		}
 		defer resp.Body.Close()
-
+		
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			return nil
 		}
-
+		
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("Kafka发送失败: %s - %s", resp.Status, string(body))
 	}
-
+	
 	return fmt.Errorf("所有Kafka broker都不可用")
 }
 
@@ -127,7 +127,7 @@ type APINotifier struct {
 	config APINotifierConfig
 	client *http.Client
 	log    *logger.Logger
-
+	
 	stats struct {
 		sentCount   atomic.Uint64
 		failedCount atomic.Uint64
@@ -135,21 +135,21 @@ type APINotifier struct {
 }
 
 type APINotifierConfig struct {
-	Enabled       bool              `yaml:"enabled" json:"enabled"`
-	URL           string            `yaml:"url" json:"url"`
-	Method        string            `yaml:"method" json:"method"`
-	Headers       map[string]string `yaml:"headers" json:"headers"`
-	Timeout       time.Duration     `yaml:"timeout" json:"timeout"`
-	AuthType      string            `yaml:"auth_type" json:"auth_type"`
-	AuthUser      string            `yaml:"auth_user" json:"auth_user"`
-	AuthPass      string            `yaml:"auth_pass" json:"auth_pass"`
-	AuthToken     string            `yaml:"auth_token" json:"auth_token"`
-	APIKey        string            `yaml:"api_key" json:"api_key"`
-	MaxRetries    int               `yaml:"max_retries" json:"max_retries"`
-	RetryDelay    time.Duration     `yaml:"retry_delay" json:"retry_delay"`
-	TLSEnabled    bool              `yaml:"tls_enabled" json:"tls_enabled"`
-	SkipTLSVerify bool              `yaml:"skip_tls_verify" json:"skip_tls_verify"`
-	CACert        string            `yaml:"ca_cert" json:"ca_cert"`
+	Enabled  bool              `yaml:"enabled" json:"enabled"`
+	URL      string            `yaml:"url" json:"url"`
+	Method   string            `yaml:"method" json:"method"`
+	Headers  map[string]string `yaml:"headers" json:"headers"`
+	Timeout  time.Duration     `yaml:"timeout" json:"timeout"`
+	AuthType  string `yaml:"auth_type" json:"auth_type"`
+	AuthUser  string `yaml:"auth_user" json:"auth_user"`
+	AuthPass  string `yaml:"auth_pass" json:"auth_pass"`
+	AuthToken string `yaml:"auth_token" json:"auth_token"`
+	APIKey    string `yaml:"api_key" json:"api_key"`
+	MaxRetries int           `yaml:"max_retries" json:"max_retries"`
+	RetryDelay time.Duration `yaml:"retry_delay" json:"retry_delay"`
+	TLSEnabled    bool   `yaml:"tls_enabled" json:"tls_enabled"`
+	SkipTLSVerify bool   `yaml:"skip_tls_verify" json:"skip_tls_verify"`
+	CACert        string `yaml:"ca_cert" json:"ca_cert"`
 }
 
 func NewAPINotifier(config APINotifierConfig, log *logger.Logger) *APINotifier {
@@ -165,11 +165,11 @@ func NewAPINotifier(config APINotifierConfig, log *logger.Logger) *APINotifier {
 	if config.RetryDelay == 0 {
 		config.RetryDelay = time.Second
 	}
-
+	
 	client := &http.Client{
 		Timeout: config.Timeout,
 	}
-
+	
 	if config.TLSEnabled {
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: config.SkipTLSVerify,
@@ -177,12 +177,12 @@ func NewAPINotifier(config APINotifierConfig, log *logger.Logger) *APINotifier {
 		client.Transport = &http.Transport{
 			TLSClientConfig: tlsConfig,
 		}
-
+		
 		if config.SkipTLSVerify {
 			log.Warnf("[APINotifier] 警告: TLS证书验证已禁用，这会使连接容易受到中间人攻击")
 		}
 	}
-
+	
 	return &APINotifier{
 		config: config,
 		client: client,
@@ -194,12 +194,12 @@ func (n *APINotifier) Notify(ctx context.Context, event *AlertEvent) error {
 	if !n.config.Enabled {
 		return nil
 	}
-
+	
 	data, err := json.Marshal(event.ToMap())
 	if err != nil {
 		return fmt.Errorf("序列化告警事件失败: %w", err)
 	}
-
+	
 	var lastErr error
 	for i := 0; i < n.config.MaxRetries; i++ {
 		if err := n.sendRequest(ctx, data); err != nil {
@@ -207,12 +207,12 @@ func (n *APINotifier) Notify(ctx context.Context, event *AlertEvent) error {
 			time.Sleep(n.config.RetryDelay)
 			continue
 		}
-
+		
 		n.stats.sentCount.Add(1)
 		n.log.Debugf("API告警发送成功: %s -> %s", event.ID, n.config.URL)
 		return nil
 	}
-
+	
 	n.stats.failedCount.Add(1)
 	return fmt.Errorf("API发送失败(重试%d次): %w", n.config.MaxRetries, lastErr)
 }
@@ -222,12 +222,12 @@ func (n *APINotifier) sendRequest(ctx context.Context, data []byte) error {
 	if err != nil {
 		return err
 	}
-
+	
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range n.config.Headers {
 		req.Header.Set(k, v)
 	}
-
+	
 	switch n.config.AuthType {
 	case "basic":
 		req.SetBasicAuth(n.config.AuthUser, n.config.AuthPass)
@@ -236,17 +236,17 @@ func (n *APINotifier) sendRequest(ctx context.Context, data []byte) error {
 	case "apikey":
 		req.Header.Set("X-API-Key", n.config.APIKey)
 	}
-
+	
 	resp, err := n.client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-
+	
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
-
+	
 	body, _ := io.ReadAll(resp.Body)
 	return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 }
@@ -263,7 +263,7 @@ type WebhookNotifier struct {
 	config WebhookConfig
 	client *http.Client
 	log    *logger.Logger
-
+	
 	stats struct {
 		sentCount   atomic.Uint64
 		failedCount atomic.Uint64
@@ -271,18 +271,18 @@ type WebhookNotifier struct {
 }
 
 type WebhookConfig struct {
-	Enabled bool              `yaml:"enabled" json:"enabled"`
-	URL     string            `yaml:"url" json:"url"`
-	Secret  string            `yaml:"secret" json:"secret"`
-	Headers map[string]string `yaml:"headers" json:"headers"`
-	Timeout time.Duration     `yaml:"timeout" json:"timeout"`
+	Enabled  bool              `yaml:"enabled" json:"enabled"`
+	URL      string            `yaml:"url" json:"url"`
+	Secret   string            `yaml:"secret" json:"secret"`
+	Headers  map[string]string `yaml:"headers" json:"headers"`
+	Timeout  time.Duration     `yaml:"timeout" json:"timeout"`
 }
 
 func NewWebhookNotifier(config WebhookConfig, log *logger.Logger) *WebhookNotifier {
 	if config.Timeout == 0 {
 		config.Timeout = 10 * time.Second
 	}
-
+	
 	return &WebhookNotifier{
 		config: config,
 		client: &http.Client{Timeout: config.Timeout},
@@ -294,44 +294,44 @@ func (n *WebhookNotifier) Notify(ctx context.Context, event *AlertEvent) error {
 	if !n.config.Enabled {
 		return nil
 	}
-
+	
 	payload := map[string]interface{}{
 		"event":     "alert",
 		"timestamp": time.Now().Unix(),
 		"data":      event.ToMap(),
 	}
-
+	
 	if n.config.Secret != "" {
 		payload["signature"] = n.sign(event)
 	}
-
+	
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-
+	
 	req, err := http.NewRequestWithContext(ctx, "POST", n.config.URL, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-
+	
 	req.Header.Set("Content-Type", "application/json")
 	for k, v := range n.config.Headers {
 		req.Header.Set(k, v)
 	}
-
+	
 	resp, err := n.client.Do(req)
 	if err != nil {
 		n.stats.failedCount.Add(1)
 		return err
 	}
 	defer resp.Body.Close()
-
+	
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		n.stats.sentCount.Add(1)
 		return nil
 	}
-
+	
 	body, _ := io.ReadAll(resp.Body)
 	n.stats.failedCount.Add(1)
 	return fmt.Errorf("Webhook失败: %d - %s", resp.StatusCode, string(body))
@@ -343,7 +343,7 @@ func (n *WebhookNotifier) sign(event *AlertEvent) string {
 		n.log.Errorf("[Webhook] 签名序列化失败: %v", err)
 		return ""
 	}
-
+	
 	h := hmac.New(sha256.New, []byte(n.config.Secret))
 	h.Write(data)
 	return hex.EncodeToString(h.Sum(nil))
@@ -403,7 +403,7 @@ func (f *NotifierFactory) Get(name string) Notifier {
 func (f *NotifierFactory) NotifyAll(ctx context.Context, event *AlertEvent) error {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-
+	
 	var lastErr error
 	for name, notifier := range f.notifiers {
 		if err := notifier.Notify(ctx, event); err != nil {
@@ -414,27 +414,27 @@ func (f *NotifierFactory) NotifyAll(ctx context.Context, event *AlertEvent) erro
 }
 
 type NotifyConfig struct {
-	Kafka   KafkaConfig       `yaml:"kafka" json:"kafka"`
+	Kafka   KafkaConfig      `yaml:"kafka" json:"kafka"`
 	API     APINotifierConfig `yaml:"api" json:"api"`
-	Webhook WebhookConfig     `yaml:"webhook" json:"webhook"`
+	Webhook WebhookConfig    `yaml:"webhook" json:"webhook"`
 }
 
 func BuildNotifiers(config NotifyConfig, log *logger.Logger) *MultiNotifier {
 	multi := NewMultiNotifier()
-
+	
 	if config.Kafka.Enabled {
 		multi.AddNotifier("kafka", NewKafkaNotifier(config.Kafka, log))
 	}
-
+	
 	if config.API.Enabled {
 		multi.AddNotifier("api", NewAPINotifier(config.API, log))
 	}
-
+	
 	if config.Webhook.Enabled {
 		multi.AddNotifier("webhook", NewWebhookNotifier(config.Webhook, log))
 	}
-
+	
 	multi.AddNotifier("log", NewLogNotifier(log))
-
+	
 	return multi
 }

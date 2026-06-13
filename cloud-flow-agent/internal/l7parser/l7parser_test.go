@@ -75,9 +75,9 @@ func TestHTTP1Detect(t *testing.T) {
 	parser := parsers.NewHTTPParser()
 
 	tests := []struct {
-		name      string
-		data      []byte
-		dstPort   uint16
+		name     string
+		data     []byte
+		dstPort  uint16
 		wantMatch bool
 	}{
 		{
@@ -450,39 +450,39 @@ func TestProtocolDetection(t *testing.T) {
 	detector := NewProtocolDetector()
 
 	tests := []struct {
-		name     string
-		data     []byte
-		dstPort  uint16
-		wantType ParserType
-		minScore float64
+		name      string
+		data      []byte
+		dstPort   uint16
+		wantType  ParserType
+		minScore  float64
 	}{
 		{
-			name:     "HTTP/1.1 GET",
-			data:     []byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n"),
-			dstPort:  80,
-			wantType: ParserTypeHTTP1,
-			minScore: 0.9,
+			name:      "HTTP/1.1 GET",
+			data:      []byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n"),
+			dstPort:   80,
+			wantType:  ParserTypeHTTP1,
+			minScore:  0.9,
 		},
 		{
-			name:     "HTTP/2 Magic",
-			data:     []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"),
-			dstPort:  443,
-			wantType: ParserTypeHTTP2,
-			minScore: 0.99,
+			name:      "HTTP/2 Magic",
+			data:      []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"),
+			dstPort:   443,
+			wantType:  ParserTypeHTTP2,
+			minScore:  0.99,
 		},
 		{
-			name:     "Redis GET",
-			data:     []byte("*2\r\n$3\r\nGET\r\n$3\r\nkey\r\n"),
-			dstPort:  6379,
-			wantType: ParserTypeRedis,
-			minScore: 0.9,
+			name:      "Redis GET",
+			data:      []byte("*2\r\n$3\r\nGET\r\n$3\r\nkey\r\n"),
+			dstPort:   6379,
+			wantType:  ParserTypeRedis,
+			minScore:  0.9,
 		},
 		{
-			name:     "MySQL Query",
-			data:     []byte{0x14, 0x00, 0x00, 0x00, 0x03, 0x53, 0x45, 0x4c, 0x45, 0x43, 0x54, 0x20, 0x31},
-			dstPort:  3306,
-			wantType: ParserTypeMySQL,
-			minScore: 0.8,
+			name:      "MySQL Query",
+			data:      []byte{0x14, 0x00, 0x00, 0x00, 0x03, 0x53, 0x45, 0x4c, 0x45, 0x43, 0x54, 0x20, 0x31},
+			dstPort:   3306,
+			wantType:  ParserTypeMySQL,
+			minScore:  0.8,
 		},
 	}
 

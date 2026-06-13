@@ -37,19 +37,19 @@ const (
 
 // KernelCapability 内核能力检测结果
 type KernelCapability struct {
-	Arch             Arch            // 系统架构
-	Vendor           Vendor          // 芯片厂商
-	KernelVersion    string          // 内核版本（完整字符串）
-	KernelMajor      int             // 内核主版本号
-	KernelMinor      int             // 内核次版本号
-	KernelPatch      int             // 内核补丁版本号
-	KernelExtra      int             // 内核额外版本号（如 4.19.90-24 中的 24）
-	VendorID         string          // 芯片厂商 ID（如 "HygonGenuine"、"0x48"）
-	ModelName        string          // 芯片型号名称
-	EBPFSupported    bool            // 是否支持 eBPF
-	BTFSupported     bool            // 是否支持 BTF
-	RingBufSupported bool            // 是否支持 BPF RingBuffer
-	Capabilities     map[string]bool // 详细能力清单
+	Arch            Arch              // 系统架构
+	Vendor          Vendor            // 芯片厂商
+	KernelVersion   string            // 内核版本（完整字符串）
+	KernelMajor     int               // 内核主版本号
+	KernelMinor     int               // 内核次版本号
+	KernelPatch     int               // 内核补丁版本号
+	KernelExtra     int               // 内核额外版本号（如 4.19.90-24 中的 24）
+	VendorID        string            // 芯片厂商 ID（如 "HygonGenuine"、"0x48"）
+	ModelName       string            // 芯片型号名称
+	EBPFSupported   bool              // 是否支持 eBPF
+	BTFSupported    bool              // 是否支持 BTF
+	RingBufSupported bool             // 是否支持 BPF RingBuffer
+	Capabilities    map[string]bool   // 详细能力清单
 }
 
 // Detector 内核能力检测器
@@ -461,13 +461,14 @@ func detectKernelVersionFromProc() (version string, major, minor, patch, extra i
 
 // parseKernelVersion 解析内核版本字符串，支持四段版本号（如 4.19.90-24）
 func parseKernelVersion(version string) (string, int, int, int, int, error) {
-	var extra int
-	var err error
 	// 分离可能的额外版本号（如 "4.19.90-24" 中的 "-24"）
 	parts := strings.SplitN(version, "-", 2)
 	versionCore := parts[0]
 
 	// 解析额外版本号
+	var extra int
+	var err error
+	extra = 0
 	if len(parts) > 1 {
 		// 取 "-" 后面的数字部分，忽略发行版后缀（如 "-24.generic"）
 		extraStr := parts[1]

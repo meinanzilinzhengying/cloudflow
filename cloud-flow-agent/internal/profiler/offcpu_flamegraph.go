@@ -3,9 +3,11 @@
 package profiler
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 )
 
 // ==================== OFF-CPU 火焰图生成器 ====================
@@ -14,14 +16,14 @@ import (
 // 与 ON-CPU 火焰图不同，OFF-CPU 火焰图展示的是阻塞原因的分布
 type OffCPUFlameGraph struct {
 	// 配置选项
-	Width      int     // SVG 画布宽度
-	Height     int     // SVG 画布高度，0 表示自动计算
-	MinWidth   float64 // 最小栈帧宽度
-	Title      string  // 标题
-	Subtitle   string  // 副标题（显示统计信息）
-	FontFamily string  // 字体族
-	FontSize   int     // 字体大小
-	FontColor  string  // 字体颜色
+	Width        int     // SVG 画布宽度
+	Height       int     // SVG 画布高度，0 表示自动计算
+	MinWidth     float64 // 最小栈帧宽度
+	Title        string  // 标题
+	Subtitle     string  // 副标题（显示统计信息）
+	FontFamily   string  // 字体族
+	FontSize     int     // 字体大小
+	FontColor    string  // 字体颜色
 
 	// 颜色配置（按阻塞原因使用不同颜色）
 	ColorScheme map[OffCPUReason]string // 阻塞原因 -> 颜色映射
@@ -29,10 +31,10 @@ type OffCPUFlameGraph struct {
 
 // OffCPUFlameNode OFF-CPU 火焰图节点
 type offCPUFlameNode struct {
-	name     string             // 函数名/阻塞原因
-	reason   OffCPUReason       // 阻塞原因
-	value    uint64             // 自身采样数
-	total    uint64             // 总采样数
+	name     string           // 函数名/阻塞原因
+	reason   OffCPUReason     // 阻塞原因
+	value    uint64           // 自身采样数
+	total    uint64           // 总采样数
 	children []*offCPUFlameNode // 子节点
 }
 
@@ -46,16 +48,16 @@ func NewOffCPUFlameGraph() *OffCPUFlameGraph {
 		FontSize:   11,
 		FontColor:  "rgb(0,0,0)",
 		ColorScheme: map[OffCPUReason]string{
-			OffCPUReasonIOWait:         "hsl(200, 70%, 60%)", // 蓝色 - IO等待
-			OffCPUReasonLockContention: "hsl(0, 70%, 60%)",   // 红色 - 锁竞争
-			OffCPUReasonScheduler:      "hsl(120, 70%, 60%)", // 绿色 - 调度延迟
-			OffCPUReasonNetwork:        "hsl(280, 70%, 60%)", // 紫色 - 网络等待
-			OffCPUReasonDisk:           "hsl(30, 70%, 60%)",  // 橙色 - 磁盘等待
-			OffCPUReasonFutex:          "hsl(60, 70%, 60%)",  // 黄色 - futex
-			OffCPUReasonPipe:           "hsl(180, 70%, 60%)", // 青色 - 管道
-			OffCPUReasonPoll:           "hsl(240, 70%, 60%)", // 蓝色 - poll
-			OffCPUReasonSleep:          "hsl(300, 70%, 60%)", // 品红 - 睡眠
-			OffCPUReasonUnknown:        "hsl(0, 0%, 60%)",    // 灰色 - 未知
+			OffCPUReasonIOWait:         "hsl(200, 70%, 60%)",   // 蓝色 - IO等待
+			OffCPUReasonLockContention: "hsl(0, 70%, 60%)",     // 红色 - 锁竞争
+			OffCPUReasonScheduler:      "hsl(120, 70%, 60%)",   // 绿色 - 调度延迟
+			OffCPUReasonNetwork:        "hsl(280, 70%, 60%)",   // 紫色 - 网络等待
+			OffCPUReasonDisk:           "hsl(30, 70%, 60%)",    // 橙色 - 磁盘等待
+			OffCPUReasonFutex:          "hsl(60, 70%, 60%)",    // 黄色 - futex
+			OffCPUReasonPipe:           "hsl(180, 70%, 60%)",   // 青色 - 管道
+			OffCPUReasonPoll:           "hsl(240, 70%, 60%)",   // 蓝色 - poll
+			OffCPUReasonSleep:          "hsl(300, 70%, 60%)",   // 品红 - 睡眠
+			OffCPUReasonUnknown:        "hsl(0, 0%, 60%)",      // 灰色 - 未知
 		},
 	}
 }
@@ -422,8 +424,8 @@ func (fg *OffCPUFlameGraph) writeStats(output io.Writer, stats map[string]interf
 
 	// 按阻塞时长排序
 	type reasonStat struct {
-		reason   OffCPUReason
-		duration int64
+		reason    OffCPUReason
+		duration  int64
 	}
 	var sortedStats []reasonStat
 	for reason, duration := range reasonDurations {
@@ -450,12 +452,12 @@ func (fg *OffCPUFlameGraph) writeStats(output io.Writer, stats map[string]interf
 
 // OffCPUHotSpot OFF-CPU 热点信息
 type OffCPUHotSpot struct {
-	Name        string       // 函数名/阻塞点
-	Reason      OffCPUReason // 阻塞原因
-	Count       uint64       // 阻塞次数
-	Duration    int64        // 总阻塞时长 (微秒)
-	AvgDuration float64      // 平均阻塞时长
-	Percentage  float64      // 占比
+	Name       string       // 函数名/阻塞点
+	Reason     OffCPUReason // 阻塞原因
+	Count      uint64       // 阻塞次数
+	Duration   int64        // 总阻塞时长 (微秒)
+	AvgDuration float64     // 平均阻塞时长
+	Percentage float64      // 占比
 }
 
 // GenerateHotSpots 生成热点阻塞列表

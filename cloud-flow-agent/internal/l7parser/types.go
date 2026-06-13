@@ -1,30 +1,29 @@
 // Package l7parser L7 协议解析引擎
 //
 // 架构设计:
-//
-//	┌─────────────────────────────────────────────────────────────┐
-//	│                    L7Parser Engine                           │
-//	│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-//	│  │   HTTP1     │  │   HTTP2     │  │      gRPC           │  │
-//	│  │  Parser     │  │  Parser     │  │     Parser          │  │
-//	│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-//	│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-//	│  │   MySQL     │  │   Redis     │  │      Kafka          │  │
-//	│  │  Parser     │  │  Parser     │  │     Parser          │  │
-//	│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-//	│                                                             │
-//	│  ┌─────────────────────────────────────────────────────────┐│
-//	│  │              Protocol Auto Detector                      ││
-//	│  │         (Feature-based, no port dependency)              ││
-//	│  └─────────────────────────────────────────────────────────┘│
-//	│                                                             │
-//	│  ┌─────────────────────────────────────────────────────────┐│
-//	│  │              Streaming Parser Core                       ││
-//	│  │    - Partial packet reassembly                          ││
-//	│  │    - Zero-copy parsing                                  ││
-//	│  │    - Backpressure handling                              ││
-//	│  └─────────────────────────────────────────────────────────┘│
-//	└─────────────────────────────────────────────────────────────┘
+//   ┌─────────────────────────────────────────────────────────────┐
+//   │                    L7Parser Engine                           │
+//   │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+//   │  │   HTTP1     │  │   HTTP2     │  │      gRPC           │  │
+//   │  │  Parser     │  │  Parser     │  │     Parser          │  │
+//   │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+//   │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+//   │  │   MySQL     │  │   Redis     │  │      Kafka          │  │
+//   │  │  Parser     │  │  Parser     │  │     Parser          │  │
+//   │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+//   │                                                             │
+//   │  ┌─────────────────────────────────────────────────────────┐│
+//   │  │              Protocol Auto Detector                      ││
+//   │  │         (Feature-based, no port dependency)              ││
+//   │  └─────────────────────────────────────────────────────────┘│
+//   │                                                             │
+//   │  ┌─────────────────────────────────────────────────────────┐│
+//   │  │              Streaming Parser Core                       ││
+//   │  │    - Partial packet reassembly                          ││
+//   │  │    - Zero-copy parsing                                  ││
+//   │  │    - Backpressure handling                              ││
+//   │  └─────────────────────────────────────────────────────────┘│
+//   └─────────────────────────────────────────────────────────────┘
 //
 // 性能特性:
 //   - 无锁队列: 使用 lock-free MPMC queue
@@ -37,6 +36,7 @@
 //   - 禁止使用 regex 解析
 //   - 禁止全包重组 (full packet reassembly)
 //   - 禁止巨型 switch-case
+//
 package l7parser
 
 import (
@@ -133,9 +133,9 @@ func (t ParserType) ToFlowProtocol() flow.Protocol {
 type PacketDirection uint8
 
 const (
-	DirUnknown  PacketDirection = iota
-	DirRequest                  // 请求方向 (client -> server)
-	DirResponse                 // 响应方向 (server -> client)
+	DirUnknown PacketDirection = iota
+	DirRequest              // 请求方向 (client -> server)
+	DirResponse             // 响应方向 (server -> client)
 )
 
 // PacketMetadata 数据包元数据
@@ -147,7 +147,7 @@ type PacketMetadata struct {
 	DstPort uint16
 
 	// 协议信息
-	L4Proto     uint8      // TCP=6, UDP=17
+	L4Proto     uint8 // TCP=6, UDP=17
 	L7ProtoHint ParserType // 协议提示 (可能为 Unknown)
 
 	// 时间戳
@@ -173,9 +173,9 @@ type ParseResult struct {
 	ParserType ParserType
 
 	// 解析状态
-	IsComplete bool // 是否完整解析
-	IsPartial  bool // 是否为部分解析 (需要后续数据)
-	NeedMore   bool // 是否需要更多数据
+	IsComplete  bool // 是否完整解析
+	IsPartial   bool // 是否为部分解析 (需要后续数据)
+	NeedMore    bool // 是否需要更多数据
 
 	// 请求/响应信息
 	Direction PacketDirection
@@ -294,14 +294,14 @@ type ReassemblyBuffer interface {
 // EngineConfig 解析引擎配置
 type EngineConfig struct {
 	// Worker 配置
-	WorkerNum    int           // worker 数量 (默认 CPU 核心数)
-	QueueSize    int           // 每个 worker 队列大小
-	BatchSize    int           // 批量处理大小
-	BatchTimeout time.Duration // 批量超时
+	WorkerNum       int           // worker 数量 (默认 CPU 核心数)
+	QueueSize       int           // 每个 worker 队列大小
+	BatchSize       int           // 批量处理大小
+	BatchTimeout    time.Duration // 批量超时
 
 	// 性能配置
-	MaxPacketSize      int  // 最大包大小
-	MaxReasmSize       int  // 最大重组缓冲区大小
+	MaxPacketSize   int  // 最大包大小
+	MaxReasmSize    int  // 最大重组缓冲区大小
 	EnableBackpressure bool // 启用背压
 
 	// 协议配置
@@ -345,11 +345,11 @@ func DefaultConfig() *EngineConfig {
 // Stats 解析统计
 type Stats struct {
 	// 解析统计
-	PacketsParsed  uint64
-	PacketsDropped uint64
-	PacketsReasm   uint64
-	StreamsActive  uint64
-	StreamsTotal   uint64
+	PacketsParsed   uint64
+	PacketsDropped  uint64
+	PacketsReasm    uint64
+	StreamsActive   uint64
+	StreamsTotal    uint64
 
 	// 协议统计
 	ProtocolStats map[ParserType]uint64

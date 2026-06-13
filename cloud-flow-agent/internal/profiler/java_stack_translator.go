@@ -29,12 +29,12 @@ type JavaStackTranslator struct {
 
 // JavaFrame 表示一个 Java 栈帧
 type JavaFrame struct {
-	Classname  string `json:"classname"`   // 完整类名 (如 java.nio.DirectByteBuffer)
-	Method     string `json:"method"`      // 方法名 (如 allocateDirect)
-	Signature  string `json:"signature"`   // 方法签名 (如 (I)Ljava/nio/ByteBuffer;)
-	FileName   string `json:"file_name"`   // 源文件名
+	Classname  string `json:"classname"`  // 完整类名 (如 java.nio.DirectByteBuffer)
+	Method     string `json:"method"`     // 方法名 (如 allocateDirect)
+	Signature  string `json:"signature"`  // 方法签名 (如 (I)Ljava/nio/ByteBuffer;)
+	FileName   string `json:"file_name"` // 源文件名
 	LineNumber int    `json:"line_number"` // 行号
-	IsNative   bool   `json:"is_native"`   // 是否为 native 方法
+	IsNative   bool   `json:"is_native"`  // 是否为 native 方法
 }
 
 // NewJavaStackTranslator 创建 Java 栈翻译器
@@ -217,10 +217,9 @@ func (t *JavaStackTranslator) translateFrameDetailed(nativeFrame string) JavaFra
 
 // parseJNIFunction 解析 JNI 函数名
 // JNI 命名规则:
-//
-//	Java_com_example_MyClass_myMethod       -> com.example.MyClass.myMethod
-//	Java_com_example_MyClass_myMethod__I    -> com.example.MyClass.myMethod(int)
-//	Java_com_example_MyClass_myMethod__JI   -> com.example.MyClass.myMethod(long, int)
+//   Java_com_example_MyClass_myMethod       -> com.example.MyClass.myMethod
+//   Java_com_example_MyClass_myMethod__I    -> com.example.MyClass.myMethod(int)
+//   Java_com_example_MyClass_myMethod__JI   -> com.example.MyClass.myMethod(long, int)
 func (t *JavaStackTranslator) parseJNIFunction(frame string) *JavaFrame {
 	// 提取函数名部分
 	funcName := extractFuncName(frame)
@@ -272,9 +271,8 @@ func (t *JavaStackTranslator) parseJNIFunction(frame string) *JavaFrame {
 
 // decodeJNISignature 解码 JNI 签名缩写
 // JNI 重载后缀使用类型缩写:
-//
-//	Z=boolean, B=byte, C=char, S=short, I=int, J=long, F=float, D=double
-//	L<class>;=对象类型, [=数组
+//   Z=boolean, B=byte, C=char, S=short, I=int, J=long, F=float, D=double
+//   L<class>;=对象类型, [=数组
 func (t *JavaStackTranslator) decodeJNISignature(sig string) string {
 	if sig == "" {
 		return ""
@@ -366,22 +364,22 @@ func (t *JavaStackTranslator) parseJVMInternal(frame string) JavaFrame {
 
 	// 已知的 JVM 内部函数映射
 	jvmFunctions := map[string]JavaFrame{
-		"jni_NewDirectByteBuffer":      {Classname: "java.nio.ByteBuffer", Method: "allocateDirect", IsNative: true},
-		"jni_GetDirectBufferAddress":   {Classname: "java.nio.DirectByteBuffer", Method: "address", IsNative: true},
-		"jni_GetDirectBufferCapacity":  {Classname: "java.nio.DirectByteBuffer", Method: "capacity", IsNative: true},
-		"Bits_reserveMemory":           {Classname: "java.nio.Bits", Method: "reserveMemory", IsNative: true},
-		"Bits_unreserveMemory":         {Classname: "java.nio.Bits", Method: "unreserveMemory", IsNative: true},
-		"Unsafe_allocateMemory":        {Classname: "sun.misc.Unsafe", Method: "allocateMemory", IsNative: true},
-		"Unsafe_freeMemory":            {Classname: "sun.misc.Unsafe", Method: "freeMemory", IsNative: true},
-		"Unsafe_reallocateMemory":      {Classname: "sun.misc.Unsafe", Method: "reallocateMemory", IsNative: true},
-		"FileChannelImpl_map0":         {Classname: "sun.nio.ch.FileChannelImpl", Method: "map0", IsNative: true},
-		"FileChannelImpl_unmap0":       {Classname: "sun.nio.ch.FileChannelImpl", Method: "unmap0", IsNative: true},
-		"FileDispatcherImpl_read0":     {Classname: "sun.nio.ch.FileDispatcherImpl", Method: "read0", IsNative: true},
-		"FileDispatcherImpl_write0":    {Classname: "sun.nio.ch.FileDispatcherImpl", Method: "write0", IsNative: true},
-		"FileDispatcherImpl_pread0":    {Classname: "sun.nio.ch.FileDispatcherImpl", Method: "pread0", IsNative: true},
-		"FileDispatcherImpl_pwrite0":   {Classname: "sun.nio.ch.FileDispatcherImpl", Method: "pwrite0", IsNative: true},
-		"SocketDispatcherImpl_read0":   {Classname: "sun.nio.ch.SocketDispatcherImpl", Method: "read0", IsNative: true},
-		"SocketDispatcherImpl_write0":  {Classname: "sun.nio.ch.SocketDispatcherImpl", Method: "write0", IsNative: true},
+		"jni_NewDirectByteBuffer":     {Classname: "java.nio.ByteBuffer", Method: "allocateDirect", IsNative: true},
+		"jni_GetDirectBufferAddress":  {Classname: "java.nio.DirectByteBuffer", Method: "address", IsNative: true},
+		"jni_GetDirectBufferCapacity": {Classname: "java.nio.DirectByteBuffer", Method: "capacity", IsNative: true},
+		"Bits_reserveMemory":          {Classname: "java.nio.Bits", Method: "reserveMemory", IsNative: true},
+		"Bits_unreserveMemory":        {Classname: "java.nio.Bits", Method: "unreserveMemory", IsNative: true},
+		"Unsafe_allocateMemory":       {Classname: "sun.misc.Unsafe", Method: "allocateMemory", IsNative: true},
+		"Unsafe_freeMemory":           {Classname: "sun.misc.Unsafe", Method: "freeMemory", IsNative: true},
+		"Unsafe_reallocateMemory":     {Classname: "sun.misc.Unsafe", Method: "reallocateMemory", IsNative: true},
+		"FileChannelImpl_map0":        {Classname: "sun.nio.ch.FileChannelImpl", Method: "map0", IsNative: true},
+		"FileChannelImpl_unmap0":      {Classname: "sun.nio.ch.FileChannelImpl", Method: "unmap0", IsNative: true},
+		"FileDispatcherImpl_read0":    {Classname: "sun.nio.ch.FileDispatcherImpl", Method: "read0", IsNative: true},
+		"FileDispatcherImpl_write0":   {Classname: "sun.nio.ch.FileDispatcherImpl", Method: "write0", IsNative: true},
+		"FileDispatcherImpl_pread0":   {Classname: "sun.nio.ch.FileDispatcherImpl", Method: "pread0", IsNative: true},
+		"FileDispatcherImpl_pwrite0":  {Classname: "sun.nio.ch.FileDispatcherImpl", Method: "pwrite0", IsNative: true},
+		"SocketDispatcherImpl_read0":  {Classname: "sun.nio.ch.SocketDispatcherImpl", Method: "read0", IsNative: true},
+		"SocketDispatcherImpl_write0": {Classname: "sun.nio.ch.SocketDispatcherImpl", Method: "write0", IsNative: true},
 		"Netty_PooledByteBufAllocator": {Classname: "io.netty.buffer.PooledByteBufAllocator", Method: "allocate", IsNative: true},
 	}
 

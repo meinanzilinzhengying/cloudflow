@@ -43,11 +43,11 @@ type Manager struct {
 
 // ManagerConfig 管理器配置
 type ManagerConfig struct {
-	PluginDir     string        // 插件目录
-	AutoDiscovery bool          // 自动发现插件
-	CheckInterval time.Duration // 健康检查间隔
-	MaxMemoryMB   int           // 单插件内存限制
-	GRPCTimeout   time.Duration // gRPC 通信超时
+	PluginDir      string        // 插件目录
+	AutoDiscovery  bool          // 自动发现插件
+	CheckInterval  time.Duration // 健康检查间隔
+	MaxMemoryMB    int           // 单插件内存限制
+	GRPCTimeout    time.Duration // gRPC 通信超时
 }
 
 // DefaultManagerConfig 默认管理器配置
@@ -126,7 +126,7 @@ func (m *Manager) Stop() {
 
 	// 停止所有插件
 	m.mu.Lock()
-	for _, inst := range m.instances {
+	for name, inst := range m.instances {
 		if inst.Plugin != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			inst.Plugin.Shutdown(ctx)
@@ -203,10 +203,10 @@ func (m *Manager) loadPluginManifest(path string) error {
 
 	// 加载插件
 	cfg := PluginConfig{
-		Enabled:     true,
-		BinaryPath:  filepath.Join(m.config.PluginDir, manifest.Binary),
-		SocketPath:  filepath.Join(os.TempDir(), fmt.Sprintf("cloud-flow-%s.sock", manifest.Name)),
-		Timeout:     m.config.GRPCTimeout,
+		Enabled:    true,
+		BinaryPath: filepath.Join(m.config.PluginDir, manifest.Binary),
+		SocketPath: filepath.Join(os.TempDir(), fmt.Sprintf("cloud-flow-%s.sock", manifest.Name)),
+		Timeout:    m.config.GRPCTimeout,
 		MaxMemoryMB: m.config.MaxMemoryMB,
 	}
 
@@ -302,8 +302,8 @@ func (m *Manager) startExternalPlugin(name string, cfg PluginConfig) (Plugin, *e
 	// 实际实现中使用 hashicorp/go-plugin
 	// 这里简化为创建占位实例
 	plugin := &externalPluginClient{
-		name:   name,
-		socket: cfg.SocketPath,
+		name:      name,
+		socket:    cfg.SocketPath,
 	}
 
 	return plugin, cmd, nil

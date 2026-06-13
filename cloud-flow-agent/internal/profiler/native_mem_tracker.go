@@ -20,11 +20,11 @@ type AllocSource string
 const (
 	AllocSourceDirectByteBuffer AllocSource = "direct_byte_buffer" // ByteBuffer.allocateDirect()
 	AllocSourceUnsafe           AllocSource = "unsafe"             // Unsafe.allocateMemory()
-	AllocSourceJNI              AllocSource = "jni"                // JNI NewDirectByteBuffer / GetDirectBufferAddress
+	AllocSourceJNI              AllocSource = "jni"               // JNI NewDirectByteBuffer / GetDirectBufferAddress
 	AllocSourceMappedByteBuffer AllocSource = "mapped_byte_buffer" // MappedByteBuffer (mmap)
-	AllocSourceNativeIO         AllocSource = "native_io"          // Native IO (FileChannel)
-	AllocSourceNetty            AllocSource = "netty"              // Netty Pooled/UnpooledByteBufAllocator
-	AllocSourceUnknown          AllocSource = "unknown"            // 未知来源
+	AllocSourceNativeIO         AllocSource = "native_io"         // Native IO (FileChannel)
+	AllocSourceNetty            AllocSource = "netty"             // Netty Pooled/UnpooledByteBufAllocator
+	AllocSourceUnknown          AllocSource = "unknown"           // 未知来源
 )
 
 // AllocEvent 堆外内存分配事件
@@ -64,13 +64,13 @@ type MemoryBlock struct {
 
 // NativeMemConfig 堆外内存追踪器配置
 type NativeMemConfig struct {
-	PID           uint32        // 目标 Java 进程 ID
-	Duration      time.Duration // 追踪时长
-	MinBlockSize  int64         // 最小追踪块大小(字节)，默认 256
-	MaxBlocks     int           // 最大追踪块数量，默认 100000
-	TrackStack    bool          // 是否采集调用栈
-	MaxStackDepth int           // 最大栈深度，默认 64
-	SampleRate    float64       // 采样率 (0.0-1.0)，默认 1.0 (全量)
+	PID            uint32        // 目标 Java 进程 ID
+	Duration       time.Duration // 追踪时长
+	MinBlockSize   int64         // 最小追踪块大小(字节)，默认 256
+	MaxBlocks      int           // 最大追踪块数量，默认 100000
+	TrackStack     bool          // 是否采集调用栈
+	MaxStackDepth  int           // 最大栈深度，默认 64
+	SampleRate     float64       // 采样率 (0.0-1.0)，默认 1.0 (全量)
 }
 
 // DefaultNativeMemConfig 返回默认配置
@@ -89,12 +89,12 @@ func DefaultNativeMemConfig() *NativeMemConfig {
 // NativeMemTracker 堆外内存追踪器
 // 通过 hook malloc/free 和 JNI 调用来追踪 Java 堆外内存
 type NativeMemTracker struct {
-	config    *NativeMemConfig
-	javaStack *JavaStackTranslator // Java 栈翻译器
+	config     *NativeMemConfig
+	javaStack  *JavaStackTranslator // Java 栈翻译器
 
-	mu     sync.RWMutex
-	blocks map[uint64]*MemoryBlock // address -> MemoryBlock
-	events []*AllocEvent           // 所有分配/释放事件
+	mu         sync.RWMutex
+	blocks     map[uint64]*MemoryBlock // address -> MemoryBlock
+	events     []*AllocEvent           // 所有分配/释放事件
 
 	// 统计计数器
 	totalAllocs    int64 // 总分配次数
@@ -103,9 +103,9 @@ type NativeMemTracker struct {
 	currentSize    int64 // 当前活跃大小
 	peakSize       int64 // 峰值大小
 
-	running bool
-	stopCh  chan struct{}
-	doneCh  chan struct{}
+	running   bool
+	stopCh    chan struct{}
+	doneCh    chan struct{}
 }
 
 // NewNativeMemTracker 创建堆外内存追踪器
@@ -346,12 +346,12 @@ func (t *NativeMemTracker) Close() {
 
 // NativeMemStats 堆外内存统计
 type NativeMemStats struct {
-	TotalAllocs    int64 `json:"total_allocs"`     // 总分配次数
-	TotalFrees     int64 `json:"total_frees"`      // 总释放次数
+	TotalAllocs    int64 `json:"total_allocs"`    // 总分配次数
+	TotalFrees     int64 `json:"total_frees"`     // 总释放次数
 	TotalAllocSize int64 `json:"total_alloc_size"` // 总分配大小(字节)
-	CurrentSize    int64 `json:"current_size"`     // 当前活跃大小(字节)
-	PeakSize       int64 `json:"peak_size"`        // 峰值大小(字节)
-	ActiveBlocks   int64 `json:"active_blocks"`    // 当前活跃块数
+	CurrentSize    int64 `json:"current_size"`    // 当前活跃大小(字节)
+	PeakSize       int64 `json:"peak_size"`       // 峰值大小(字节)
+	ActiveBlocks   int64 `json:"active_blocks"`   // 当前活跃块数
 }
 
 // SourceStat 按来源的统计
@@ -385,7 +385,7 @@ func formatBytes(bytes int64) string {
 
 // NativeMemSnapshot 堆外内存快照
 type NativeMemSnapshot struct {
-	Timestamp time.Time      `json:"timestamp"`
+	Timestamp time.Time     `json:"timestamp"`
 	Stats     NativeMemStats `json:"stats"`
 	Blocks    []*MemoryBlock `json:"blocks"`
 }
@@ -419,7 +419,7 @@ func (t *NativeMemTracker) TakeSnapshot() *NativeMemSnapshot {
 // CompareSnapshots 对比两个快照，找出新增和释放的块
 func CompareSnapshots(before, after *NativeMemSnapshot) *SnapshotDiff {
 	diff := &SnapshotDiff{
-		Timestamp:       after.Timestamp,
+		Timestamp:      after.Timestamp,
 		BeforeTimestamp: before.Timestamp,
 	}
 
@@ -451,7 +451,7 @@ func CompareSnapshots(before, after *NativeMemSnapshot) *SnapshotDiff {
 
 	// 仍然活跃的块（两边都有）
 	for addr, afterBlock := range afterMap {
-		if _, ok := beforeMap[addr]; ok {
+		if beforeBlock, ok := beforeMap[addr]; ok {
 			diff.RemainingBlocks = append(diff.RemainingBlocks, afterBlock)
 			diff.RemainingSize += afterBlock.Size
 		}
@@ -462,12 +462,12 @@ func CompareSnapshots(before, after *NativeMemSnapshot) *SnapshotDiff {
 
 // SnapshotDiff 快照差异
 type SnapshotDiff struct {
-	Timestamp       time.Time      `json:"timestamp"`
+	Timestamp      time.Time      `json:"timestamp"`
 	BeforeTimestamp time.Time      `json:"before_timestamp"`
-	NewBlocks       []*MemoryBlock `json:"new_blocks"`       // 新分配的块
-	FreedBlocks     []*MemoryBlock `json:"freed_blocks"`     // 已释放的块
-	RemainingBlocks []*MemoryBlock `json:"remaining_blocks"` // 仍然活跃的块
-	NewSize         int64          `json:"new_size"`         // 新分配大小
-	FreedSize       int64          `json:"freed_size"`       // 释放大小
-	RemainingSize   int64          `json:"remaining_size"`   // 仍然活跃大小
+	NewBlocks      []*MemoryBlock `json:"new_blocks"`       // 新分配的块
+	FreedBlocks    []*MemoryBlock `json:"freed_blocks"`      // 已释放的块
+	RemainingBlocks []*MemoryBlock `json:"remaining_blocks"`  // 仍然活跃的块
+	NewSize        int64          `json:"new_size"`         // 新分配大小
+	FreedSize      int64          `json:"freed_size"`       // 释放大小
+	RemainingSize  int64          `json:"remaining_size"`   // 仍然活跃大小
 }

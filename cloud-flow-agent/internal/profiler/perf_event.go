@@ -15,66 +15,66 @@ import (
 
 // perf_event_attr.type 字段 - 事件类型
 const (
-	PERF_TYPE_HARDWARE   = 0 // 硬件事件
-	PERF_TYPE_SOFTWARE   = 1 // 软件事件
+	PERF_TYPE_HARDWARE  = 0  // 硬件事件
+	PERF_TYPE_SOFTWARE  = 1  // 软件事件
 	PERF_TYPE_TRACEPOINT = 2 // 跟踪点事件
-	PERF_TYPE_HW_CACHE   = 3 // 硬件缓存事件
-	PERF_TYPE_RAW        = 4 // 原始事件
+	PERF_TYPE_HW_CACHE  = 3  // 硬件缓存事件
+	PERF_TYPE_RAW       = 4  // 原始事件
 	PERF_TYPE_BREAKPOINT = 5 // 断点事件
 )
 
 // PERF_TYPE_SOFTWARE 对应的 config 值 - 软件事件类型
 const (
-	PERF_COUNT_SW_CPU_CLOCK        = 0  // CPU 时钟事件
-	PERF_COUNT_SW_TASK_CLOCK       = 1  // 任务时钟事件
-	PERF_COUNT_SW_PAGE_FAULTS      = 2  // 缺页中断
-	PERF_COUNT_SW_CONTEXT_SWITCHES = 3  // 上下文切换
-	PERF_COUNT_SW_CPU_MIGRATIONS   = 4  // CPU 迁移
-	PERF_COUNT_SW_PAGE_FAULTS_MIN  = 5  // 次要缺页中断
-	PERF_COUNT_SW_PAGE_FAULTS_MAJ  = 6  // 主要缺页中断
-	PERF_COUNT_SW_ALIGNMENT_FAULTS = 7  // 对齐错误
-	PERF_COUNT_SW_EMULATION_FAULTS = 8  // 模拟错误
-	PERF_COUNT_SW_DUMMY            = 9  // 虚拟事件
-	PERF_COUNT_SW_BPF_OUTPUT       = 10 // BPF 输出事件
+	PERF_COUNT_SW_CPU_CLOCK        = 0   // CPU 时钟事件
+	PERF_COUNT_SW_TASK_CLOCK       = 1   // 任务时钟事件
+	PERF_COUNT_SW_PAGE_FAULTS      = 2   // 缺页中断
+	PERF_COUNT_SW_CONTEXT_SWITCHES = 3   // 上下文切换
+	PERF_COUNT_SW_CPU_MIGRATIONS   = 4   // CPU 迁移
+	PERF_COUNT_SW_PAGE_FAULTS_MIN  = 5   // 次要缺页中断
+	PERF_COUNT_SW_PAGE_FAULTS_MAJ  = 6   // 主要缺页中断
+	PERF_COUNT_SW_ALIGNMENT_FAULTS = 7   // 对齐错误
+	PERF_COUNT_SW_EMULATION_FAULTS = 8   // 模拟错误
+	PERF_COUNT_SW_DUMMY            = 9   // 虚拟事件
+	PERF_COUNT_SW_BPF_OUTPUT       = 10  // BPF 输出事件
 )
 
 // PERF_TYPE_HARDWARE 对应的 config 值 - 硬件事件类型
 const (
-	PERF_COUNT_HW_CPU_CYCLES              = 0 // CPU 周期
-	PERF_COUNT_HW_INSTRUCTIONS            = 1 // 指令数
-	PERF_COUNT_HW_CACHE_REFERENCES        = 2 // 缓存引用
-	PERF_COUNT_HW_CACHE_MISSES            = 3 // 缓存未命中
-	PERF_COUNT_HW_BRANCH_INSTRUCTIONS     = 4 // 分支指令
-	PERF_COUNT_HW_BRANCH_MISSES           = 5 // 分支预测失败
-	PERF_COUNT_HW_BUS_CYCLES              = 6 // 总线周期
+	PERF_COUNT_HW_CPU_CYCLES        = 0 // CPU 周期
+	PERF_COUNT_HW_INSTRUCTIONS      = 1 // 指令数
+	PERF_COUNT_HW_CACHE_REFERENCES  = 2 // 缓存引用
+	PERF_COUNT_HW_CACHE_MISSES      = 3 // 缓存未命中
+	PERF_COUNT_HW_BRANCH_INSTRUCTIONS = 4 // 分支指令
+	PERF_COUNT_HW_BRANCH_MISSES     = 5 // 分支预测失败
+	PERF_COUNT_HW_BUS_CYCLES        = 6 // 总线周期
 	PERF_COUNT_HW_STALLED_CYCLES_FRONTEND = 7 // 前端停顿周期
 	PERF_COUNT_HW_STALLED_CYCLES_BACKEND  = 8 // 后端停顿周期
-	PERF_COUNT_HW_REF_CPU_CYCLES          = 9 // 引用 CPU 周期
+	PERF_COUNT_HW_REF_CPU_CYCLES    = 9 // 引用 CPU 周期
 )
 
 // perf_event_attr.sample_type 字段 - 采样类型位掩码
 const (
-	PERF_SAMPLE_IP             = 1 << 0  // 指令指针
-	PERF_SAMPLE_TID            = 1 << 1  // 线程/进程 ID
-	PERF_SAMPLE_TIME           = 1 << 2  // 时间戳
-	PERF_SAMPLE_ADDR           = 1 << 3  // 地址
-	PERF_SAMPLE_READ           = 1 << 4  // 读取值
-	PERF_SAMPLE_CALLCHAIN      = 1 << 5  // 调用链
-	PERF_SAMPLE_ID             = 1 << 6  // 采样 ID
-	PERF_SAMPLE_CPU            = 1 << 7  // CPU 编号
-	PERF_SAMPLE_PERIOD         = 1 << 8  // 采样周期
-	PERF_SAMPLE_STREAM_ID      = 1 << 9  // 流 ID
-	PERF_SAMPLE_RAW            = 1 << 10 // 原始数据
-	PERF_SAMPLE_BRANCH_STACK   = 1 << 11 // 分支栈
-	PERF_SAMPLE_REGS_USER      = 1 << 12 // 用户态寄存器
-	PERF_SAMPLE_STACK_USER     = 1 << 13 // 用户态栈
-	PERF_SAMPLE_WEIGHT         = 1 << 14 // 权重
-	PERF_SAMPLE_DATA_SRC       = 1 << 15 // 数据源
-	PERF_SAMPLE_IDENTIFIER     = 1 << 16 // 标识符
-	PERF_SAMPLE_REGS_INTR      = 1 << 17 // 中断寄存器
-	PERF_SAMPLE_PHYS_ADDR      = 1 << 18 // 物理地址
-	PERF_SAMPLE_AUX            = 1 << 19 // 辅助数据
-	PERF_SAMPLE_CGROUP         = 1 << 20 // 控制组
+	PERF_SAMPLE_IP           = 1 << 0  // 指令指针
+	PERF_SAMPLE_TID          = 1 << 1  // 线程/进程 ID
+	PERF_SAMPLE_TIME         = 1 << 2  // 时间戳
+	PERF_SAMPLE_ADDR         = 1 << 3  // 地址
+	PERF_SAMPLE_READ         = 1 << 4  // 读取值
+	PERF_SAMPLE_CALLCHAIN    = 1 << 5  // 调用链
+	PERF_SAMPLE_ID           = 1 << 6  // 采样 ID
+	PERF_SAMPLE_CPU          = 1 << 7  // CPU 编号
+	PERF_SAMPLE_PERIOD       = 1 << 8  // 采样周期
+	PERF_SAMPLE_STREAM_ID    = 1 << 9  // 流 ID
+	PERF_SAMPLE_RAW          = 1 << 10 // 原始数据
+	PERF_SAMPLE_BRANCH_STACK = 1 << 11 // 分支栈
+	PERF_SAMPLE_REGS_USER    = 1 << 12 // 用户态寄存器
+	PERF_SAMPLE_STACK_USER   = 1 << 13 // 用户态栈
+	PERF_SAMPLE_WEIGHT       = 1 << 14 // 权重
+	PERF_SAMPLE_DATA_SRC     = 1 << 15 // 数据源
+	PERF_SAMPLE_IDENTIFIER   = 1 << 16 // 标识符
+	PERF_SAMPLE_REGS_INTR    = 1 << 17 // 中断寄存器
+	PERF_SAMPLE_PHYS_ADDR    = 1 << 18 // 物理地址
+	PERF_SAMPLE_AUX          = 1 << 19 // 辅助数据
+	PERF_SAMPLE_CGROUP       = 1 << 20 // 控制组
 	PERF_SAMPLE_DATA_PAGE_SIZE = 1 << 21 // 数据页大小
 	PERF_SAMPLE_CODE_PAGE_SIZE = 1 << 22 // 代码页大小
 	PERF_SAMPLE_WEIGHT_STRUCT  = 1 << 23 // 权重结构
@@ -82,52 +82,52 @@ const (
 
 // perf_event_attr.read_format 字段 - 读取格式位掩码
 const (
-	PERF_FORMAT_TOTAL = 1 << 0
-	PERF_FORMAT_ID    = 1 << 1
-	PERF_FORMAT_GROUP = 1 << 2
-	PERF_FORMAT_LOST  = 1 << 3
+	PERF_FORMAT_TOTAL           = 1 << 0
+	PERF_FORMAT_ID              = 1 << 1
+	PERF_FORMAT_GROUP           = 1 << 2
+	PERF_FORMAT_LOST            = 1 << 3
 )
 
 // perf_event_attr.flags 字段 - 属性标志位
 const (
-	PERF_FLAG_FD_NO_GROUP = 1 << 0
-	PERF_FLAG_FD_OUTPUT   = 1 << 1
-	PERF_FLAG_PID_CGROUP  = 1 << 2
-	PERF_FLAG_FD_CLOEXEC  = 1 << 3
+	PERF_FLAG_FD_NO_GROUP  = 1 << 0
+	PERF_FLAG_FD_OUTPUT    = 1 << 1
+	PERF_FLAG_PID_CGROUP   = 1 << 2
+	PERF_FLAG_FD_CLOEXEC   = 1 << 3
 )
 
 // perf_event_attr 中的其他标志
 const (
-	PERF_ATTR_FLAG_DISABLED       = 1 << 0  // 初始禁用
-	PERF_ATTR_FLAG_INHERIT        = 1 << 1  // 继承到子进程
-	PERF_ATTR_FLAG_PINNED         = 1 << 2  // 固定到 CPU
-	PERF_ATTR_FLAG_EXCLUSIVE      = 1 << 3  // 独占事件组
+	PERF_ATTR_FLAG_DISABLED    = 1 << 0 // 初始禁用
+	PERF_ATTR_FLAG_INHERIT     = 1 << 1 // 继承到子进程
+	PERF_ATTR_FLAG_PINNED      = 1 << 2 // 固定到 CPU
+	PERF_ATTR_FLAG_EXCLUSIVE   = 1 << 3 // 独占事件组
 	PERF_ATTR_FLAG_EXCLUDE_USER   = 1 << 4  // 排除用户态
 	PERF_ATTR_FLAG_EXCLUDE_KERNEL = 1 << 5  // 排除内核态
 	PERF_ATTR_FLAG_EXCLUDE_HV     = 1 << 6  // 排除虚拟机管理器
 	PERF_ATTR_FLAG_EXCLUDE_IDLE   = 1 << 7  // 排除空闲
-	PERF_ATTR_FLAG_MMAP           = 1 << 8  // 映射事件
-	PERF_ATTR_FLAG_COMM           = 1 << 9  // 通信事件
-	PERF_ATTR_FLAG_FREQ           = 1 << 10 // 使用频率而非周期
-	PERF_ATTR_FLAG_INHERIT_STAT   = 1 << 11 // 继承统计
+	PERF_ATTR_FLAG_MMAP       = 1 << 8  // 映射事件
+	PERF_ATTR_FLAG_COMM       = 1 << 9  // 通信事件
+	PERF_ATTR_FLAG_FREQ       = 1 << 10 // 使用频率而非周期
+	PERF_ATTR_FLAG_INHERIT_STAT = 1 << 11 // 继承统计
 	PERF_ATTR_FLAG_ENABLE_ON_EXEC = 1 << 12 // exec 时启用
-	PERF_ATTR_FLAG_TASK           = 1 << 13 // 跟踪任务
-	PERF_ATTR_FLAG_WATERMARK      = 1 << 14 // 水位标记
-	PERF_ATTR_FLAG_USE_CLOCKID    = 1 << 15 // 使用指定时钟
+	PERF_ATTR_FLAG_TASK       = 1 << 13 // 跟踪任务
+	PERF_ATTR_FLAG_WATERMARK  = 1 << 14 // 水位标记
+	PERF_ATTR_FLAG_USE_CLOCKID = 1 << 15 // 使用指定时钟
 	PERF_ATTR_FLAG_CONTEXT_SWITCH = 1 << 16 // 上下文切换
 )
 
 // ioctl 命令常量
 const (
-	PERF_EVENT_IOC_ENABLE       = 0x2400     // 启用事件
-	PERF_EVENT_IOC_DISABLE      = 0x2401     // 禁用事件
-	PERF_EVENT_IOC_RESET        = 0x2403     // 重置事件计数
-	PERF_EVENT_IOC_REFRESH      = 0x2402     // 刷新事件
-	PERF_EVENT_IOC_SET_PERIOD   = 0x40082404 // 设置采样周期
-	PERF_EVENT_IOC_SET_FILTER   = 0x40082406 // 设置过滤条件
-	PERF_EVENT_IOC_SET_BPF      = 0x40042408 // 设置 BPF 程序
+	PERF_EVENT_IOC_ENABLE   = 0x2400 // 启用事件
+	PERF_EVENT_IOC_DISABLE  = 0x2401 // 禁用事件
+	PERF_EVENT_IOC_RESET    = 0x2403 // 重置事件计数
+	PERF_EVENT_IOC_REFRESH  = 0x2402 // 刷新事件
+	PERF_EVENT_IOC_SET_PERIOD = 0x40082404 // 设置采样周期
+	PERF_EVENT_IOC_SET_FILTER = 0x40082406 // 设置过滤条件
+	PERF_EVENT_IOC_SET_BPF   = 0x40042408 // 设置 BPF 程序
 	PERF_EVENT_IOC_PAUSE_OUTPUT = 0x40042409 // 暂停输出
-	PERF_EVENT_IOC_QUERY_BPF    = 0xC008240A // 查询 BPF 程序
+	PERF_EVENT_IOC_QUERY_BPF = 0xC008240A // 查询 BPF 程序
 )
 
 // mmap ring buffer 相关常量
@@ -151,25 +151,25 @@ const (
 // 用于配置 perf 采样事件的属性
 // 参考: https://man7.org/linux/man-pages/man2/perf_event_open.2.html
 type perfEventAttr struct {
-	Type            uint32 // 事件类型 (PERF_TYPE_SOFTWARE 等)
-	Size            uint32 // 结构体大小
-	Config          uint64 // 事件配置 (PERF_COUNT_SW_CPU_CLOCK 等)
-	SamplePeriod    uint64 // 采样周期 (与 freq 互斥)
-	SampleFreq      uint64 // 采样频率 (与 period 互斥)
-	SampleType      uint64 // 采样类型位掩码
-	ReadFormat      uint64 // 读取格式位掩码
-	Flags           uint64 // 属性标志位 (disabled, inherit, freq 等)
-	BPType          uint32 // 断点类型 (仅用于 PERF_TYPE_BREAKPOINT)
-	BPAddr          uint64 // 断点地址
-	BPLen           uint32 // 断点长度
-	BranchType      uint32 // 分支类型
+	Type          uint32 // 事件类型 (PERF_TYPE_SOFTWARE 等)
+	Size          uint32 // 结构体大小
+	Config        uint64 // 事件配置 (PERF_COUNT_SW_CPU_CLOCK 等)
+	SamplePeriod  uint64 // 采样周期 (与 freq 互斥)
+	SampleFreq    uint64 // 采样频率 (与 period 互斥)
+	SampleType    uint64 // 采样类型位掩码
+	ReadFormat    uint64 // 读取格式位掩码
+	Flags         uint64 // 属性标志位 (disabled, inherit, freq 等)
+	BPType        uint32 // 断点类型 (仅用于 PERF_TYPE_BREAKPOINT)
+	BPAddr        uint64 // 断点地址
+	BPLen         uint32 // 断点长度
+	BranchType    uint32 // 分支类型
 	SampleRegsUser  uint64 // 采样时保存的用户态寄存器
 	SampleStackUser uint32 // 采样时保存的用户态栈大小
-	ClockID         int32  // 时钟 ID (当 use_clockid 标志设置时)
-	SampleRegsIntr  uint64 // 采样时保存的中断寄存器
-	AuxWatermark    uint32 // 辅助缓冲区水位标记
-	SampleMaxStack  uint16 // 最大栈深度
-	Reserved        uint16 // 保留字段
+	ClockID       int32  // 时钟 ID (当 use_clockid 标志设置时)
+	SampleRegsIntr uint64 // 采样时保存的中断寄存器
+	AuxWatermark  uint32 // 辅助缓冲区水位标记
+	SampleMaxStack uint16 // 最大栈深度
+	Reserved      uint16 // 保留字段
 }
 
 // ==================== Ring Buffer 结构体 ====================
@@ -185,67 +185,67 @@ type perfEventHeader struct {
 // perfEventMmapEntry 是 PERF_RECORD_MMAP 事件的数据结构
 // 包含内存映射信息，用于将地址映射到文件
 type perfEventMmapEntry struct {
-	Header   perfEventHeader
-	PID      uint32  // 进程 ID
-	TID      uint32  // 线程 ID
-	Addr     uint64  // 映射起始地址
-	Len      uint64  // 映射长度
-	Pgoff    uint64  // 文件偏移
+	Header perfEventHeader
+	PID    uint32 // 进程 ID
+	TID    uint32 // 线程 ID
+	Addr   uint64 // 映射起始地址
+	Len    uint64 // 映射长度
+	Pgoff  uint64 // 文件偏移
 	Filename [0]byte // 以 null 结尾的文件名 (变长)
 }
 
 // perfRingBuffer 封装 perf_event 的 mmap ring buffer
 // 用于高效读取采样数据，避免频繁的系统调用
 type perfRingBuffer struct {
-	data     []byte        // mmap 映射的内存区域
-	dataSize int           // 数据区域大小 (总大小 - 元数据页)
-	fd       int           // perf_event 文件描述符
+	data     []byte       // mmap 映射的内存区域
+	dataSize int          // 数据区域大小 (总大小 - 元数据页)
+	fd       int          // perf_event 文件描述符
 	header   *perfMmapPage // 指向元数据页的指针
 }
 
 // perfMmapPage 是 ring buffer 的元数据页结构
 // 位于 mmap 区域的第一页，包含 ring buffer 的控制信息
 type perfMmapPage struct {
-	Version       uint32 // 版本号
-	CompatVersion uint32 // 兼容版本
-	Lock          uint32 // 自旋锁
-	Index         uint32 // ring buffer 索引
-	Offset        uint64  // 数据偏移
-	TimeEnabled   uint64 // 事件启用时间
-	TimeRunning   uint64 // 事件运行时间
-	Capabilities  uint64 // 能力标志
-	PadHead       uint64 // 头部填充
-	PadTail       uint64 // 尾部填充
-	PadT0Width    uint64 // 时间戳宽度
-	PadT1Width    uint64 // 时间戳宽度
-	AuxHead       uint64 // 辅助缓冲区头部
-	AuxTail       uint64 // 辅助缓冲区尾部
-	AuxOffset     uint64 // 辅助缓冲区偏移
+	Version        uint32        // 版本号
+	CompatVersion  uint32        // 兼容版本
+	Lock           uint32        // 自旋锁
+	Index          uint32        // ring buffer 索引
+	Offset         int64         // 数据偏移
+	TimeEnabled    uint64        // 事件启用时间
+	TimeRunning    uint64        // 事件运行时间
+	Capabilities   uint64        // 能力标志
+	PadHead        uint64        // 头部填充
+	PadTail        uint64        // 尾部填充
+	PadT0Width     uint64        // 时间戳宽度
+	PadT1Width     uint64        // 时间戳宽度
+	AuxHead        uint64        // 辅助缓冲区头部
+	AuxTail        uint64        // 辅助缓冲区尾部
+	AuxOffset      uint64        // 辅助缓冲区偏移
 }
 
 // perf 事件记录类型常量
 const (
-	PERF_RECORD_MMAP            = 1  // 内存映射事件
-	PERF_RECORD_LOST            = 2  // 丢失事件
-	PERF_RECORD_COMM            = 3  // 进程名变更事件
-	PERF_RECORD_EXIT            = 4  // 进程退出事件
-	PERF_RECORD_THROTTLE        = 5  // 节流事件
-	PERF_RECORD_UNTHROTTLE      = 6  // 取消节流事件
-	PERF_RECORD_FORK            = 7  // 进程 fork 事件
-	PERF_RECORD_READ            = 8  // 读取事件
-	PERF_RECORD_SAMPLE          = 9  // 采样事件 (核心)
-	PERF_RECORD_MMAP2           = 10 // 扩展内存映射事件
-	PERF_RECORD_AUX             = 11 // 辅助数据事件
-	PERF_RECORD_ITRACE_START    = 12 // 指令跟踪开始
-	PERF_RECORD_LOST_SAMPLES    = 13 // 丢失采样事件
-	PERF_RECORD_SWITCH          = 14 // 上下文切换事件
+	PERF_RECORD_MMAP          = 1  // 内存映射事件
+	PERF_RECORD_LOST          = 2  // 丢失事件
+	PERF_RECORD_COMM          = 3  // 进程名变更事件
+	PERF_RECORD_EXIT          = 4  // 进程退出事件
+	PERF_RECORD_THROTTLE      = 5  // 节流事件
+	PERF_RECORD_UNTHROTTLE    = 6  // 取消节流事件
+	PERF_RECORD_FORK          = 7  // 进程 fork 事件
+	PERF_RECORD_READ          = 8  // 读取事件
+	PERF_RECORD_SAMPLE        = 9  // 采样事件 (核心)
+	PERF_RECORD_MMAP2         = 10 // 扩展内存映射事件
+	PERF_RECORD_AUX           = 11 // 辅助数据事件
+	PERF_RECORD_ITRACE_START  = 12 // 指令跟踪开始
+	PERF_RECORD_LOST_SAMPLES  = 13 // 丢失采样事件
+	PERF_RECORD_SWITCH        = 14 // 上下文切换事件
 	PERF_RECORD_SWITCH_CPU_WIDE = 15 // CPU 宽上下文切换
-	PERF_RECORD_NAMESPACES      = 16 // 命名空间事件
-	PERF_RECORD_KSYMBOL         = 17 // 内核符号事件
-	PERF_RECORD_BPF_EVENT       = 18 // BPF 事件
-	PERF_RECORD_CGROUP          = 19 // 控制组事件
-	PERF_RECORD_TEXT_POKE       = 20 // 文本修改事件
-	PERF_RECORD_AUX_OUTPUT_HW   = 21 // 辅助输出硬件事件
+	PERF_RECORD_NAMESPACES    = 16 // 命名空间事件
+	PERF_RECORD_KSYMBOL       = 17 // 内核符号事件
+	PERF_RECORD_BPF_EVENT     = 18 // BPF 事件
+	PERF_RECORD_CGROUP        = 19 // 控制组事件
+	PERF_RECORD_TEXT_POKE     = 20 // 文本修改事件
+	PERF_RECORD_AUX_OUTPUT_HW = 21 // 辅助输出硬件事件
 )
 
 // ==================== perf_event 系统调用封装 ====================
@@ -268,10 +268,10 @@ func OpenPerfEvent(cpu int, freq uint64, pid int) (int, error) {
 	// 构造 perf_event_attr 结构体
 	// 使用软件事件 CPU_CLOCK 进行采样，兼容性最好
 	attr := &perfEventAttr{
-		Type:       PERF_TYPE_SOFTWARE,      // 使用软件事件
+		Type:       PERF_TYPE_SOFTWARE, // 使用软件事件
 		Config:     PERF_COUNT_SW_CPU_CLOCK, // CPU 时钟事件
-		SampleFreq: freq,                    // 采样频率
-		SampleType: PERF_SAMPLE_CPU | PERF_SAMPLE_STACK_USER |
+		SampleFreq: freq,               // 采样频率
+		SampleType: PERF_SAMPLE_CPU | PERF_SAMPLE_STACK_USER | PERF_SAMPLE_STACK_KERNEL |
 			PERF_SAMPLE_TIME | PERF_SAMPLE_TID | PERF_SAMPLE_PERIOD | PERF_SAMPLE_CALLCHAIN,
 		ReadFormat: PERF_FORMAT_TOTAL | PERF_FORMAT_LOST | PERF_FORMAT_ID,
 		Flags: PERF_ATTR_FLAG_DISABLED | // 初始禁用，手动启用
@@ -293,7 +293,7 @@ func OpenPerfEvent(cpu int, freq uint64, pid int) (int, error) {
 		uintptr(unsafe.Pointer(attr)),
 		uintptr(pid),
 		uintptr(cpu),
-		0,                             // group_fd = -1 (无组)
+		0, // group_fd = -1 (无组)
 		uintptr(PERF_FLAG_FD_CLOEXEC), // 设置 close-on-exec
 		0,
 	)
@@ -385,12 +385,12 @@ func mmapRingBuffer(fd int, size int) (*perfRingBuffer, error) {
 	// 参数: addr=NULL, length=1页+数据区, prot=READ|WRITE, flags=SHARED, fd, offset=0
 	data, _, errno := syscall.Syscall6(
 		SYS_MMAP,
-		0,                                    // addr = NULL，由内核选择地址
-		uintptr(size),                        // length = 元数据页 + 数据区
+		0,                                  // addr = NULL，由内核选择地址
+		uintptr(size),                      // length = 元数据页 + 数据区
 		syscall.PROT_READ|syscall.PROT_WRITE, // prot = 可读可写
-		syscall.MAP_SHARED,                   // flags = 共享映射
-		uintptr(fd),                          // fd = perf_event 文件描述符
-		0,                                    // offset = 0
+		syscall.MAP_SHARED,                 // flags = 共享映射
+		uintptr(fd),                        // fd = perf_event 文件描述符
+		0,                                  // offset = 0
 	)
 
 	if int(errno) != 0 {

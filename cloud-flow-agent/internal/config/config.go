@@ -105,10 +105,10 @@ type ResourceLimitConfig struct {
 }
 
 type CircuitBreakerConfig struct {
-	Enabled                   bool
-	MaxFailures               int
-	ResetTimeout              time.Duration
-	SilentDuration            time.Duration
+	Enabled        bool
+	MaxFailures    int
+	ResetTimeout   time.Duration
+	SilentDuration time.Duration
 	CheckInterval             time.Duration
 	CPUDegradedThreshold      float64
 	CPUSilentThreshold        float64
@@ -122,10 +122,10 @@ type CircuitBreakerConfig struct {
 }
 
 type SelfMonitorConfig struct {
-	Enabled                   bool
-	CollectInterval           time.Duration
-	ReportInterval            time.Duration
-	HeartbeatTimeout          time.Duration
+	Enabled          bool
+	CollectInterval  time.Duration
+	ReportInterval   time.Duration
+	HeartbeatTimeout time.Duration
 	AlertHeartbeatFailCount   int
 	AlertCPUPercent           float64
 	AlertMemoryPercent        float64
@@ -143,13 +143,13 @@ type PerfOptimizerConfig struct {
 }
 
 type CPUProfilerConfig struct {
-	Enabled       bool
-	SampleFreq    int
-	TargetPID     uint32
+	Enabled      bool
+	SampleFreq   int
+	TargetPID    uint32
 	MaxStackDepth int
-	DurationSec   int
-	OutputDir     string
-	AutoDetect    bool
+	DurationSec  int
+	OutputDir    string
+	AutoDetect   bool
 }
 
 type SQLAggregatorConfig struct {
@@ -165,13 +165,13 @@ type SQLAggregatorConfig struct {
 }
 
 type StorageConfig struct {
-	Enabled              bool
-	BaseDir              string
-	RetentionDays        int
-	ChunkSize            int
-	WriteBufferSize      int
-	CompressionType      string
-	EnableIndex          bool
+	Enabled             bool
+	BaseDir             string
+	RetentionDays       int
+	ChunkSize           int
+	WriteBufferSize     int
+	CompressionType     string
+	EnableIndex         bool
 	RetentionIntervalMin int
 	MetricRetentionDays  int
 	LogRetentionDays     int
@@ -182,20 +182,20 @@ type StorageConfig struct {
 }
 
 type AlertConfig struct {
-	Enabled               bool                `yaml:"enabled" json:"enabled"`
-	EvaluationInterval    time.Duration       `yaml:"evaluation_interval" json:"evaluation_interval"`
-	ResolveTimeout        time.Duration       `yaml:"resolve_timeout" json:"resolve_timeout"`
-	EnableAutoResolve     bool                `yaml:"enable_auto_resolve" json:"enable_auto_resolve"`
-	MaxActiveAlerts       int                 `yaml:"max_active_alerts" json:"max_active_alerts"`
-	EnableLatencyAlert    bool                `yaml:"enable_latency_alert" json:"enable_latency_alert"`
-	EnablePacketLossAlert bool                `yaml:"enable_packet_loss_alert" json:"enable_packet_loss_alert"`
-	EnableRetransmitAlert bool                `yaml:"enable_retransmit_alert" json:"enable_retransmit_alert"`
-	EnableCPUAlert        bool                `yaml:"enable_cpu_alert" json:"enable_cpu_alert"`
-	EnableMemoryAlert     bool                `yaml:"enable_memory_alert" json:"enable_memory_alert"`
-	EnableErrorRateAlert  bool                `yaml:"enable_error_rate_alert" json:"enable_error_rate_alert"`
-	NotifyKafka           KafkaNotifyConfig   `yaml:"notify_kafka" json:"notify_kafka"`
-	NotifyAPI             APINotifyConfig     `yaml:"notify_api" json:"notify_api"`
-	NotifyWebhook         WebhookNotifyConfig `yaml:"notify_webhook" json:"notify_webhook"`
+	Enabled            bool          `yaml:"enabled" json:"enabled"`
+	EvaluationInterval time.Duration `yaml:"evaluation_interval" json:"evaluation_interval"`
+	ResolveTimeout     time.Duration `yaml:"resolve_timeout" json:"resolve_timeout"`
+	EnableAutoResolve  bool          `yaml:"enable_auto_resolve" json:"enable_auto_resolve"`
+	MaxActiveAlerts    int           `yaml:"max_active_alerts" json:"max_active_alerts"`
+	EnableLatencyAlert    bool `yaml:"enable_latency_alert" json:"enable_latency_alert"`
+	EnablePacketLossAlert bool `yaml:"enable_packet_loss_alert" json:"enable_packet_loss_alert"`
+	EnableRetransmitAlert bool `yaml:"enable_retransmit_alert" json:"enable_retransmit_alert"`
+	EnableCPUAlert        bool `yaml:"enable_cpu_alert" json:"enable_cpu_alert"`
+	EnableMemoryAlert     bool `yaml:"enable_memory_alert" json:"enable_memory_alert"`
+	EnableErrorRateAlert  bool `yaml:"enable_error_rate_alert" json:"enable_error_rate_alert"`
+	NotifyKafka   KafkaNotifyConfig   `yaml:"notify_kafka" json:"notify_kafka"`
+	NotifyAPI     APINotifyConfig     `yaml:"notify_api" json:"notify_api"`
+	NotifyWebhook WebhookNotifyConfig `yaml:"notify_webhook" json:"notify_webhook"`
 }
 
 type KafkaNotifyConfig struct {
@@ -205,11 +205,11 @@ type KafkaNotifyConfig struct {
 }
 
 type APINotifyConfig struct {
-	Enabled   bool              `yaml:"enabled" json:"enabled"`
-	URL       string            `yaml:"url" json:"url"`
-	Headers   map[string]string `yaml:"headers" json:"headers"`
-	AuthType  string            `yaml:"auth_type" json:"auth_type"`
-	AuthToken string            `yaml:"auth_token" json:"auth_token"`
+	Enabled  bool              `yaml:"enabled" json:"enabled"`
+	URL      string            `yaml:"url" json:"url"`
+	Headers  map[string]string `yaml:"headers" json:"headers"`
+	AuthType string            `yaml:"auth_type" json:"auth_type"`
+	AuthToken string           `yaml:"auth_token" json:"auth_token"`
 }
 
 type WebhookNotifyConfig struct {
@@ -220,58 +220,58 @@ type WebhookNotifyConfig struct {
 }
 
 type TopologyConfig struct {
-	Enabled                bool          `yaml:"enabled" json:"enabled"`
-	RefreshInterval        time.Duration `yaml:"refresh_interval" json:"refresh_interval"`
-	AutoDiscovery          bool          `yaml:"auto_discovery" json:"auto_discovery"`
-	DefaultLayout          string        `yaml:"default_layout" json:"default_layout"`
-	MaxNodes               int           `yaml:"max_nodes" json:"max_nodes"`
-	IncludePods            bool          `yaml:"include_pods" json:"include_pods"`
-	IncludeVMs             bool          `yaml:"include_vms" json:"include_vms"`
-	IncludePhysical        bool          `yaml:"include_physical" json:"include_physical"`
-	EnableAlertIntegration bool          `yaml:"enable_alert_integration" json:"enable_alert_integration"`
+	Enabled         bool          `yaml:"enabled" json:"enabled"`
+	RefreshInterval time.Duration `yaml:"refresh_interval" json:"refresh_interval"`
+	AutoDiscovery   bool          `yaml:"auto_discovery" json:"auto_discovery"`
+	DefaultLayout   string        `yaml:"default_layout" json:"default_layout"`
+	MaxNodes        int           `yaml:"max_nodes" json:"max_nodes"`
+	IncludePods     bool `yaml:"include_pods" json:"include_pods"`
+	IncludeVMs      bool `yaml:"include_vms" json:"include_vms"`
+	IncludePhysical bool `yaml:"include_physical" json:"include_physical"`
+	EnableAlertIntegration bool `yaml:"enable_alert_integration" json:"enable_alert_integration"`
 }
 
 type TenantConfig struct {
-	Enabled           bool `yaml:"enabled" json:"enabled"`
-	MultiTenant       bool `yaml:"multi_tenant" json:"multi_tenant"`
-	MaxTenants        int  `yaml:"max_tenants" json:"max_tenants"`
-	MaxUsersPerTenant int  `yaml:"max_users_per_tenant" json:"max_users_per_tenant"`
+	Enabled       bool `yaml:"enabled" json:"enabled"`
+	MultiTenant   bool `yaml:"multi_tenant" json:"multi_tenant"`
+	MaxTenants    int  `yaml:"max_tenants" json:"max_tenants"`
+	MaxUsersPerTenant int `yaml:"max_users_per_tenant" json:"max_users_per_tenant"`
 }
 
 type DashboardConfig struct {
-	Enabled          bool          `yaml:"enabled" json:"enabled"`
-	RefreshInterval  time.Duration `yaml:"refresh_interval" json:"refresh_interval"`
-	EnableDrillDown  bool          `yaml:"enable_drill_down" json:"enable_drill_down"`
-	MaxAssetsPerPage int           `yaml:"max_assets_per_page" json:"max_assets_per_page"`
+	Enabled           bool          `yaml:"enabled" json:"enabled"`
+	RefreshInterval   time.Duration `yaml:"refresh_interval" json:"refresh_interval"`
+	EnableDrillDown   bool          `yaml:"enable_drill_down" json:"enable_drill_down"`
+	MaxAssetsPerPage  int           `yaml:"max_assets_per_page" json:"max_assets_per_page"`
 }
 
 type MetricsConfig struct {
-	Enabled        bool          `yaml:"enabled" json:"enabled"`
-	NetworkEnabled bool          `yaml:"network_enabled" json:"network_enabled"`
-	AppEnabled     bool          `yaml:"app_enabled" json:"app_enabled"`
-	SQLEnabled     bool          `yaml:"sql_enabled" json:"sql_enabled"`
-	MaxDataPoints  int           `yaml:"max_data_points" json:"max_data_points"`
-	RetentionTime  time.Duration `yaml:"retention_time" json:"retention_time"`
+	Enabled           bool          `yaml:"enabled" json:"enabled"`
+	NetworkEnabled    bool          `yaml:"network_enabled" json:"network_enabled"`
+	AppEnabled        bool          `yaml:"app_enabled" json:"app_enabled"`
+	SQLEnabled        bool          `yaml:"sql_enabled" json:"sql_enabled"`
+	MaxDataPoints     int           `yaml:"max_data_points" json:"max_data_points"`
+	RetentionTime     time.Duration `yaml:"retention_time" json:"retention_time"`
 }
 
 type CMDBConfig struct {
-	Enabled        bool          `yaml:"enabled" json:"enabled"`
-	Type           string        `yaml:"type" json:"type"`
-	Endpoint       string        `yaml:"endpoint" json:"endpoint"`
-	AuthType       string        `yaml:"auth_type" json:"auth_type"`
-	AuthToken      string        `yaml:"auth_token" json:"auth_token"`
-	APIKey         string        `yaml:"api_key" json:"api_key"`
-	Username       string        `yaml:"username" json:"username"`
-	Password       string        `yaml:"password" json:"password"`
-	SyncInterval   time.Duration `yaml:"sync_interval" json:"sync_interval"`
-	FullSyncStart  bool          `yaml:"full_sync_on_start" json:"full_sync_on_start"`
-	Incremental    bool          `yaml:"incremental_sync" json:"incremental_sync"`
-	LabelSync      bool          `yaml:"label_sync" json:"label_sync"`
-	ConfigSync     bool          `yaml:"config_sync" json:"config_sync"`
-	RelationSync   bool          `yaml:"relation_sync" json:"relation_sync"`
-	ConflictPolicy string        `yaml:"conflict_policy" json:"conflict_policy"`
-	Timeout        time.Duration `yaml:"timeout" json:"timeout"`
-	BatchSize      int           `yaml:"batch_size" json:"batch_size"`
+	Enabled       bool          `yaml:"enabled" json:"enabled"`
+	Type          string        `yaml:"type" json:"type"`
+	Endpoint      string        `yaml:"endpoint" json:"endpoint"`
+	AuthType      string        `yaml:"auth_type" json:"auth_type"`
+	AuthToken     string        `yaml:"auth_token" json:"auth_token"`
+	APIKey        string        `yaml:"api_key" json:"api_key"`
+	Username      string        `yaml:"username" json:"username"`
+	Password      string        `yaml:"password" json:"password"`
+	SyncInterval  time.Duration `yaml:"sync_interval" json:"sync_interval"`
+	FullSyncStart bool          `yaml:"full_sync_on_start" json:"full_sync_on_start"`
+	Incremental   bool          `yaml:"incremental_sync" json:"incremental_sync"`
+	LabelSync     bool          `yaml:"label_sync" json:"label_sync"`
+	ConfigSync    bool          `yaml:"config_sync" json:"config_sync"`
+	RelationSync  bool          `yaml:"relation_sync" json:"relation_sync"`
+	ConflictPolicy string       `yaml:"conflict_policy" json:"conflict_policy"`
+	Timeout       time.Duration `yaml:"timeout" json:"timeout"`
+	BatchSize     int           `yaml:"batch_size" json:"batch_size"`
 }
 
 type TraceConfig struct {
@@ -298,30 +298,30 @@ type EBPFConfig struct {
 	ResourceLimit   ResourceLimitConfig
 	CircuitBreaker  CircuitBreakerConfig
 	SelfMonitor     SelfMonitorConfig
-	VXLAN           VXLANConfig
-	PluginFramework PluginFrameworkConfig
-	DropMonitor     DropMonitorConfig
-	NTP             NTPConfig
-	PerfOptimizer   PerfOptimizerConfig
+	VXLAN             VXLANConfig
+	PluginFramework   PluginFrameworkConfig
+	DropMonitor       DropMonitorConfig
+	NTP               NTPConfig
+	PerfOptimizer     PerfOptimizerConfig
 	CPUProfiler     CPUProfilerConfig
 	SQLAggregator   SQLAggregatorConfig
 }
 
 type VXLANConfig struct {
-	Enabled            bool
-	EnableTapMirror    bool
-	TapDeviceName      string
+	Enabled           bool
+	EnableTapMirror   bool
+	TapDeviceName     string
 	ParseInnerProtocol bool
 }
 
 type PluginFrameworkConfig struct {
-	Enabled       bool
-	PluginDir     string
-	AutoDiscovery bool
-	CheckInterval time.Duration
-	MaxMemoryMB   int
-	GRPCTimeout   time.Duration
-	EnableBuiltin bool
+	Enabled        bool
+	PluginDir      string
+	AutoDiscovery  bool
+	CheckInterval  time.Duration
+	MaxMemoryMB    int
+	GRPCTimeout    time.Duration
+	EnableBuiltin  bool
 }
 
 type DropMonitorConfig struct {
@@ -335,43 +335,43 @@ type DropMonitorConfig struct {
 }
 
 type NTPConfig struct {
-	Enabled      bool
-	Mode         string
-	NTPServers   []string
-	SyncInterval time.Duration
-	MaxOffset    time.Duration
-	AdjustStep   bool
-	AdjustSlew   bool
+	Enabled       bool
+	Mode          string
+	NTPServers    []string
+	SyncInterval  time.Duration
+	MaxOffset     time.Duration
+	AdjustStep    bool
+	AdjustSlew    bool
 }
 
 type Config struct {
-	ProbeID              string
-	EdgeAddr             string
-	MetricsPort          string
-	HealthPort           string
-	MaxRetries           int
-	ConnectTimeout       int
-	CollectInterval      int
-	BatchSize            int
-	APIKey               string
-	TLS                  TLSConfig
-	Collect              CollectConfig
-	Log                  LogConfig
-	Network              NetworkConfig
-	EBPF                 EBPFConfig
-	Storage              StorageConfig
-	Alert                AlertConfig
-	Topology             TopologyConfig
-	Tenant               TenantConfig
-	Dashboard            DashboardConfig
-	Metrics              MetricsConfig
-	CMDB                 CMDBConfig
-	Trace                TraceConfig
-	FlushInterval        time.Duration
-	ReconnectBaseDelay   time.Duration
-	ReconnectMaxDelay    time.Duration
-	MaxReconnectAttempts int
-	MaxBufferLimit       int
+	ProbeID         string
+	EdgeAddr        string
+	MetricsPort     string
+	HealthPort      string
+	MaxRetries      int
+	ConnectTimeout  int
+	CollectInterval int
+	BatchSize       int
+	APIKey          string
+	TLS             TLSConfig
+	Collect         CollectConfig
+	Log             LogConfig
+	Network         NetworkConfig
+	EBPF            EBPFConfig
+	Storage         StorageConfig
+	Alert           AlertConfig
+	Topology        TopologyConfig
+	Tenant          TenantConfig
+	Dashboard       DashboardConfig
+	Metrics         MetricsConfig
+	CMDB            CMDBConfig
+	Trace           TraceConfig
+	FlushInterval         time.Duration
+	ReconnectBaseDelay    time.Duration
+	ReconnectMaxDelay     time.Duration
+	MaxReconnectAttempts  int
+	MaxBufferLimit        int
 }
 
 func Load() (*Config, error) {
@@ -680,10 +680,10 @@ func Load() (*Config, error) {
 				UseCgroup:     viper.GetBool("ebpf.resource_limit.use_cgroup"),
 			},
 			CircuitBreaker: CircuitBreakerConfig{
-				Enabled:                   viper.GetBool("ebpf.circuit_breaker.enabled"),
-				MaxFailures:               viper.GetInt("ebpf.circuit_breaker.max_failures"),
-				ResetTimeout:              parseSecondsAsDuration(viper.Get("ebpf.circuit_breaker.reset_timeout")),
-				SilentDuration:            parseSecondsAsDuration(viper.Get("ebpf.circuit_breaker.silent_duration")),
+				Enabled:        viper.GetBool("ebpf.circuit_breaker.enabled"),
+				MaxFailures:    viper.GetInt("ebpf.circuit_breaker.max_failures"),
+				ResetTimeout:   parseSecondsAsDuration(viper.Get("ebpf.circuit_breaker.reset_timeout")),
+				SilentDuration: parseSecondsAsDuration(viper.Get("ebpf.circuit_breaker.silent_duration")),
 				CheckInterval:             viper.GetDuration("ebpf.circuit_breaker.check_interval"),
 				CPUDegradedThreshold:      viper.GetFloat64("ebpf.circuit_breaker.cpu_degraded_threshold"),
 				CPUSilentThreshold:        viper.GetFloat64("ebpf.circuit_breaker.cpu_silent_threshold"),
@@ -774,22 +774,22 @@ func Load() (*Config, error) {
 			RetentionDays:        viper.GetInt("storage.retention_days"),
 			ChunkSize:            viper.GetInt("storage.chunk_size"),
 			WriteBufferSize:      viper.GetInt("storage.write_buffer_size"),
-			CompressionType:      viper.GetString("storage.compression_type"),
-			EnableIndex:          viper.GetBool("storage.enable_index"),
-			RetentionIntervalMin: viper.GetInt("storage.retention_interval_min"),
-			MetricRetentionDays:  viper.GetInt("storage.metric_retention_days"),
-			LogRetentionDays:     viper.GetInt("storage.log_retention_days"),
-			TraceRetentionDays:   viper.GetInt("storage.trace_retention_days"),
-			EventRetentionDays:   viper.GetInt("storage.event_retention_days"),
-			WriteRateMin:         viper.GetInt("storage.write_rate_min"),
-			QueryLatencyMaxMs:    viper.GetInt("storage.query_latency_max_ms"),
+			CompressionType:       viper.GetString("storage.compression_type"),
+			EnableIndex:           viper.GetBool("storage.enable_index"),
+			RetentionIntervalMin:  viper.GetInt("storage.retention_interval_min"),
+			MetricRetentionDays:   viper.GetInt("storage.metric_retention_days"),
+			LogRetentionDays:      viper.GetInt("storage.log_retention_days"),
+			TraceRetentionDays:    viper.GetInt("storage.trace_retention_days"),
+			EventRetentionDays:    viper.GetInt("storage.event_retention_days"),
+			WriteRateMin:          viper.GetInt("storage.write_rate_min"),
+			QueryLatencyMaxMs:     viper.GetInt("storage.query_latency_max_ms"),
 		},
 		Alert: AlertConfig{
-			Enabled:               viper.GetBool("alert.enabled"),
-			EvaluationInterval:    viper.GetDuration("alert.evaluation_interval"),
-			ResolveTimeout:        viper.GetDuration("alert.resolve_timeout"),
-			EnableAutoResolve:     viper.GetBool("alert.enable_auto_resolve"),
-			MaxActiveAlerts:       viper.GetInt("alert.max_active_alerts"),
+			Enabled:              viper.GetBool("alert.enabled"),
+			EvaluationInterval:   viper.GetDuration("alert.evaluation_interval"),
+			ResolveTimeout:       viper.GetDuration("alert.resolve_timeout"),
+			EnableAutoResolve:    viper.GetBool("alert.enable_auto_resolve"),
+			MaxActiveAlerts:      viper.GetInt("alert.max_active_alerts"),
 			EnableLatencyAlert:    viper.GetBool("alert.enable_latency_alert"),
 			EnablePacketLossAlert: viper.GetBool("alert.enable_packet_loss_alert"),
 			EnableRetransmitAlert: viper.GetBool("alert.enable_retransmit_alert"),
@@ -839,12 +839,12 @@ func Load() (*Config, error) {
 			MaxAssetsPerPage: viper.GetInt("dashboard.max_assets_per_page"),
 		},
 		Metrics: MetricsConfig{
-			Enabled:        viper.GetBool("metrics.enabled"),
+			Enabled:       viper.GetBool("metrics.enabled"),
 			NetworkEnabled: viper.GetBool("metrics.network_enabled"),
-			AppEnabled:     viper.GetBool("metrics.app_enabled"),
-			SQLEnabled:     viper.GetBool("metrics.sql_enabled"),
-			MaxDataPoints:  viper.GetInt("metrics.max_data_points"),
-			RetentionTime:  viper.GetDuration("metrics.retention_time"),
+			AppEnabled:    viper.GetBool("metrics.app_enabled"),
+			SQLEnabled:    viper.GetBool("metrics.sql_enabled"),
+			MaxDataPoints: viper.GetInt("metrics.max_data_points"),
+			RetentionTime: viper.GetDuration("metrics.retention_time"),
 		},
 		CMDB: CMDBConfig{
 			Enabled:        viper.GetBool("cmdb.enabled"),

@@ -41,8 +41,8 @@ type ProcessEvent struct {
 type CollectMode int
 
 const (
-	ModeNetlink  CollectMode = iota // netlink connector 模式
-	ModeProcScan                    // /proc 扫描模式（降级）
+	ModeNetlink CollectMode = iota // netlink connector 模式
+	ModeProcScan                   // /proc 扫描模式（降级）
 )
 
 // Config 进程采集器配置
@@ -66,13 +66,13 @@ func DefaultConfig() Config {
 
 // Collector 进程事件采集器
 type Collector struct {
-	cfg     Config
-	log     *logger.Logger
-	mode    CollectMode
-	eventCh chan *ProcessEvent
-	stopCh  chan struct{}
-	mu      sync.Mutex
-	started bool
+	cfg       Config
+	log       *logger.Logger
+	mode      CollectMode
+	eventCh   chan *ProcessEvent
+	stopCh    chan struct{}
+	mu        sync.Mutex
+	started   bool
 	// 已知进程缓存，用于 /proc 扫描模式下检测进程变化
 	knownPIDs map[uint32]procInfo
 }
@@ -160,9 +160,9 @@ func (c *Collector) Collect() []*edge.MetricData {
 		Protocol:  "process",
 		Bytes:     int64(totalProcs),
 		Tags: map[string]string{
-			"type":     "process_total",
-			"mode":     c.modeString(),
-			"running":  strconv.Itoa(runningProcs),
+			"type":    "process_total",
+			"mode":    c.modeString(),
+			"running": strconv.Itoa(runningProcs),
 			"sleeping": strconv.Itoa(sleepingProcs),
 		},
 	})
@@ -230,8 +230,8 @@ type cnMsg struct {
 
 // procEventHeader 进程事件头部
 type procEventHeader struct {
-	What      uint32
-	CPU       uint32
+	What uint32
+	CPU  uint32
 	Timestamp [2]uint64 // nsec, sec
 }
 
@@ -302,18 +302,18 @@ func (c *Collector) sendNetlinkSubscribe(fd int) error {
 
 	// nlmsghdr
 	binary.NativeEndian.PutUint32(buf[0:4], uint32(totalLen)) // nlmsg_len
-	binary.NativeEndian.PutUint16(buf[4:6], 16)               // nlmsg_type = NLMSG_DONE
-	binary.NativeEndian.PutUint16(buf[6:8], 0)                // nlmsg_flags
-	binary.NativeEndian.PutUint32(buf[8:12], 0)               // nlmsg_seq
-	binary.NativeEndian.PutUint32(buf[12:16], 0)              // nlmsg_pid
+	binary.NativeEndian.PutUint16(buf[4:6], 16)              // nlmsg_type = NLMSG_DONE
+	binary.NativeEndian.PutUint16(buf[6:8], 0)               // nlmsg_flags
+	binary.NativeEndian.PutUint32(buf[8:12], 0)              // nlmsg_seq
+	binary.NativeEndian.PutUint32(buf[12:16], 0)             // nlmsg_pid
 
 	// cn_msg
-	binary.NativeEndian.PutUint32(buf[16:20], CN_IDX_PROC) // id.val
-	binary.NativeEndian.PutUint32(buf[20:24], CN_IDX_PROC) // id.seq
-	binary.NativeEndian.PutUint32(buf[24:28], 1)           // seq
-	binary.NativeEndian.PutUint32(buf[28:32], 0)           // ack
-	binary.NativeEndian.PutUint16(buf[32:34], 4)           // len (proc_cn_mcast_op 大小)
-	binary.NativeEndian.PutUint16(buf[34:36], 0)           // flags
+	binary.NativeEndian.PutUint32(buf[16:20], CN_IDX_PROC)          // id.val
+	binary.NativeEndian.PutUint32(buf[20:24], CN_IDX_PROC)          // id.seq
+	binary.NativeEndian.PutUint32(buf[24:28], 1)                    // seq
+	binary.NativeEndian.PutUint32(buf[28:32], 0)                    // ack
+	binary.NativeEndian.PutUint16(buf[32:34], 4)                    // len (proc_cn_mcast_op 大小)
+	binary.NativeEndian.PutUint16(buf[34:36], 0)                    // flags
 
 	// proc_cn_mcast_op
 	binary.NativeEndian.PutUint32(buf[36:40], PROC_CN_MCAST_LISTEN)
@@ -668,11 +668,11 @@ done:
 			Packets:   int64(execCount),
 			Latency:   int64(exitCount),
 			Tags: map[string]string{
-				"type":  "process_events",
-				"forks": strconv.Itoa(forkCount),
-				"execs": strconv.Itoa(execCount),
-				"exits": strconv.Itoa(exitCount),
-				"mode":  c.modeString(),
+				"type":    "process_events",
+				"forks":   strconv.Itoa(forkCount),
+				"execs":   strconv.Itoa(execCount),
+				"exits":   strconv.Itoa(exitCount),
+				"mode":    c.modeString(),
 			},
 		})
 	}

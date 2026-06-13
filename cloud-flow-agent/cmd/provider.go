@@ -10,12 +10,12 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/circuitbreaker"
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/collector"
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/config"
-	// "github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfcollector"
+	ebpf "github.com/meinanzilinzhengying/cloudflow/agent/internal/ebpfcollector"
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/grpcclient"
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/network"
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/reliable"
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/selfmonitor"
-	// "github.com/meinanzilinzhengying/cloudflow/agent/internal/sqlaggregator"
+// sqlaggregator disabled
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/storage"
 	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/metrics"
@@ -27,15 +27,15 @@ type Dependencies struct {
 	Logger          *logger.Logger
 	GRPCClient      *grpcclient.Client
 	NetMonitor      *network.Monitor
-	TSStore         *storage.TimeSeriesStore
-	Breaker         *circuitbreaker.Breaker
-	SelfMonitor     *selfmonitor.Collector
-	Reporter        *reliable.Reporter
+	TSStore        *storage.TimeSeriesStore
+	Breaker        *circuitbreaker.Breaker
+	SelfMonitor    *selfmonitor.Collector
+	Reporter       *reliable.Reporter
 	LegacyCollector *collector.Collector
-	// EBPFCollector   *ebpfcollector.Collector
-	// SQLAggregator   *sqlaggregator.SQLAggregator
+	EBPFCollector  *ebpf.Collector
+	SQLAggregator  interface{}
 	MetricCollector *metrics.Metrics
-	CgroupManager   *cgroup.Manager
+	CgroupManager  *cgroup.Manager
 }
 
 // Provider 负责创建和提供 Dependencies
@@ -103,7 +103,7 @@ func (p *Provider) Provide() (*Dependencies, error) {
 		deps.Reporter = nil
 	}
 
-	deps.LegacyCollector, err = p.setupCollectors(deps)
+	deps.LegacyCollector, deps.EBPFCollector, deps.SQLAggregator, err = p.setupCollectors(deps)
 	if err != nil {
 		log.Warnf("采集器初始化失败: %v", err)
 	}
@@ -163,8 +163,8 @@ func (p *Provider) setupCircuitBreaker(deps *Dependencies) *circuitbreaker.Break
 		MemRecoverThreshold:       p.cfg.EBPF.CircuitBreaker.MemRecoverThreshold,
 		SilentCPURecoverThreshold: p.cfg.EBPF.CircuitBreaker.SilentCPURecoverThreshold,
 		SilentMemRecoverThreshold: p.cfg.EBPF.CircuitBreaker.SilentMemRecoverThreshold,
-		MaxMemoryMB:               p.cfg.EBPF.ResourceLimit.MaxMemoryMB,
-		MaxCPUCores:               p.cfg.EBPF.ResourceLimit.MaxCPUCore,
+		MaxMemoryMB:              p.cfg.EBPF.ResourceLimit.MaxMemoryMB,
+		MaxCPUCores:              p.cfg.EBPF.ResourceLimit.MaxCPUCore,
 	}
 
 	breaker := circuitbreaker.NewBreaker(obCfg)
@@ -195,7 +195,7 @@ func (p *Provider) setupSelfMonitor(deps *Dependencies) (*selfmonitor.Collector,
 		CollectInterval:  p.cfg.EBPF.SelfMonitor.CollectInterval,
 		ReportInterval:   p.cfg.EBPF.SelfMonitor.ReportInterval,
 		HeartbeatTimeout: p.cfg.EBPF.SelfMonitor.HeartbeatTimeout,
-		MaxMemoryMB:      p.cfg.EBPF.ResourceLimit.MaxMemoryMB,
+		MaxMemoryMB:     p.cfg.EBPF.ResourceLimit.MaxMemoryMB,
 	}
 
 	collector := selfmonitor.NewCollector(smCfg, deps.Logger)
@@ -271,7 +271,7 @@ func (p *Provider) setupReliableReporter(deps *Dependencies) (*reliable.Reporter
 	reporter, err := reliable.NewReporter(
 		reliable.Config{
 			CacheDir:            filepath.Join(os.TempDir(), "cloud-flow-cache"),
-			MaxCacheDuration:    1 * time.Hour,
+			MaxCacheDuration:     1 * time.Hour,
 			RetransmitBatchSize: 100,
 			RetransmitInterval:  100 * time.Millisecond,
 			SendTimeout:         10 * time.Second,
@@ -289,7 +289,7 @@ func (p *Provider) setupReliableReporter(deps *Dependencies) (*reliable.Reporter
 	return reporter, nil
 }
 
-func (p *Provider) setupCollectors(deps *Dependencies) (*collector.Collector, error) {
+func (p *Provider) setupCollectors(deps *Dependencies) (*collector.Collector, *ebpf.Collector, interface{}, error) {
 	c := collector.New(collector.CollectConfig{
 		CPU:     p.cfg.Collect.CPU,
 		Memory:  p.cfg.Collect.Memory,
@@ -297,7 +297,19 @@ func (p *Provider) setupCollectors(deps *Dependencies) (*collector.Collector, er
 		Disk:    p.cfg.Collect.Disk,
 	})
 
-	// EBPF 和 SQLAggregator 已禁用（环境兼容性问题）
-	deps.Logger.Info("EBPF/SQLAggregator 已禁用")
-	return c, nil
+	var ebpfCollector *ebpf.Collector
+	var sqlAggregator interface{}
+	var err error
+
+	ebpfCollector, err = ebpf.NewWithFallback()
+	if err != nil {
+		deps.Logger.Warnf("EBPF 采集器初始化失败: %v", err)
+	} else if ebpfCollector != nil && ebpfCollector.IsAvailable() {
+		deps.Logger.Info("EBPF 采集器初始化成功")
+		ebpfCollector.Start()
+	} else {
+		deps.Logger.Info("EBPF 采集已禁用")
+	}
+
+	return c, ebpfCollector, sqlAggregator, nil
 }

@@ -15,9 +15,9 @@ import (
 // ProfilerConfig 剖析器配置参数
 // 用于控制采样行为和目标选择
 type ProfilerConfig struct {
-	SampleFreq    int    // 采样频率 (Hz)，默认 99，范围 1-100000
+	SampleFreq    int  // 采样频率 (Hz)，默认 99，范围 1-100000
 	TargetPID     uint32 // 目标进程 ID，0 表示监控所有进程
-	MaxStackDepth int    // 最大栈深度，默认 127
+	MaxStackDepth int  // 最大栈深度，默认 127
 }
 
 // ProfileResult 剖析结果
@@ -50,19 +50,19 @@ type ProfilerStats struct {
 //  4. GenerateFlameGraph() / GetHotFunctions() 获取结果
 //  5. Stop() 停止采样
 type Profiler struct {
-	symbolizer    *Symbolizer       // 多语言符号解析器
-	flameGraph    *FlameGraph       // 火焰图生成器
-	perfEventFD   int               // perf_event 文件描述符
-	ringBuffer    *perfRingBuffer   // perf ring buffer (用于读取采样数据)
-	enabled       bool              // 是否正在采样
-	sampleFreq    int               // 当前采样频率 (Hz)
-	targetPID     uint32            // 目标进程 ID
-	stackCounts   map[string]uint64 // 栈合并计数 map (key=栈帧链, value=采样次数)
-	mu            sync.Mutex        // 互斥锁，保护共享状态
-	stopCh        chan struct{}     // 停止信号通道
-	doneCh        chan struct{}     // 采样 goroutine 完成信号
-	maxStackDepth int               // 最大栈深度
-	stats         ProfilerStats     // 采样统计信息
+	symbolizer  *Symbolizer  // 多语言符号解析器
+	flameGraph  *FlameGraph  // 火焰图生成器
+	perfEventFD int          // perf_event 文件描述符
+	ringBuffer  *perfRingBuffer // perf ring buffer (用于读取采样数据)
+	enabled     bool         // 是否正在采样
+	sampleFreq  int          // 当前采样频率 (Hz)
+	targetPID   uint32       // 目标进程 ID
+	stackCounts map[string]uint64 // 栈合并计数 map (key=栈帧链, value=采样次数)
+	mu          sync.Mutex   // 互斥锁，保护共享状态
+	stopCh      chan struct{} // 停止信号通道
+	doneCh      chan struct{} // 采样 goroutine 完成信号
+	maxStackDepth int         // 最大栈深度
+	stats       ProfilerStats // 采样统计信息
 }
 
 // ==================== 构造函数 ====================

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+// log/slog
 	"math"
 	"net/http"
 	"sort"
@@ -14,43 +15,43 @@ import (
 
 // TraceEngine 追踪引擎
 type TraceEngine struct {
-	mu         sync.RWMutex
-	store      *TraceStore
-	corrStore  *CorrelationStore
-	config     *TraceConfig
-	propagator *Propagator
+	mu          sync.RWMutex
+	store       *TraceStore
+	corrStore   *CorrelationStore
+	config      *TraceConfig
+	propagator  *Propagator
 }
 
 // TraceStore 追踪存储
 type TraceStore struct {
-	mu        sync.RWMutex
-	traces    map[TraceID]*Trace        // 按TraceID索引
-	spans     map[TraceID][]Span        // 按TraceID→Spans索引
-	bySpan    map[SpanID]*Span          // 按SpanID索引
-	byService map[string][]TraceSummary // 按服务索引
-	byTime    []TraceSummary            // 按时间索引
-	maxSize   int
+	mu       sync.RWMutex
+	traces   map[TraceID]*Trace          // 按TraceID索引
+	spans    map[TraceID][]Span          // 按TraceID→Spans索引
+	bySpan   map[SpanID]*Span            // 按SpanID索引
+	byService map[string][]TraceSummary  // 按服务索引
+	byTime   []TraceSummary              // 按时间索引
+	maxSize  int
 }
 
 // CorrelationStore 关联存储
 type CorrelationStore struct {
-	mu       sync.RWMutex
-	byTrace  map[TraceID][]Correlation         // 按TraceID索引
-	byTarget map[string][]Correlation          // 按目标ID反向索引
-	byType   map[CorrelationType][]Correlation // 按类型索引
-	maxSize  int
+	mu           sync.RWMutex
+	byTrace      map[TraceID][]Correlation  // 按TraceID索引
+	byTarget     map[string][]Correlation   // 按目标ID反向索引
+	byType       map[CorrelationType][]Correlation // 按类型索引
+	maxSize      int
 }
 
 // TraceConfig 追踪配置
 type TraceConfig struct {
 	Enabled           bool          `yaml:"enabled" json:"enabled"`
-	SampleRate        float64       `yaml:"sample_rate" json:"sample_rate"` // 采样率 0.0-1.0
-	MaxTraces         int           `yaml:"max_traces" json:"max_traces"`   // 最大存储追踪数
+	SampleRate        float64       `yaml:"sample_rate" json:"sample_rate"`           // 采样率 0.0-1.0
+	MaxTraces         int           `yaml:"max_traces" json:"max_traces"`             // 最大存储追踪数
 	MaxSpansPerTrace  int           `yaml:"max_spans_per_trace" json:"max_spans_per_trace"`
-	RetentionTime     time.Duration `yaml:"retention_time" json:"retention_time"`         // 保留时间
+	RetentionTime     time.Duration `yaml:"retention_time" json:"retention_time"`     // 保留时间
 	EnableCorrelation bool          `yaml:"enable_correlation" json:"enable_correlation"` // 启用关联
-	PropagateHeaders  []string      `yaml:"propagate_headers" json:"propagate_headers"`   // 传播的HTTP头
-	BaggageMaxKeys    int           `yaml:"baggage_max_keys" json:"baggage_max_keys"`     // 最大Baggage数
+	PropagateHeaders  []string      `yaml:"propagate_headers" json:"propagate_headers"` // 传播的HTTP头
+	BaggageMaxKeys    int           `yaml:"baggage_max_keys" json:"baggage_max_keys"` // 最大Baggage数
 }
 
 // NewTraceEngine 创建追踪引擎
@@ -65,12 +66,12 @@ func NewTraceEngine(config *TraceConfig) *TraceEngine {
 
 	return &TraceEngine{
 		store: &TraceStore{
-			traces:    make(map[TraceID]*Trace),
-			spans:     make(map[TraceID][]Span),
-			bySpan:    make(map[SpanID]*Span),
-			byService: make(map[string][]TraceSummary),
-			byTime:    make([]TraceSummary, 0, maxSize),
-			maxSize:   maxSize,
+			traces:     make(map[TraceID]*Trace),
+			spans:      make(map[TraceID][]Span),
+			bySpan:     make(map[SpanID]*Span),
+			byService:  make(map[string][]TraceSummary),
+			byTime:     make([]TraceSummary, 0, maxSize),
+			maxSize:    maxSize,
 		},
 		corrStore: &CorrelationStore{
 			byTrace:  make(map[TraceID][]Correlation),
@@ -134,11 +135,11 @@ func (e *TraceEngine) StartSpan(ctx context.Context, name string, opts ...SpanOp
 
 	// 注入到上下文
 	spanCtx := &SpanContext{
-		TraceID:  traceID,
-		SpanID:   spanID,
+		TraceID: traceID,
+		SpanID:  spanID,
 		ParentID: parentID,
-		Sampled:  sampled,
-		Baggage:  parentCtx.Baggage,
+		Sampled: sampled,
+		Baggage: parentCtx.Baggage,
 	}
 	ctx = context.WithValue(ctx, traceContextKey{}, spanCtx)
 
@@ -601,7 +602,7 @@ func (p *Propagator) Extract(ctx context.Context) *SpanContext {
 
 // ExtractHTTP 从HTTP请求提取
 func (p *Propagator) ExtractHTTP(r *http.Request) context.Context {
-	traceID := TraceID(r.Header.Get("x-trace-id"))
+	traceID := SpanID(r.Header.Get("x-trace-id"))
 	spanID := SpanID(r.Header.Get("x-span-id"))
 	parentID := SpanID(r.Header.Get("x-parent-span-id"))
 
@@ -611,7 +612,7 @@ func (p *Propagator) ExtractHTTP(r *http.Request) context.Context {
 		if tp != "" {
 			parts := strings.Split(tp, "-")
 			if len(parts) >= 3 {
-				traceID = TraceID(parts[1])
+				traceID = SpanID(parts[1])
 				spanID = SpanID(parts[2])
 			}
 		}
@@ -619,7 +620,7 @@ func (p *Propagator) ExtractHTTP(r *http.Request) context.Context {
 
 	// B3
 	if traceID == "" {
-		traceID = TraceID(r.Header.Get("X-B3-TraceId"))
+		traceID = SpanID(r.Header.Get("X-B3-TraceId"))
 		spanID = SpanID(r.Header.Get("X-B3-SpanId"))
 		parentID = SpanID(r.Header.Get("X-B3-ParentSpanId"))
 	}
@@ -629,11 +630,11 @@ func (p *Propagator) ExtractHTTP(r *http.Request) context.Context {
 	}
 
 	sc := &SpanContext{
-		TraceID:  TraceID(traceID),
-		SpanID:   spanID,
+		TraceID: TraceID(traceID),
+		SpanID:  spanID,
 		ParentID: parentID,
-		Sampled:  true,
-		Baggage:  make(map[string]string),
+		Sampled: true,
+		Baggage: make(map[string]string),
 	}
 
 	return context.WithValue(r.Context(), traceContextKey{}, sc)

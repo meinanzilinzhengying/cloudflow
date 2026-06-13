@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+// net
 	"os"
 	"sync"
 	"sync/atomic"
@@ -58,26 +59,26 @@ func (e *EdgeInstance) FullAddress() string {
 
 // LBClient 负载均衡 gRPC 客户端
 type LBClient struct {
-	discovery   ClusterDiscovery // 服务发现组件
-	currentConn *grpc.ClientConn // 当前连接
-	currentAddr string           // 当前连接地址
-	currentID   string           // 当前实例ID
-	mu          sync.RWMutex     // 连接锁
+	discovery   ClusterDiscovery    // 服务发现组件
+	currentConn *grpc.ClientConn    // 当前连接
+	currentAddr string              // 当前连接地址
+	currentID   string              // 当前实例ID
+	mu          sync.RWMutex        // 连接锁
 
-	apiKey string         // API Key
-	tlsCfg TLSConfig      // TLS 配置
-	logger *logger.Logger // 日志器
+	apiKey      string              // API Key
+	tlsCfg      TLSConfig           // TLS 配置
+	logger      *logger.Logger      // 日志器
 
-	stopCh  chan struct{} // 停止信号
-	stopped sync.Once     // 确保只停止一次
+	stopCh      chan struct{}       // 停止信号
+	stopped     sync.Once           // 确保只停止一次
 
 	// 负载均衡状态
 	instanceStats map[string]*instanceStats // 实例统计信息
 	statsMu       sync.RWMutex
-	lastSwitch    time.Time // 上次切换时间
+	lastSwitch    time.Time                 // 上次切换时间
 
 	// 连接状态
-	healthy     atomic.Bool   // 健康状态
+	healthy     atomic.Bool  // 健康状态
 	reconnectCh chan struct{} // 重连信号
 }
 

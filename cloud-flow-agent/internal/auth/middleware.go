@@ -6,10 +6,10 @@
 package auth
 
 import (
+t"time"
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
@@ -40,12 +40,12 @@ func (m *Middleware) AuthMiddleware(next http.Handler) http.Handler {
 				authHeader = "Bearer " + cookie.Value
 			}
 		}
-
+		
 		if authHeader == "" {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-
+		
 		// 解析Token
 		user, err := m.parseToken(authHeader)
 		if err != nil {
@@ -53,18 +53,18 @@ func (m *Middleware) AuthMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-
+		
 		// 检查用户状态
 		if user.Status != tenant.UserStatusActive {
 			http.Error(w, "User inactive", http.StatusForbidden)
 			return
 		}
-
+		
 		// 将用户信息存入上下文
 		ctx := context.WithValue(r.Context(), tenant.ContextKeyUser, user)
 		ctx = context.WithValue(ctx, tenant.ContextKeyTenant, user.TenantID)
 		ctx = context.WithValue(ctx, tenant.ContextKeyRole, user.Role)
-
+		
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -88,12 +88,12 @@ func (m *Middleware) TenantOnly(next http.Handler) http.Handler {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-
+		
 		if user.Role != tenant.RoleTenant && user.Role != tenant.RoleAdmin {
 			http.Error(w, "Forbidden: Tenant only", http.StatusForbidden)
 			return
 		}
-
+		
 		next.ServeHTTP(w, r)
 	})
 }
@@ -107,12 +107,12 @@ func (m *Middleware) RequirePermission(permission tenant.Permission) func(http.H
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-
+			
 			if !user.Role.HasPermission(permission) {
 				http.Error(w, "Forbidden: Insufficient permissions", http.StatusForbidden)
 				return
 			}
-
+			
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -127,17 +127,17 @@ func (m *Middleware) TenantIsolation(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-
+		
 		// 获取当前用户的租户ID
 		userTenantID := tenant.GetTenantIDFromContext(r.Context())
 		if userTenantID == "" {
 			http.Error(w, "Forbidden: No tenant assigned", http.StatusForbidden)
 			return
 		}
-
+		
 		// 将租户ID添加到请求上下文，供后续处理使用
 		ctx := context.WithValue(r.Context(), "requested_tenant_id", userTenantID)
-
+		
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -148,21 +148,19 @@ func (m *Middleware) parseToken(authHeader string) (*tenant.User, error) {
 	// 支持 Bearer Token 和 Basic Auth
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) != 2 {
-		user, err := m.validateAPIKey(authHeader)
-		return user, err
+		return nil, func() *tenant.User { userVal, _ := func() *tenant.User { u, _ := func() *tenant.User { u, _ := m.validateAPIKey(authHeader); return u }(); return u }(); return userVal }()
 	}
-
+	
 	scheme := strings.ToLower(parts[0])
 	token := parts[1]
-
+	
 	switch scheme {
 	case "bearer":
 		return m.validateBearerToken(token)
 	case "basic":
 		return m.validateBasicAuth(token)
 	default:
-		user, err := m.validateAPIKey(token)
-		return user, err
+		return nil, func() *tenant.User { userVal, _ := func() *tenant.User { u, _ := func() *tenant.User { u, _ := m.validateAPIKey(token); return u }(); return u }(); return userVal }()
 	}
 }
 
@@ -170,18 +168,18 @@ func (m *Middleware) parseToken(authHeader string) (*tenant.User, error) {
 func (m *Middleware) validateBearerToken(token string) (*tenant.User, error) {
 	// 简化实现：Token格式为 "user_id:timestamp:signature"
 	// 实际生产环境应使用JWT
-
+	
 	parts := strings.Split(token, ":")
 	if len(parts) < 2 {
 		return nil, nil
 	}
-
+	
 	userID := parts[0]
 	user := m.tenantManager.GetUser(userID)
 	if user == nil {
 		return nil, nil
 	}
-
+	
 	return user, nil
 }
 
@@ -189,15 +187,15 @@ func (m *Middleware) validateBearerToken(token string) (*tenant.User, error) {
 func (m *Middleware) validateBasicAuth(token string) (*tenant.User, error) {
 	// 简化实现：base64(username:password)
 	// 实际应解码并验证
-
+	
 	// 这里简化处理，直接根据用户名查找
 	// 实际生产环境需要解码base64并验证密码
-
+	
 	user := m.tenantManager.GetUserByUsername("admin")
 	if user != nil {
 		return user, nil
 	}
-
+	
 	return nil, nil
 }
 
@@ -205,21 +203,21 @@ func (m *Middleware) validateBasicAuth(token string) (*tenant.User, error) {
 func (m *Middleware) validateAPIKey(key string) (*tenant.User, error) {
 	// 简化实现：API Key直接映射到用户
 	// 实际生产环境应查询数据库验证
-
+	
 	// 模拟几个测试API Key
 	apiKeyMap := map[string]string{
-		"admin-key-123":   "admin",
-		"tenant1-key-456": "tenant1",
-		"tenant2-key-789": "tenant2",
+		"admin-key-123":    "admin",
+		"tenant1-key-456":  "tenant1",
+		"tenant2-key-789":  "tenant2",
 	}
-
+	
 	if username, ok := apiKeyMap[key]; ok {
 		user := m.tenantManager.GetUserByUsername(username)
 		if user != nil {
 			return user, nil
 		}
 	}
-
+	
 	return nil, nil
 }
 
@@ -231,7 +229,7 @@ func (m *Middleware) MockAuthMiddleware(next http.Handler) http.Handler {
 		if mockUser == "" {
 			mockUser = "admin" // 默认管理员
 		}
-
+		
 		// 查找或创建模拟用户
 		user := m.tenantManager.GetUserByUsername(mockUser)
 		if user == nil {
@@ -240,7 +238,7 @@ func (m *Middleware) MockAuthMiddleware(next http.Handler) http.Handler {
 			if mockUser == "admin" {
 				role = tenant.RoleAdmin
 			}
-
+			
 			user = &tenant.User{
 				ID:       "user-" + mockUser,
 				Username: mockUser,
@@ -248,7 +246,7 @@ func (m *Middleware) MockAuthMiddleware(next http.Handler) http.Handler {
 				Role:     role,
 				Status:   tenant.UserStatusActive,
 			}
-
+			
 			// 确保租户存在
 			if m.tenantManager.GetTenant(user.TenantID) == nil {
 				t := &tenant.Tenant{
@@ -259,15 +257,15 @@ func (m *Middleware) MockAuthMiddleware(next http.Handler) http.Handler {
 				}
 				m.tenantManager.CreateTenant(t)
 			}
-
+			
 			m.tenantManager.CreateUser(user)
 		}
-
+		
 		// 存入上下文
 		ctx := context.WithValue(r.Context(), tenant.ContextKeyUser, user)
 		ctx = context.WithValue(ctx, tenant.ContextKeyTenant, user.TenantID)
 		ctx = context.WithValue(ctx, tenant.ContextKeyRole, user.Role)
-
+		
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -278,12 +276,12 @@ func CORS(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
+		
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
+		
 		next.ServeHTTP(w, r)
 	})
 }
@@ -293,21 +291,21 @@ func Logging(log *logger.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-
+			
 			// 包装ResponseWriter以获取状态码
 			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-
+			
 			next.ServeHTTP(wrapped, r)
-
+			
 			duration := time.Since(start)
-
+			
 			// 获取用户信息
 			user := tenant.GetUserFromContext(r.Context())
 			username := "anonymous"
 			if user != nil {
 				username = user.Username
 			}
-
+			
 			log.Infof("[%s] %s %s %d %v (user: %s)",
 				r.Method,
 				r.URL.Path,
@@ -354,7 +352,7 @@ func CanAccessAsset(r *http.Request, assetTenantID string) bool {
 	if tenant.IsAdmin(r.Context()) {
 		return true
 	}
-
+	
 	// 租户只能访问自己的资产
 	userTenantID := tenant.GetTenantIDFromContext(r.Context())
 	return userTenantID == assetTenantID

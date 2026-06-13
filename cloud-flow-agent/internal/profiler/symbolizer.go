@@ -28,34 +28,34 @@ type Symbol struct {
 // MemoryMapping 表示进程的一段内存映射
 // 从 /proc/pid/maps 中解析得到
 type MemoryMapping struct {
-	StartAddr   uint64 // 映射起始虚拟地址
-	EndAddr     uint64 // 映射结束虚拟地址
-	Permissions string // 权限 (r-xp 等)
-	Offset      uint64 // 文件偏移量
-	Device      string // 设备号 (如 08:01)
-	Inode       uint64 // 文件 inode 号
-	Pathname    string // 映射的文件路径 (可能为空，表示匿名映射)
+	StartAddr    uint64 // 映射起始虚拟地址
+	EndAddr      uint64 // 映射结束虚拟地址
+	Permissions  string // 权限 (r-xp 等)
+	Offset       uint64 // 文件偏移量
+	Device       string // 设备号 (如 08:01)
+	Inode        uint64 // 文件 inode 号
+	Pathname     string // 映射的文件路径 (可能为空，表示匿名映射)
 }
 
 // Symbolizer 多语言符号解析器
 // 支持解析 C/C++、Golang、Java 程序的地址到函数名/文件名/行号
 // 使用缓存机制避免重复解析 ELF 文件
 type Symbolizer struct {
-	mu             sync.RWMutex               // 读写锁，保护缓存
-	elfCache       map[string]*elfFile        // ELF 文件缓存，key=文件路径
-	mapsCache      map[uint32][]MemoryMapping // 进程内存映射缓存，key=PID
-	languageCache  map[uint32]string          // 进程语言检测缓存，key=PID
-	goVersionCache map[uint32]string          // Go 版本信息缓存，key=PID
+	mu           sync.RWMutex            // 读写锁，保护缓存
+	elfCache     map[string]*elfFile     // ELF 文件缓存，key=文件路径
+	mapsCache    map[uint32][]MemoryMapping // 进程内存映射缓存，key=PID
+	languageCache map[uint32]string      // 进程语言检测缓存，key=PID
+	goVersionCache map[uint32]string     // Go 版本信息缓存，key=PID
 }
 
 // elfFile 封装已解析的 ELF 文件信息
 // 缓存符号表和调试信息，避免重复解析
 type elfFile struct {
-	file      *elf.File    // ELF 文件句柄
-	symbols   []elf.Symbol // 符号表 (.symtab 或 .dynsym)
-	dynSyms   []elf.Symbol // 动态符号表 (.dynsym)
-	isGo      bool         // 是否为 Go 二进制
-	goVersion string       // Go 版本信息
+	file     *elf.File  // ELF 文件句柄
+	symbols  []elf.Symbol // 符号表 (.symtab 或 .dynsym)
+	dynSyms  []elf.Symbol // 动态符号表 (.dynsym)
+	isGo     bool        // 是否为 Go 二进制
+	goVersion string     // Go 版本信息
 }
 
 // ==================== 构造函数 ====================
@@ -64,9 +64,9 @@ type elfFile struct {
 // 初始化缓存结构
 func NewSymbolizer() *Symbolizer {
 	return &Symbolizer{
-		elfCache:       make(map[string]*elfFile),
-		mapsCache:      make(map[uint32][]MemoryMapping),
-		languageCache:  make(map[uint32]string),
+		elfCache:      make(map[string]*elfFile),
+		mapsCache:     make(map[uint32][]MemoryMapping),
+		languageCache: make(map[uint32]string),
 		goVersionCache: make(map[uint32]string),
 	}
 }

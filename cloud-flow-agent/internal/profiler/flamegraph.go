@@ -27,21 +27,21 @@ type HotFunction struct {
 // 火焰图是一种可视化 CPU 性能剖析数据的常用方法
 type FlameGraph struct {
 	// 火焰图配置选项
-	Width      int     // SVG 画布宽度 (像素)
-	Height     int     // SVG 画布高度 (像素)，0 表示自动计算
-	MinWidth   float64 // 最小栈帧宽度 (像素)，低于此值不显示
-	Title      string  // 火焰图标题
-	FontFamily string  // 字体族
-	FontSize   int     // 字体大小
-	FontColor  string  // 字体颜色
+	Width       int    // SVG 画布宽度 (像素)
+	Height      int    // SVG 画布高度 (像素)，0 表示自动计算
+	MinWidth    float64 // 最小栈帧宽度 (像素)，低于此值不显示
+	Title       string // 火焰图标题
+	FontFamily  string // 字体族
+	FontSize    int    // 字体大小
+	FontColor   string // 字体颜色
 }
 
 // flameNode 表示火焰图中的一个节点 (栈帧)
 // 用于构建火焰图的树形结构
 type flameNode struct {
-	name     string       // 函数名
-	value    uint64       // 自身采样数 (不含子节点)
-	total    uint64       // 总采样数 (含子节点)
+	name     string   // 函数名
+	value    uint64   // 自身采样数 (不含子节点)
+	total    uint64   // 总采样数 (含子节点)
 	children []*flameNode // 子节点列表
 }
 
@@ -51,12 +51,12 @@ type flameNode struct {
 // 使用默认配置参数
 func NewFlameGraph() *FlameGraph {
 	return &FlameGraph{
-		Width:      1200,                  // 默认宽度 1200 像素
-		MinWidth:   0.1,                   // 最小栈帧宽度 0.1 像素
-		Title:      "CPU 火焰图",             // 默认标题
-		FontFamily: "Verdana, sans-serif", // 默认字体
-		FontSize:   11,                    // 默认字体大小
-		FontColor:  "rgb(0,0,0)",          // 默认字体颜色 (黑色)
+		Width:       1200,             // 默认宽度 1200 像素
+		MinWidth:    0.1,              // 最小栈帧宽度 0.1 像素
+		Title:       "CPU 火焰图",      // 默认标题
+		FontFamily:  "Verdana, sans-serif", // 默认字体
+		FontSize:    11,               // 默认字体大小
+		FontColor:   "rgb(0,0,0)",     // 默认字体颜色 (黑色)
 	}
 }
 

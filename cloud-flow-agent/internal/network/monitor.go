@@ -215,9 +215,9 @@ func (m *Monitor) GetState() map[string]interface{} {
 	defer m.mu.RUnlock()
 
 	return map[string]interface{}{
-		"mgmt_ip":        m.mgmtIP,
-		"available":      m.available,
-		"edge_addr":      m.edgeAddr,
+		"mgmt_ip":    m.mgmtIP,
+		"available":  m.available,
+		"edge_addr":  m.edgeAddr,
 		"check_interval": m.checkInterval.String(),
 	}
 }

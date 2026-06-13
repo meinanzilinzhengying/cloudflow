@@ -78,15 +78,15 @@ type Reporter struct {
 	sender Sender
 	net    NetworkChecker
 
-	mu     sync.RWMutex
-	seqId  atomic.Int64 // 全局序列号
-	stopCh chan struct{}
+	mu       sync.RWMutex
+	seqId    atomic.Int64 // 全局序列号
+	stopCh   chan struct{}
 
 	// 缓存状态
-	cacheDir   string
-	cacheCount atomic.Int64 // 缓存条目数
-	cacheSize  atomic.Int64 // 缓存大小
-	wasOffline bool         // 上一次是否离线
+	cacheDir     string
+	cacheCount   atomic.Int64 // 缓存条目数
+	cacheSize    atomic.Int64 // 缓存大小
+	wasOffline   bool         // 上一次是否离线
 
 	// 统计
 	stats struct {

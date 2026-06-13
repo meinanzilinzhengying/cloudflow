@@ -202,6 +202,10 @@ func GetParser(name string) (Parser, bool) {
 	return globalRegistry.Get(name)
 }
 
+// DetectProtocol 自动检测协议
+func DetectProtocol(data []byte, dstPort uint16) (ParserType, float64) {
+	return globalRegistry.Detect(data, dstPort)
+}
 
 // ============================================================================
 // 内置解析器注册
@@ -224,20 +228,28 @@ func InitWithParsers(parsers []ParserType) {
 	for _, pt := range parsers {
 		switch pt {
 		case ParserTypeHTTP1:
-			// // 			RegisterHTTP1Parser()
-			// 		case ParserTypeHTTP2:
-			// // 			RegisterHTTP2Parser()
-			// 		case ParserTypeGRPC:
-			// // 			RegisterGRPCParser()
-			// 		case ParserTypeMySQL:
-			// // 			RegisterMySQLParser()
-			// 		case ParserTypeRedis:
-			// // 			RegisterRedisParser()
-			// 		case ParserTypeKafka:
-			// // 			RegisterKafkaParser()
-			// 		case ParserTypeDNS:
-			// // 			RegisterDNSParser()
+			RegisterHTTP1Parser()
+		case ParserTypeHTTP2:
+			RegisterHTTP2Parser()
+		case ParserTypeGRPC:
+			RegisterGRPCParser()
+		case ParserTypeMySQL:
+			RegisterMySQLParser()
+		case ParserTypeRedis:
+			RegisterRedisParser()
+		case ParserTypeKafka:
+			RegisterKafkaParser()
+		case ParserTypeDNS:
+			RegisterDNSParser()
 		}
 	}
 }
 
+// 前向声明 (在各自文件中实现)
+func RegisterHTTP1Parser()
+func RegisterHTTP2Parser()
+func RegisterGRPCParser()
+func RegisterMySQLParser()
+func RegisterRedisParser()
+func RegisterKafkaParser()
+func RegisterDNSParser()

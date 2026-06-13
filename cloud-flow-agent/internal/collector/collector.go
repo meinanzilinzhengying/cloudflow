@@ -188,7 +188,7 @@ func (c *Collector) collectNetwork(now int64) ([]*edge.MetricData, error) {
 
 	var totalRx, totalTx uint64
 	scanner := bufio.NewScanner(f)
-
+	
 	// 自动跳过 header 行，直到找到包含网络接口数据的行
 	for scanner.Scan() {
 		line := scanner.Text()

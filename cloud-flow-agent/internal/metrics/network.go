@@ -13,25 +13,25 @@ import (
 // NetworkMetrics 网络指标数据
 type NetworkMetrics struct {
 	Timestamp   time.Time `json:"timestamp"`
-	BytesIn     uint64    `json:"bytes_in"`       // 入站字节数
-	BytesOut    uint64    `json:"bytes_out"`      // 出站字节数
-	PacketsIn   uint64    `json:"packets_in"`     // 入站包数
-	PacketsOut  uint64    `json:"packets_out"`    // 出站包数
-	Connections uint64    `json:"connections"`    // 连接数
-	Retransmits uint64    `json:"retransmits"`    // 重传次数
-	LatencyMs   float64   `json:"latency_ms"`     // 平均时延(ms)
+	BytesIn     uint64    `json:"bytes_in"`      // 入站字节数
+	BytesOut    uint64    `json:"bytes_out"`     // 出站字节数
+	PacketsIn   uint64    `json:"packets_in"`    // 入站包数
+	PacketsOut  uint64    `json:"packets_out"`   // 出站包数
+	Connections uint64    `json:"connections"`   // 连接数
+	Retransmits uint64    `json:"retransmits"`   // 重传次数
+	LatencyMs   float64   `json:"latency_ms"`    // 平均时延(ms)
 	LatencyMax  float64   `json:"latency_max_ms"` // 最大时延(ms)
 	LatencyP99  float64   `json:"latency_p99_ms"` // P99时延(ms)
 }
 
 // TrafficDistribution 流量分布
 type TrafficDistribution struct {
-	TotalBytes   uint64            `json:"total_bytes"`
-	TotalPackets uint64            `json:"total_packets"`
-	ByProtocol   map[string]uint64 `json:"by_protocol"`  // 按协议分布
-	ByPort       map[string]uint64 `json:"by_port"`      // 按端口分布
-	ByDirection  map[string]uint64 `json:"by_direction"` // 按方向分布
-	TopTalkers   []TopTalker       `json:"top_talkers"`  // Top流量来源
+	TotalBytes   uint64                 `json:"total_bytes"`
+	TotalPackets uint64                 `json:"total_packets"`
+	ByProtocol   map[string]uint64      `json:"by_protocol"`   // 按协议分布
+	ByPort       map[string]uint64      `json:"by_port"`        // 按端口分布
+	ByDirection  map[string]uint64      `json:"by_direction"`   // 按方向分布
+	TopTalkers   []TopTalker            `json:"top_talkers"`    // Top流量来源
 }
 
 // TopTalker Top流量来源
@@ -45,20 +45,20 @@ type TopTalker struct {
 // LatencyTrend 时延趋势
 type LatencyTrend struct {
 	Timestamps []time.Time `json:"timestamps"`
-	AvgLatency []float64   `json:"avg_latency"` // 平均时延
-	P50Latency []float64   `json:"p50_latency"` // P50时延
-	P95Latency []float64   `json:"p95_latency"` // P95时延
-	P99Latency []float64   `json:"p99_latency"` // P99时延
-	MaxLatency []float64   `json:"max_latency"` // 最大时延
+	AvgLatency []float64   `json:"avg_latency"`   // 平均时延
+	P50Latency []float64   `json:"p50_latency"`   // P50时延
+	P95Latency []float64   `json:"p95_latency"`   // P95时延
+	P99Latency []float64   `json:"p99_latency"`   // P99时延
+	MaxLatency []float64   `json:"max_latency"`   // 最大时延
 }
 
 // RetransmitTrend 重传趋势
 type RetransmitTrend struct {
 	Timestamps      []time.Time `json:"timestamps"`
-	RetransmitCount []uint64    `json:"retransmit_count"` // 重传次数
-	RetransmitRate  []float64   `json:"retransmit_rate"`  // 重传率(%)
-	TimeoutCount    []uint64    `json:"timeout_count"`    // 超时次数
-	FastRetransmit  []uint64    `json:"fast_retransmit"`  // 快速重传次数
+	RetransmitCount []uint64    `json:"retransmit_count"`   // 重传次数
+	RetransmitRate  []float64   `json:"retransmit_rate"`    // 重传率(%)
+	TimeoutCount    []uint64    `json:"timeout_count"`      // 超时次数
+	FastRetransmit  []uint64    `json:"fast_retransmit"`    // 快速重传次数
 }
 
 // NetworkCollector 网络指标采集器
@@ -67,10 +67,10 @@ type NetworkCollector struct {
 	metrics  []NetworkMetrics
 	maxSize  int
 	interval time.Duration
-
+	
 	// 实时统计
-	trafficDist     TrafficDistribution
-	latencyTrend    LatencyTrend
+	trafficDist    TrafficDistribution
+	latencyTrend   LatencyTrend
 	retransmitTrend RetransmitTrend
 }
 
@@ -82,7 +82,7 @@ func NewNetworkCollector(maxSize int, interval time.Duration) *NetworkCollector 
 	if interval <= 0 {
 		interval = time.Minute
 	}
-
+	
 	return &NetworkCollector{
 		maxSize:  maxSize,
 		interval: interval,
@@ -115,21 +115,21 @@ func NewNetworkCollector(maxSize int, interval time.Duration) *NetworkCollector 
 func (c *NetworkCollector) RecordMetrics(m NetworkMetrics) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
+	
 	// 添加新指标
 	c.metrics = append(c.metrics, m)
-
+	
 	// 限制大小
 	if len(c.metrics) > c.maxSize {
 		c.metrics = c.metrics[len(c.metrics)-c.maxSize:]
 	}
-
+	
 	// 更新流量分布
 	c.updateTrafficDistribution(m)
-
+	
 	// 更新时延趋势
 	c.updateLatencyTrend(m)
-
+	
 	// 更新重传趋势
 	c.updateRetransmitTrend(m)
 }
@@ -138,7 +138,7 @@ func (c *NetworkCollector) RecordMetrics(m NetworkMetrics) {
 func (c *NetworkCollector) updateTrafficDistribution(m NetworkMetrics) {
 	c.trafficDist.TotalBytes += m.BytesIn + m.BytesOut
 	c.trafficDist.TotalPackets += m.PacketsIn + m.PacketsOut
-
+	
 	// 按方向分布
 	c.trafficDist.ByDirection["in"] += m.BytesIn
 	c.trafficDist.ByDirection["out"] += m.BytesOut
@@ -150,7 +150,7 @@ func (c *NetworkCollector) updateLatencyTrend(m NetworkMetrics) {
 	c.latencyTrend.AvgLatency = append(c.latencyTrend.AvgLatency, m.LatencyMs)
 	c.latencyTrend.P99Latency = append(c.latencyTrend.P99Latency, m.LatencyP99)
 	c.latencyTrend.MaxLatency = append(c.latencyTrend.MaxLatency, m.LatencyMax)
-
+	
 	// 限制大小
 	if len(c.latencyTrend.Timestamps) > c.maxSize {
 		c.latencyTrend.Timestamps = c.latencyTrend.Timestamps[1:]
@@ -164,14 +164,14 @@ func (c *NetworkCollector) updateLatencyTrend(m NetworkMetrics) {
 func (c *NetworkCollector) updateRetransmitTrend(m NetworkMetrics) {
 	c.retransmitTrend.Timestamps = append(c.retransmitTrend.Timestamps, m.Timestamp)
 	c.retransmitTrend.RetransmitCount = append(c.retransmitTrend.RetransmitCount, m.Retransmits)
-
+	
 	// 计算重传率
 	var rate float64
 	if m.PacketsOut > 0 {
 		rate = float64(m.Retransmits) / float64(m.PacketsOut) * 100
 	}
 	c.retransmitTrend.RetransmitRate = append(c.retransmitTrend.RetransmitRate, rate)
-
+	
 	// 限制大小
 	if len(c.retransmitTrend.Timestamps) > c.maxSize {
 		c.retransmitTrend.Timestamps = c.retransmitTrend.Timestamps[1:]
@@ -184,7 +184,7 @@ func (c *NetworkCollector) updateRetransmitTrend(m NetworkMetrics) {
 func (c *NetworkCollector) GetTrafficDistribution(ctx context.Context, duration time.Duration) (*TrafficDistribution, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
+	
 	// 复制当前分布
 	dist := TrafficDistribution{
 		TotalBytes:   c.trafficDist.TotalBytes,
@@ -194,7 +194,7 @@ func (c *NetworkCollector) GetTrafficDistribution(ctx context.Context, duration 
 		ByDirection:  make(map[string]uint64),
 		TopTalkers:   make([]TopTalker, len(c.trafficDist.TopTalkers)),
 	}
-
+	
 	for k, v := range c.trafficDist.ByProtocol {
 		dist.ByProtocol[k] = v
 	}
@@ -205,7 +205,7 @@ func (c *NetworkCollector) GetTrafficDistribution(ctx context.Context, duration 
 		dist.ByDirection[k] = v
 	}
 	copy(dist.TopTalkers, c.trafficDist.TopTalkers)
-
+	
 	return &dist, nil
 }
 
@@ -213,7 +213,7 @@ func (c *NetworkCollector) GetTrafficDistribution(ctx context.Context, duration 
 func (c *NetworkCollector) GetLatencyTrend(ctx context.Context, duration time.Duration) (*LatencyTrend, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
+	
 	// 根据duration过滤数据
 	cutoff := time.Now().Add(-duration)
 	startIdx := 0
@@ -223,14 +223,14 @@ func (c *NetworkCollector) GetLatencyTrend(ctx context.Context, duration time.Du
 			break
 		}
 	}
-
+	
 	trend := LatencyTrend{
 		Timestamps: c.latencyTrend.Timestamps[startIdx:],
 		AvgLatency: c.latencyTrend.AvgLatency[startIdx:],
 		P99Latency: c.latencyTrend.P99Latency[startIdx:],
 		MaxLatency: c.latencyTrend.MaxLatency[startIdx:],
 	}
-
+	
 	return &trend, nil
 }
 
@@ -238,7 +238,7 @@ func (c *NetworkCollector) GetLatencyTrend(ctx context.Context, duration time.Du
 func (c *NetworkCollector) GetRetransmitTrend(ctx context.Context, duration time.Duration) (*RetransmitTrend, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
+	
 	// 根据duration过滤数据
 	cutoff := time.Now().Add(-duration)
 	startIdx := 0
@@ -248,13 +248,13 @@ func (c *NetworkCollector) GetRetransmitTrend(ctx context.Context, duration time
 			break
 		}
 	}
-
+	
 	trend := RetransmitTrend{
 		Timestamps:      c.retransmitTrend.Timestamps[startIdx:],
 		RetransmitCount: c.retransmitTrend.RetransmitCount[startIdx:],
 		RetransmitRate:  c.retransmitTrend.RetransmitRate[startIdx:],
 	}
-
+	
 	return &trend, nil
 }
 
@@ -262,16 +262,16 @@ func (c *NetworkCollector) GetRetransmitTrend(ctx context.Context, duration time
 func (c *NetworkCollector) GetNetworkSummary(ctx context.Context) (map[string]interface{}, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
+	
 	if len(c.metrics) == 0 {
 		return map[string]interface{}{
 			"status": "no_data",
 		}, nil
 	}
-
+	
 	// 计算最新值
 	latest := c.metrics[len(c.metrics)-1]
-
+	
 	// 计算平均值
 	var totalBytes, totalPackets, totalRetransmits uint64
 	var totalLatency float64
@@ -281,24 +281,24 @@ func (c *NetworkCollector) GetNetworkSummary(ctx context.Context) (map[string]in
 		totalRetransmits += m.Retransmits
 		totalLatency += m.LatencyMs
 	}
-
+	
 	count := float64(len(c.metrics))
 	avgLatency := totalLatency / count
-
+	
 	// 计算重传率
 	var retransmitRate float64
 	if totalPackets > 0 {
 		retransmitRate = float64(totalRetransmits) / float64(totalPackets) * 100
 	}
-
+	
 	return map[string]interface{}{
-		"status":          "ok",
-		"latest":          latest,
-		"avg_latency_ms":  avgLatency,
-		"retransmit_rate": retransmitRate,
-		"total_bytes":     totalBytes,
-		"total_packets":   totalPackets,
-		"data_points":     len(c.metrics),
+		"status":            "ok",
+		"latest":            latest,
+		"avg_latency_ms":    avgLatency,
+		"retransmit_rate":   retransmitRate,
+		"total_bytes":       totalBytes,
+		"total_packets":     totalPackets,
+		"data_points":       len(c.metrics),
 	}, nil
 }
 
@@ -306,7 +306,7 @@ func (c *NetworkCollector) GetNetworkSummary(ctx context.Context) (map[string]in
 func (c *NetworkCollector) UpdateProtocolStats(protocol string, bytes uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
+	
 	c.trafficDist.ByProtocol[protocol] += bytes
 }
 
@@ -314,7 +314,7 @@ func (c *NetworkCollector) UpdateProtocolStats(protocol string, bytes uint64) {
 func (c *NetworkCollector) UpdatePortStats(port string, bytes uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
+	
 	c.trafficDist.ByPort[port] += bytes
 }
 
@@ -322,16 +322,16 @@ func (c *NetworkCollector) UpdatePortStats(port string, bytes uint64) {
 func (c *NetworkCollector) UpdateTopTalkers(talkers []TopTalker) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
+	
 	// 合并并排序
 	talkerMap := make(map[string]*TopTalker)
-
+	
 	// 添加现有数据
 	for i := range c.trafficDist.TopTalkers {
 		t := &c.trafficDist.TopTalkers[i]
 		talkerMap[t.IP] = t
 	}
-
+	
 	// 添加新数据
 	for i := range talkers {
 		t := &talkers[i]
@@ -342,22 +342,22 @@ func (c *NetworkCollector) UpdateTopTalkers(talkers []TopTalker) {
 			talkerMap[t.IP] = t
 		}
 	}
-
+	
 	// 转换为切片并排序
 	result := make([]TopTalker, 0, len(talkerMap))
 	for _, t := range talkerMap {
 		result = append(result, *t)
 	}
-
+	
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Bytes > result[j].Bytes
 	})
-
+	
 	// 只保留Top 10
 	if len(result) > 10 {
 		result = result[:10]
 	}
-
+	
 	c.trafficDist.TopTalkers = result
 }
 
@@ -366,16 +366,16 @@ func CalculatePercentiles(latencies []float64) (p50, p95, p99 float64) {
 	if len(latencies) == 0 {
 		return 0, 0, 0
 	}
-
+	
 	// 复制并排序
 	sorted := make([]float64, len(latencies))
 	copy(sorted, latencies)
 	sort.Float64s(sorted)
-
+	
 	p50 = percentile(sorted, 0.50)
 	p95 = percentile(sorted, 0.95)
 	p99 = percentile(sorted, 0.99)
-
+	
 	return
 }
 
@@ -384,15 +384,15 @@ func percentile(sorted []float64, p float64) float64 {
 	if len(sorted) == 0 {
 		return 0
 	}
-
+	
 	index := p * float64(len(sorted)-1)
 	lower := int(math.Floor(index))
 	upper := int(math.Ceil(index))
-
+	
 	if lower == upper {
 		return sorted[lower]
 	}
-
+	
 	weight := index - float64(lower)
 	return sorted[lower]*(1-weight) + sorted[upper]*weight
 }
@@ -421,15 +421,15 @@ func (api *NetworkMetricsAPI) handleTrafficDistribution(w http.ResponseWriter, r
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	
 	duration := parseDuration(r.URL.Query().Get("duration"), time.Hour)
-
+	
 	dist, err := api.collector.GetTrafficDistribution(r.Context(), duration)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	
 	writeJSON(w, dist)
 }
 
@@ -439,15 +439,15 @@ func (api *NetworkMetricsAPI) handleLatencyTrend(w http.ResponseWriter, r *http.
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	
 	duration := parseDuration(r.URL.Query().Get("duration"), time.Hour)
-
+	
 	trend, err := api.collector.GetLatencyTrend(r.Context(), duration)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	
 	writeJSON(w, trend)
 }
 
@@ -457,15 +457,15 @@ func (api *NetworkMetricsAPI) handleRetransmitTrend(w http.ResponseWriter, r *ht
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	
 	duration := parseDuration(r.URL.Query().Get("duration"), time.Hour)
-
+	
 	trend, err := api.collector.GetRetransmitTrend(r.Context(), duration)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	
 	writeJSON(w, trend)
 }
 
@@ -475,13 +475,13 @@ func (api *NetworkMetricsAPI) handleNetworkSummary(w http.ResponseWriter, r *htt
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	
 	summary, err := api.collector.GetNetworkSummary(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	
 	writeJSON(w, summary)
 }
 

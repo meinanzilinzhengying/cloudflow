@@ -26,21 +26,21 @@ type ResourceStats struct {
 
 // ResourceMonitor 资源监控器
 type ResourceMonitor struct {
-	log          *logger.Logger
-	stats        ResourceStats
-	mu           sync.RWMutex
-	stopCh       chan struct{}
-	interval     time.Duration
-	onExceed     func(stats ResourceStats) // 资源超限回调
-	maxGoroutine int                       // 最大协程数阈值
-	maxMemoryMB  float64                   // 最大内存阈值（MB）
+	log         *logger.Logger
+	stats       ResourceStats
+	mu          sync.RWMutex
+	stopCh      chan struct{}
+	interval    time.Duration
+	onExceed    func(stats ResourceStats) // 资源超限回调
+	maxGoroutine int                      // 最大协程数阈值
+	maxMemoryMB  float64                  // 最大内存阈值（MB）
 }
 
 // ResourceMonitorConfig 资源监控配置
 type ResourceMonitorConfig struct {
-	Interval     time.Duration             // 采集间隔
-	MaxGoroutine int                       // 最大协程数阈值（0 表示不限制）
-	MaxMemoryMB  float64                   // 最大内存阈值 MB（0 表示不限制）
+	Interval     time.Duration       // 采集间隔
+	MaxGoroutine int                 // 最大协程数阈值（0 表示不限制）
+	MaxMemoryMB  float64             // 最大内存阈值 MB（0 表示不限制）
 	OnExceed     func(stats ResourceStats) // 资源超限回调
 }
 
@@ -144,8 +144,8 @@ type CircuitState int
 
 const (
 	StateClosed   CircuitState = iota // 正常状态（关闭）
-	StateOpen                         // 熔断状态（打开）
-	StateHalfOpen                     // 半开状态（试探）
+	StateOpen                          // 熔断状态（打开）
+	StateHalfOpen                      // 半开状态（试探）
 )
 
 func (s CircuitState) String() string {
@@ -171,12 +171,12 @@ type CircuitBreaker struct {
 	log           *logger.Logger
 	mu            sync.RWMutex
 	state         CircuitState
-	failures      int                         // 连续失败次数
-	successes     int                         // 连续成功次数（半开状态下使用）
-	maxFailures   int                         // 最大连续失败次数
-	resetTimeout  time.Duration               // 熔断恢复超时
-	halfOpenMax   int                         // 半开状态最大允许请求数
-	lastFailTime  time.Time                   // 最后一次失败时间
+	failures      int            // 连续失败次数
+	successes     int            // 连续成功次数（半开状态下使用）
+	maxFailures   int            // 最大连续失败次数
+	resetTimeout  time.Duration  // 熔断恢复超时
+	halfOpenMax   int            // 半开状态最大允许请求数
+	lastFailTime  time.Time      // 最后一次失败时间
 	onStateChange func(from, to CircuitState) // 状态变更回调
 }
 
@@ -324,13 +324,13 @@ func (cb *CircuitBreaker) setState(newState CircuitState) {
 
 // RateLimiter 令牌桶速率限制器
 type RateLimiter struct {
-	name     string
-	log      *logger.Logger
-	mu       sync.Mutex
-	rate     float64   // 每秒产生的令牌数
-	burst    int       // 桶容量
-	tokens   float64   // 当前令牌数
-	lastTime time.Time // 上次更新时间
+	name      string
+	log       *logger.Logger
+	mu        sync.Mutex
+	rate      float64   // 每秒产生的令牌数
+	burst     int       // 桶容量
+	tokens    float64   // 当前令牌数
+	lastTime  time.Time // 上次更新时间
 }
 
 // RateLimiterConfig 速率限制器配置
@@ -419,11 +419,11 @@ func (rl *RateLimiter) Name() string {
 // Manager 运行时管理器
 // 统一管理资源监控、熔断器和速率限制器
 type Manager struct {
-	log               *logger.Logger
-	resourceMonitor   *ResourceMonitor
-	circuitBreakers   map[string]*CircuitBreaker
-	rateLimiters      map[string]*RateLimiter
-	mu                sync.RWMutex
+	log              *logger.Logger
+	resourceMonitor  *ResourceMonitor
+	circuitBreakers  map[string]*CircuitBreaker
+	rateLimiters     map[string]*RateLimiter
+	mu               sync.RWMutex
 	shutdownCallbacks []func(ctx context.Context) error
 }
 
@@ -442,9 +442,9 @@ func DefaultManagerConfig() ManagerConfig {
 // NewManager 创建运行时管理器
 func NewManager(log *logger.Logger, cfg ManagerConfig) *Manager {
 	m := &Manager{
-		log:               log,
-		circuitBreakers:   make(map[string]*CircuitBreaker),
-		rateLimiters:      make(map[string]*RateLimiter),
+		log:              log,
+		circuitBreakers:  make(map[string]*CircuitBreaker),
+		rateLimiters:     make(map[string]*RateLimiter),
 		shutdownCallbacks: make([]func(ctx context.Context) error, 0),
 	}
 

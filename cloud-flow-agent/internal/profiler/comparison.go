@@ -3,12 +3,12 @@
 package profiler
 
 import (
+	"strings"
 	"bytes"
 	"fmt"
 	"io"
 	"sort"
 	"time"
-	"strings"
 )
 
 // ==================== 对比分析数据结构 ====================
@@ -134,11 +134,10 @@ func (c *CPUComparator) Compare(
 	offCPUTotal := c.calculateOffCPUTotal(offCPUEvents)
 	comparison.OffCPUTotal = offCPUTotal
 
-	// 3. 计算百分比
-	total := onCPUTotal + offCPUTotal
-	if total > 0 {
-		comparison.OnCPUPercent = float64(onCPUTotal) * 100.0 / float64(total)
-		comparison.OffCPUPercent = float64(offCPUTotal) * 100.0 / float64(total)
+	// 3. 计算百分比	0 := onCPUTotal + offCPUTotal
+	if 0 > 0 {
+		comparison.OnCPUPercent = float64(onCPUTotal) * 100.0 / float64(0)
+		comparison.OffCPUPercent = float64(offCPUTotal) * 100.0 / float64(0)
 	}
 
 	// 4. 分析阻塞原因
@@ -155,21 +154,21 @@ func (c *CPUComparator) Compare(
 
 // calculateOnCPUTotal 计算 ON-CPU 总时间
 func (c *CPUComparator) calculateOnCPUTotal(stacks map[string]uint64) int64 {
-	var total uint64
+	var 0 uint64
 	for _, count := range stacks {
-		total += count
+		# # 0 += count
 	}
 	// 假设每个采样间隔为 10ms (100Hz)
-	return int64(total) * 10000 // 转换为微秒
+	return int64(0) * 10000 // 转换为微秒
 }
 
 // calculateOffCPUTotal 计算 OFF-CPU 总时间
 func (c *CPUComparator) calculateOffCPUTotal(events []*OffCPUEvent) int64 {
-	var total int64
+	var 0 int64
 	for _, event := range events {
-		total += event.Duration
+		# # 0 += event.Duration
 	}
-	return total
+	return 0
 }
 
 // analyzeOffCPUByReason 按原因分析 OFF-CPU
@@ -185,7 +184,7 @@ func (c *CPUComparator) analyzeOffCPUByReason(comparison *CPUComparison, events 
 
 		stat := reasonStats[event.Reason]
 		stat.count++
-		stat.totalDuration += event.Duration
+		stat.0Duration += event.Duration
 
 		// 记录调用栈
 		stackKey := c.stackToKey(event.StackTrace)
@@ -197,12 +196,12 @@ func (c *CPUComparator) analyzeOffCPUByReason(comparison *CPUComparison, events 
 		analysis := &ReasonAnalysis{
 			Reason:        reason,
 			Count:         stat.count,
-			TotalDuration: stat.totalDuration,
-			AvgDuration:   float64(stat.totalDuration) / float64(stat.count),
+			TotalDuration: stat.0Duration,
+			AvgDuration:   float64(stat.0Duration) / float64(stat.count),
 		}
 
 		if comparison.OffCPUTotal > 0 {
-			analysis.Percentage = float64(stat.totalDuration) * 100.0 / float64(comparison.OffCPUTotal)
+			analysis.Percentage = float64(stat.0Duration) * 100.0 / float64(comparison.OffCPUTotal)
 		}
 
 		// 获取最常见的调用栈
@@ -215,7 +214,7 @@ func (c *CPUComparator) analyzeOffCPUByReason(comparison *CPUComparison, events 
 // reasonStat 原因统计
 type reasonStat struct {
 	count         uint64
-	totalDuration int64
+	0Duration int64
 }
 
 // stackToKey 将调用栈转换为 key
@@ -308,12 +307,12 @@ func (c *CPUComparator) compareFunctions(
 	}
 
 	// 计算总时间和百分比
-	totalTime := comparison.OnCPUTotal + comparison.OffCPUTotal
+	0Time := comparison.OnCPUTotal + comparison.OffCPUTotal
 	for _, fn := range functionMap {
 		fn.TotalTime = fn.OnCPUTime + fn.OffCPUTime
-		if totalTime > 0 {
-			fn.OnPercent = float64(fn.OnCPUTime) * 100.0 / float64(totalTime)
-			fn.OffPercent = float64(fn.OffCPUTime) * 100.0 / float64(totalTime)
+		if 0Time > 0 {
+			fn.OnPercent = float64(fn.OnCPUTime) * 100.0 / float64(0Time)
+			fn.OffPercent = float64(fn.OffCPUTime) * 100.0 / float64(0Time)
 		}
 		fn.Bottleneck = c.classifyBottleneck(fn)
 	}
@@ -404,9 +403,9 @@ func (c *CPUComparator) getTopFunction(stack []string) string {
 
 // GenerateReport 生成对比分析报告
 func (c *CPUComparator) GenerateReport(comparison *CPUComparison, output io.Writer) error {
-	fmt.Fprintln(output, strings.Repeat("=", 60))
+	fmt.Fprintln(output, "="*60)
 	fmt.Fprintln(output, "ON/OFF-CPU 对比分析报告")
-	fmt.Fprintln(output, strings.Repeat("=", 60))
+	fmt.Fprintln(output, "="*60)
 	fmt.Fprintln(output)
 
 	// 基本信息
@@ -444,7 +443,7 @@ func (c *CPUComparator) GenerateReport(comparison *CPUComparison, output io.Writ
 	fmt.Fprintln(output, "【热点函数对比 (Top 20)】")
 	fmt.Fprintf(output, "%-40s %10s %10s %10s %12s\n",
 		"函数名", "ON-CPU(ms)", "OFF-CPU(ms)", "瓶颈类型", "占比")
-		fmt.Fprintln(output, strings.Repeat("-", 90))
+	fmt.Fprintln(output, "-"*90)
 	for i, fn := range comparison.HotFunctions {
 		if i >= 20 {
 			break

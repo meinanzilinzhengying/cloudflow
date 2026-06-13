@@ -4,6 +4,7 @@
 package profiler
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -15,62 +16,62 @@ import (
 type OffCPUReason string
 
 const (
-	OffCPUReasonIOWait         OffCPUReason = "io_wait"         // IO 等待
+	OffCPUReasonIOWait      OffCPUReason = "io_wait"       // IO 等待
 	OffCPUReasonLockContention OffCPUReason = "lock_contention" // 锁竞争
-	OffCPUReasonScheduler      OffCPUReason = "scheduler"       // 调度延迟
-	OffCPUReasonNetwork        OffCPUReason = "network"         // 网络等待
-	OffCPUReasonDisk           OffCPUReason = "disk"            // 磁盘等待
-	OffCPUReasonFutex          OffCPUReason = "futex"           // futex 等待
-	OffCPUReasonPipe           OffCPUReason = "pipe"            // 管道等待
-	OffCPUReasonPoll           OffCPUReason = "poll"            // poll/select 等待
-	OffCPUReasonSleep          OffCPUReason = "sleep"           // 主动睡眠
-	OffCPUReasonUnknown        OffCPUReason = "unknown"         // 未知原因
+	OffCPUReasonScheduler   OffCPUReason = "scheduler"     // 调度延迟
+	OffCPUReasonNetwork     OffCPUReason = "network"       // 网络等待
+	OffCPUReasonDisk        OffCPUReason = "disk"          // 磁盘等待
+	OffCPUReasonFutex       OffCPUReason = "futex"         // futex 等待
+	OffCPUReasonPipe        OffCPUReason = "pipe"          // 管道等待
+	OffCPUReasonPoll        OffCPUReason = "poll"          // poll/select 等待
+	OffCPUReasonSleep       OffCPUReason = "sleep"         // 主动睡眠
+	OffCPUReasonUnknown     OffCPUReason = "unknown"       // 未知原因
 )
 
 // OffCPUEvent OFF-CPU 事件
 // 记录线程从 CPU 上离开到重新进入 CPU 的完整信息
 type OffCPUEvent struct {
-	Timestamp   int64  `json:"timestamp"`    // 事件时间戳
-	PID         uint32 `json:"pid"`          // 进程 ID
-	TID         uint32 `json:"tid"`          // 线程 ID
-	ProcessName string `json:"process_name"` // 进程名
-	ThreadName  string `json:"thread_name"`  // 线程名
+	Timestamp     int64        `json:"timestamp"`      // 事件时间戳
+	PID           uint32       `json:"pid"`            // 进程 ID
+	TID           uint32       `json:"tid"`            // 线程 ID
+	ProcessName   string       `json:"process_name"`   // 进程名
+	ThreadName    string       `json:"thread_name"`    // 线程名
 
 	// 时间信息
-	OffCPUTime int64 `json:"off_cpu_time"` // 离开 CPU 时间
-	OnCPUTime  int64 `json:"on_cpu_time"`  // 重新进入 CPU 时间
-	Duration   int64 `json:"duration"`     // 阻塞时长 (微秒)
+	OffCPUTime    int64        `json:"off_cpu_time"`   // 离开 CPU 时间
+	OnCPUTime     int64        `json:"on_cpu_time"`    // 重新进入 CPU 时间
+	Duration      int64        `json:"duration"`       // 阻塞时长 (微秒)
 
 	// 阻塞原因
-	Reason      OffCPUReason `json:"reason"`       // 阻塞原因分类
-	Syscall     string       `json:"syscall"`      // 系统调用名
-	SyscallArgs []string     `json:"syscall_args"` // 系统调用参数
+	Reason        OffCPUReason `json:"reason"`         // 阻塞原因分类
+	Syscall       string       `json:"syscall"`        // 系统调用名
+	SyscallArgs   []string     `json:"syscall_args"`   // 系统调用参数
 
 	// 调用栈
-	StackTrace  []string `json:"stack_trace"`  // 用户态调用栈
-	KernelStack []string `json:"kernel_stack"` // 内核态调用栈
+	StackTrace    []string     `json:"stack_trace"`    // 用户态调用栈
+	KernelStack   []string     `json:"kernel_stack"`   // 内核态调用栈
 
 	// 额外信息
-	FilePath    string `json:"file_path"`    // 相关文件路径 (IO 操作)
-	FD          int    `json:"fd"`           // 文件描述符
-	LockAddr    uint64 `json:"lock_addr"`    // 锁地址
-	WaitChannel string `json:"wait_channel"` // 等待通道
+	FilePath      string       `json:"file_path"`      // 相关文件路径 (IO 操作)
+	FD            int          `json:"fd"`             // 文件描述符
+	LockAddr      uint64       `json:"lock_addr"`      // 锁地址
+	WaitChannel   string       `json:"wait_channel"`   // 等待通道
 }
 
 // OffCPUStats OFF-CPU 统计信息
 type OffCPUStats struct {
-	TotalEvents   uint64  // 总事件数
-	TotalDuration int64   // 总阻塞时长 (微秒)
-	AvgDuration   float64 // 平均阻塞时长
-	MaxDuration   int64   // 最大阻塞时长
-	MinDuration   int64   // 最小阻塞时长
+	TotalEvents     uint64            // 总事件数
+	TotalDuration   int64             // 总阻塞时长 (微秒)
+	AvgDuration     float64           // 平均阻塞时长
+	MaxDuration     int64             // 最大阻塞时长
+	MinDuration     int64             // 最小阻塞时长
 
 	// 按原因分类统计
-	ReasonCounts    map[OffCPUReason]uint64 // 各原因事件数
-	ReasonDurations map[OffCPUReason]int64  // 各原因总时长
+	ReasonCounts    map[OffCPUReason]uint64  // 各原因事件数
+	ReasonDurations map[OffCPUReason]int64   // 各原因总时长
 
 	// 按进程统计
-	ProcessStats map[uint32]*ProcessOffCPUStats // 进程级统计
+	ProcessStats    map[uint32]*ProcessOffCPUStats // 进程级统计
 }
 
 // ProcessOffCPUStats 进程级 OFF-CPU 统计
@@ -92,18 +93,18 @@ type OffCPUConfig struct {
 	ProcessName string   // 进程名匹配
 
 	// 采集配置
-	MinDuration   int64 // 最小采集时长 (微秒)，低于此值的阻塞不采集
-	MaxDuration   int64 // 最大采集时长 (微秒)，高于此值的阻塞截断
-	MaxStackDepth int   // 最大栈深度
+	MinDuration   int64  // 最小采集时长 (微秒)，低于此值的阻塞不采集
+	MaxDuration   int64  // 最大采集时长 (微秒)，高于此值的阻塞截断
+	MaxStackDepth int    // 最大栈深度
 
 	// 事件筛选
-	CollectIOWait         bool // 采集 IO 等待
+	CollectIOWait      bool // 采集 IO 等待
 	CollectLockContention bool // 采集锁竞争
-	CollectScheduler      bool // 采集调度延迟
-	CollectNetwork        bool // 采集网络等待
-	CollectDisk           bool // 采集磁盘等待
-	CollectFutex          bool // 采集 futex 等待
-	CollectSleep          bool // 采集主动睡眠
+	CollectScheduler   bool // 采集调度延迟
+	CollectNetwork     bool // 采集网络等待
+	CollectDisk        bool // 采集磁盘等待
+	CollectFutex       bool // 采集 futex 等待
+	CollectSleep       bool // 采集主动睡眠
 
 	// 输出配置
 	IncludeKernelStack bool // 是否包含内核栈
@@ -113,18 +114,18 @@ type OffCPUConfig struct {
 // DefaultOffCPUConfig 返回默认配置
 func DefaultOffCPUConfig() *OffCPUConfig {
 	return &OffCPUConfig{
-		MinDuration:           1000,     // 默认只采集超过 1ms 的阻塞
-		MaxDuration:           10000000, // 最大 10s
-		MaxStackDepth:         127,
-		CollectIOWait:         true,
+		MinDuration:        1000,      // 默认只采集超过 1ms 的阻塞
+		MaxDuration:        10000000,  // 最大 10s
+		MaxStackDepth:      127,
+		CollectIOWait:      true,
 		CollectLockContention: true,
-		CollectScheduler:      true,
-		CollectNetwork:        true,
-		CollectDisk:           true,
-		CollectFutex:          true,
-		CollectSleep:          false, // 默认不采集主动睡眠
-		IncludeKernelStack:    true,
-		IncludeUserStack:      true,
+		CollectScheduler:   true,
+		CollectNetwork:     true,
+		CollectDisk:        true,
+		CollectFutex:       true,
+		CollectSleep:       false,     // 默认不采集主动睡眠
+		IncludeKernelStack: true,
+		IncludeUserStack:   true,
 	}
 }
 
@@ -134,15 +135,15 @@ func DefaultOffCPUConfig() *OffCPUConfig {
 // 基于 Linux tracepoint/sched:sched_switch 事件实现
 // 通过追踪上下文切换来统计线程在 CPU 外的时间
 type OffCPUProfiler struct {
-	config     *OffCPUConfig
-	symbolizer *Symbolizer
-	events     []*OffCPUEvent
-	eventChan  chan *OffCPUEvent
-	mu         sync.RWMutex
-	running    bool
-	stopCh     chan struct{}
-	doneCh     chan struct{}
-	stats      OffCPUStats
+	config      *OffCPUConfig
+	symbolizer  *Symbolizer
+	events      []*OffCPUEvent
+	eventChan   chan *OffCPUEvent
+	mu          sync.RWMutex
+	running     bool
+	stopCh      chan struct{}
+	doneCh      chan struct{}
+	stats       OffCPUStats
 
 	// 线程状态追踪 (用于关联 sched_switch 事件)
 	threadStates map[threadKey]*threadState

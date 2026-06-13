@@ -27,19 +27,19 @@ const (
 )
 
 type CleanupTask struct {
-	ID            string        `json:"id"`
-	Category      DataCategory  `json:"category"`
-	Source        string        `json:"source"`
-	RetentionDays int           `json:"retention_days"`
-	CutoffTime    time.Time     `json:"cutoff_time"`
-	Status        TaskStatus    `json:"status"`
-	StartTime     time.Time     `json:"start_time"`
-	EndTime       time.Time     `json:"end_time"`
-	ScannedCount  int64         `json:"scanned_count"`
-	DeletedCount  int64         `json:"deleted_count"`
-	DeletedBytes  int64         `json:"deleted_bytes"`
-	Error         string        `json:"error,omitempty"`
-	Duration      time.Duration `json:"duration"`
+	ID           string        `json:"id"`
+	Category     DataCategory  `json:"category"`
+	Source       string        `json:"source"`
+	RetentionDays int          `json:"retention_days"`
+	CutoffTime   time.Time     `json:"cutoff_time"`
+	Status       TaskStatus    `json:"status"`
+	StartTime    time.Time     `json:"start_time"`
+	EndTime      time.Time     `json:"end_time"`
+	ScannedCount int64         `json:"scanned_count"`
+	DeletedCount int64         `json:"deleted_count"`
+	DeletedBytes int64         `json:"deleted_bytes"`
+	Error        string        `json:"error,omitempty"`
+	Duration     time.Duration `json:"duration"`
 }
 
 type TaskStatus string
@@ -53,17 +53,17 @@ const (
 )
 
 type CleanupStats struct {
-	TotalTasks      int                                   `json:"total_tasks"`
-	SuccessTasks    int                                   `json:"success_tasks"`
-	FailedTasks     int                                   `json:"failed_tasks"`
-	SkippedTasks    int                                   `json:"skipped_tasks"`
-	TotalDuration   time.Duration                         `json:"total_duration"`
-	TotalScanned    int64                                 `json:"total_scanned"`
-	TotalDeleted    int64                                 `json:"total_deleted"`
-	TotalBytesFreed int64                                 `json:"total_bytes_freed"`
+	TotalTasks      int           `json:"total_tasks"`
+	SuccessTasks    int           `json:"success_tasks"`
+	FailedTasks     int           `json:"failed_tasks"`
+	SkippedTasks    int           `json:"skipped_tasks"`
+	TotalDuration   time.Duration `json:"total_duration"`
+	TotalScanned    int64         `json:"total_scanned"`
+	TotalDeleted    int64         `json:"total_deleted"`
+	TotalBytesFreed int64         `json:"total_bytes_freed"`
 	CategoryStats   map[DataCategory]*CategoryCleanupStat `json:"category_stats"`
-	LastCleanupTime time.Time                             `json:"last_cleanup_time"`
-	NextCleanupTime time.Time                             `json:"next_cleanup_time"`
+	LastCleanupTime time.Time     `json:"last_cleanup_time"`
+	NextCleanupTime time.Time     `json:"next_cleanup_time"`
 }
 
 type CategoryCleanupStat struct {

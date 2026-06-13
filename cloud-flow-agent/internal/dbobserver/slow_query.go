@@ -29,10 +29,10 @@ type SlowQueryDetectorConfig struct {
 
 // SlowQueryScoreWeights 慢查询评分权重
 type SlowQueryScoreWeights struct {
-	DurationWeight  float64 // 时延权重
-	FrequencyWeight float64 // 频率权重
-	DataSizeWeight  float64 // 数据量权重
-	ResourceWeight  float64 // 资源占用权重
+	DurationWeight    float64 // 时延权重
+	FrequencyWeight   float64 // 频率权重
+	DataSizeWeight    float64 // 数据量权重
+	ResourceWeight    float64 // 资源占用权重
 }
 
 // DefaultSlowQueryDetectorConfig 返回默认配置
@@ -40,11 +40,11 @@ func DefaultSlowQueryDetectorConfig() *SlowQueryDetectorConfig {
 	return &SlowQueryDetectorConfig{
 		DefaultThreshold: 1000000, // 1秒
 		ThresholdsByType: map[SQLType]int64{
-			SQLTypeSelect: 1000000, // 1秒
-			SQLTypeInsert: 500000,  // 500毫秒
-			SQLTypeUpdate: 500000,  // 500毫秒
-			SQLTypeDelete: 500000,  // 500毫秒
-			SQLTypeDDL:    2000000, // 2秒
+			SQLTypeSelect: 1000000,  // 1秒
+			SQLTypeInsert: 500000,   // 500毫秒
+			SQLTypeUpdate: 500000,   // 500毫秒
+			SQLTypeDelete: 500000,   // 500毫秒
+			SQLTypeDDL:    2000000,  // 2秒
 		},
 		ThresholdsByDB: map[DatabaseType]int64{
 			DatabaseTypeMySQL:      1000000,
@@ -53,8 +53,8 @@ func DefaultSlowQueryDetectorConfig() *SlowQueryDetectorConfig {
 			DatabaseTypeDaMeng:     1500000,
 			DatabaseTypeGaussDB:    1000000,
 		},
-		MaxRecords:  1000,
-		AutoAnalyze: true,
+		MaxRecords:   1000,
+		AutoAnalyze:  true,
 		ScoreWeights: SlowQueryScoreWeights{
 			DurationWeight:  0.4,
 			FrequencyWeight: 0.3,
@@ -70,20 +70,20 @@ func DefaultSlowQueryDetectorConfig() *SlowQueryDetectorConfig {
 type SlowQueryReason string
 
 const (
-	SlowReasonFullTableScan  SlowQueryReason = "full_table_scan"  // 全表扫描
-	SlowReasonMissingIndex   SlowQueryReason = "missing_index"    // 缺少索引
-	SlowReasonLargeResult    SlowQueryReason = "large_result_set" // 结果集过大
-	SlowReasonHighCPU        SlowQueryReason = "high_cpu_usage"   // CPU 使用率高
-	SlowReasonHighIO         SlowQueryReason = "high_io_usage"    // IO 使用率高
-	SlowReasonLockWait       SlowQueryReason = "lock_wait"        // 锁等待
-	SlowReasonNetworkLatency SlowQueryReason = "network_latency"  // 网络延迟
-	SlowReasonComplexQuery   SlowQueryReason = "complex_query"    // 复杂查询
-	SlowReasonSubquery       SlowQueryReason = "subquery"         // 子查询
-	SlowReasonJoin           SlowQueryReason = "join_operation"   // JOIN 操作
-	SlowReasonOrderBy        SlowQueryReason = "order_by"         // 排序操作
-	SlowReasonGroupBy        SlowQueryReason = "group_by"         // 分组操作
-	SlowReasonDistinct       SlowQueryReason = "distinct"         // 去重操作
-	SlowReasonUnknown        SlowQueryReason = "unknown"          // 未知原因
+	SlowReasonFullTableScan    SlowQueryReason = "full_table_scan"     // 全表扫描
+	SlowReasonMissingIndex     SlowQueryReason = "missing_index"       // 缺少索引
+	SlowReasonLargeResult      SlowQueryReason = "large_result_set"    // 结果集过大
+	SlowReasonHighCPU          SlowQueryReason = "high_cpu_usage"      // CPU 使用率高
+	SlowReasonHighIO           SlowQueryReason = "high_io_usage"       // IO 使用率高
+	SlowReasonLockWait         SlowQueryReason = "lock_wait"           // 锁等待
+	SlowReasonNetworkLatency   SlowQueryReason = "network_latency"     // 网络延迟
+	SlowReasonComplexQuery     SlowQueryReason = "complex_query"       // 复杂查询
+	SlowReasonSubquery         SlowQueryReason = "subquery"            // 子查询
+	SlowReasonJoin             SlowQueryReason = "join_operation"      // JOIN 操作
+	SlowReasonOrderBy          SlowQueryReason = "order_by"            // 排序操作
+	SlowReasonGroupBy          SlowQueryReason = "group_by"            // 分组操作
+	SlowReasonDistinct         SlowQueryReason = "distinct"            // 去重操作
+	SlowReasonUnknown          SlowQueryReason = "unknown"             // 未知原因
 )
 
 // SlowQueryAnalyzer 慢查询分析器
@@ -276,9 +276,9 @@ func (s *SlowQueryScorer) Calculate(query *SlowQuery, stats *SQLStats) float64 {
 // SlowQueryRecord 慢查询记录（内部使用）
 type SlowQueryRecord struct {
 	*SlowQuery
-	Score      float64
-	Reasons    []SlowQueryReason
-	RecordTime time.Time
+	Score       float64
+	Reasons     []SlowQueryReason
+	RecordTime  time.Time
 }
 
 // ==================== 慢查询排行堆 ====================
@@ -306,10 +306,10 @@ func (h *SlowQueryHeap) Pop() interface{} {
 
 // SlowQueryRanking 慢查询排行管理
 type SlowQueryRanking struct {
-	records map[string]*SlowQueryRank // fingerprint -> rank
-	heap    SlowQueryHeap
-	maxSize int
-	mu      sync.RWMutex
+	records    map[string]*SlowQueryRank // fingerprint -> rank
+	heap       SlowQueryHeap
+	maxSize    int
+	mu         sync.RWMutex
 }
 
 // NewSlowQueryRanking 创建慢查询排行
@@ -384,19 +384,19 @@ func (r *SlowQueryRanking) GetTopN(n int) []*SlowQueryRank {
 
 // SlowQueryDetector 慢查询检测器
 type SlowQueryDetector struct {
-	config         *SlowQueryDetectorConfig
+	config    *SlowQueryDetectorConfig
 	observerConfig *ObserverConfig
 
 	// 慢查询记录
-	records    []*SlowQueryRecord
+	records   []*SlowQueryRecord
 	maxRecords int
 
 	// 排行
-	ranking *SlowQueryRanking
+	ranking   *SlowQueryRanking
 
 	// 分析器和评分器
-	analyzer *SlowQueryAnalyzer
-	scorer   *SlowQueryScorer
+	analyzer  *SlowQueryAnalyzer
+	scorer    *SlowQueryScorer
 
 	// 统计引用（用于评分）
 	statsGetter func(fingerprint string) *SQLStats
@@ -412,13 +412,13 @@ func NewSlowQueryDetector(cfg *ObserverConfig) *SlowQueryDetector {
 	detectorCfg := DefaultSlowQueryDetectorConfig()
 
 	return &SlowQueryDetector{
-		config:         detectorCfg,
+		config:        detectorCfg,
 		observerConfig: cfg,
-		records:        make([]*SlowQueryRecord, 0),
-		maxRecords:     detectorCfg.MaxRecords,
-		ranking:        NewSlowQueryRanking(100),
-		analyzer:       NewSlowQueryAnalyzer(),
-		scorer:         NewSlowQueryScorer(detectorCfg.ScoreWeights),
+		records:       make([]*SlowQueryRecord, 0),
+		maxRecords:    detectorCfg.MaxRecords,
+		ranking:       NewSlowQueryRanking(100),
+		analyzer:      NewSlowQueryAnalyzer(),
+		scorer:        NewSlowQueryScorer(detectorCfg.ScoreWeights),
 	}
 }
 
@@ -617,11 +617,11 @@ func (d *SlowQueryDetector) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_count":    len(d.records),
+		"total_count":   len(d.records),
 		"total_duration": totalDuration,
-		"avg_duration":   avgDuration,
-		"max_duration":   maxDuration,
-		"reasons":        reasons,
+		"avg_duration":  avgDuration,
+		"max_duration":  maxDuration,
+		"reasons":       reasons,
 	}
 }
 
@@ -643,25 +643,25 @@ func (d *SlowQueryDetector) Close() {
 
 // SlowQueryAlert 慢查询告警
 type SlowQueryAlert struct {
-	Timestamp      time.Time         `json:"timestamp"`
-	AlertType      string            `json:"alert_type"` // alert type
-	Severity       string            `json:"severity"`   // critical/warning/info
-	SQLFingerprint string            `json:"sql_fingerprint"`
-	SQLTemplate    string            `json:"sql_template"`
-	Duration       int64             `json:"duration"`
-	Threshold      int64             `json:"threshold"`
-	DatabaseName   string            `json:"database_name"`
-	Reasons        []SlowQueryReason `json:"reasons"`
-	Message        string            `json:"message"`
+	Timestamp     time.Time       `json:"timestamp"`
+	AlertType     string          `json:"alert_type"`     // alert type
+	Severity      string          `json:"severity"`       // critical/warning/info
+	SQLFingerprint string          `json:"sql_fingerprint"`
+	SQLTemplate   string           `json:"sql_template"`
+	Duration      int64            `json:"duration"`
+	Threshold     int64            `json:"threshold"`
+	DatabaseName  string           `json:"database_name"`
+	Reasons       []SlowQueryReason `json:"reasons"`
+	Message       string           `json:"message"`
 }
 
 // SlowQueryAlerter 慢查询告警器
 type SlowQueryAlerter struct {
-	threshold   int64
-	alertCount  int
-	alertWindow time.Duration
-	alerts      []*SlowQueryAlert
-	mu          sync.RWMutex
+	threshold    int64
+	alertCount   int
+	alertWindow  time.Duration
+	alerts       []*SlowQueryAlert
+	mu           sync.RWMutex
 }
 
 // NewSlowQueryAlerter 创建慢查询告警器
@@ -696,7 +696,7 @@ func (a *SlowQueryAlerter) Check(query *SlowQuery) *SlowQueryAlert {
 		Timestamp:      time.Now(),
 		AlertType:      "slow_query",
 		Severity:       severity,
-		SQLFingerprint: query.SQLTemplate,
+		SQLFingerprint: query.SQLFingerprint,
 		SQLTemplate:    query.SQLTemplate,
 		Duration:       query.Duration,
 		Threshold:      a.threshold,
@@ -712,7 +712,7 @@ func (a *SlowQueryAlerter) Check(query *SlowQuery) *SlowQueryAlert {
 
 func (a *SlowQueryAlerter) generateMessage(query *SlowQuery) string {
 	return "Slow query detected: " + query.SQLTemplate + " took " +
-		time.Duration(query.Duration*1000).String()
+		time.Duration(query.Duration * 1000).String()
 }
 
 // GetAlerts 获取告警列表

@@ -336,7 +336,7 @@ func (b *Breaker) checkFromSilent(s ResourceSnapshot) {
 
 // transitionTo 执行状态转换（调用前必须持有锁）
 func (b *Breaker) transitionTo(to State, s ResourceSnapshot) {
-	_ = b.state // 状态转换日志（原from变量）
+	//  b.state
 	b.state = to
 
 	// 重置CPU持续超限追踪
@@ -390,7 +390,7 @@ func (b *Breaker) getCPUUsagePercent() float64 {
 	}
 
 	var user, nice, system, idle, iowait, irq, softirq, steal uint64
-	n, _ := fmt.Sscanf(string(data),
+n, err := fmt.Sscanf(string(data),
 		"cpu %d %d %d %d %d %d %d %d",
 		&user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal)
 	if n < 4 {

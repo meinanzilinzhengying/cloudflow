@@ -25,11 +25,11 @@ const (
 
 // SyncEvent 同步事件
 type SyncEvent struct {
-	Type      SyncEventType `json:"type"`
-	Timestamp time.Time     `json:"timestamp"`
-	Asset     *CMDBAsset    `json:"asset,omitempty"`
-	Change    *AssetChange  `json:"change,omitempty"`
-	Result    *SyncResult   `json:"result,omitempty"`
+	Type      SyncEventType     `json:"type"`
+	Timestamp time.Time         `json:"timestamp"`
+	Asset     *CMDBAsset        `json:"asset,omitempty"`
+	Change    *AssetChange      `json:"change,omitempty"`
+	Result    *SyncResult       `json:"result,omitempty"`
 }
 
 // SyncEventHandler 同步事件处理函数
@@ -37,17 +37,17 @@ type SyncEventHandler func(event SyncEvent)
 
 // SyncEngine 同步引擎
 type SyncEngine struct {
-	mu           sync.RWMutex
-	client       CMDBClient
-	config       *SyncConfig
+	mu          sync.RWMutex
+	client      CMDBClient
+	config      *SyncConfig
 	sourceConfig *CMDBSourceConfig
 
 	// 本地缓存
-	assets     map[string]*CMDBAsset        // 按ID索引
-	assetsByIP map[string]*CMDBAsset        // 按IP索引
-	labels     map[string]map[string]string // 资产标签缓存
-	groups     map[string]*CMDBGroup        // 分组缓存
-	apps       map[string]*CMDBApp          // 应用缓存
+	assets      map[string]*CMDBAsset    // 按ID索引
+	assetsByIP  map[string]*CMDBAsset    // 按IP索引
+	labels      map[string]map[string]string // 资产标签缓存
+	groups      map[string]*CMDBGroup     // 分组缓存
+	apps        map[string]*CMDBApp       // 应用缓存
 
 	// 同步状态
 	lastSyncTime time.Time
@@ -209,10 +209,10 @@ func (e *SyncEngine) FullSync(ctx context.Context) *SyncResult {
 			result.TotalCreated++
 
 			change := AssetChange{
-				AssetID:    id,
-				AssetName:  remote.Name,
+				AssetID:   id,
+				AssetName: remote.Name,
 				ChangeType: ChangeTypeCreated,
-				Timestamp:  time.Now(),
+				Timestamp: time.Now(),
 			}
 			result.Changes = append(result.Changes, change)
 
@@ -229,11 +229,11 @@ func (e *SyncEngine) FullSync(ctx context.Context) *SyncResult {
 				result.TotalUpdated++
 
 				change := AssetChange{
-					AssetID:    id,
-					AssetName:  remote.Name,
+					AssetID:   id,
+					AssetName: remote.Name,
 					ChangeType: classifyChange(changes),
-					Fields:     changes,
-					Timestamp:  time.Now(),
+					Fields:    changes,
+					Timestamp: time.Now(),
 				}
 				result.Changes = append(result.Changes, change)
 
@@ -256,10 +256,10 @@ func (e *SyncEngine) FullSync(ctx context.Context) *SyncResult {
 			result.TotalDeleted++
 
 			change := AssetChange{
-				AssetID:    id,
-				AssetName:  local.Name,
+				AssetID:   id,
+				AssetName: local.Name,
 				ChangeType: ChangeTypeDeleted,
-				Timestamp:  time.Now(),
+				Timestamp: time.Now(),
 			}
 			result.Changes = append(result.Changes, change)
 
@@ -335,11 +335,11 @@ func (e *SyncEngine) IncrementalSync(ctx context.Context, since time.Time) *Sync
 				result.TotalUpdated++
 
 				change := AssetChange{
-					AssetID:    remote.ID,
-					AssetName:  remote.Name,
+					AssetID:   remote.ID,
+					AssetName: remote.Name,
 					ChangeType: classifyChange(changes),
-					Fields:     changes,
-					Timestamp:  time.Now(),
+					Fields:    changes,
+					Timestamp: time.Now(),
 				}
 				result.Changes = append(result.Changes, change)
 			} else {
@@ -394,12 +394,12 @@ func (e *SyncEngine) syncLabels(ctx context.Context, result *SyncResult) {
 				e.labels[assetID] = newLabels
 
 				e.emitEvent(SyncEvent{
-					Type:  SyncEventLabelChanged,
+					Type: SyncEventLabelChanged,
 					Asset: e.assets[assetID],
 					Change: &AssetChange{
-						AssetID:    assetID,
+						AssetID:   assetID,
 						ChangeType: ChangeTypeLabelChanged,
-						Timestamp:  time.Now(),
+						Timestamp: time.Now(),
 					},
 				})
 			}

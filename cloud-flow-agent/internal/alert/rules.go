@@ -119,7 +119,7 @@ func (c *RuleCondition) Evaluate(value float64, labels map[string]string) bool {
 			return false
 		}
 	}
-
+	
 	return c.Operator.Evaluate(value, c.Threshold)
 }
 
@@ -133,12 +133,12 @@ type AlertRule struct {
 	Labels      map[string]string `json:"labels"`
 	Annotations map[string]string `json:"annotations"`
 	Enabled     bool              `json:"enabled"`
-
-	FireThreshold  int      `json:"fire_threshold"`
-	ResolveAfter   string   `json:"resolve_after"`
+	
+	FireThreshold int    `json:"fire_threshold"`
+	ResolveAfter  string `json:"resolve_after"`
 	NotifyChannels []string `json:"notify_channels"`
 	SilencePeriod  string   `json:"silence_period"`
-
+	
 	mu            sync.RWMutex
 	pendingCount  int
 	lastFireTime  time.Time
@@ -148,11 +148,11 @@ type AlertRule struct {
 func (r *AlertRule) ShouldFire(conditionMet bool) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
+	
 	if !r.Enabled {
 		return false
 	}
-
+	
 	if conditionMet {
 		r.pendingCount++
 		if r.pendingCount >= r.FireThreshold {
@@ -161,7 +161,7 @@ func (r *AlertRule) ShouldFire(conditionMet bool) bool {
 	} else {
 		r.pendingCount = 0
 	}
-
+	
 	return false
 }
 
@@ -211,10 +211,10 @@ const (
 
 var BuiltInTemplates = map[BuiltInTemplate]*AlertRule{
 	TemplateLatency: {
-		ID:          "builtin-latency",
-		Name:        "网络时延告警",
+		ID:   "builtin-latency",
+		Name: "网络时延告警",
 		Description: "检测网络延迟异常，当平均时延超过阈值时触发告警",
-		Level:       AlertLevelWarning,
+		Level: AlertLevelWarning,
 		Conditions: []RuleCondition{
 			{Metric: "latency_avg_ms", Operator: OpGreaterThan, Threshold: 100, For: "2m"},
 			{Metric: "latency_avg_ms", Operator: OpGreaterThan, Threshold: 500, For: "1m"},
@@ -224,16 +224,16 @@ var BuiltInTemplates = map[BuiltInTemplate]*AlertRule{
 			"summary":     "网络时延过高",
 			"description": "平均时延 {{ $value }}ms 超过阈值 {{ $threshold }}ms",
 		},
-		Enabled:        true,
-		FireThreshold:  3,
-		ResolveAfter:   "5m",
+		Enabled:       true,
+		FireThreshold: 3,
+		ResolveAfter:  "5m",
 		NotifyChannels: []string{"default"},
 	},
 	TemplatePacketLoss: {
-		ID:          "builtin-packet-loss",
-		Name:        "丢包率告警",
+		ID:   "builtin-packet-loss",
+		Name: "丢包率告警",
 		Description: "检测网络丢包异常，当丢包率超过阈值时触发告警",
-		Level:       AlertLevelCritical,
+		Level: AlertLevelCritical,
 		Conditions: []RuleCondition{
 			{Metric: "packet_loss_rate", Operator: OpGreaterThan, Threshold: 1, For: "1m"},
 			{Metric: "packet_loss_rate", Operator: OpGreaterThan, Threshold: 5, For: "30s"},
@@ -243,16 +243,16 @@ var BuiltInTemplates = map[BuiltInTemplate]*AlertRule{
 			"summary":     "网络丢包率过高",
 			"description": "丢包率 {{ $value }}% 超过阈值 {{ $threshold }}%",
 		},
-		Enabled:        true,
-		FireThreshold:  2,
-		ResolveAfter:   "3m",
+		Enabled:       true,
+		FireThreshold: 2,
+		ResolveAfter:  "3m",
 		NotifyChannels: []string{"default", "critical"},
 	},
 	TemplateRetransmit: {
-		ID:          "builtin-retransmit",
-		Name:        "TCP重传告警",
+		ID:   "builtin-retransmit",
+		Name: "TCP重传告警",
 		Description: "检测TCP重传异常，当重传率超过阈值时触发告警",
-		Level:       AlertLevelWarning,
+		Level: AlertLevelWarning,
 		Conditions: []RuleCondition{
 			{Metric: "tcp_retransmit_rate", Operator: OpGreaterThan, Threshold: 2, For: "2m"},
 			{Metric: "tcp_retransmit_rate", Operator: OpGreaterThan, Threshold: 10, For: "1m"},
@@ -262,16 +262,16 @@ var BuiltInTemplates = map[BuiltInTemplate]*AlertRule{
 			"summary":     "TCP重传率过高",
 			"description": "重传率 {{ $value }}% 超过阈值 {{ $threshold }}%",
 		},
-		Enabled:        true,
-		FireThreshold:  3,
-		ResolveAfter:   "5m",
+		Enabled:       true,
+		FireThreshold: 3,
+		ResolveAfter:  "5m",
 		NotifyChannels: []string{"default"},
 	},
 	TemplateCPU: {
-		ID:          "builtin-cpu",
-		Name:        "CPU使用率告警",
+		ID:   "builtin-cpu",
+		Name: "CPU使用率告警",
 		Description: "检测CPU使用率异常，当使用率超过阈值时触发告警",
-		Level:       AlertLevelWarning,
+		Level: AlertLevelWarning,
 		Conditions: []RuleCondition{
 			{Metric: "cpu_usage_percent", Operator: OpGreaterThan, Threshold: 80, For: "5m"},
 			{Metric: "cpu_usage_percent", Operator: OpGreaterThan, Threshold: 95, For: "1m"},
@@ -281,16 +281,16 @@ var BuiltInTemplates = map[BuiltInTemplate]*AlertRule{
 			"summary":     "CPU使用率过高",
 			"description": "CPU使用率 {{ $value }}% 超过阈值 {{ $threshold }}%",
 		},
-		Enabled:        true,
-		FireThreshold:  3,
-		ResolveAfter:   "5m",
+		Enabled:       true,
+		FireThreshold: 3,
+		ResolveAfter:  "5m",
 		NotifyChannels: []string{"default"},
 	},
 	TemplateMemory: {
-		ID:          "builtin-memory",
-		Name:        "内存使用率告警",
+		ID:   "builtin-memory",
+		Name: "内存使用率告警",
 		Description: "检测内存使用率异常，当使用率超过阈值时触发告警",
-		Level:       AlertLevelWarning,
+		Level: AlertLevelWarning,
 		Conditions: []RuleCondition{
 			{Metric: "memory_usage_percent", Operator: OpGreaterThan, Threshold: 85, For: "5m"},
 			{Metric: "memory_usage_percent", Operator: OpGreaterThan, Threshold: 95, For: "1m"},
@@ -300,16 +300,16 @@ var BuiltInTemplates = map[BuiltInTemplate]*AlertRule{
 			"summary":     "内存使用率过高",
 			"description": "内存使用率 {{ $value }}% 超过阈值 {{ $threshold }}%",
 		},
-		Enabled:        true,
-		FireThreshold:  3,
-		ResolveAfter:   "5m",
+		Enabled:       true,
+		FireThreshold: 3,
+		ResolveAfter:  "5m",
 		NotifyChannels: []string{"default"},
 	},
 	TemplateErrorRate: {
-		ID:          "builtin-error-rate",
-		Name:        "错误率告警",
+		ID:   "builtin-error-rate",
+		Name: "错误率告警",
 		Description: "检测HTTP/SQL错误率异常，当错误率超过阈值时触发告警",
-		Level:       AlertLevelCritical,
+		Level: AlertLevelCritical,
 		Conditions: []RuleCondition{
 			{Metric: "error_rate_percent", Operator: OpGreaterThan, Threshold: 5, For: "1m"},
 			{Metric: "error_rate_percent", Operator: OpGreaterThan, Threshold: 20, For: "30s"},
@@ -319,31 +319,31 @@ var BuiltInTemplates = map[BuiltInTemplate]*AlertRule{
 			"summary":     "错误率过高",
 			"description": "错误率 {{ $value }}% 超过阈值 {{ $threshold }}%",
 		},
-		Enabled:        true,
-		FireThreshold:  2,
-		ResolveAfter:   "3m",
+		Enabled:       true,
+		FireThreshold: 2,
+		ResolveAfter:  "3m",
 		NotifyChannels: []string{"default", "critical"},
 	},
 }
 
 // RuleEngine 规则引擎
 type RuleEngine struct {
-	mu        sync.RWMutex
-	rules     map[string]*AlertRule
+	mu       sync.RWMutex
+	rules    map[string]*AlertRule
 	templates map[BuiltInTemplate]*AlertRule
 }
 
 func NewRuleEngine() *RuleEngine {
 	engine := &RuleEngine{
-		rules:     make(map[string]*AlertRule),
+		rules:    make(map[string]*AlertRule),
 		templates: make(map[BuiltInTemplate]*AlertRule),
 	}
-
+	
 	for t, rule := range BuiltInTemplates {
 		engine.templates[t] = rule
 		engine.rules[rule.ID] = rule
 	}
-
+	
 	return engine
 }
 
@@ -351,16 +351,16 @@ func (e *RuleEngine) AddRule(rule *AlertRule) error {
 	if rule.ID == "" {
 		return fmt.Errorf("规则ID不能为空")
 	}
-
+	
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
+	
 	newRule := *rule
 	newRule.Labels = copyMap(rule.Labels)
 	newRule.Annotations = copyMap(rule.Annotations)
 	newRule.Conditions = make([]RuleCondition, len(rule.Conditions))
 	copy(newRule.Conditions, rule.Conditions)
-
+	
 	e.rules[rule.ID] = &newRule
 	return nil
 }
@@ -383,23 +383,23 @@ func (e *RuleEngine) GetRule(id string) *AlertRule {
 func (e *RuleEngine) GetRules() []*AlertRule {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-
+	
 	rules := make([]*AlertRule, 0, len(e.rules))
 	for _, rule := range e.rules {
 		rules = append(rules, rule)
 	}
-
+	
 	sort.Slice(rules, func(i, j int) bool {
 		return rules[i].Level > rules[j].Level
 	})
-
+	
 	return rules
 }
 
 func (e *RuleEngine) EnableRule(id string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
+	
 	if rule, ok := e.rules[id]; ok {
 		rule.Enabled = true
 		return nil
@@ -410,7 +410,7 @@ func (e *RuleEngine) EnableRule(id string) error {
 func (e *RuleEngine) DisableRule(id string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
+	
 	if rule, ok := e.rules[id]; ok {
 		rule.Enabled = false
 		return nil
@@ -421,7 +421,7 @@ func (e *RuleEngine) DisableRule(id string) error {
 func (e *RuleEngine) EnableBuiltIn(template BuiltInTemplate) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
+	
 	if rule, ok := e.templates[template]; ok {
 		rule.Enabled = true
 		return nil
@@ -432,7 +432,7 @@ func (e *RuleEngine) EnableBuiltIn(template BuiltInTemplate) error {
 func (e *RuleEngine) DisableBuiltIn(template BuiltInTemplate) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
+	
 	if rule, ok := e.templates[template]; ok {
 		rule.Enabled = false
 		return nil
@@ -443,26 +443,26 @@ func (e *RuleEngine) DisableBuiltIn(template BuiltInTemplate) error {
 func (e *RuleEngine) Evaluate(metric string, value float64, labels map[string]string) []*AlertRule {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-
+	
 	var matchedRules []*AlertRule
-
+	
 	for _, rule := range e.rules {
 		if !rule.Enabled {
 			continue
 		}
-
+		
 		for _, cond := range rule.Conditions {
 			if cond.Metric != metric {
 				continue
 			}
-
+			
 			if cond.Evaluate(value, labels) {
 				matchedRules = append(matchedRules, rule)
 				break
 			}
 		}
 	}
-
+	
 	return matchedRules
 }
 
@@ -478,11 +478,11 @@ type AlertEvent struct {
 	Threshold   float64           `json:"threshold"`
 	Labels      map[string]string `json:"labels"`
 	Annotations map[string]string `json:"annotations"`
-
-	FiredAt    time.Time     `json:"fired_at"`
-	ResolvedAt time.Time     `json:"resolved_at,omitempty"`
-	Duration   time.Duration `json:"duration,omitempty"`
-
+	
+	FiredAt     time.Time     `json:"fired_at"`
+	ResolvedAt  time.Time     `json:"resolved_at,omitempty"`
+	Duration    time.Duration `json:"duration,omitempty"`
+	
 	Notified    bool      `json:"notified"`
 	NotifyAt    time.Time `json:"notify_at,omitempty"`
 	NotifyError string    `json:"notify_error,omitempty"`
@@ -507,14 +507,14 @@ func (e *AlertEvent) ToMap() map[string]interface{} {
 		"fired_at":    e.FiredAt.Format(time.RFC3339),
 		"notified":    e.Notified,
 	}
-
+	
 	if !e.ResolvedAt.IsZero() {
 		m["resolved_at"] = e.ResolvedAt.Format(time.RFC3339)
 	}
 	if e.Duration > 0 {
 		m["duration"] = e.Duration.String()
 	}
-
+	
 	return m
 }
 
@@ -536,7 +536,7 @@ type RuleConfig struct {
 	Conditions  []ConditionConfig `yaml:"conditions" json:"conditions"`
 	Labels      map[string]string `yaml:"labels" json:"labels"`
 	Annotations map[string]string `yaml:"annotations" json:"annotations"`
-
+	
 	FireThreshold  int      `yaml:"fire_threshold" json:"fire_threshold"`
 	ResolveAfter   string   `yaml:"resolve_after" json:"resolve_after"`
 	NotifyChannels []string `yaml:"notify_channels" json:"notify_channels"`
@@ -553,23 +553,23 @@ type ConditionConfig struct {
 
 func (c *RuleConfig) ToRule() *AlertRule {
 	rule := &AlertRule{
-		ID:             c.ID,
-		Name:           c.Name,
-		Description:    c.Description,
-		Level:          ParseAlertLevel(c.Level),
-		Enabled:        c.Enabled,
-		Labels:         c.Labels,
-		Annotations:    c.Annotations,
-		FireThreshold:  c.FireThreshold,
-		ResolveAfter:   c.ResolveAfter,
+		ID:          c.ID,
+		Name:        c.Name,
+		Description: c.Description,
+		Level:       ParseAlertLevel(c.Level),
+		Enabled:     c.Enabled,
+		Labels:      c.Labels,
+		Annotations: c.Annotations,
+		FireThreshold: c.FireThreshold,
+		ResolveAfter:  c.ResolveAfter,
 		NotifyChannels: c.NotifyChannels,
 		SilencePeriod:  c.SilencePeriod,
 	}
-
+	
 	if rule.FireThreshold == 0 {
 		rule.FireThreshold = 1
 	}
-
+	
 	rule.Conditions = make([]RuleCondition, len(c.Conditions))
 	for i, cc := range c.Conditions {
 		rule.Conditions[i] = RuleCondition{
@@ -580,7 +580,7 @@ func (c *RuleConfig) ToRule() *AlertRule {
 			Labels:    cc.Labels,
 		}
 	}
-
+	
 	return rule
 }
 
@@ -599,7 +599,7 @@ func ParseDuration(s string) time.Duration {
 	if s == "" {
 		return 0
 	}
-
+	
 	d, err := time.ParseDuration(s)
 	if err != nil {
 		return 0

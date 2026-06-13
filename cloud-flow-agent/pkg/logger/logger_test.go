@@ -6,8 +6,8 @@ import (
 
 func TestNew(t *testing.T) {
 	tests := []struct {
-		name      string
-		config    Config
+		name   string
+		config Config
 		wantPanic bool
 	}{
 		{
@@ -62,7 +62,7 @@ func TestParseLevel(t *testing.T) {
 		{"warning", "warning"},
 		{"error", "error"},
 		{"ERROR", "error"},
-		{"", "info"},        // default
+		{"", "info"},     // default
 		{"unknown", "info"}, // default
 	}
 
@@ -79,28 +79,28 @@ func TestParseLevel(t *testing.T) {
 
 func TestLoggerMethods(t *testing.T) {
 	logger := New(Config{Level: "debug", Format: "console"})
-
+	
 	// Test that all logging methods don't panic
 	t.Run("Info", func(t *testing.T) {
 		logger.Info("test info message")
 	})
-
+	
 	t.Run("Infof", func(t *testing.T) {
 		logger.Infof("test %s message", "formatted")
 	})
-
+	
 	t.Run("Debug", func(t *testing.T) {
 		logger.Debug("test debug message")
 	})
-
+	
 	t.Run("Warn", func(t *testing.T) {
 		logger.Warn("test warn message")
 	})
-
+	
 	t.Run("Error", func(t *testing.T) {
 		logger.Error("test error message")
 	})
-
+	
 	t.Run("Sync", func(t *testing.T) {
 		logger.Sync() // Should not panic
 	})

@@ -39,16 +39,16 @@ type TLSConfig struct {
 }
 
 type Client struct {
-	mu          sync.RWMutex
-	conn        *grpc.ClientConn
-	client      edge.ProbeServiceClient
-	logger      *logger.Logger
-	addr        string
-	apiKey      string
-	tlsCfg      TLSConfig
-	localAddr   string // 本地绑定地址
-	stopCh      chan struct{}
-	stopped     sync.Once
+	mu     sync.RWMutex
+	conn   *grpc.ClientConn
+	client edge.ProbeServiceClient
+	logger *logger.Logger
+	addr   string
+	apiKey string
+	tlsCfg TLSConfig
+	localAddr string // 本地绑定地址
+	stopCh chan struct{}
+	stopped sync.Once
 	watchCtx    context.Context
 	watchCancel context.CancelFunc
 }
@@ -279,6 +279,8 @@ func (c *Client) reconnectWithBackoff() {
 		return
 	}
 }
+
+
 
 func (c *Client) Register(ctx context.Context, probeID, hostIP, hostname, version string) (*edge.RegisterProbeResponse, error) {
 	// 如果 context 已经有超时设置，使用它；否则添加默认超时

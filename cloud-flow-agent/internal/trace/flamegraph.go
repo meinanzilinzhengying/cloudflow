@@ -1,6 +1,7 @@
 package trace
 
 import (
+// encoding/json
 	"fmt"
 	"html/template"
 	"math"
@@ -15,28 +16,28 @@ import (
 
 // FlameNode 火焰图节点
 type FlameNode struct {
-	Name     string       `json:"name"`
-	Value    int          `json:"value"` // 采样次数
+	Name     string      `json:"name"`
+	Value    int         `json:"value"`       // 采样次数
 	Children []*FlameNode `json:"children,omitempty"`
 }
 
 // FlameGraph 火焰图
 type FlameGraph struct {
-	Name         string     `json:"name"`
-	StartTime    time.Time  `json:"start_time"`
-	Duration     float64    `json:"duration_sec"`  // 采集时长(秒)
-	SampleRate   int        `json:"sample_rate"`   // 采样频率(Hz)
-	TotalSamples int        `json:"total_samples"` // 总采样数
-	Root         *FlameNode `json:"root"`
-	Format       string     `json:"format"` // flamegraph/icicle/topdown
-	Metadata     FlameMeta  `json:"metadata"`
+	Name      string     `json:"name"`
+	StartTime time.Time  `json:"start_time"`
+	Duration  float64    `json:"duration_sec"`  // 采集时长(秒)
+	SampleRate int       `json:"sample_rate"`    // 采样频率(Hz)
+	TotalSamples int     `json:"total_samples"`  // 总采样数
+	Root      *FlameNode `json:"root"`
+	Format    string     `json:"format"`         // flamegraph/icicle/topdown
+	Metadata  FlameMeta  `json:"metadata"`
 }
 
 // FlameMeta 火焰图元数据
 type FlameMeta struct {
 	PID         uint32 `json:"pid"`
 	ProcessName string `json:"process_name"`
-	Language    string `json:"language"` // go/java/python/c/cpp
+	Language    string `json:"language"`       // go/java/python/c/cpp
 	OS          string `json:"os"`
 	Arch        string `json:"arch"`
 	CPUCores    int    `json:"cpu_cores"`
@@ -44,22 +45,22 @@ type FlameMeta struct {
 
 // FlameGraphConfig 火焰图配置
 type FlameGraphConfig struct {
-	Enabled       bool   `yaml:"enabled" json:"enabled"`
-	SampleFreq    int    `yaml:"sample_freq" json:"sample_freq"`
-	MaxStackDepth int    `yaml:"max_stack_depth" json:"max_stack_depth"`
-	DurationSec   int    `yaml:"duration_sec" json:"duration_sec"`
-	OutputDir     string `yaml:"output_dir" json:"output_dir"`
-	MaxStored     int    `yaml:"max_stored" json:"max_stored"`   // 最大存储火焰图数
-	MinSamples    int    `yaml:"min_samples" json:"min_samples"` // 最小采样数(过滤噪声)
+	Enabled       bool          `yaml:"enabled" json:"enabled"`
+	SampleFreq    int           `yaml:"sample_freq" json:"sample_freq"`
+	MaxStackDepth int           `yaml:"max_stack_depth" json:"max_stack_depth"`
+	DurationSec   int           `yaml:"duration_sec" json:"duration_sec"`
+	OutputDir     string        `yaml:"output_dir" json:"output_dir"`
+	MaxStored     int           `yaml:"max_stored" json:"max_stored"` // 最大存储火焰图数
+	MinSamples    int           `yaml:"min_samples" json:"min_samples"` // 最小采样数(过滤噪声)
 }
 
 // FlameGraphStore 火焰图存储
 type FlameGraphStore struct {
-	mu      sync.RWMutex
-	graphs  map[string]*FlameGraph   // 按ID索引
-	byTime  []*FlameGraph            // 按时间索引
-	byPID   map[uint32][]*FlameGraph // 按PID索引
-	maxSize int
+	mu       sync.RWMutex
+	graphs   map[string]*FlameGraph   // 按ID索引
+	byTime   []*FlameGraph            // 按时间索引
+	byPID    map[uint32][]*FlameGraph // 按PID索引
+	maxSize  int
 }
 
 // FlameGraphGenerator 火焰图生成器
@@ -80,9 +81,9 @@ func NewFlameGraphGenerator(config *FlameGraphConfig) *FlameGraphGenerator {
 
 	return &FlameGraphGenerator{
 		store: &FlameGraphStore{
-			graphs:  make(map[string]*FlameGraph),
-			byTime:  make([]*FlameGraph, 0),
-			byPID:   make(map[uint32][]*FlameGraph),
+			graphs: make(map[string]*FlameGraph),
+			byTime: make([]*FlameGraph, 0),
+			byPID:  make(map[uint32][]*FlameGraph),
 			maxSize: maxStored,
 		},
 		config: config,
@@ -246,8 +247,8 @@ func (g *FlameGraphGenerator) GetTopFunctions(id string, topN int) []FunctionHot
 
 // FunctionHotspot 热点函数
 type FunctionHotspot struct {
-	Name       string  `json:"name"`
-	Samples    int     `json:"samples"`
+	Name      string  `json:"name"`
+	Samples   int     `json:"samples"`
 	Percentage float64 `json:"percentage"`
 }
 
@@ -463,8 +464,8 @@ func extractTopFunctions(root *FlameNode, topN int) []FunctionHotspot {
 	for i, kv := range sorted {
 		pct := float64(kv.Samples) / float64(total) * 100
 		result[i] = FunctionHotspot{
-			Name:       kv.Name,
-			Samples:    kv.Samples,
+			Name:      kv.Name,
+			Samples:   kv.Samples,
 			Percentage: math.Round(pct*100) / 100,
 		}
 	}
@@ -556,8 +557,8 @@ func flameColor(name string) string {
 	}
 
 	h := hash % 60
-	s := 70 + (hash % 30)
-	l := 50 + (hash % 20)
+	s := 70 + (hash%30)
+	l := 50 + (hash%20)
 
 	return fmt.Sprintf("hsl(%d,%d%%,%d%%)", h, s, l)
 }
@@ -661,13 +662,13 @@ func (api *FlameGraphAPI) handleList(w http.ResponseWriter, r *http.Request) {
 
 	// 返回摘要列表
 	type summary struct {
-		ID           string    `json:"id"`
-		Name         string    `json:"name"`
+		ID           string  `json:"id"`
+		Name         string  `json:"name"`
 		StartTime    time.Time `json:"start_time"`
-		Duration     float64   `json:"duration_sec"`
-		TotalSamples int       `json:"total_samples"`
-		PID          uint32    `json:"pid"`
-		ProcessName  string    `json:"process_name"`
+		Duration     float64 `json:"duration_sec"`
+		TotalSamples int     `json:"total_samples"`
+		PID          uint32  `json:"pid"`
+		ProcessName  string  `json:"process_name"`
 	}
 
 	summaries := make([]summary, len(graphs))

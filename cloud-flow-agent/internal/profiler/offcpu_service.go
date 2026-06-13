@@ -20,19 +20,19 @@ type OffCPUProfileRequest struct {
 	ProcessName string   `json:"process_name,omitempty"` // 进程名匹配
 
 	// 采集配置
-	Duration      int   `json:"duration,omitempty"`        // 剖析时长(秒)
-	MinDuration   int64 `json:"min_duration,omitempty"`    // 最小采集时长(微秒)
-	MaxDuration   int64 `json:"max_duration,omitempty"`    // 最大采集时长(微秒)
-	MaxStackDepth int   `json:"max_stack_depth,omitempty"` // 最大栈深度
+	Duration      int  `json:"duration,omitempty"`        // 剖析时长(秒)
+	MinDuration   int64 `json:"min_duration,omitempty"`   // 最小采集时长(微秒)
+	MaxDuration   int64 `json:"max_duration,omitempty"`   // 最大采集时长(微秒)
+	MaxStackDepth int  `json:"max_stack_depth,omitempty"` // 最大栈深度
 
 	// 事件筛选
-	CollectIOWait         bool `json:"collect_io_wait,omitempty"`         // 采集 IO 等待
+	CollectIOWait      bool `json:"collect_io_wait,omitempty"`      // 采集 IO 等待
 	CollectLockContention bool `json:"collect_lock_contention,omitempty"` // 采集锁竞争
-	CollectScheduler      bool `json:"collect_scheduler,omitempty"`       // 采集调度延迟
-	CollectNetwork        bool `json:"collect_network,omitempty"`         // 采集网络等待
-	CollectDisk           bool `json:"collect_disk,omitempty"`            // 采集磁盘等待
-	CollectFutex          bool `json:"collect_futex,omitempty"`           // 采集 futex 等待
-	CollectSleep          bool `json:"collect_sleep,omitempty"`           // 采集主动睡眠
+	CollectScheduler   bool `json:"collect_scheduler,omitempty"`   // 采集调度延迟
+	CollectNetwork     bool `json:"collect_network,omitempty"`     // 采集网络等待
+	CollectDisk        bool `json:"collect_disk,omitempty"`        // 采集磁盘等待
+	CollectFutex       bool `json:"collect_futex,omitempty"`       // 采集 futex 等待
+	CollectSleep       bool `json:"collect_sleep,omitempty"`       // 采集主动睡眠
 
 	// 输出配置
 	IncludeKernelStack bool `json:"include_kernel_stack,omitempty"` // 包含内核栈
@@ -43,11 +43,11 @@ type OffCPUProfileRequest struct {
 
 // OffCPUProfileResponse OFF-CPU 剖析响应
 type OffCPUProfileResponse struct {
-	SessionID     string `json:"session_id,omitempty"`     // 会话 ID
-	Status        string `json:"status,omitempty"`         // 状态
-	Duration      int    `json:"duration,omitempty"`       // 实际剖析时长(秒)
-	TotalEvents   uint64 `json:"total_events,omitempty"`   // 总事件数
-	TotalDuration int64  `json:"total_duration,omitempty"` // 总阻塞时长(微秒)
+	SessionID     string           `json:"session_id,omitempty"`     // 会话 ID
+	Status        string           `json:"status,omitempty"`         // 状态
+	Duration      int              `json:"duration,omitempty"`       // 实际剖析时长(秒)
+	TotalEvents   uint64           `json:"total_events,omitempty"`   // 总事件数
+	TotalDuration int64            `json:"total_duration,omitempty"` // 总阻塞时长(微秒)
 
 	// 阻塞原因统计
 	ReasonStats map[OffCPUReason]*ReasonStat `json:"reason_stats,omitempty"`
@@ -79,23 +79,23 @@ type ReasonStat struct {
 
 // OffCPUService OFF-CPU 剖析服务
 type OffCPUService struct {
-	mu         sync.RWMutex
-	profilers  map[string]*OffCPUProfiler // 会话 ID -> 剖析器
-	sessions   map[string]*OffCPUSession  // 会话 ID -> 会话
+	mu        sync.RWMutex
+	profilers map[string]*OffCPUProfiler // 会话 ID -> 剖析器
+	sessions  map[string]*OffCPUSession  // 会话 ID -> 会话
 	symbolizer *Symbolizer
-	onCPUData  map[string]map[string]uint64 // 会话 ID -> ON-CPU 栈计数
+	onCPUData map[string]map[string]uint64 // 会话 ID -> ON-CPU 栈计数
 }
 
 // OffCPUSession OFF-CPU 剖析会话
 type OffCPUSession struct {
-	ID        string
-	Request   OffCPUProfileRequest
-	StartTime time.Time
-	EndTime   time.Time
-	Status    string // running/completed/failed
-	Profiler  *OffCPUProfiler
-	Error     error
-	Result    *OffCPUProfileResponse
+	ID           string
+	Request      OffCPUProfileRequest
+	StartTime    time.Time
+	EndTime      time.Time
+	Status       string // running/completed/failed
+	Profiler     *OffCPUProfiler
+	Error        error
+	Result       *OffCPUProfileResponse
 }
 
 // NewOffCPUService 创建 OFF-CPU 剖析服务
@@ -130,21 +130,21 @@ func (s *OffCPUService) Profile(ctx context.Context, req OffCPUProfileRequest) (
 
 	// 构建配置
 	cfg := &OffCPUConfig{
-		PID:                   req.PID,
-		PIDs:                  req.PIDs,
-		ProcessName:           req.ProcessName,
-		MinDuration:           req.MinDuration,
-		MaxDuration:           req.MaxDuration,
-		MaxStackDepth:         req.MaxStackDepth,
-		CollectIOWait:         req.CollectIOWait,
+		PID:           req.PID,
+		PIDs:          req.PIDs,
+		ProcessName:   req.ProcessName,
+		MinDuration:   req.MinDuration,
+		MaxDuration:   req.MaxDuration,
+		MaxStackDepth: req.MaxStackDepth,
+		CollectIOWait:      req.CollectIOWait,
 		CollectLockContention: req.CollectLockContention,
-		CollectScheduler:      req.CollectScheduler,
-		CollectNetwork:        req.CollectNetwork,
-		CollectDisk:           req.CollectDisk,
-		CollectFutex:          req.CollectFutex,
-		CollectSleep:          req.CollectSleep,
-		IncludeKernelStack:    req.IncludeKernelStack,
-		IncludeUserStack:      req.IncludeUserStack,
+		CollectScheduler:   req.CollectScheduler,
+		CollectNetwork:     req.CollectNetwork,
+		CollectDisk:        req.CollectDisk,
+		CollectFutex:       req.CollectFutex,
+		CollectSleep:       req.CollectSleep,
+		IncludeKernelStack: req.IncludeKernelStack,
+		IncludeUserStack:   req.IncludeUserStack,
 	}
 
 	// 设置默认值

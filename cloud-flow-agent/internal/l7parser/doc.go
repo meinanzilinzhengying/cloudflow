@@ -114,4 +114,5 @@
 //	l7parser.Register("myprotocol", func() l7parser.Parser {
 //	    return &MyProtocolParser{}
 //	})
+//
 package l7parser

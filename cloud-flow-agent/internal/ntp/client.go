@@ -302,7 +302,7 @@ func (c *Client) syncViaGRPC() (*SyncResult, error) {
 	// 简化：假设服务器处理时间对称
 	rtt := t4.Sub(t1)
 	delay := rtt - serverProcTime
-	offset := t1.Add(rtt / 2).Sub(serverTime)
+	offset := t1.Add(rtt/2).Sub(serverTime)
 
 	result := &SyncResult{
 		Success:    true,

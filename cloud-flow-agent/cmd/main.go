@@ -77,6 +77,11 @@ func shutdownComponents(deps *Dependencies) {
 				deps.SelfMonitor.Stop()
 			}
 		}},
+		{"EBPFCollector", func() {
+			if deps.EBPFCollector != nil {
+				deps.EBPFCollector.Stop()
+			}
+		}},
 		{"TSStore", func() {
 			if deps.TSStore != nil {
 				deps.TSStore.Close()
@@ -130,7 +135,7 @@ func mainLoop(ctx context.Context, deps *Dependencies) {
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-time.After(30 * time.Second):
 			return
 		case <-ticker.C:
 			collectAndReport(ctx, deps)
