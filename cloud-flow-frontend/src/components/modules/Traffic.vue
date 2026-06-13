@@ -122,13 +122,7 @@ const detailTabs = [
   { label: '最近', value: 'recent' }
 ]
 
-const flowDetails = ref([
-  { id: 1, time: '14:32:15', source: '10.10.1.25:45678', destination: '10.10.2.10:80', protocol: 'HTTP', bytes: 125000, status: 'active' },
-  { id: 2, time: '14:32:14', source: '10.10.1.36:34211', destination: '10.10.2.15:443', protocol: 'HTTPS', bytes: 89000, status: 'active' },
-  { id: 3, time: '14:32:13', source: '10.10.1.12:51234', destination: '10.10.2.20:8080', protocol: 'TCP', bytes: 45000, status: 'active' },
-  { id: 4, time: '14:32:12', source: '10.10.1.89:62345', destination: '10.10.2.25:53', protocol: 'DNS', bytes: 1200, status: 'active' },
-  { id: 5, time: '14:32:11', source: '10.10.1.45:23456', destination: '10.10.2.30:9092', protocol: 'Kafka', bytes: 230000, status: 'active' }
-])
+const flowDetails = ref([])
 
 const realtimeChartData = computed(() => ({
   labels: ['0s', '10s', '20s', '30s', '40s', '50s', '60s'],

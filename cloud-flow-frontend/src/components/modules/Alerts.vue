@@ -125,16 +125,9 @@ import { alertsApi } from '../../api'
 const selectedSeverity = ref('all')
 const selectedStatus = ref('all')
 
-const alertStats = ref({ total: 15, critical: 3, warning: 8, info: 4 })
+const alertStats = ref({ total: 0, critical: 0, warning: 0, info: 0 })
 
-const alerts = ref([
-  { id: 1, severity: 'critical', title: '高丢包率告警', message: '检测到高丢包率，超过阈值 5%', time: '2分钟前', source: 'node-1', resource: 'network', status: 'active' },
-  { id: 2, severity: 'critical', title: '连接数超限', message: 'TCP 连接数超过安全阈值', time: '5分钟前', source: 'node-2', resource: 'tcp', status: 'active' },
-  { id: 3, severity: 'critical', title: '服务不可用', message: 'API 服务响应超时', time: '8分钟前', source: 'api-server', resource: 'service', status: 'active' },
-  { id: 4, severity: 'warning', title: '重传率偏高', message: '重传率达到 8%，建议检查网络', time: '12分钟前', source: 'node-1', resource: 'network', status: 'active' },
-  { id: 5, severity: 'warning', title: '内存使用率高', message: '内存使用率达到 85%', time: '15分钟前', source: 'node-3', resource: 'system', status: 'active' },
-  { id: 6, severity: 'info', title: '配置更新', message: '配置文件已更新', time: '30分钟前', source: 'config-server', resource: 'config', status: 'resolved' }
-])
+const alerts = ref([])
 
 const filteredAlerts = computed(() => {
   return alerts.value.filter(alert => {
@@ -175,14 +168,14 @@ onMounted(async () => {
     if (data && data.alerts) {
       alerts.value = data.alerts
       alertStats.value = {
-        total: data.total || alertStats.value.total,
-        critical: data.critical || alertStats.value.critical,
-        warning: data.warning || alertStats.value.warning,
-        info: data.info || alertStats.value.info
+        total: data.total || 0,
+        critical: data.critical || 0,
+        warning: data.warning || 0,
+        info: data.info || 0
       }
     }
   } catch (error) {
-    console.error('Failed to fetch alerts:', error)
+    console.warn('[Alerts] Failed to fetch alerts:', error.message)
   }
 })
 </script>

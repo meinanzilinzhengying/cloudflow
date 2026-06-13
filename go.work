@@ -4,6 +4,7 @@ use (
 	./cloud-flow-ai
 	./cloud-flow-center
 	./cloud-flow-edge
+	./cloud-flow-agent
 	./pkg
 	./proto
 	./services/alert-engine

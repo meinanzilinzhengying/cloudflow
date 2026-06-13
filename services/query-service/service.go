@@ -273,18 +273,18 @@ func (s *Service) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthzHandler)
 	mux.Handle("/metrics", metrics.Handler())
-	mux.HandleFunc("/api/overview", s.overviewHandler)
-	mux.HandleFunc("/api/metrics", s.metricsHandler)
-	mux.HandleFunc("/api/flows", s.flowsHandler)
-	mux.HandleFunc("/api/traces", s.tracesHandler)
-	mux.HandleFunc("/api/topology", s.topologyHandler)
-	mux.HandleFunc("/api/alerts", s.alertsHandler)
-	mux.HandleFunc("/api/otel/traces", s.otelTracesHandler)
-	mux.HandleFunc("/api/otel/metrics", s.otelMetricsHandler)
-	mux.HandleFunc("/api/otel/logs", s.otelLogsHandler)
-	mux.HandleFunc("/api/otel/stats", s.otelStatsHandler)
-	mux.HandleFunc("/api/rca", s.rcaHandler)
-	mux.HandleFunc("/api/correlation", s.correlationHandler)
+	mux.HandleFunc("/overview", s.overviewHandler)
+	mux.HandleFunc("/metrics", s.metricsHandler)
+	mux.HandleFunc("/flows", s.flowsHandler)
+	mux.HandleFunc("/traces", s.tracesHandler)
+	mux.HandleFunc("/topology", s.topologyHandler)
+	mux.HandleFunc("/alerts", s.alertsHandler)
+	mux.HandleFunc("/otel/traces", s.otelTracesHandler)
+	mux.HandleFunc("/otel/metrics", s.otelMetricsHandler)
+	mux.HandleFunc("/otel/logs", s.otelLogsHandler)
+	mux.HandleFunc("/otel/stats", s.otelStatsHandler)
+	mux.HandleFunc("/rca", s.rcaHandler)
+	mux.HandleFunc("/correlation", s.correlationHandler)
 
 	s.httpServer = &http.Server{Addr: s.config.HttpAddr, Handler: mux}
 	go func() {
@@ -958,7 +958,8 @@ func (s *Service) topologyHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) alertsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
-		"message": "alerts endpoint - use gRPC for alert queries",
+		"alerts": []interface{}{},
+		"total": 0,
 	})
 }
 

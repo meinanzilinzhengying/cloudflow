@@ -98,10 +98,10 @@ import { Clock, Zap, RefreshCw, AlertTriangle, Wifi, Cpu, HardDrive } from 'luci
 import TrendChart from '../common/TrendChart.vue'
 import { networkApi } from '../../api'
 
-const latencyStats = ref({ avg: 15.2, p50: 12, p95: 28, p99: 45 })
-const connectionTime = ref(42)
-const retransRate = ref(3.2)
-const packetLoss = ref(0.3)
+const latencyStats = ref({ avg: 0, p50: 0, p95: 0, p99: 0 })
+const connectionTime = ref(0)
+const retransRate = ref(0)
+const packetLoss = ref(0)
 
 const latencyChartData = computed(() => ({
   labels: ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00'],
