@@ -46,6 +46,7 @@
         type="line"
         :data="trafficChartData"
         :legends="trafficLegends"
+        :loading="loading"
       />
       <TrendChart
         title="协议分布"
@@ -53,6 +54,7 @@
         :data="protocolChartData"
         :legends="protocolLegends"
         :options="doughnutOptions"
+        :loading="loading"
       />
     </div>
     
@@ -72,6 +74,12 @@
             </tr>
           </thead>
           <tbody>
+            <tr v-if="loading" class="border-b border-dark-700">
+              <td colspan="4" class="px-4 py-8 text-center text-gray-400">加载中...</td>
+            </tr>
+            <tr v-else-if="topFlows.length === 0" class="border-b border-dark-700">
+              <td colspan="4" class="px-4 py-8 text-center text-gray-400">暂无数据</td>
+            </tr>
             <tr v-for="item in topFlows" :key="item.source" class="border-b border-dark-700 hover:bg-dark-700/50 transition">
               <td class="px-4 py-3 text-sm text-white">{{ item.source }}</td>
               <td class="px-4 py-3">
@@ -107,34 +115,28 @@ import { ref, onMounted, computed } from 'vue'
 import { ArrowRightLeft, Link, RefreshCw, AlertTriangle } from 'lucide-vue-next'
 import StatCard from '../common/StatCard.vue'
 import TrendChart from '../common/TrendChart.vue'
-import { overviewApi, trafficApi } from '../../api'
+import { queryService } from '../../api'
 
 const loading = ref(true)
 const stats = ref({
   totalFlows: 0,
-  flowsChange: '+12%',
+  flowsChange: '0%',
   activeConnections: 0,
-  connChange: '+5%',
+  connChange: '0%',
   retransRate: 0,
-  retransChange: '-2%',
+  retransChange: '0%',
   packetLoss: 0,
-  lossChange: '-0.5%'
+  lossChange: '0%'
 })
 
-const topFlows = ref([
-  { source: '10.10.1.25', protocol: 'TCP', bytes: 125000000, percentage: 25 },
-  { source: '10.10.1.36', protocol: 'HTTP', bytes: 98000000, percentage: 20 },
-  { source: '10.10.1.12', protocol: 'HTTPS', bytes: 75000000, percentage: 15 },
-  { source: '10.10.1.89', protocol: 'UDP', bytes: 50000000, percentage: 10 },
-  { source: '10.10.1.45', protocol: 'DNS', bytes: 30000000, percentage: 6 }
-])
+const topFlows = ref([])
 
 const trafficChartData = computed(() => ({
-  labels: ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00'],
+  labels: [],
   datasets: [
     {
       label: '入站流量',
-      data: [1200, 1900, 1500, 2200, 1800, 2500, 2100],
+      data: [],
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       fill: true,
@@ -142,7 +144,7 @@ const trafficChartData = computed(() => ({
     },
     {
       label: '出站流量',
-      data: [800, 1200, 900, 1500, 1100, 1800, 1400],
+      data: [],
       borderColor: '#10b981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       fill: true,
@@ -157,29 +159,15 @@ const trafficLegends = [
 ]
 
 const protocolChartData = computed(() => ({
-  labels: ['TCP', 'HTTP', 'HTTPS', 'UDP', 'DNS', '其他'],
+  labels: [],
   datasets: [{
-    data: [35, 25, 20, 12, 5, 3],
-    backgroundColor: [
-      '#3b82f6',
-      '#10b981',
-      '#8b5cf6',
-      '#f59e0b',
-      '#ec4899',
-      '#6b7280'
-    ],
+    data: [],
+    backgroundColor: [],
     borderWidth: 0
   }]
 }))
 
-const protocolLegends = [
-  { label: 'TCP', color: '#3b82f6' },
-  { label: 'HTTP', color: '#10b981' },
-  { label: 'HTTPS', color: '#8b5cf6' },
-  { label: 'UDP', color: '#f59e0b' },
-  { label: 'DNS', color: '#ec4899' },
-  { label: '其他', color: '#6b7280' }
-]
+const protocolLegends = ref([])
 
 const doughnutOptions = {
   cutout: '65%',
@@ -209,18 +197,19 @@ const formatBytes = (bytes) => {
 
 onMounted(async () => {
   try {
-    const data = await overviewApi.getStats()
+    const data = await queryService.getOverview()
     if (data) {
       stats.value = {
-        totalFlows: data.totalFlows || 1250000,
-        flowsChange: data.flowsChange || '+12%',
-        activeConnections: data.activeConnections || 8450,
-        connChange: data.connChange || '+5%',
-        retransRate: data.retransRate || 3.2,
-        retransChange: data.retransChange || '-2%',
-        packetLoss: data.packetLoss || 0.3,
-        lossChange: data.lossChange || '-0.5%'
+        totalFlows: data.totalFlows || 0,
+        flowsChange: data.flowsChange || '0%',
+        activeConnections: data.activeConnections || 0,
+        connChange: data.connChange || '0%',
+        retransRate: data.retransRate || 0,
+        retransChange: data.retransChange || '0%',
+        packetLoss: data.packetLoss || 0,
+        lossChange: data.lossChange || '0%'
       }
+      topFlows.value = data.topFlows || []
     }
   } catch (error) {
     console.error('Failed to fetch overview:', error)
