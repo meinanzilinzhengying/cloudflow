@@ -195,9 +195,9 @@ type SQLStatEntry struct {
 	DatabaseName   string
 
 	// 请求统计
-	RequestCount  int64
-	SuccessCount  int64
-	ErrorCount    int64
+	RequestCount int64
+	SuccessCount int64
+	ErrorCount   int64
 
 	// 时延统计
 	TotalDuration int64
@@ -588,8 +588,8 @@ func NewSQLTypeIdentifier() *SQLTypeIdentifier {
 			SQLTypeInsert: regexp.MustCompile(`(?i)^\s*INSERT\b`),
 			SQLTypeUpdate: regexp.MustCompile(`(?i)^\s*UPDATE\b`),
 			SQLTypeDelete: regexp.MustCompile(`(?i)^\s*DELETE\b`),
-			SQLTypeDDL: regexp.MustCompile(`(?i)^\s*(CREATE|ALTER|DROP|TRUNCATE|RENAME)\b`),
-			SQLTypeDCL: regexp.MustCompile(`(?i)^\s*(GRANT|REVOKE)\b`),
+			SQLTypeDDL:    regexp.MustCompile(`(?i)^\s*(CREATE|ALTER|DROP|TRUNCATE|RENAME)\b`),
+			SQLTypeDCL:    regexp.MustCompile(`(?i)^\s*(GRANT|REVOKE)\b`),
 		},
 	}
 }

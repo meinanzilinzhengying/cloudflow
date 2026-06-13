@@ -35,53 +35,53 @@ func DefaultLeakDetectorConfig() *LeakDetectorConfig {
 
 // LeakInfo 泄漏信息
 type LeakInfo struct {
-	Address      uint64      `json:"address"`       // 内存地址
-	Size         int64       `json:"size"`          // 大小(字节)
-	Source       AllocSource `json:"source"`        // 分配来源
-	AllocTime    time.Time   `json:"alloc_time"`    // 分配时间
-	Age          time.Duration `json:"age"`          // 已存活时间
-	JavaStack    []string    `json:"java_stack"`    // Java 调用栈
-	NativeStack  []string    `json:"native_stack"`  // 原生调用栈
-	JNIClass     string      `json:"jni_class"`     // JNI 类名
-	JNIMethod    string      `json:"jni_method"`    // JNI 方法名
-	Severity     string      `json:"severity"`      // 严重程度: low/medium/high/critical
-	Score        float64     `json:"score"`         // 泄漏评分 (0-100)
+	Address     uint64        `json:"address"`      // 内存地址
+	Size        int64         `json:"size"`         // 大小(字节)
+	Source      AllocSource   `json:"source"`       // 分配来源
+	AllocTime   time.Time     `json:"alloc_time"`   // 分配时间
+	Age         time.Duration `json:"age"`          // 已存活时间
+	JavaStack   []string      `json:"java_stack"`   // Java 调用栈
+	NativeStack []string      `json:"native_stack"` // 原生调用栈
+	JNIClass    string        `json:"jni_class"`    // JNI 类名
+	JNIMethod   string        `json:"jni_method"`   // JNI 方法名
+	Severity    string        `json:"severity"`     // 严重程度: low/medium/high/critical
+	Score       float64       `json:"score"`        // 泄漏评分 (0-100)
 }
 
 // LeakGroup 按调用栈分组的泄漏信息
 type LeakGroup struct {
-	StackKey     string      `json:"stack_key"`     // 栈签名（用于分组）
-	JavaStack    []string    `json:"java_stack"`    // 代表性 Java 调用栈
-	Source       AllocSource `json:"source"`        // 分配来源
-	Count        int         `json:"count"`         // 泄漏块数
-	TotalSize    int64       `json:"total_size"`    // 总泄漏大小(字节)
-	MinSize      int64       `json:"min_size"`      // 最小块大小
-	MaxSize      int64       `json:"max_size"`      // 最大块大小
-	AvgSize      float64     `json:"avg_size"`      // 平均块大小
-	OldestAlloc  time.Time   `json:"oldest_alloc"`  // 最早的分配时间
-	NewestAlloc  time.Time   `json:"newest_alloc"`  // 最新的分配时间
-	Severity     string      `json:"severity"`      // 严重程度
-	Score        float64     `json:"score"`         // 泄漏评分
+	StackKey    string      `json:"stack_key"`    // 栈签名（用于分组）
+	JavaStack   []string    `json:"java_stack"`   // 代表性 Java 调用栈
+	Source      AllocSource `json:"source"`       // 分配来源
+	Count       int         `json:"count"`        // 泄漏块数
+	TotalSize   int64       `json:"total_size"`   // 总泄漏大小(字节)
+	MinSize     int64       `json:"min_size"`     // 最小块大小
+	MaxSize     int64       `json:"max_size"`     // 最大块大小
+	AvgSize     float64     `json:"avg_size"`     // 平均块大小
+	OldestAlloc time.Time   `json:"oldest_alloc"` // 最早的分配时间
+	NewestAlloc time.Time   `json:"newest_alloc"` // 最新的分配时间
+	Severity    string      `json:"severity"`     // 严重程度
+	Score       float64     `json:"score"`        // 泄漏评分
 }
 
 // LeakSummary 泄漏检测摘要
 type LeakSummary struct {
-	Timestamp       time.Time    `json:"timestamp"`
-	PID             uint32       `json:"pid"`
-	TotalLeakCount  int          `json:"total_leak_count"`
-	TotalLeakSize   int64        `json:"total_leak_size"`
-	CriticalCount   int          `json:"critical_count"`
-	HighCount       int          `json:"high_count"`
-	MediumCount     int          `json:"medium_count"`
-	LowCount        int          `json:"low_count"`
-	TopLeakGroups   []LeakGroup  `json:"top_leak_groups"`
-	SourceStats     map[AllocSource]*SourceLeakStat `json:"source_stats"`
+	Timestamp      time.Time                       `json:"timestamp"`
+	PID            uint32                          `json:"pid"`
+	TotalLeakCount int                             `json:"total_leak_count"`
+	TotalLeakSize  int64                           `json:"total_leak_size"`
+	CriticalCount  int                             `json:"critical_count"`
+	HighCount      int                             `json:"high_count"`
+	MediumCount    int                             `json:"medium_count"`
+	LowCount       int                             `json:"low_count"`
+	TopLeakGroups  []LeakGroup                     `json:"top_leak_groups"`
+	SourceStats    map[AllocSource]*SourceLeakStat `json:"source_stats"`
 }
 
 // SourceLeakStat 按来源的泄漏统计
 type SourceLeakStat struct {
-	Count     int   `json:"count"`
-	TotalSize int64 `json:"total_size"`
+	Count      int     `json:"count"`
+	TotalSize  int64   `json:"total_size"`
 	Percentage float64 `json:"percentage"`
 }
 
@@ -197,7 +197,7 @@ func (d *LeakDetector) Detect(blocks []*MemoryBlock, now time.Time) *LeakSummary
 func (d *LeakDetector) calculateSeverity(size int64, age time.Duration) (string, float64) {
 	// 评分维度: 大小权重 + 年龄权重
 	sizeScore := float64(size) / (1024 * 1024) // 每 MB 得 1 分
-	ageScore := float64(age.Minutes()) / 10.0    // 每 10 分钟得 1 分
+	ageScore := float64(age.Minutes()) / 10.0  // 每 10 分钟得 1 分
 
 	score := sizeScore + ageScore
 
@@ -231,11 +231,11 @@ func (d *LeakDetector) groupLeaks(leaks []LeakInfo) []LeakGroup {
 
 		if _, ok := groupMap[key]; !ok {
 			groupMap[key] = &LeakGroup{
-				StackKey:  key,
-				JavaStack: leak.JavaStack,
-				Source:    leak.Source,
-				MinSize:   leak.Size,
-				MaxSize:   leak.Size,
+				StackKey:    key,
+				JavaStack:   leak.JavaStack,
+				Source:      leak.Source,
+				MinSize:     leak.Size,
+				MaxSize:     leak.Size,
 				OldestAlloc: leak.AllocTime,
 				NewestAlloc: leak.AllocTime,
 			}
@@ -384,9 +384,9 @@ func (r *reportWriter) writeLine(format string, args ...interface{}) {
 }
 
 func (r *reportWriter) writeHeader(summary *LeakSummary, javaInfo map[string]string) {
-	r.writeLine("=" * 70)
+	r.writeLine(strings.Repeat("=", 70))
 	r.writeLine("         Java 堆外内存泄漏分析报告")
-	r.writeLine("=" * 70)
+	r.writeLine(strings.Repeat("=", 70))
 	r.writeLine("")
 	r.writeLine("生成时间: %s", summary.Timestamp.Format("2006-01-02 15:04:05"))
 
@@ -402,9 +402,9 @@ func (r *reportWriter) writeHeader(summary *LeakSummary, javaInfo map[string]str
 }
 
 func (r *reportWriter) writeOverview(summary *LeakSummary, stats NativeMemStats) {
-	r.writeLine("-" * 70)
+	r.writeLine(strings.Repeat("-", 70))
 	r.writeLine("【概览】")
-	r.writeLine("-" * 70)
+	r.writeLine(strings.Repeat("-", 70))
 	r.writeLine("")
 	r.writeLine("  堆外内存统计:")
 	r.writeLine("    总分配次数:   %d", stats.TotalAllocs)
@@ -425,9 +425,9 @@ func (r *reportWriter) writeOverview(summary *LeakSummary, stats NativeMemStats)
 }
 
 func (r *reportWriter) writeSourceBreakdown(summary *LeakSummary) {
-	r.writeLine("-" * 70)
+	r.writeLine(strings.Repeat("-", 70))
 	r.writeLine("【按来源分类】")
-	r.writeLine("-" * 70)
+	r.writeLine(strings.Repeat("-", 70))
 	r.writeLine("")
 
 	// 按大小排序
@@ -454,9 +454,9 @@ func (r *reportWriter) writeSourceBreakdown(summary *LeakSummary) {
 }
 
 func (r *reportWriter) writeLeakGroups(summary *LeakSummary) {
-	r.writeLine("-" * 70)
+	r.writeLine(strings.Repeat("-", 70))
 	r.writeLine("【泄漏详情 (Top %d)】", r.cfg.MaxGroups)
-	r.writeLine("-" * 70)
+	r.writeLine(strings.Repeat("-", 70))
 	r.writeLine("")
 
 	maxGroups := r.cfg.MaxGroups
@@ -492,9 +492,9 @@ func (r *reportWriter) writeLeakGroup(rank int, group LeakGroup) {
 }
 
 func (r *reportWriter) writeRecommendations(summary *LeakSummary) {
-	r.writeLine("-" * 70)
+	r.writeLine(strings.Repeat("-", 70))
 	r.writeLine("【优化建议】")
-	r.writeLine("-" * 70)
+	r.writeLine(strings.Repeat("-", 70))
 	r.writeLine("")
 
 	hasDirectBuffer := false
@@ -556,7 +556,7 @@ func (r *reportWriter) writeRecommendations(summary *LeakSummary) {
 }
 
 func (r *reportWriter) writeFooter() {
-	r.writeLine("=" * 70)
+	r.writeLine(strings.Repeat("=", 70))
 	r.writeLine("报告结束")
-	r.writeLine("=" * 70)
+	r.writeLine(strings.Repeat("=", 70))
 }

@@ -66,12 +66,12 @@ type ReassemblyBuffer struct {
 // NewReassemblyBuffer 创建重组缓冲区
 func NewReassemblyBuffer(flowID uint64, maxSize int, maxGap uint32, timeout time.Duration) *ReassemblyBuffer {
 	return &ReassemblyBuffer{
-		flowID:    flowID,
-		segments:  list.New(),
-		maxSize:   maxSize,
-		maxGap:    maxGap,
-		timeout:   timeout,
-		lastAct:   time.Now().UnixNano(),
+		flowID:   flowID,
+		segments: list.New(),
+		maxSize:  maxSize,
+		maxGap:   maxGap,
+		timeout:  timeout,
+		lastAct:  time.Now().UnixNano(),
 	}
 }
 

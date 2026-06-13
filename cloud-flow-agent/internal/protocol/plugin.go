@@ -71,7 +71,7 @@ type PacketMetadata struct {
 	Protocol  string `json:"protocol"` // tcp/udp
 	Timestamp int64  `json:"timestamp"`
 	VNI       uint32 `json:"vni,omitempty"` // VXLAN VNI
-	Direction  string `json:"direction"`  // ingress/egress
+	Direction string `json:"direction"`     // ingress/egress
 }
 
 // PacketInput 批量解析输入
@@ -82,39 +82,39 @@ type PacketInput struct {
 
 // ParseResult 协议解析结果
 type ParseResult struct {
-	Protocol    string            `json:"protocol"`     // 协议名称 (oracle/postgresql/redis/kafka/dubbo)
-	IsMatch     bool              `json:"is_match"`     // 是否匹配该协议
-	IsPartial   bool              `json:"is_partial"`   // 是否为部分解析（跨包）
-	IsRequest   bool              `json:"is_request"`   // 是否为请求（vs 响应）
-	Query       string            `json:"query"`        // 查询语句/命令
-	Database    string            `json:"database"`     // 数据库名
-	User        string            `json:"user"`         // 用户名
-	Status      string            `json:"status"`       // 状态码/错误码
-	Duration    float64           `json:"duration_ms"`  // 执行时长(毫秒)
-	AffectedRows int64            `json:"affected_rows"` // 影响行数
-	Fields      map[string]string `json:"fields"`       // 协议特有字段
-	Tags        map[string]string `json:"tags"`         // 附加标签
-	Error       string            `json:"error"`        // 错误信息
-	Latency     float64           `json:"latency_ms"`   // 端到端延迟
+	Protocol     string            `json:"protocol"`      // 协议名称 (oracle/postgresql/redis/kafka/dubbo)
+	IsMatch      bool              `json:"is_match"`      // 是否匹配该协议
+	IsPartial    bool              `json:"is_partial"`    // 是否为部分解析（跨包）
+	IsRequest    bool              `json:"is_request"`    // 是否为请求（vs 响应）
+	Query        string            `json:"query"`         // 查询语句/命令
+	Database     string            `json:"database"`      // 数据库名
+	User         string            `json:"user"`          // 用户名
+	Status       string            `json:"status"`        // 状态码/错误码
+	Duration     float64           `json:"duration_ms"`   // 执行时长(毫秒)
+	AffectedRows int64             `json:"affected_rows"` // 影响行数
+	Fields       map[string]string `json:"fields"`        // 协议特有字段
+	Tags         map[string]string `json:"tags"`          // 附加标签
+	Error        string            `json:"error"`         // 错误信息
+	Latency      float64           `json:"latency_ms"`    // 端到端延迟
 }
 
 // PluginInfo 插件元信息
 type PluginInfo struct {
-	Name         string   `json:"name"`           // 插件名称
-	Version      string   `json:"version"`        // 插件版本
-	Protocol     string   `json:"protocol"`       // 解析的协议
-	Description  string   `json:"description"`    // 描述
-	Author       string   `json:"author"`         // 作者
-	MinAgentVer  string   `json:"min_agent_ver"`  // 最低兼容Agent版本
-	MaxAgentVer  string   `json:"max_agent_ver"`  // 最高兼容Agent版本
-	SupportedOps []string `json:"supported_ops"`  // 支持的操作类型
+	Name         string   `json:"name"`          // 插件名称
+	Version      string   `json:"version"`       // 插件版本
+	Protocol     string   `json:"protocol"`      // 解析的协议
+	Description  string   `json:"description"`   // 描述
+	Author       string   `json:"author"`        // 作者
+	MinAgentVer  string   `json:"min_agent_ver"` // 最低兼容Agent版本
+	MaxAgentVer  string   `json:"max_agent_ver"` // 最高兼容Agent版本
+	SupportedOps []string `json:"supported_ops"` // 支持的操作类型
 }
 
 // HealthStatus 健康状态
 type HealthStatus struct {
-	Status    string `json:"status"`     // healthy/degraded/unhealthy
-	Message   string `json:"message"`    // 状态描述
-	Uptime    int64  `json:"uptime"`     // 运行时长(秒)
+	Status     string `json:"status"`      // healthy/degraded/unhealthy
+	Message    string `json:"message"`     // 状态描述
+	Uptime     int64  `json:"uptime"`      // 运行时长(秒)
 	ParseCount uint64 `json:"parse_count"` // 已解析包数
 	ErrorCount uint64 `json:"error_count"` // 错误数
 }
@@ -122,11 +122,11 @@ type HealthStatus struct {
 // PluginConfig 插件配置
 type PluginConfig struct {
 	Enabled     bool              `json:"enabled"`
-	BinaryPath  string            `json:"binary_path"`  // 插件二进制路径
-	SocketPath  string            `json:"socket_path"`  // Unix Socket 路径
-	Args        []string          `json:"args"`         // 启动参数
-	Env         map[string]string `json:"env"`          // 环境变量
-	Timeout     time.Duration     `json:"timeout"`      // 解析超时
+	BinaryPath  string            `json:"binary_path"`   // 插件二进制路径
+	SocketPath  string            `json:"socket_path"`   // Unix Socket 路径
+	Args        []string          `json:"args"`          // 启动参数
+	Env         map[string]string `json:"env"`           // 环境变量
+	Timeout     time.Duration     `json:"timeout"`       // 解析超时
 	MaxMemoryMB int               `json:"max_memory_mb"` // 内存限制
 }
 
@@ -300,6 +300,11 @@ func (p *BaseParser) HealthCheck(ctx context.Context) (*HealthStatus, error) {
 }
 
 // Shutdown 关闭
+
+// Parse 解析单个数据包（由具体插件实现）
+func (p *BaseParser) Parse(ctx context.Context, data []byte, metadata map[string]string) (*ParseResult, error) {
+    return &ParseResult{Protocol: "unknown"}, nil
+}
 func (p *BaseParser) Shutdown(ctx context.Context) error {
 	return nil
 }
@@ -308,7 +313,7 @@ func (p *BaseParser) Shutdown(ctx context.Context) error {
 func (p *BaseParser) ParseBatch(ctx context.Context, packets []*PacketInput) ([]*ParseResult, error) {
 	results := make([]*ParseResult, 0, len(packets))
 	for _, pkt := range packets {
-		result, err := p.Parse(ctx, pkt.Data, pkt.Metadata)
+		result, err := p.Parse(ctx, pkt.Data, nil)
 		if err != nil {
 			p.errCnt++
 			continue
@@ -380,7 +385,7 @@ func RegisterBuiltinMatchers(m *ProtocolMatcher) {
 			return false, 0
 		}
 		// Oracle TNS 头: (CONNECT_DATA=...)
-		if data[0] == 0x00 && data[1] == len(data)-2 {
+		if data[0] == 0x00 && int(data[1]) == len(data)-2 {
 			return true, 0.9
 		}
 		return false, 0

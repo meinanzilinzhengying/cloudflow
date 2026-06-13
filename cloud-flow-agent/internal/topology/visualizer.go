@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -20,20 +19,20 @@ type Visualizer struct {
 	mu      sync.RWMutex
 	builder *TopologyBuilder
 	log     *logger.Logger
-	
+
 	// 缓存
-	cache   map[string]*VisualizationCache
-	
+	cache map[string]*VisualizationCache
+
 	// 配置
-	config  VisualizerConfig
+	config VisualizerConfig
 }
 
 // VisualizerConfig 可视化配置
 type VisualizerConfig struct {
-	Enabled         bool          `yaml:"enabled" json:"enabled"`
-	CacheDuration   time.Duration `yaml:"cache_duration" json:"cache_duration"`
-	MaxNodes        int           `yaml:"max_nodes" json:"max_nodes"`
-	DefaultLayout   LayoutType    `yaml:"default_layout" json:"default_layout"`
+	Enabled       bool          `yaml:"enabled" json:"enabled"`
+	CacheDuration time.Duration `yaml:"cache_duration" json:"cache_duration"`
+	MaxNodes      int           `yaml:"max_nodes" json:"max_nodes"`
+	DefaultLayout LayoutType    `yaml:"default_layout" json:"default_layout"`
 }
 
 // DefaultVisualizerConfig 默认配置
@@ -64,54 +63,54 @@ func NewVisualizer(builder *TopologyBuilder, config VisualizerConfig, log *logge
 
 // TopologyResponse 拓扑响应
 type TopologyResponse struct {
-	ID      string                 `json:"id"`
-	Name    string                 `json:"name"`
-	Type    string                 `json:"type"`
-	Nodes   []NodeView             `json:"nodes"`
-	Edges   []EdgeView             `json:"edges"`
-	Groups  []GroupView            `json:"groups"`
-	Stats   TopologyStats          `json:"stats"`
-	Layout  LayoutConfig           `json:"layout"`
+	ID     string        `json:"id"`
+	Name   string        `json:"name"`
+	Type   string        `json:"type"`
+	Nodes  []NodeView    `json:"nodes"`
+	Edges  []EdgeView    `json:"edges"`
+	Groups []GroupView   `json:"groups"`
+	Stats  TopologyStats `json:"stats"`
+	Layout LayoutConfig  `json:"layout"`
 }
 
 // NodeView 节点视图
 type NodeView struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Type        string                 `json:"type"`
-	Status      string                 `json:"status"`
-	Level       int                    `json:"level"`
-	X           float64                `json:"x"`
-	Y           float64                `json:"y"`
-	Width       float64                `json:"width"`
-	Height      float64                `json:"height"`
-	ParentID    string                 `json:"parent_id,omitempty"`
-	GroupID     string                 `json:"group_id,omitempty"`
-	AlertCount  int                    `json:"alert_count"`
-	AlertLevel  string                 `json:"alert_level,omitempty"`
-	Metrics     map[string]interface{} `json:"metrics,omitempty"`
-	Labels      map[string]string      `json:"labels,omitempty"`
+	ID         string                 `json:"id"`
+	Name       string                 `json:"name"`
+	Type       string                 `json:"type"`
+	Status     string                 `json:"status"`
+	Level      int                    `json:"level"`
+	X          float64                `json:"x"`
+	Y          float64                `json:"y"`
+	Width      float64                `json:"width"`
+	Height     float64                `json:"height"`
+	ParentID   string                 `json:"parent_id,omitempty"`
+	GroupID    string                 `json:"group_id,omitempty"`
+	AlertCount int                    `json:"alert_count"`
+	AlertLevel string                 `json:"alert_level,omitempty"`
+	Metrics    map[string]interface{} `json:"metrics,omitempty"`
+	Labels     map[string]string      `json:"labels,omitempty"`
 }
 
 // EdgeView 边视图
 type EdgeView struct {
-	ID         string                 `json:"id"`
-	Source     string                 `json:"source"`
-	Target     string                 `json:"target"`
-	Type       string                 `json:"type"`
-	Status     string                 `json:"status"`
-	Bandwidth  float64                `json:"bandwidth,omitempty"`
-	LatencyMs  float64                `json:"latency_ms,omitempty"`
-	LossRate   float64                `json:"loss_rate,omitempty"`
+	ID        string  `json:"id"`
+	Source    string  `json:"source"`
+	Target    string  `json:"target"`
+	Type      string  `json:"type"`
+	Status    string  `json:"status"`
+	Bandwidth float64 `json:"bandwidth,omitempty"`
+	LatencyMs float64 `json:"latency_ms,omitempty"`
+	LossRate  float64 `json:"loss_rate,omitempty"`
 }
 
 // GroupView 分组视图
 type GroupView struct {
-	ID      string            `json:"id"`
-	Name    string            `json:"name"`
-	Type    string            `json:"type"`
-	Color   string            `json:"color"`
-	NodeIDs []string          `json:"node_ids"`
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`
+	Color   string   `json:"color"`
+	NodeIDs []string `json:"node_ids"`
 }
 
 // GetTopology 获取拓扑数据
@@ -119,20 +118,20 @@ func (v *Visualizer) GetTopology(layoutType LayoutType, groupBy string) (*Topolo
 	if !v.config.Enabled {
 		return nil, fmt.Errorf("可视化未启用")
 	}
-	
+
 	graph := v.builder.GetGraph()
 	if graph == nil {
 		return nil, fmt.Errorf("拓扑图未初始化")
 	}
-	
+
 	// 应用布局
 	if layoutType == "" {
 		layoutType = v.config.DefaultLayout
 	}
-	
+
 	// 计算布局位置
 	v.calculateLayout(graph, layoutType)
-	
+
 	// 构建响应
 	response := &TopologyResponse{
 		ID:     graph.ID,
@@ -141,13 +140,13 @@ func (v *Visualizer) GetTopology(layoutType LayoutType, groupBy string) (*Topolo
 		Stats:  graph.GetStats(),
 		Layout: graph.Layout,
 	}
-	
+
 	// 转换节点
 	for _, node := range graph.Nodes {
 		if len(response.Nodes) >= v.config.MaxNodes {
 			break
 		}
-		
+
 		nodeView := NodeView{
 			ID:         node.ID,
 			Name:       node.Name,
@@ -164,7 +163,7 @@ func (v *Visualizer) GetTopology(layoutType LayoutType, groupBy string) (*Topolo
 			AlertLevel: node.AlertLevel,
 			Labels:     node.Labels,
 		}
-		
+
 		// 转换指标
 		if node.Metrics.LatencyMs > 0 {
 			nodeView.Metrics = map[string]interface{}{
@@ -174,10 +173,10 @@ func (v *Visualizer) GetTopology(layoutType LayoutType, groupBy string) (*Topolo
 				"memory_percent":   node.Metrics.MemoryPercent,
 			}
 		}
-		
+
 		response.Nodes = append(response.Nodes, nodeView)
 	}
-	
+
 	// 转换边
 	for _, edge := range graph.Edges {
 		edgeView := EdgeView{
@@ -192,7 +191,7 @@ func (v *Visualizer) GetTopology(layoutType LayoutType, groupBy string) (*Topolo
 		}
 		response.Edges = append(response.Edges, edgeView)
 	}
-	
+
 	// 转换分组
 	for _, group := range graph.Groups {
 		groupView := GroupView{
@@ -204,7 +203,7 @@ func (v *Visualizer) GetTopology(layoutType LayoutType, groupBy string) (*Topolo
 		}
 		response.Groups = append(response.Groups, groupView)
 	}
-	
+
 	return response, nil
 }
 
@@ -214,21 +213,21 @@ func (v *Visualizer) GetNodeDetail(nodeID string) (*NodeDetailResponse, error) {
 	if graph == nil {
 		return nil, fmt.Errorf("拓扑图未初始化")
 	}
-	
+
 	node := graph.GetNode(nodeID)
 	if node == nil {
 		return nil, fmt.Errorf("节点不存在: %s", nodeID)
 	}
-	
+
 	// 获取子节点
 	children := graph.GetChildren(nodeID)
-	
+
 	// 获取邻居节点
 	neighbors := graph.GetNeighbors(nodeID)
-	
+
 	// 获取路径
 	paths := v.findPaths(graph, nodeID)
-	
+
 	response := &NodeDetailResponse{
 		Node: NodeView{
 			ID:         node.ID,
@@ -255,7 +254,7 @@ func (v *Visualizer) GetNodeDetail(nodeID string) (*NodeDetailResponse, error) {
 		Neighbors: make([]NodeView, 0, len(neighbors)),
 		Paths:     paths,
 	}
-	
+
 	// 转换子节点
 	for _, child := range children {
 		response.Children = append(response.Children, NodeView{
@@ -265,7 +264,7 @@ func (v *Visualizer) GetNodeDetail(nodeID string) (*NodeDetailResponse, error) {
 			Status: string(child.Status),
 		})
 	}
-	
+
 	// 转换邻居节点
 	for _, neighbor := range neighbors {
 		response.Neighbors = append(response.Neighbors, NodeView{
@@ -275,7 +274,7 @@ func (v *Visualizer) GetNodeDetail(nodeID string) (*NodeDetailResponse, error) {
 			Status: string(neighbor.Status),
 		})
 	}
-	
+
 	return response, nil
 }
 
@@ -299,7 +298,7 @@ type PathInfo struct {
 // findPaths 查找路径
 func (v *Visualizer) findPaths(graph *TopologyGraph, sourceID string) []PathInfo {
 	var paths []PathInfo
-	
+
 	// 简单的BFS查找到各层的路径
 	for level := 0; level <= 3; level++ {
 		nodes := graph.GetNodesByLevel(level)
@@ -307,10 +306,10 @@ func (v *Visualizer) findPaths(graph *TopologyGraph, sourceID string) []PathInfo
 			if node.ID == sourceID {
 				continue
 			}
-			
+
 			// 简化：直接连接或父子关系
 			hops := abs(node.Level - graph.GetNode(sourceID).Level)
-			
+
 			paths = append(paths, PathInfo{
 				TargetID:   node.ID,
 				TargetName: node.Name,
@@ -320,7 +319,7 @@ func (v *Visualizer) findPaths(graph *TopologyGraph, sourceID string) []PathInfo
 			})
 		}
 	}
-	
+
 	return paths
 }
 
@@ -330,37 +329,37 @@ func (v *Visualizer) DrillDown(req DrillDownRequest) (*DrillDownResponse, error)
 	if graph == nil {
 		return nil, fmt.Errorf("拓扑图未初始化")
 	}
-	
+
 	node := graph.GetNode(req.NodeID)
 	if node == nil {
 		return nil, fmt.Errorf("节点不存在: %s", req.NodeID)
 	}
-	
+
 	// 解析时间范围
 	duration := parseDuration(req.TimeRange)
 	endTime := time.Now()
 	startTime := endTime.Add(-duration)
-	
+
 	// 生成模拟数据（实际应从时序数据库查询）
 	data := v.generateMetricData(node, req.MetricType, startTime, endTime)
-	
+
 	// 计算统计
 	stats := calculateStatistics(data)
-	
+
 	response := &DrillDownResponse{
 		NodeID:     req.NodeID,
 		MetricType: req.MetricType,
 		Data:       data,
 		Statistics: stats,
 	}
-	
+
 	return response, nil
 }
 
 // generateMetricData 生成指标数据
 func (v *Visualizer) generateMetricData(node *TopologyNode, metricType string, startTime, endTime time.Time) []MetricDataPoint {
 	var data []MetricDataPoint
-	
+
 	// 根据指标类型获取基准值
 	var baseValue float64
 	switch metricType {
@@ -377,7 +376,7 @@ func (v *Visualizer) generateMetricData(node *TopologyNode, metricType string, s
 	default:
 		baseValue = 50
 	}
-	
+
 	// 生成时间序列数据
 	interval := time.Minute
 	for t := startTime; t.Before(endTime); t = t.Add(interval) {
@@ -386,13 +385,13 @@ func (v *Visualizer) generateMetricData(node *TopologyNode, metricType string, s
 		if value < 0 {
 			value = 0
 		}
-		
+
 		data = append(data, MetricDataPoint{
 			Timestamp: t.Unix(),
 			Value:     value,
 		})
 	}
-	
+
 	return data
 }
 
@@ -401,11 +400,11 @@ func calculateStatistics(data []MetricDataPoint) MetricStatistics {
 	if len(data) == 0 {
 		return MetricStatistics{}
 	}
-	
+
 	var min, max, sum float64
 	min = data[0].Value
 	max = data[0].Value
-	
+
 	for _, d := range data {
 		if d.Value < min {
 			min = d.Value
@@ -415,24 +414,24 @@ func calculateStatistics(data []MetricDataPoint) MetricStatistics {
 		}
 		sum += d.Value
 	}
-	
+
 	avg := sum / float64(len(data))
-	
+
 	// 计算P95和P99
 	sort.Slice(data, func(i, j int) bool {
 		return data[i].Value < data[j].Value
 	})
-	
+
 	p95Index := int(float64(len(data)) * 0.95)
 	p99Index := int(float64(len(data)) * 0.99)
-	
+
 	if p95Index >= len(data) {
 		p95Index = len(data) - 1
 	}
 	if p99Index >= len(data) {
 		p99Index = len(data) - 1
 	}
-	
+
 	return MetricStatistics{
 		Min:   min,
 		Max:   max,
@@ -447,7 +446,7 @@ func calculateStatistics(data []MetricDataPoint) MetricStatistics {
 func (v *Visualizer) calculateLayout(graph *TopologyGraph, layoutType LayoutType) {
 	graph.mu.Lock()
 	defer graph.mu.Unlock()
-	
+
 	switch layoutType {
 	case LayoutVertical:
 		v.calculateVerticalLayout(graph)
@@ -464,24 +463,24 @@ func (v *Visualizer) calculateLayout(graph *TopologyGraph, layoutType LayoutType
 func (v *Visualizer) calculateVerticalLayout(graph *TopologyGraph) {
 	graph.Layout.Type = LayoutVertical
 	graph.Layout.Direction = "TB"
-	
+
 	levelHeight := graph.Layout.LevelSpacing
 	nodeWidth := 120.0
 	nodeHeight := 60.0
-	
+
 	for level := 0; level <= 3; level++ {
 		nodes := graph.Levels[level]
 		if len(nodes) == 0 {
 			continue
 		}
-		
+
 		// 计算该层的起始X位置（居中）
-		totalWidth := float64(len(nodes)) * nodeWidth + float64(len(nodes)-1) * graph.Layout.NodeSpacing
+		totalWidth := float64(len(nodes))*nodeWidth + float64(len(nodes)-1)*graph.Layout.NodeSpacing
 		startX := -totalWidth / 2
-		
+
 		for i, nodeID := range nodes {
 			if node, exists := graph.Nodes[nodeID]; exists {
-				node.X = startX + float64(i) * (nodeWidth + graph.Layout.NodeSpacing)
+				node.X = startX + float64(i)*(nodeWidth+graph.Layout.NodeSpacing)
 				node.Y = float64(level) * levelHeight
 				node.Width = nodeWidth
 				node.Height = nodeHeight
@@ -494,25 +493,25 @@ func (v *Visualizer) calculateVerticalLayout(graph *TopologyGraph) {
 func (v *Visualizer) calculateHorizontalLayout(graph *TopologyGraph) {
 	graph.Layout.Type = LayoutHorizontal
 	graph.Layout.Direction = "LR"
-	
+
 	levelWidth := graph.Layout.LevelSpacing
 	nodeWidth := 120.0
 	nodeHeight := 60.0
-	
+
 	for level := 0; level <= 3; level++ {
 		nodes := graph.Levels[level]
 		if len(nodes) == 0 {
 			continue
 		}
-		
+
 		// 计算该层的起始Y位置（居中）
-		totalHeight := float64(len(nodes)) * nodeHeight + float64(len(nodes)-1) * graph.Layout.NodeSpacing
+		totalHeight := float64(len(nodes))*nodeHeight + float64(len(nodes)-1)*graph.Layout.NodeSpacing
 		startY := -totalHeight / 2
-		
+
 		for i, nodeID := range nodes {
 			if node, exists := graph.Nodes[nodeID]; exists {
 				node.X = float64(level) * levelWidth
-				node.Y = startY + float64(i) * (nodeHeight + graph.Layout.NodeSpacing)
+				node.Y = startY + float64(i)*(nodeHeight+graph.Layout.NodeSpacing)
 				node.Width = nodeWidth
 				node.Height = nodeHeight
 			}
@@ -523,29 +522,29 @@ func (v *Visualizer) calculateHorizontalLayout(graph *TopologyGraph) {
 // calculateRadialLayout 径向布局
 func (v *Visualizer) calculateRadialLayout(graph *TopologyGraph) {
 	graph.Layout.Type = LayoutRadial
-	
+
 	centerX, centerY := 0.0, 0.0
 	maxRadius := 400.0
-	
+
 	maxLevel := 3
 	for level := 0; level <= maxLevel; level++ {
 		nodes := graph.Levels[level]
 		if len(nodes) == 0 {
 			continue
 		}
-		
+
 		radius := maxRadius * float64(level) / float64(maxLevel)
 		if radius == 0 {
 			radius = 50
 		}
-		
+
 		angleStep := 2 * 3.14159 / float64(len(nodes))
-		
+
 		for i, nodeID := range nodes {
 			if node, exists := graph.Nodes[nodeID]; exists {
 				angle := float64(i) * angleStep
-				node.X = centerX + radius * cos(angle)
-				node.Y = centerY + radius * sin(angle)
+				node.X = centerX + radius*cos(angle)
+				node.Y = centerY + radius*sin(angle)
 				node.Width = 100
 				node.Height = 50
 			}
@@ -577,19 +576,19 @@ func (h *HTTPHandler) handleTopology(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 获取布局类型
 	layoutType := LayoutType(r.URL.Query().Get("layout"))
 	if layoutType == "" {
 		layoutType = LayoutVertical
 	}
-	
+
 	response, err := h.visualizer.GetTopology(layoutType, "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
@@ -600,20 +599,20 @@ func (h *HTTPHandler) handleNodeDetail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 提取节点ID
 	nodeID := r.URL.Path[len("/api/v1/topology/node/"):]
 	if nodeID == "" {
 		http.Error(w, "Node ID required", http.StatusBadRequest)
 		return
 	}
-	
+
 	response, err := h.visualizer.GetNodeDetail(nodeID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
@@ -624,20 +623,20 @@ func (h *HTTPHandler) handleDrillDown(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	req := DrillDownRequest{
 		NodeID:      r.URL.Query().Get("node_id"),
 		MetricType:  r.URL.Query().Get("metric_type"),
 		TimeRange:   r.URL.Query().Get("time_range"),
 		Aggregation: r.URL.Query().Get("aggregation"),
 	}
-	
+
 	response, err := h.visualizer.DrillDown(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
@@ -648,22 +647,22 @@ func (h *HTTPHandler) handleSetLayout(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	var req struct {
 		LayoutType string `json:"layout_type"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	// 重新计算布局
 	graph := h.visualizer.builder.GetGraph()
 	if graph != nil {
 		h.visualizer.calculateLayout(graph, LayoutType(req.LayoutType))
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

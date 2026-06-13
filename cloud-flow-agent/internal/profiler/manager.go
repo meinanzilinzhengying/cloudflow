@@ -14,25 +14,25 @@ import (
 // Filter 剖析筛选条件
 type Filter struct {
 	// 进程筛选
-	PID       uint32   // 目标进程ID，0表示所有进程
-	PIDs      []uint32 // 多个目标进程ID
-	ProcessName string // 进程名匹配（支持通配符）
+	PID         uint32   // 目标进程ID，0表示所有进程
+	PIDs        []uint32 // 多个目标进程ID
+	ProcessName string   // 进程名匹配（支持通配符）
 
 	// 线程筛选
-	TID       uint32   // 目标线程ID，0表示所有线程
-	TIDs      []uint32 // 多个目标线程ID
+	TID  uint32   // 目标线程ID，0表示所有线程
+	TIDs []uint32 // 多个目标线程ID
 
 	// 时间范围筛选
 	StartTime *time.Time // 开始时间
 	EndTime   *time.Time // 结束时间
 
 	// CPU筛选
-	CPU       int   // 目标CPU编号，-1表示所有CPU
-	CPUs      []int // 多个目标CPU
+	CPU  int   // 目标CPU编号，-1表示所有CPU
+	CPUs []int // 多个目标CPU
 
 	// 采样配置
-	SampleFreq    int   // 采样频率(Hz)，默认99
-	MaxStackDepth int   // 最大栈深度，默认127
+	SampleFreq    int // 采样频率(Hz)，默认99
+	MaxStackDepth int // 最大栈深度，默认127
 
 	// 输出配置
 	IncludeKernel bool // 是否包含内核栈
@@ -42,14 +42,14 @@ type Filter struct {
 // ProfileSession 剖析会话
 // 表示一次完整的剖析过程
 type ProfileSession struct {
-	ID           string        // 会话ID
-	Filter       Filter        // 筛选条件
-	StartTime    time.Time     // 开始时间
-	EndTime      time.Time     // 结束时间
-	Duration     time.Duration // 持续时间
-	Status       string        // 状态: running/completed/failed
-	Result       *ProfileResult // 剖析结果
-	Error        error         // 错误信息
+	ID        string         // 会话ID
+	Filter    Filter         // 筛选条件
+	StartTime time.Time      // 开始时间
+	EndTime   time.Time      // 结束时间
+	Duration  time.Duration  // 持续时间
+	Status    string         // 状态: running/completed/failed
+	Result    *ProfileResult // 剖析结果
+	Error     error          // 错误信息
 }
 
 // ==================== 剖析管理器 ====================
@@ -57,10 +57,10 @@ type ProfileSession struct {
 // ProfilerManager 剖析管理器
 // 管理多个剖析会话，支持按条件筛选
 type ProfilerManager struct {
-	mu          sync.RWMutex
-	sessions    map[string]*ProfileSession // 活跃会话
-	profilers   map[uint32]*Profiler       // PID -> Profiler映射
-	symbolizer  *Symbolizer                // 共享符号解析器
+	mu         sync.RWMutex
+	sessions   map[string]*ProfileSession // 活跃会话
+	profilers  map[uint32]*Profiler       // PID -> Profiler映射
+	symbolizer *Symbolizer                // 共享符号解析器
 }
 
 // NewProfilerManager 创建剖析管理器
@@ -201,7 +201,6 @@ func (pm *ProfilerManager) runSession(ctx context.Context, session *ProfileSessi
 	fg := NewFlameGraph()
 	var svgData []byte
 	if len(allStackCounts) > 0 {
-		var buf []byte
 		bufWriter := &byteWriter{buf: &svgData}
 		fg.Generate(allStackCounts, bufWriter)
 	}
@@ -472,11 +471,11 @@ func (pm *ProfilerManager) GetLiveMetrics(sessionID string) (map[string]interfac
 	}
 
 	metrics := map[string]interface{}{
-		"session_id":    sessionID,
-		"running":       session.Status == "running",
-		"elapsed_time":  time.Since(session.StartTime),
-		"target_pids":   session.Filter.PIDs,
-		"sample_freq":   session.Filter.SampleFreq,
+		"session_id":   sessionID,
+		"running":      session.Status == "running",
+		"elapsed_time": time.Since(session.StartTime),
+		"target_pids":  session.Filter.PIDs,
+		"sample_freq":  session.Filter.SampleFreq,
 	}
 
 	// 收集各剖析器的统计信息

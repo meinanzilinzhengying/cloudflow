@@ -47,11 +47,11 @@ func (api *DashboardAPI) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/admin/dashboard", api.handleAdminDashboard)
 	mux.HandleFunc("/api/v1/admin/tenants", api.handleListTenants)
 	mux.HandleFunc("/api/v1/admin/assets", api.handleListAllAssets)
-	
+
 	// 租户视图
 	mux.HandleFunc("/api/v1/tenant/dashboard", api.handleTenantDashboard)
 	mux.HandleFunc("/api/v1/tenant/assets", api.handleListTenantAssets)
-	
+
 	// 通用接口
 	mux.HandleFunc("/api/v1/assets/", api.handleAssetDetail)
 	mux.HandleFunc("/api/v1/assets/drilldown", api.handleAssetDrillDown)
@@ -77,22 +77,22 @@ type AdminSummary struct {
 
 // TenantInfo 租户信息
 type TenantInfo struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	AssetCount  int    `json:"asset_count"`
-	UserCount   int    `json:"user_count"`
-	AlertCount  int    `json:"alert_count"`
-	Status      string `json:"status"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	AssetCount int    `json:"asset_count"`
+	UserCount  int    `json:"user_count"`
+	AlertCount int    `json:"alert_count"`
+	Status     string `json:"status"`
 }
 
 // AlertSummary 告警汇总
 type AlertSummary struct {
-	Total      int            `json:"total"`
-	Critical   int            `json:"critical"`
-	Warning    int            `json:"warning"`
-	Info       int            `json:"info"`
-	ByTenant   map[string]int `json:"by_tenant"`
-	ByAsset    map[string]int `json:"by_asset"`
+	Total    int            `json:"total"`
+	Critical int            `json:"critical"`
+	Warning  int            `json:"warning"`
+	Info     int            `json:"info"`
+	ByTenant map[string]int `json:"by_tenant"`
+	ByAsset  map[string]int `json:"by_asset"`
 }
 
 // handleAdminDashboard 处理管理员仪表盘请求
@@ -101,37 +101,37 @@ func (api *DashboardAPI) handleAdminDashboard(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 检查权限
 	if !tenant.IsAdmin(r.Context()) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	
+
 	// 获取所有租户
 	tenants := api.tenantManager.ListTenants()
-	
+
 	// 获取所有资产
 	allAssets := api.assetManager.ListAssets(asset.AssetFilter{})
-	
+
 	// 获取所有用户
 	allUsers := api.tenantManager.ListUsers("")
-	
+
 	// 计算告警统计
 	alertSummary := api.calculateAlertSummary("")
-	
+
 	// 构建租户信息
 	var tenantInfos []TenantInfo
 	for _, t := range tenants {
 		stats := api.tenantManager.GetTenantStats(t.ID)
-		
+
 		// 安全获取 user_count，避免 panic
 		userCount, ok := stats["user_count"].(int)
 		if !ok {
 			api.log.Warnf("[DashboardAPI] 租户 %s 的 user_count 类型异常或缺失，使用默认值 0", t.ID)
 			userCount = 0
 		}
-		
+
 		tenantInfos = append(tenantInfos, TenantInfo{
 			ID:         t.ID,
 			Name:       t.Name,
@@ -141,7 +141,7 @@ func (api *DashboardAPI) handleAdminDashboard(w http.ResponseWriter, r *http.Req
 			Status:     string(t.Status),
 		})
 	}
-	
+
 	response := AdminDashboardResponse{
 		Summary: AdminSummary{
 			TotalTenants:   len(tenants),
@@ -153,18 +153,18 @@ func (api *DashboardAPI) handleAdminDashboard(w http.ResponseWriter, r *http.Req
 		Tenants: tenantInfos,
 		Alerts:  alertSummary,
 	}
-	
+
 	api.jsonResponse(w, response)
 }
 
 // TenantDashboardResponse 租户仪表盘响应
 type TenantDashboardResponse struct {
-	Summary     TenantSummary          `json:"summary"`
-	Assets      []AssetInfo            `json:"assets"`
-	AssetTypes  map[string]int         `json:"asset_types"`
-	AssetStatus map[string]int         `json:"asset_status"`
-	Alerts      AlertSummary           `json:"alerts"`
-	Trends      MetricTrends           `json:"trends"`
+	Summary     TenantSummary  `json:"summary"`
+	Assets      []AssetInfo    `json:"assets"`
+	AssetTypes  map[string]int `json:"asset_types"`
+	AssetStatus map[string]int `json:"asset_status"`
+	Alerts      AlertSummary   `json:"alerts"`
+	Trends      MetricTrends   `json:"trends"`
 }
 
 // TenantSummary 租户汇总
@@ -191,9 +191,9 @@ type AssetInfo struct {
 
 // MetricTrends 指标趋势
 type MetricTrends struct {
-	Network   []TrendPoint `json:"network"`
+	Network     []TrendPoint `json:"network"`
 	Application []TrendPoint `json:"application"`
-	System    []TrendPoint `json:"system"`
+	System      []TrendPoint `json:"system"`
 }
 
 // TrendPoint 趋势点
@@ -208,31 +208,31 @@ func (api *DashboardAPI) handleTenantDashboard(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 获取租户ID
 	tenantID := tenant.GetTenantIDFromContext(r.Context())
 	if tenantID == "" {
 		http.Error(w, "Tenant ID required", http.StatusBadRequest)
 		return
 	}
-	
+
 	// 获取租户信息
 	t := api.tenantManager.GetTenant(tenantID)
 	if t == nil {
 		http.Error(w, "Tenant not found", http.StatusNotFound)
 		return
 	}
-	
+
 	// 获取租户资产
 	assets := api.assetManager.ListAssets(asset.AssetFilter{TenantID: tenantID})
-	
+
 	// 计算状态统计
 	statusCounts := api.assetManager.CountAssetsByStatus(tenantID)
 	typeCounts := api.assetManager.CountAssetsByType(tenantID)
-	
+
 	// 计算告警统计
 	alertSummary := api.calculateAlertSummary(tenantID)
-	
+
 	// 构建资产信息
 	var assetInfos []AssetInfo
 	for _, a := range assets {
@@ -247,10 +247,10 @@ func (api *DashboardAPI) handleTenantDashboard(w http.ResponseWriter, r *http.Re
 			LastSeen:   a.LastSeen.Format(time.RFC3339),
 		})
 	}
-	
+
 	// 获取趋势数据
 	trends := api.getMetricTrends(tenantID)
-	
+
 	response := TenantDashboardResponse{
 		Summary: TenantSummary{
 			TenantID:    tenantID,
@@ -266,7 +266,7 @@ func (api *DashboardAPI) handleTenantDashboard(w http.ResponseWriter, r *http.Re
 		Alerts:      alertSummary,
 		Trends:      trends,
 	}
-	
+
 	api.jsonResponse(w, response)
 }
 
@@ -276,15 +276,15 @@ func (api *DashboardAPI) handleListTenants(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 检查权限
 	if !tenant.IsAdmin(r.Context()) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	
+
 	tenants := api.tenantManager.ListTenants()
-	
+
 	api.jsonResponse(w, tenants)
 }
 
@@ -294,15 +294,15 @@ func (api *DashboardAPI) handleListAllAssets(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 检查权限
 	if !tenant.IsAdmin(r.Context()) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	
+
 	assets := api.assetManager.ListAssets(asset.AssetFilter{})
-	
+
 	api.jsonResponse(w, assets)
 }
 
@@ -312,33 +312,33 @@ func (api *DashboardAPI) handleListTenantAssets(w http.ResponseWriter, r *http.R
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 获取租户ID
 	tenantID := tenant.GetTenantIDFromContext(r.Context())
 	if tenantID == "" {
 		http.Error(w, "Tenant ID required", http.StatusBadRequest)
 		return
 	}
-	
+
 	// 解析查询参数
 	filter := asset.AssetFilter{
 		TenantID: tenantID,
 	}
-	
+
 	if types := r.URL.Query().Get("type"); types != "" {
 		filter.Types = []asset.AssetType{asset.AssetType(types)}
 	}
-	
+
 	if status := r.URL.Query().Get("status"); status != "" {
 		filter.Statuses = []asset.AssetStatus{asset.AssetStatus(status)}
 	}
-	
+
 	if search := r.URL.Query().Get("search"); search != "" {
 		filter.Search = search
 	}
-	
+
 	assets := api.assetManager.ListAssets(filter)
-	
+
 	api.jsonResponse(w, assets)
 }
 
@@ -348,28 +348,28 @@ func (api *DashboardAPI) handleAssetDetail(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 提取资产ID
 	assetID := r.URL.Path[len("/api/v1/assets/"):]
 	if assetID == "" {
 		http.Error(w, "Asset ID required", http.StatusBadRequest)
 		return
 	}
-	
+
 	// 获取资产
 	a := api.assetManager.GetAsset(assetID)
 	if a == nil {
 		http.Error(w, "Asset not found", http.StatusNotFound)
 		return
 	}
-	
+
 	// 检查权限
 	tenantID := tenant.GetTenantIDFromContext(r.Context())
 	if !tenant.IsAdmin(r.Context()) && a.TenantID != tenantID {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	
+
 	api.jsonResponse(w, a)
 }
 
@@ -379,35 +379,35 @@ func (api *DashboardAPI) handleAssetDrillDown(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 获取资产ID
 	assetID := r.URL.Query().Get("asset_id")
 	if assetID == "" {
 		http.Error(w, "Asset ID required", http.StatusBadRequest)
 		return
 	}
-	
+
 	// 获取资产
 	a := api.assetManager.GetAsset(assetID)
 	if a == nil {
 		http.Error(w, "Asset not found", http.StatusNotFound)
 		return
 	}
-	
+
 	// 检查权限
 	tenantID := tenant.GetTenantIDFromContext(r.Context())
 	if !tenant.IsAdmin(r.Context()) && a.TenantID != tenantID {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	
+
 	// 获取下钻数据
 	drillDown, err := api.assetManager.GetAssetDrillDown(assetID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	api.jsonResponse(w, drillDown)
 }
 
@@ -417,43 +417,43 @@ func (api *DashboardAPI) handleNetworkMetrics(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	assetID := r.URL.Query().Get("asset_id")
 	if assetID == "" {
 		http.Error(w, "Asset ID required", http.StatusBadRequest)
 		return
 	}
-	
+
 	// 检查权限
 	a := api.assetManager.GetAsset(assetID)
 	if a == nil {
 		http.Error(w, "Asset not found", http.StatusNotFound)
 		return
 	}
-	
+
 	tenantID := tenant.GetTenantIDFromContext(r.Context())
 	if !tenant.IsAdmin(r.Context()) && a.TenantID != tenantID {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	
+
 	// 获取时间范围
 	duration := r.URL.Query().Get("duration")
 	if duration == "" {
 		duration = "1h"
 	}
-	
+
 	endTime := time.Now()
 	startTime := endTime.Add(-parseDuration(duration))
-	
+
 	metrics := api.assetManager.GetMetrics(assetID, startTime, endTime)
-	
+
 	// 提取网络指标
 	var networkMetrics []asset.NetworkMetrics
 	for _, m := range metrics {
 		networkMetrics = append(networkMetrics, m.NetworkMetrics)
 	}
-	
+
 	api.jsonResponse(w, networkMetrics)
 }
 
@@ -463,43 +463,43 @@ func (api *DashboardAPI) handleApplicationMetrics(w http.ResponseWriter, r *http
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	assetID := r.URL.Query().Get("asset_id")
 	if assetID == "" {
 		http.Error(w, "Asset ID required", http.StatusBadRequest)
 		return
 	}
-	
+
 	// 检查权限
 	a := api.assetManager.GetAsset(assetID)
 	if a == nil {
 		http.Error(w, "Asset not found", http.StatusNotFound)
 		return
 	}
-	
+
 	tenantID := tenant.GetTenantIDFromContext(r.Context())
 	if !tenant.IsAdmin(r.Context()) && a.TenantID != tenantID {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	
+
 	// 获取时间范围
 	duration := r.URL.Query().Get("duration")
 	if duration == "" {
 		duration = "1h"
 	}
-	
+
 	endTime := time.Now()
 	startTime := endTime.Add(-parseDuration(duration))
-	
+
 	metrics := api.assetManager.GetMetrics(assetID, startTime, endTime)
-	
+
 	// 提取应用指标
 	var appMetrics []asset.ApplicationMetrics
 	for _, m := range metrics {
 		appMetrics = append(appMetrics, m.ApplicationMetrics)
 	}
-	
+
 	api.jsonResponse(w, appMetrics)
 }
 
@@ -510,7 +510,7 @@ func (api *DashboardAPI) calculateAlertSummary(tenantID string) AlertSummary {
 		ByTenant: make(map[string]int),
 		ByAsset:  make(map[string]int),
 	}
-	
+
 	// 遍历资产统计告警
 	assets := api.assetManager.ListAssets(asset.AssetFilter{TenantID: tenantID})
 	for _, a := range assets {
@@ -518,7 +518,7 @@ func (api *DashboardAPI) calculateAlertSummary(tenantID string) AlertSummary {
 			summary.Total += a.AlertCount
 			summary.ByAsset[a.ID] = a.AlertCount
 			summary.ByTenant[a.TenantID] += a.AlertCount
-			
+
 			switch a.AlertLevel {
 			case "critical", "emergency":
 				summary.Critical += a.AlertCount
@@ -529,7 +529,7 @@ func (api *DashboardAPI) calculateAlertSummary(tenantID string) AlertSummary {
 			}
 		}
 	}
-	
+
 	return summary
 }
 
@@ -540,36 +540,36 @@ func (api *DashboardAPI) getMetricTrends(tenantID string) MetricTrends {
 		Application: make([]TrendPoint, 0),
 		System:      make([]TrendPoint, 0),
 	}
-	
+
 	// 获取租户资产
 	assets := api.assetManager.ListAssets(asset.AssetFilter{TenantID: tenantID})
 	if len(assets) == 0 {
 		return trends
 	}
-	
+
 	// 获取最近1小时的指标
 	endTime := time.Now()
 	startTime := endTime.Add(-time.Hour)
-	
+
 	// 聚合所有资产的指标
 	for _, a := range assets {
 		metrics := api.assetManager.GetMetrics(a.ID, startTime, endTime)
-		
+
 		for _, m := range metrics {
 			ts := m.Timestamp.Unix()
-			
+
 			// 网络延迟趋势
 			trends.Network = append(trends.Network, TrendPoint{
 				Timestamp: ts,
 				Value:     m.NetworkMetrics.LatencyMs,
 			})
-			
+
 			// 应用QPS趋势
 			trends.Application = append(trends.Application, TrendPoint{
 				Timestamp: ts,
 				Value:     m.ApplicationMetrics.QPS,
 			})
-			
+
 			// 系统CPU趋势
 			trends.System = append(trends.System, TrendPoint{
 				Timestamp: ts,
@@ -577,7 +577,7 @@ func (api *DashboardAPI) getMetricTrends(tenantID string) MetricTrends {
 			})
 		}
 	}
-	
+
 	return trends
 }
 

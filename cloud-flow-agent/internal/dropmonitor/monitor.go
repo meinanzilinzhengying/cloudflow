@@ -8,7 +8,6 @@
 package dropmonitor
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -64,7 +63,7 @@ var DropReasonNames = map[int]string{
 
 // UserDropStage 用户态丢包阶段枚举
 const (
-	UserDropStageEBPFSubmit = iota  // eBPF提交失败
+	UserDropStageEBPFSubmit  = iota // eBPF提交失败
 	UserDropStageRingBufFull        // Ring Buffer满
 	UserDropStageParseFail          // 解析失败
 	UserDropStageBatchDrop          // 批处理丢弃
@@ -76,7 +75,7 @@ const (
 
 // UserDropStageNames 用户态丢包阶段名称
 var UserDropStageNames = map[int]string{
-	UserDropStageEBPFSubmit: "ebpf_submit_fail",
+	UserDropStageEBPFSubmit:  "ebpf_submit_fail",
 	UserDropStageRingBufFull: "ringbuf_full",
 	UserDropStageParseFail:   "parse_fail",
 	UserDropStageBatchDrop:   "batch_drop",
@@ -147,27 +146,27 @@ type UserDropStat struct {
 
 // Snapshot 丢包监控快照
 type Snapshot struct {
-	Timestamp        time.Time         `json:"timestamp"`
-	KernelTotalDrops uint64            `json:"kernel_total_drops"`
-	KernelTotalBytes uint64            `json:"kernel_total_bytes"`
-	UserTotalDrops   uint64            `json:"user_total_drops"`
-	RingBufFailures  uint64            `json:"ringbuf_failures"`
-	DropRate         float64           `json:"drop_rate"`           // 丢包率(0-100)
-	KernelByReason   []KernelDropStat  `json:"kernel_by_reason"`
-	UserByStage      []UserDropStat    `json:"user_by_stage"`
-	TopFlows         []FlowDropStat    `json:"top_flows"`
+	Timestamp        time.Time        `json:"timestamp"`
+	KernelTotalDrops uint64           `json:"kernel_total_drops"`
+	KernelTotalBytes uint64           `json:"kernel_total_bytes"`
+	UserTotalDrops   uint64           `json:"user_total_drops"`
+	RingBufFailures  uint64           `json:"ringbuf_failures"`
+	DropRate         float64          `json:"drop_rate"` // 丢包率(0-100)
+	KernelByReason   []KernelDropStat `json:"kernel_by_reason"`
+	UserByStage      []UserDropStat   `json:"user_by_stage"`
+	TopFlows         []FlowDropStat   `json:"top_flows"`
 }
 
 // Config 丢包监控配置
 type Config struct {
-	Enabled           bool          // 启用丢包监控
-	RingBufSize       int           // Ring Buffer大小
-	SampleRate        float64       // 采样率(0-1)
-	TopFlowCount      int           // 记录TOP N流
-	SnapshotInterval  time.Duration // 快照间隔
-	AlertThreshold    float64       // 丢包率告警阈值(%)
-	EnableKernelDrop  bool          // 启用内核态丢包监控
-	EnableUserDrop    bool          // 启用用户态丢包监控
+	Enabled          bool          // 启用丢包监控
+	RingBufSize      int           // Ring Buffer大小
+	SampleRate       float64       // 采样率(0-1)
+	TopFlowCount     int           // 记录TOP N流
+	SnapshotInterval time.Duration // 快照间隔
+	AlertThreshold   float64       // 丢包率告警阈值(%)
+	EnableKernelDrop bool          // 启用内核态丢包监控
+	EnableUserDrop   bool          // 启用用户态丢包监控
 }
 
 // DefaultConfig 默认配置
@@ -178,7 +177,7 @@ func DefaultConfig() Config {
 		SampleRate:       1.0,
 		TopFlowCount:     10,
 		SnapshotInterval: 10 * time.Second,
-		AlertThreshold:   1.0,  // 1%丢包率触发告警
+		AlertThreshold:   1.0, // 1%丢包率触发告警
 		EnableKernelDrop: true,
 		EnableUserDrop:   true,
 	}

@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,29 +15,29 @@ import (
 
 // TopologyBuilder 拓扑构建器
 type TopologyBuilder struct {
-	mu       sync.RWMutex
-	graph    *TopologyGraph
-	log      *logger.Logger
-	
+	mu    sync.RWMutex
+	graph *TopologyGraph
+	log   *logger.Logger
+
 	// 配置
-	config   BuilderConfig
-	
+	config BuilderConfig
+
 	// 数据源
-	sources  map[string]DataSource
-	
+	sources map[string]DataSource
+
 	// 控制
-	stopCh   chan struct{}
-	wg       sync.WaitGroup
+	stopCh chan struct{}
+	wg     sync.WaitGroup
 }
 
 // BuilderConfig 构建器配置
 type BuilderConfig struct {
-	Enabled          bool          `yaml:"enabled" json:"enabled"`
-	RefreshInterval  time.Duration `yaml:"refresh_interval" json:"refresh_interval"`
-	AutoDiscovery    bool          `yaml:"auto_discovery" json:"auto_discovery"`
-	IncludePods      bool          `yaml:"include_pods" json:"include_pods"`
-	IncludeVMs       bool          `yaml:"include_vms" json:"include_vms"`
-	IncludePhysical  bool          `yaml:"include_physical" json:"include_physical"`
+	Enabled         bool          `yaml:"enabled" json:"enabled"`
+	RefreshInterval time.Duration `yaml:"refresh_interval" json:"refresh_interval"`
+	AutoDiscovery   bool          `yaml:"auto_discovery" json:"auto_discovery"`
+	IncludePods     bool          `yaml:"include_pods" json:"include_pods"`
+	IncludeVMs      bool          `yaml:"include_vms" json:"include_vms"`
+	IncludePhysical bool          `yaml:"include_physical" json:"include_physical"`
 }
 
 // DefaultBuilderConfig 默认配置
@@ -83,44 +82,44 @@ func (b *TopologyBuilder) Build(ctx context.Context) error {
 	if !b.config.Enabled {
 		return nil
 	}
-	
+
 	b.log.Info("开始构建网络全栈拓扑...")
-	
+
 	// 清空现有拓扑
 	b.graph = NewTopologyGraph("fullstack", "网络全栈拓扑", "fullstack")
-	
+
 	// 构建层级结构
 	if b.config.IncludePhysical {
 		if err := b.buildPhysicalLayer(ctx); err != nil {
 			b.log.Warnf("构建物理层失败: %v", err)
 		}
 	}
-	
+
 	if b.config.IncludeVMs {
 		if err := b.buildVMLayer(ctx); err != nil {
 			b.log.Warnf("构建VM层失败: %v", err)
 		}
 	}
-	
+
 	if err := b.buildNodeLayer(ctx); err != nil {
 		b.log.Warnf("构建Node层失败: %v", err)
 	}
-	
+
 	if b.config.IncludePods {
 		if err := b.buildPodLayer(ctx); err != nil {
 			b.log.Warnf("构建Pod层失败: %v", err)
 		}
 	}
-	
+
 	// 构建连接关系
 	b.buildConnections()
-	
+
 	// 构建业务分组
 	b.buildGroups()
-	
+
 	b.log.Infof("拓扑构建完成: 节点=%d, 边=%d, 分组=%d",
 		b.graph.Stats.NodeCount, b.graph.Stats.EdgeCount, b.graph.Stats.GroupCount)
-	
+
 	return nil
 }
 
@@ -128,15 +127,15 @@ func (b *TopologyBuilder) Build(ctx context.Context) error {
 func (b *TopologyBuilder) buildPhysicalLayer(ctx context.Context) error {
 	// 获取物理网络设备信息
 	// 实际生产环境应从CMDB或网络管理系统获取
-	
+
 	// 模拟物理设备
 	devices := []*TopologyNode{
 		{
-			ID:       "switch-core-01",
-			Name:     "核心交换机-01",
-			Type:     NodeTypeSwitch,
-			Status:   NodeStatusHealthy,
-			Level:    0,
+			ID:     "switch-core-01",
+			Name:   "核心交换机-01",
+			Type:   NodeTypeSwitch,
+			Status: NodeStatusHealthy,
+			Level:  0,
 			Metadata: map[string]interface{}{
 				"vendor":   "Cisco",
 				"model":    "Nexus 9000",
@@ -148,11 +147,11 @@ func (b *TopologyBuilder) buildPhysicalLayer(ctx context.Context) error {
 			},
 		},
 		{
-			ID:       "switch-core-02",
-			Name:     "核心交换机-02",
-			Type:     NodeTypeSwitch,
-			Status:   NodeStatusHealthy,
-			Level:    0,
+			ID:     "switch-core-02",
+			Name:   "核心交换机-02",
+			Type:   NodeTypeSwitch,
+			Status: NodeStatusHealthy,
+			Level:  0,
 			Metadata: map[string]interface{}{
 				"vendor":   "Cisco",
 				"model":    "Nexus 9000",
@@ -164,11 +163,11 @@ func (b *TopologyBuilder) buildPhysicalLayer(ctx context.Context) error {
 			},
 		},
 		{
-			ID:       "router-edge-01",
-			Name:     "边缘路由器-01",
-			Type:     NodeTypeRouter,
-			Status:   NodeStatusHealthy,
-			Level:    0,
+			ID:     "router-edge-01",
+			Name:   "边缘路由器-01",
+			Type:   NodeTypeRouter,
+			Status: NodeStatusHealthy,
+			Level:  0,
 			Metadata: map[string]interface{}{
 				"vendor": "Juniper",
 				"model":  "MX480",
@@ -179,37 +178,37 @@ func (b *TopologyBuilder) buildPhysicalLayer(ctx context.Context) error {
 			},
 		},
 	}
-	
+
 	for _, device := range devices {
 		if err := b.graph.AddNode(device); err != nil {
 			b.log.Warnf("添加物理设备失败: %v", err)
 		}
 	}
-	
+
 	// 添加物理设备间的连接
 	edges := []*TopologyEdge{
 		{
-			Source:   "switch-core-01",
-			Target:   "switch-core-02",
-			Type:     EdgeTypeNetwork,
-			Status:   EdgeStatusNormal,
+			Source:    "switch-core-01",
+			Target:    "switch-core-02",
+			Type:      EdgeTypeNetwork,
+			Status:    EdgeStatusNormal,
 			Bandwidth: 10000, // 10Gbps
 		},
 		{
-			Source:   "switch-core-01",
-			Target:   "router-edge-01",
-			Type:     EdgeTypeNetwork,
-			Status:   EdgeStatusNormal,
+			Source:    "switch-core-01",
+			Target:    "router-edge-01",
+			Type:      EdgeTypeNetwork,
+			Status:    EdgeStatusNormal,
 			Bandwidth: 10000,
 		},
 	}
-	
+
 	for _, edge := range edges {
 		if err := b.graph.AddEdge(edge); err != nil {
 			b.log.Warnf("添加边失败: %v", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -217,7 +216,7 @@ func (b *TopologyBuilder) buildPhysicalLayer(ctx context.Context) error {
 func (b *TopologyBuilder) buildVMLayer(ctx context.Context) error {
 	// 从虚拟化平台获取VM信息
 	// 实际生产环境应从vCenter/OpenStack获取
-	
+
 	vms := []*TopologyNode{
 		{
 			ID:       "vm-k8s-master-01",
@@ -227,9 +226,9 @@ func (b *TopologyBuilder) buildVMLayer(ctx context.Context) error {
 			Level:    1,
 			ParentID: "switch-core-01",
 			Metadata: map[string]interface{}{
-				"ip":       "10.0.1.10",
-				"vcpu":     8,
-				"memory":   "32GB",
+				"ip":         "10.0.1.10",
+				"vcpu":       8,
+				"memory":     "32GB",
 				"hypervisor": "VMware",
 			},
 			Labels: map[string]string{
@@ -245,9 +244,9 @@ func (b *TopologyBuilder) buildVMLayer(ctx context.Context) error {
 			Level:    1,
 			ParentID: "switch-core-01",
 			Metadata: map[string]interface{}{
-				"ip":       "10.0.1.11",
-				"vcpu":     16,
-				"memory":   "64GB",
+				"ip":         "10.0.1.11",
+				"vcpu":       16,
+				"memory":     "64GB",
 				"hypervisor": "VMware",
 			},
 			Labels: map[string]string{
@@ -263,9 +262,9 @@ func (b *TopologyBuilder) buildVMLayer(ctx context.Context) error {
 			Level:    1,
 			ParentID: "switch-core-02",
 			Metadata: map[string]interface{}{
-				"ip":       "10.0.1.12",
-				"vcpu":     16,
-				"memory":   "64GB",
+				"ip":         "10.0.1.12",
+				"vcpu":       16,
+				"memory":     "64GB",
 				"hypervisor": "VMware",
 			},
 			Labels: map[string]string{
@@ -274,13 +273,13 @@ func (b *TopologyBuilder) buildVMLayer(ctx context.Context) error {
 			},
 		},
 	}
-	
+
 	for _, vm := range vms {
 		if err := b.graph.AddNode(vm); err != nil {
 			b.log.Warnf("添加VM失败: %v", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -288,7 +287,7 @@ func (b *TopologyBuilder) buildVMLayer(ctx context.Context) error {
 func (b *TopologyBuilder) buildNodeLayer(ctx context.Context) error {
 	// 从Kubernetes获取Node信息
 	hostname, _ := os.Hostname()
-	
+
 	nodes := []*TopologyNode{
 		{
 			ID:       "node-" + hostname,
@@ -298,18 +297,18 @@ func (b *TopologyBuilder) buildNodeLayer(ctx context.Context) error {
 			Level:    2,
 			ParentID: "vm-k8s-worker-01",
 			Metadata: map[string]interface{}{
-				"ip":         getLocalIP(),
-				"os":         "Linux",
-				"kernel":     "5.15.0",
+				"ip":                getLocalIP(),
+				"os":                "Linux",
+				"kernel":            "5.15.0",
 				"container_runtime": "containerd",
 			},
 			Labels: map[string]string{
-				"kubernetes.io/os":   "linux",
+				"kubernetes.io/os":               "linux",
 				"node-role.kubernetes.io/worker": "true",
 			},
 		},
 	}
-	
+
 	// 添加更多节点（如果有）
 	for i := 2; i <= 3; i++ {
 		nodeName := fmt.Sprintf("k8s-worker-0%d", i)
@@ -328,13 +327,13 @@ func (b *TopologyBuilder) buildNodeLayer(ctx context.Context) error {
 			},
 		})
 	}
-	
+
 	for _, node := range nodes {
 		if err := b.graph.AddNode(node); err != nil {
 			b.log.Warnf("添加Node失败: %v", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -342,7 +341,7 @@ func (b *TopologyBuilder) buildNodeLayer(ctx context.Context) error {
 func (b *TopologyBuilder) buildPodLayer(ctx context.Context) error {
 	// 从Kubernetes获取Pod信息
 	// 实际生产环境应使用k8s client-go
-	
+
 	pods := []*TopologyNode{
 		{
 			ID:       "pod-nginx-001",
@@ -358,7 +357,7 @@ func (b *TopologyBuilder) buildPodLayer(ctx context.Context) error {
 				"restarts":  0,
 			},
 			Labels: map[string]string{
-				"app": "nginx",
+				"app":  "nginx",
 				"tier": "frontend",
 			},
 		},
@@ -376,7 +375,7 @@ func (b *TopologyBuilder) buildPodLayer(ctx context.Context) error {
 				"restarts":  0,
 			},
 			Labels: map[string]string{
-				"app": "myapp",
+				"app":  "myapp",
 				"tier": "backend",
 			},
 		},
@@ -394,18 +393,18 @@ func (b *TopologyBuilder) buildPodLayer(ctx context.Context) error {
 				"restarts":  0,
 			},
 			Labels: map[string]string{
-				"app": "mysql",
+				"app":  "mysql",
 				"tier": "database",
 			},
 		},
 	}
-	
+
 	for _, pod := range pods {
 		if err := b.graph.AddNode(pod); err != nil {
 			b.log.Warnf("添加Pod失败: %v", err)
 		}
 	}
-	
+
 	// 添加Pod间的服务依赖关系
 	edges := []*TopologyEdge{
 		{
@@ -429,13 +428,13 @@ func (b *TopologyBuilder) buildPodLayer(ctx context.Context) error {
 			},
 		},
 	}
-	
+
 	for _, edge := range edges {
 		if err := b.graph.AddEdge(edge); err != nil {
 			b.log.Warnf("添加边失败: %v", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -445,7 +444,7 @@ func (b *TopologyBuilder) buildConnections() {
 	for level := 0; level < 3; level++ {
 		parents := b.graph.GetNodesByLevel(level)
 		children := b.graph.GetNodesByLevel(level + 1)
-		
+
 		for _, child := range children {
 			for _, parent := range parents {
 				// 简单的匹配逻辑：检查ParentID或网络连通性
@@ -509,7 +508,7 @@ func (b *TopologyBuilder) buildGroups() {
 			},
 		},
 	}
-	
+
 	for _, group := range groups {
 		// 收集属于该分组的节点
 		for _, node := range b.graph.Nodes {
@@ -517,7 +516,7 @@ func (b *TopologyBuilder) buildGroups() {
 				group.NodeIDs = append(group.NodeIDs, node.ID)
 			}
 		}
-		
+
 		if err := b.graph.AddGroup(group); err != nil {
 			b.log.Warnf("添加分组失败: %v", err)
 		}
@@ -529,16 +528,16 @@ func (b *TopologyBuilder) Start(ctx context.Context) error {
 	if !b.config.Enabled || !b.config.AutoDiscovery {
 		return nil
 	}
-	
+
 	// 初始构建
 	if err := b.Build(ctx); err != nil {
 		return err
 	}
-	
+
 	// 定期刷新
 	b.wg.Add(1)
 	go b.refreshLoop(ctx)
-	
+
 	return nil
 }
 
@@ -551,10 +550,10 @@ func (b *TopologyBuilder) Stop() {
 // refreshLoop 刷新循环
 func (b *TopologyBuilder) refreshLoop(ctx context.Context) {
 	defer b.wg.Done()
-	
+
 	ticker := time.NewTicker(b.config.RefreshInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -580,7 +579,7 @@ func (b *TopologyBuilder) GetGraph() *TopologyGraph {
 func (b *TopologyBuilder) UpdateNodeMetrics(nodeID string, metrics NodeMetrics) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	
+
 	if b.graph != nil {
 		b.graph.UpdateNodeMetrics(nodeID, metrics)
 	}
@@ -590,7 +589,7 @@ func (b *TopologyBuilder) UpdateNodeMetrics(nodeID string, metrics NodeMetrics) 
 func (b *TopologyBuilder) UpdateNodeStatus(nodeID string, status NodeStatus) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	
+
 	if b.graph != nil {
 		b.graph.UpdateNodeStatus(nodeID, status)
 	}

@@ -38,13 +38,13 @@ const (
 // MySQLParser MySQL 协议解析器
 type MySQLParser struct {
 	// 状态机
-	state      MySQLConnectionState
-	stateMu    sync.RWMutex
+	state   MySQLConnectionState
+	stateMu sync.RWMutex
 
 	// 会话信息
-	sessionID   string
-	database    string
-	user        string
+	sessionID string
+	database  string
+	user      string
 
 	// 预处理语句
 	preparedStmts map[uint32]*MySQLPreparedStatement
@@ -77,35 +77,35 @@ type MySQLPreparedStatement struct {
 type MySQLCommand byte
 
 const (
-	MySQLComSleep          MySQLCommand = 0x00
-	MySQLComQuit           MySQLCommand = 0x01
-	MySQLComInitDB         MySQLCommand = 0x02
-	MySQLComQuery          MySQLCommand = 0x03
-	MySQLComFieldList      MySQLCommand = 0x04
-	MySQLComCreateDB       MySQLCommand = 0x05
-	MySQLComDropDB         MySQLCommand = 0x06
-	MySQLComRefresh        MySQLCommand = 0x07
-	MySQLComShutdown       MySQLCommand = 0x08
-	MySQLComStatistics     MySQLCommand = 0x09
-	MySQLComProcessInfo    MySQLCommand = 0x0a
-	MySQLComConnect        MySQLCommand = 0x0b
-	MySQLComProcessKill    MySQLCommand = 0x0c
-	MySQLComDebug          MySQLCommand = 0x0d
-	MySQLComPing           MySQLCommand = 0x0e
-	MySQLComTime           MySQLCommand = 0x0f
-	MySQLComDelayedInsert  MySQLCommand = 0x10
-	MySQLComChangeUser     MySQLCommand = 0x11
-	MySQLComBinlogDump     MySQLCommand = 0x12
-	MySQLComTableDump      MySQLCommand = 0x13
-	MySQLComConnectOut     MySQLCommand = 0x14
-	MySQLComRegisterSlave  MySQLCommand = 0x15
-	MySQLComStmtPrepare    MySQLCommand = 0x16
-	MySQLComStmtExecute    MySQLCommand = 0x17
+	MySQLComSleep            MySQLCommand = 0x00
+	MySQLComQuit             MySQLCommand = 0x01
+	MySQLComInitDB           MySQLCommand = 0x02
+	MySQLComQuery            MySQLCommand = 0x03
+	MySQLComFieldList        MySQLCommand = 0x04
+	MySQLComCreateDB         MySQLCommand = 0x05
+	MySQLComDropDB           MySQLCommand = 0x06
+	MySQLComRefresh          MySQLCommand = 0x07
+	MySQLComShutdown         MySQLCommand = 0x08
+	MySQLComStatistics       MySQLCommand = 0x09
+	MySQLComProcessInfo      MySQLCommand = 0x0a
+	MySQLComConnect          MySQLCommand = 0x0b
+	MySQLComProcessKill      MySQLCommand = 0x0c
+	MySQLComDebug            MySQLCommand = 0x0d
+	MySQLComPing             MySQLCommand = 0x0e
+	MySQLComTime             MySQLCommand = 0x0f
+	MySQLComDelayedInsert    MySQLCommand = 0x10
+	MySQLComChangeUser       MySQLCommand = 0x11
+	MySQLComBinlogDump       MySQLCommand = 0x12
+	MySQLComTableDump        MySQLCommand = 0x13
+	MySQLComConnectOut       MySQLCommand = 0x14
+	MySQLComRegisterSlave    MySQLCommand = 0x15
+	MySQLComStmtPrepare      MySQLCommand = 0x16
+	MySQLComStmtExecute      MySQLCommand = 0x17
 	MySQLComStmtSendLongData MySQLCommand = 0x18
-	MySQLComStmtClose      MySQLCommand = 0x19
-	MySQLComStmtReset      MySQLCommand = 0x1a
-	MySQLComSetOption      MySQLCommand = 0x1b
-	MySQLComStmtFetch      MySQLCommand = 0x1c
+	MySQLComStmtClose        MySQLCommand = 0x19
+	MySQLComStmtReset        MySQLCommand = 0x1a
+	MySQLComSetOption        MySQLCommand = 0x1b
+	MySQLComStmtFetch        MySQLCommand = 0x1c
 )
 
 // NewMySQLParser 创建 MySQL 协议解析器
@@ -249,13 +249,13 @@ func (p *MySQLParser) ExtractSQL(data []byte) (string, error) {
 // PostgreSQLParser PostgreSQL 协议解析器
 type PostgreSQLParser struct {
 	// 状态机
-	state      PostgreSQLConnectionState
-	stateMu    sync.RWMutex
+	state   PostgreSQLConnectionState
+	stateMu sync.RWMutex
 
 	// 会话信息
-	sessionID   string
-	database    string
-	user        string
+	sessionID string
+	database  string
+	user      string
 
 	// 预处理语句
 	preparedStmts map[string]*PostgreSQLPreparedStatement
@@ -287,17 +287,17 @@ type PostgreSQLPreparedStatement struct {
 type PostgreSQLMessageType byte
 
 const (
-	PostgreSQLMsgQuery         PostgreSQLMessageType = 'Q'
-	PostgreSQLMsgParse         PostgreSQLMessageType = 'P'
-	PostgreSQLMsgBind          PostgreSQLMessageType = 'B'
-	PostgreSQLMsgDescribe      PostgreSQLMessageType = 'D'
-	PostgreSQLMsgExecute       PostgreSQLMessageType = 'E'
-	PostgreSQLMsgSync          PostgreSQLMessageType = 'S'
-	PostgreSQLMsgClose         PostgreSQLMessageType = 'C'
-	PostgreSQLMsgTerminate     PostgreSQLMessageType = 'X'
-	PostgreSQLMsgCopyData      PostgreSQLMessageType = 'd'
-	PostgreSQLMsgCopyDone      PostgreSQLMessageType = 'c'
-	PostgreSQLMsgCopyFail      PostgreSQLMessageType = 'f'
+	PostgreSQLMsgQuery     PostgreSQLMessageType = 'Q'
+	PostgreSQLMsgParse     PostgreSQLMessageType = 'P'
+	PostgreSQLMsgBind      PostgreSQLMessageType = 'B'
+	PostgreSQLMsgDescribe  PostgreSQLMessageType = 'D'
+	PostgreSQLMsgExecute   PostgreSQLMessageType = 'E'
+	PostgreSQLMsgSync      PostgreSQLMessageType = 'S'
+	PostgreSQLMsgClose     PostgreSQLMessageType = 'C'
+	PostgreSQLMsgTerminate PostgreSQLMessageType = 'X'
+	PostgreSQLMsgCopyData  PostgreSQLMessageType = 'd'
+	PostgreSQLMsgCopyDone  PostgreSQLMessageType = 'c'
+	PostgreSQLMsgCopyFail  PostgreSQLMessageType = 'f'
 )
 
 // NewPostgreSQLParser 创建 PostgreSQL 协议解析器
@@ -522,8 +522,8 @@ func (p *PostgreSQLParser) ExtractSQL(data []byte) (string, error) {
 // OracleParser Oracle 协议解析器
 type OracleParser struct {
 	// 状态机
-	state      OracleConnectionState
-	stateMu    sync.RWMutex
+	state   OracleConnectionState
+	stateMu sync.RWMutex
 
 	// 会话信息
 	sessionID   string
@@ -694,13 +694,13 @@ func (p *OracleParser) ExtractSQL(data []byte) (string, error) {
 // DaMengParser 达梦协议解析器
 type DaMengParser struct {
 	// 状态机
-	state      DaMengConnectionState
-	stateMu    sync.RWMutex
+	state   DaMengConnectionState
+	stateMu sync.RWMutex
 
 	// 会话信息
-	sessionID   string
-	database    string
-	user        string
+	sessionID string
+	database  string
+	user      string
 
 	// SQL 类型识别
 	sqlTypeIdentifier *SQLTypeIdentifier
@@ -845,13 +845,13 @@ type GaussDBParser struct {
 	pgParser *PostgreSQLParser
 
 	// 状态机
-	state      GaussDBConnectionState
-	stateMu    sync.RWMutex
+	state   GaussDBConnectionState
+	stateMu sync.RWMutex
 
 	// 会话信息
-	sessionID   string
-	database    string
-	user        string
+	sessionID string
+	database  string
+	user      string
 
 	// SQL 类型识别
 	sqlTypeIdentifier *SQLTypeIdentifier
@@ -1008,7 +1008,7 @@ type ProtocolIdentifier struct {
 // NewProtocolIdentifier 创建协议识别器
 func NewProtocolIdentifier() *ProtocolIdentifier {
 	return &ProtocolIdentifier{
-		mysqlSignature:      []byte{0x0a}, // MySQL 协议版本
+		mysqlSignature:      []byte{0x0a},                   // MySQL 协议版本
 		oracleSignature:     []byte{0x00, 0x00, 0x01, 0x00}, // Oracle TNS
 		postgresqlSignature: []byte{0x00, 0x03, 0x00, 0x00}, // PostgreSQL 3.0
 		damengSignature:     []byte{0x00, 0x00, 0x00, 0x01}, // 达梦协议
@@ -1073,10 +1073,10 @@ func (i *ProtocolIdentifier) Identify(data []byte, port int) DatabaseType {
 
 // PacketCapture 数据包捕获器
 type PacketCapture struct {
-	parsers       map[DatabaseType]ProtocolParser
-	identifier    *ProtocolIdentifier
-	eventHandler  func(*SQLEvent)
-	mu            sync.RWMutex
+	parsers      map[DatabaseType]ProtocolParser
+	identifier   *ProtocolIdentifier
+	eventHandler func(*SQLEvent)
+	mu           sync.RWMutex
 }
 
 // NewPacketCapture 创建数据包捕获器

@@ -41,25 +41,25 @@ type ConfigClient interface {
 }
 
 type CollectionConfig struct {
-	Version              int64
-	GroupId              string
-	UpdatedAt            int64
-	UpdatedBy            string
-	SampleRate           float64
-	TCPSampleRate        float64
-	HTTPSampleRate       float64
-	EnableTCPMetrics     bool
-	EnableHTTPMetrics    bool
-	EnableHTTPFull       bool
-	EnableDNSFull        bool
-	EnableMySQLFull      bool
-	EnableSQLAggregator  bool
-	EnableCPUProfiler    bool
-	MaxCPUCore           float64
-	MaxMemoryMB          float64
-	MaxGoroutines        int
-	CollectInterval      int
-	BatchSize            int
+	Version               int64
+	GroupId               string
+	UpdatedAt             int64
+	UpdatedBy             string
+	SampleRate            float64
+	TCPSampleRate         float64
+	HTTPSampleRate        float64
+	EnableTCPMetrics      bool
+	EnableHTTPMetrics     bool
+	EnableHTTPFull        bool
+	EnableDNSFull         bool
+	EnableMySQLFull       bool
+	EnableSQLAggregator   bool
+	EnableCPUProfiler     bool
+	MaxCPUCore            float64
+	MaxMemoryMB           float64
+	MaxGoroutines         int
+	CollectInterval       int
+	BatchSize             int
 	CircuitBreakerEnabled bool
 }
 

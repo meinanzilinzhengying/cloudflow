@@ -15,22 +15,22 @@ import (
 // RetentionPolicy 保留策略
 type RetentionPolicy struct {
 	// 基本信息
-	Category      DataCategory `json:"category"`        // 数据分类
-	Enabled       bool         `json:"enabled"`         // 是否启用
-	RetentionDays int          `json:"retention_days"`  // 保留天数
+	Category      DataCategory `json:"category"`       // 数据分类
+	Enabled       bool         `json:"enabled"`        // 是否启用
+	RetentionDays int          `json:"retention_days"` // 保留天数
 
 	// 高级配置
-	GracePeriod   time.Duration `json:"grace_period"`   // 宽限期（避免误删最近数据）
-	CleanupOrder  int           `json:"cleanup_order"`  // 清理优先级（数字越小越先清理）
+	GracePeriod   time.Duration `json:"grace_period"`    // 宽限期（避免误删最近数据）
+	CleanupOrder  int           `json:"cleanup_order"`   // 清理优先级（数字越小越先清理）
 	MaxCleanupPct float64       `json:"max_cleanup_pct"` // 单次最大清理比例(0-1)，防止一次性删除过多
 
 	// 数据源过滤（可选）
-	SourceFilter  string        `json:"source_filter"`  // 数据源过滤（空表示所有数据源）
-	TagFilter     map[string]string `json:"tag_filter"` // 标签过滤
+	SourceFilter string            `json:"source_filter"` // 数据源过滤（空表示所有数据源）
+	TagFilter    map[string]string `json:"tag_filter"`    // 标签过滤
 
 	// 时间约束
-	ActiveAfter   time.Time     `json:"active_after"`   // 策略生效时间
-	ActiveBefore  time.Time     `json:"active_before"`  // 策略失效时间
+	ActiveAfter  time.Time `json:"active_after"`  // 策略生效时间
+	ActiveBefore time.Time `json:"active_before"` // 策略失效时间
 }
 
 // Validate 验证策略有效性
@@ -358,9 +358,9 @@ func (m *RetentionPolicyManager) UpdateRetentionDays(category DataCategory, days
 
 // RetentionPolicySnapshot 保留策略快照（用于审计和回滚）
 type RetentionPolicySnapshot struct {
-	Timestamp time.Time                       `json:"timestamp"`
+	Timestamp time.Time                         `json:"timestamp"`
 	Policies  map[DataCategory]*RetentionPolicy `json:"policies"`
-	Reason    string                          `json:"reason"`
+	Reason    string                            `json:"reason"`
 }
 
 // TakeSnapshot 创建策略快照
@@ -425,50 +425,50 @@ func ParseDataCategory(s string) DataCategory {
 // LifecycleConfig 生命周期管理配置
 type LifecycleConfig struct {
 	// 基础配置
-	DefaultRetentionDays int    `json:"default_retention_days"` // 默认保留天数（60天）
-	Enabled              bool   `json:"enabled"`               // 是否启用生命周期管理
+	DefaultRetentionDays int  `json:"default_retention_days"` // 默认保留天数（60天）
+	Enabled              bool `json:"enabled"`                // 是否启用生命周期管理
 
 	// 清理调度配置
-	CleanupSchedule      string `json:"cleanup_schedule"`      // 清理调度表达式（cron 格式）
-	CleanupTime          string `json:"cleanup_time"`          // 清理时间（HH:MM 格式，如 "02:00"）
-	CleanupBatchSize     int    `json:"cleanup_batch_size"`    // 单批清理大小
-	CleanupInterval      int    `json:"cleanup_interval_min"`  // 清理间隔（分钟）
+	CleanupSchedule  string `json:"cleanup_schedule"`     // 清理调度表达式（cron 格式）
+	CleanupTime      string `json:"cleanup_time"`         // 清理时间（HH:MM 格式，如 "02:00"）
+	CleanupBatchSize int    `json:"cleanup_batch_size"`   // 单批清理大小
+	CleanupInterval  int    `json:"cleanup_interval_min"` // 清理间隔（分钟）
 
 	// 并发控制
-	MaxConcurrentCleanups int    `json:"max_concurrent_cleanups"` // 最大并发清理数
-	CleanupTimeout        int    `json:"cleanup_timeout_min"`     // 单次清理超时（分钟）
+	MaxConcurrentCleanups int `json:"max_concurrent_cleanups"` // 最大并发清理数
+	CleanupTimeout        int `json:"cleanup_timeout_min"`     // 单次清理超时（分钟）
 
 	// 限速配置
-	MaxDeleteRate         int    `json:"max_delete_rate"`          // 每秒最大删除数（0=不限）
+	MaxDeleteRate          int     `json:"max_delete_rate"`            // 每秒最大删除数（0=不限）
 	MaxDiskUsageForCleanup float64 `json:"max_disk_usage_for_cleanup"` // 磁盘使用率上限，超过此值触发紧急清理
 
 	// 历史记录
-	MaxHistoryRecords    int    `json:"max_history_records"`    // 最大历史记录数
+	MaxHistoryRecords int `json:"max_history_records"` // 最大历史记录数
 
 	// 自定义策略
-	CustomPolicies       []*RetentionPolicy `json:"custom_policies"` // 自定义保留策略
+	CustomPolicies []*RetentionPolicy `json:"custom_policies"` // 自定义保留策略
 
 	// 查询隔离
-	QueryIsolationEnabled bool   `json:"query_isolation_enabled"` // 是否启用查询隔离
+	QueryIsolationEnabled bool    `json:"query_isolation_enabled"` // 是否启用查询隔离
 	CleanupThrottleRate   float64 `json:"cleanup_throttle_rate"`   // 清理限速比例（0-1）
 }
 
 // DefaultLifecycleConfig 返回默认配置
 func DefaultLifecycleConfig() *LifecycleConfig {
 	return &LifecycleConfig{
-		DefaultRetentionDays:  60,
-		Enabled:               true,
-		CleanupSchedule:       "daily",
-		CleanupTime:           "02:00",
-		CleanupBatchSize:      1000,
-		CleanupInterval:       60,
-		MaxConcurrentCleanups: 2,
-		CleanupTimeout:        120,
-		MaxDeleteRate:         0,
+		DefaultRetentionDays:   60,
+		Enabled:                true,
+		CleanupSchedule:        "daily",
+		CleanupTime:            "02:00",
+		CleanupBatchSize:       1000,
+		CleanupInterval:        60,
+		MaxConcurrentCleanups:  2,
+		CleanupTimeout:         120,
+		MaxDeleteRate:          0,
 		MaxDiskUsageForCleanup: 0.85,
-		MaxHistoryRecords:     1000,
-		CustomPolicies:        make([]*RetentionPolicy, 0),
-		QueryIsolationEnabled: true,
-		CleanupThrottleRate:   0.5,
+		MaxHistoryRecords:      1000,
+		CustomPolicies:         make([]*RetentionPolicy, 0),
+		QueryIsolationEnabled:  true,
+		CleanupThrottleRate:    0.5,
 	}
 }

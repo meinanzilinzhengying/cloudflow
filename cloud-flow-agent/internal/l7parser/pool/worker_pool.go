@@ -43,8 +43,8 @@ type WorkerPool struct {
 	stats Stats
 
 	// 动态扩容控制
-	scaleMu      sync.Mutex
-	lastScaleUp  time.Time
+	scaleMu       sync.Mutex
+	lastScaleUp   time.Time
 	lastScaleDown time.Time
 
 	// 信号量 (用于 backpressure)
@@ -53,17 +53,17 @@ type WorkerPool struct {
 
 // Config Worker Pool 配置
 type Config struct {
-	MinWorkers      int           // 最小 worker 数
-	MaxWorkers      int           // 最大 worker 数
-	QueueSize       int           // 任务队列大小
-	PriorityQueueSize int         // 优先级队列大小
-	BatchSize       int           // 批量处理大小
-	BatchTimeout    time.Duration // 批量超时
-	ScaleUpThreshold float64      // 扩容阈值 (队列使用率)
-	ScaleDownThreshold float64    // 缩容阈值
-	ScaleCooldown   time.Duration // 扩缩容冷却时间
-	EnableBackpressure bool       // 启用背压
-	MaxPendingTasks int           // 最大待处理任务数
+	MinWorkers         int           // 最小 worker 数
+	MaxWorkers         int           // 最大 worker 数
+	QueueSize          int           // 任务队列大小
+	PriorityQueueSize  int           // 优先级队列大小
+	BatchSize          int           // 批量处理大小
+	BatchTimeout       time.Duration // 批量超时
+	ScaleUpThreshold   float64       // 扩容阈值 (队列使用率)
+	ScaleDownThreshold float64       // 缩容阈值
+	ScaleCooldown      time.Duration // 扩缩容冷却时间
+	EnableBackpressure bool          // 启用背压
+	MaxPendingTasks    int           // 最大待处理任务数
 }
 
 // DefaultConfig 返回默认配置
@@ -86,25 +86,25 @@ func DefaultConfig() Config {
 
 // Stats Worker Pool 统计
 type Stats struct {
-	ActiveWorkers   int32
-	TotalWorkers    int32
-	TasksSubmitted  uint64
-	TasksProcessed  uint64
-	TasksDropped    uint64
-	TasksPriority   uint64
+	ActiveWorkers    int32
+	TotalWorkers     int32
+	TasksSubmitted   uint64
+	TasksProcessed   uint64
+	TasksDropped     uint64
+	TasksPriority    uint64
 	QueueUtilization float64
-	ScaleUpCount    uint64
-	ScaleDownCount  uint64
+	ScaleUpCount     uint64
+	ScaleDownCount   uint64
 }
 
 // Worker 解析 Worker
 type Worker struct {
-	id       int
-	pool     *WorkerPool
-	parser   l7parser.Parser
-	ctx      context.Context
-	cancel   context.CancelFunc
-	busy     atomic.Bool
+	id        int
+	pool      *WorkerPool
+	parser    l7parser.Parser
+	ctx       context.Context
+	cancel    context.CancelFunc
+	busy      atomic.Bool
 	taskCount uint64
 }
 

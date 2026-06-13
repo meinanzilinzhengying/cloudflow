@@ -15,19 +15,19 @@ import (
 // ProfilerService 剖析服务接口
 // 提供给Agent主模块调用的接口
 type ProfilerService struct {
-	manager   *ProfilerManager
-	config    *ServiceConfig
-	mu        sync.RWMutex
-	running   bool
-	stopCh    chan struct{}
+	manager *ProfilerManager
+	config  *ServiceConfig
+	mu      sync.RWMutex
+	running bool
+	stopCh  chan struct{}
 }
 
 // ServiceConfig 服务配置
 type ServiceConfig struct {
-	DefaultSampleFreq    int           // 默认采样频率
-	DefaultDuration      time.Duration // 默认剖析时长
-	MaxConcurrentSessions int          // 最大并发会话数
-	EnableAutoDiscovery  bool          // 是否启用进程自动发现
+	DefaultSampleFreq     int           // 默认采样频率
+	DefaultDuration       time.Duration // 默认剖析时长
+	MaxConcurrentSessions int           // 最大并发会话数
+	EnableAutoDiscovery   bool          // 是否启用进程自动发现
 }
 
 // ProfileRequest 剖析请求
@@ -38,10 +38,10 @@ type ProfileRequest struct {
 	ProcessName string   `json:"process_name,omitempty"` // 进程名匹配
 
 	// 剖析配置
-	Duration       int    `json:"duration,omitempty"`        // 剖析时长(秒)
-	SampleFreq     int    `json:"sample_freq,omitempty"`     // 采样频率(Hz)
-	MaxStackDepth  int    `json:"max_stack_depth,omitempty"` // 最大栈深度
-	IncludeKernel  bool   `json:"include_kernel,omitempty"`  // 包含内核栈
+	Duration      int  `json:"duration,omitempty"`        // 剖析时长(秒)
+	SampleFreq    int  `json:"sample_freq,omitempty"`     // 采样频率(Hz)
+	MaxStackDepth int  `json:"max_stack_depth,omitempty"` // 最大栈深度
+	IncludeKernel bool `json:"include_kernel,omitempty"`  // 包含内核栈
 
 	// 输出配置
 	OutputFormat string `json:"output_format,omitempty"` // 输出格式: svg/json/text
@@ -49,15 +49,15 @@ type ProfileRequest struct {
 
 // ProfileResponse 剖析响应
 type ProfileResponse struct {
-	SessionID     string        `json:"session_id,omitempty"`     // 会话ID
-	Status        string        `json:"status,omitempty"`         // 状态
-	Duration      int           `json:"duration,omitempty"`       // 实际剖析时长(秒)
-	TotalSamples  uint64        `json:"total_samples,omitempty"`  // 总采样数
-	SampleFreq    int           `json:"sample_freq,omitempty"`    // 实际采样频率
+	SessionID     string        `json:"session_id,omitempty"`      // 会话ID
+	Status        string        `json:"status,omitempty"`          // 状态
+	Duration      int           `json:"duration,omitempty"`        // 实际剖析时长(秒)
+	TotalSamples  uint64        `json:"total_samples,omitempty"`   // 总采样数
+	SampleFreq    int           `json:"sample_freq,omitempty"`     // 实际采样频率
 	FlameGraphSVG []byte        `json:"flame_graph_svg,omitempty"` // 火焰图SVG
-	HotFunctions  []HotFunction `json:"hot_functions,omitempty"`  // 热点函数
-	RawData       []byte        `json:"raw_data,omitempty"`       // 原始数据(JSON格式)
-	Error         string        `json:"error,omitempty"`          // 错误信息
+	HotFunctions  []HotFunction `json:"hot_functions,omitempty"`   // 热点函数
+	RawData       []byte        `json:"raw_data,omitempty"`        // 原始数据(JSON格式)
+	Error         string        `json:"error,omitempty"`           // 错误信息
 }
 
 // ==================== 构造函数 ====================

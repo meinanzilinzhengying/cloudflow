@@ -19,39 +19,39 @@ type CleanupExecutor func(ctx context.Context, category DataCategory) (*CleanupT
 
 // CleanupScheduler 清理调度器
 type CleanupScheduler struct {
-	config    *LifecycleConfig
-	policies  *RetentionPolicyManager
+	config   *LifecycleConfig
+	policies *RetentionPolicyManager
 
 	// 执行器
 	executor CleanupExecutor
 
 	// 调度状态
-	running      bool
-	mu           sync.RWMutex
-	stopCh       chan struct{}
-	wg           sync.WaitGroup
-	lastCleanup  time.Time
-	nextCleanup  time.Time
+	running     bool
+	mu          sync.RWMutex
+	stopCh      chan struct{}
+	wg          sync.WaitGroup
+	lastCleanup time.Time
+	nextCleanup time.Time
 
 	// 并发控制
-	semaphore    chan struct{}
-	activeTasks  int
-	taskMu       sync.Mutex
+	semaphore   chan struct{}
+	activeTasks int
+	taskMu      sync.Mutex
 
 	// 限速器
-	throttler    *CleanupThrottler
+	throttler *CleanupThrottler
 
 	// 查询隔离
-	queryGuard   *QueryIsolationGuard
+	queryGuard *QueryIsolationGuard
 }
 
 // NewCleanupScheduler 创建清理调度器
 func NewCleanupScheduler(cfg *LifecycleConfig) *CleanupScheduler {
 	scheduler := &CleanupScheduler{
-		config:    cfg,
-		stopCh:    make(chan struct{}),
-		semaphore: make(chan struct{}, cfg.MaxConcurrentCleanups),
-		throttler: NewCleanupThrottler(cfg),
+		config:     cfg,
+		stopCh:     make(chan struct{}),
+		semaphore:  make(chan struct{}, cfg.MaxConcurrentCleanups),
+		throttler:  NewCleanupThrottler(cfg),
 		queryGuard: NewQueryIsolationGuard(cfg),
 	}
 
@@ -324,7 +324,7 @@ func NewCleanupThrottler(cfg *LifecycleConfig) *CleanupThrottler {
 // WrapContext 包装上下文（支持暂停和限速）
 func (t *CleanupThrottler) WrapContext(ctx context.Context) context.Context {
 	return &cleanupContext{
-		Context:  ctx,
+		Context:   ctx,
 		throttler: t,
 	}
 }
@@ -405,11 +405,11 @@ type cleanupContext struct {
 
 // TokenBucketRateLimiter 令牌桶限速器
 type TokenBucketRateLimiter struct {
-	rate       int64         // 每秒产生的令牌数
-	burst      int64         // 桶容量
-	tokens     int64         // 当前令牌数
-	lastTime   time.Time     // 上次填充时间
-	mu         sync.Mutex
+	rate     int64     // 每秒产生的令牌数
+	burst    int64     // 桶容量
+	tokens   int64     // 当前令牌数
+	lastTime time.Time // 上次填充时间
+	mu       sync.Mutex
 }
 
 // NewTokenBucketRateLimiter 创建令牌桶限速器
@@ -481,8 +481,8 @@ type QueryIsolationGuard struct {
 // NewQueryIsolationGuard 创建查询隔离守卫
 func NewQueryIsolationGuard(cfg *LifecycleConfig) *QueryIsolationGuard {
 	return &QueryIsolationGuard{
-		config:           cfg,
-		activeCleanups:   make(map[DataCategory]bool),
+		config:            cfg,
+		activeCleanups:    make(map[DataCategory]bool),
 		highLoadThreshold: 10, // 超过10个并发查询视为高负载
 		lowLoadThreshold:  3,  // 低于3个并发查询视为低负载
 	}

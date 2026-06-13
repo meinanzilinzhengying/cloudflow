@@ -29,7 +29,7 @@ type Engine struct {
 
 	// Worker Pool
 	workers []*parserWorker
-	
+
 	// 任务队列 (每个 worker 一个队列，避免竞争)
 	queues []chan *ParseTask
 
@@ -66,12 +66,12 @@ type ParseTask struct {
 
 // parserWorker 解析 worker
 type parserWorker struct {
-	id        int
-	engine    *Engine
-	queue     chan *ParseTask
-	parser    Parser
-	ctx       context.Context
-	cancel    context.CancelFunc
+	id     int
+	engine *Engine
+	queue  chan *ParseTask
+	parser Parser
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewEngine 创建 L7 解析引擎

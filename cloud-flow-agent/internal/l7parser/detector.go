@@ -18,10 +18,10 @@ type ProtocolDetector struct {
 
 // DetectionRule 检测规则
 type DetectionRule struct {
-	Name        string
-	ParserType  ParserType
-	Priority    int
-	MatchFunc   func(data []byte, dstPort uint16) (bool, float64)
+	Name       string
+	ParserType ParserType
+	Priority   int
+	MatchFunc  func(data []byte, dstPort uint16) (bool, float64)
 }
 
 // NewProtocolDetector 创建协议检测器
@@ -274,7 +274,7 @@ func isInlineRedisCommand(data []byte) bool {
 	}
 
 	// 检查是否以 RESP 类型字符开头
-	if bytes.IndexByte([]byte("+-:$*_#!,(">"), data[0]) >= 0 {
+	if bytes.IndexByte([]byte(`+-:$*_#!,(">`), data[0]) >= 0 {
 		return false
 	}
 

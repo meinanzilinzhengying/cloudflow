@@ -336,7 +336,7 @@ func (b *Breaker) checkFromSilent(s ResourceSnapshot) {
 
 // transitionTo 执行状态转换（调用前必须持有锁）
 func (b *Breaker) transitionTo(to State, s ResourceSnapshot) {
-	from := b.state
+	_ = b.state // 状态转换日志（原from变量）
 	b.state = to
 
 	// 重置CPU持续超限追踪

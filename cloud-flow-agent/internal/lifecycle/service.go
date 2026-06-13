@@ -15,9 +15,9 @@ import (
 // 将 lifecycle 的 DataScanner 接口适配到 storage.TimeSeriesStore
 type StorageAdapter struct {
 	// 存储操作接口（由外部注入）
-	scanFunc    func(ctx context.Context, cutoffTime time.Time, category DataCategory, callback func(batch DataBatch) bool) error
-	deleteFunc  func(ctx context.Context, batch DataBatch) (int64, int64, error)
-	statsFunc   func(ctx context.Context, category DataCategory) (*CategoryDataStats, error)
+	scanFunc   func(ctx context.Context, cutoffTime time.Time, category DataCategory, callback func(batch DataBatch) bool) error
+	deleteFunc func(ctx context.Context, batch DataBatch) (int64, int64, error)
+	statsFunc  func(ctx context.Context, category DataCategory) (*CategoryDataStats, error)
 }
 
 // NewStorageAdapter 创建存储适配器
@@ -69,9 +69,9 @@ func (a *StorageAdapter) GetCategoryStats(ctx context.Context, category DataCate
 // LifecycleService 生命周期服务
 // 对外暴露的统一接口，整合管理器、策略、调度器
 type LifecycleService struct {
-	manager    *LifecycleManager
-	adapter    *StorageAdapter
-	config     *LifecycleConfig
+	manager *LifecycleManager
+	adapter *StorageAdapter
+	config  *LifecycleConfig
 
 	// 运行状态
 	running bool
@@ -243,14 +243,14 @@ func (s *LifecycleService) GetServiceStatus() *LifecycleServiceStatus {
 	}
 
 	return &LifecycleServiceStatus{
-		Running:        running,
-		Enabled:        s.config.Enabled,
-		DefaultDays:    s.config.DefaultRetentionDays,
-		NextCleanup:    s.manager.scheduler.GetNextCleanupTime(),
-		LastCleanup:    s.manager.scheduler.GetLastCleanupTime(),
-		PolicyCount:    len(policies),
-		Policies:       policySummary,
-		TotalCleaned:   stats.TotalDeleted,
+		Running:         running,
+		Enabled:         s.config.Enabled,
+		DefaultDays:     s.config.DefaultRetentionDays,
+		NextCleanup:     s.manager.scheduler.GetNextCleanupTime(),
+		LastCleanup:     s.manager.scheduler.GetLastCleanupTime(),
+		PolicyCount:     len(policies),
+		Policies:        policySummary,
+		TotalCleaned:    stats.TotalDeleted,
 		TotalBytesFreed: stats.TotalBytesFreed,
 	}
 }

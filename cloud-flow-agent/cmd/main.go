@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/config"
-	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
 )
 
 var Version = "dev"
@@ -78,11 +77,6 @@ func shutdownComponents(deps *Dependencies) {
 				deps.SelfMonitor.Stop()
 			}
 		}},
-		{"EBPFCollector", func() {
-			if deps.EBPFCollector != nil {
-				deps.EBPFCollector.Stop()
-			}
-		}},
 		{"TSStore", func() {
 			if deps.TSStore != nil {
 				deps.TSStore.Close()
@@ -123,7 +117,7 @@ func shutdownComponents(deps *Dependencies) {
 	select {
 	case <-done:
 		// 所有组件已关闭
-	case <-ctx.Done():
+	case <-time.After(30 * time.Second):
 		// 超时
 	}
 }

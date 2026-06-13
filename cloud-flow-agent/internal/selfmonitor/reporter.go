@@ -125,7 +125,6 @@ func (r *Reporter) snapshotToMetrics(s MetricsSnapshot) []*edge.MetricData {
 		{
 			Timestamp: now,
 			ProbeId:   r.probeID,
-			MetricId:  "self_heartbeat_status",
 			Name:      "agent_heartbeat_status",
 			Value:     float64(s.HeartbeatStatus),
 			Tags:      mergeTags(baseTags, map[string]string{"metric_type": "status"}),
@@ -133,7 +132,6 @@ func (r *Reporter) snapshotToMetrics(s MetricsSnapshot) []*edge.MetricData {
 		{
 			Timestamp: now,
 			ProbeId:   r.probeID,
-			MetricId:  "self_heartbeat_latency_ms",
 			Name:      "agent_heartbeat_latency",
 			Value:     s.HeartbeatLatencyMs,
 			Tags:      mergeTags(baseTags, map[string]string{"metric_type": "latency", "unit": "ms"}),
@@ -141,7 +139,6 @@ func (r *Reporter) snapshotToMetrics(s MetricsSnapshot) []*edge.MetricData {
 		{
 			Timestamp: now,
 			ProbeId:   r.probeID,
-			MetricId:  "self_cpu_percent",
 			Name:      "agent_cpu_usage",
 			Value:     s.CPUPercent,
 			Tags:      mergeTags(baseTags, map[string]string{"metric_type": "usage", "unit": "percent"}),
@@ -149,7 +146,6 @@ func (r *Reporter) snapshotToMetrics(s MetricsSnapshot) []*edge.MetricData {
 		{
 			Timestamp: now,
 			ProbeId:   r.probeID,
-			MetricId:  "self_memory_percent",
 			Name:      "agent_memory_usage",
 			Value:     s.MemoryPercent,
 			Tags:      mergeTags(baseTags, map[string]string{"metric_type": "usage", "unit": "percent"}),
@@ -157,7 +153,6 @@ func (r *Reporter) snapshotToMetrics(s MetricsSnapshot) []*edge.MetricData {
 		{
 			Timestamp: now,
 			ProbeId:   r.probeID,
-			MetricId:  "self_packet_drop_rate",
 			Name:      "agent_packet_drop_rate",
 			Value:     s.PacketDropRate,
 			Tags:      mergeTags(baseTags, map[string]string{"metric_type": "rate", "unit": "percent"}),
@@ -165,7 +160,6 @@ func (r *Reporter) snapshotToMetrics(s MetricsSnapshot) []*edge.MetricData {
 		{
 			Timestamp: now,
 			ProbeId:   r.probeID,
-			MetricId:  "self_report_success_rate",
 			Name:      "agent_report_success_rate",
 			Value:     s.ReportSuccessRate,
 			Tags:      mergeTags(baseTags, map[string]string{"metric_type": "rate", "unit": "percent"}),

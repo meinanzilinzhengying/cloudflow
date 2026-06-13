@@ -11,8 +11,6 @@ import (
 	"math"
 	"math/bits"
 	"strings"
-	"sync"
-	"sync/atomic"
 )
 
 // Compressor 压缩器接口
@@ -64,7 +62,7 @@ func (c *NopCompressor) Type() CompressionType {
 // 特点：高压缩率(≥20:1结构化数据, ≥6:1日志数据)，解压速度快
 type ZSTDCompressor struct {
 	compressionLevel int
-	ratio           atomic.Float64
+	ratio            AtomicFloat64
 }
 
 func NewZSTDCompressor() *ZSTDCompressor {
@@ -77,16 +75,16 @@ func (c *ZSTDCompressor) Compress(data []byte) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	
+
 	// 使用简单压缩实现(兼容无外部库环境)
 	// 实际生产环境应使用 github.com/klauspost/compress/zstd
 	compressed := c.compressZSTD(data)
-	
+
 	if len(compressed) > 0 {
 		ratio := float64(len(data)) / float64(len(compressed))
 		c.ratio.Store(ratio)
 	}
-	
+
 	return compressed, nil
 }
 
@@ -94,7 +92,7 @@ func (c *ZSTDCompressor) Decompress(data []byte) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	
+
 	return c.decompressZSTD(data)
 }
 
@@ -114,7 +112,7 @@ func (c *ZSTDCompressor) Type() CompressionType {
 func (c *ZSTDCompressor) compressZSTD(data []byte) []byte {
 	// 检测数据模式
 	mode := detectDataMode(data)
-	
+
 	switch mode {
 	case ModeSortedInts:
 		return c.compressSortedInts(data)
@@ -130,10 +128,10 @@ func (c *ZSTDCompressor) decompressZSTD(data []byte) ([]byte, error) {
 	if len(data) < 4 {
 		return nil, errors.New("数据太短")
 	}
-	
+
 	// 读取模式标识
 	mode := DataMode(data[0])
-	
+
 	switch mode {
 	case ModeSortedInts:
 		return c.decompressSortedInts(data[1:])
@@ -160,7 +158,7 @@ func detectDataMode(data []byte) DataMode {
 	if len(data) < 8 {
 		return ModeGeneric
 	}
-	
+
 	// 检查是否全是可打印字符
 	printableCount := 0
 	for _, b := range data[:min(100, len(data))] {
@@ -168,11 +166,11 @@ func detectDataMode(data []byte) DataMode {
 			printableCount++
 		}
 	}
-	
+
 	if float64(printableCount)/float64(min(100, len(data))) > 0.9 {
 		return ModeText
 	}
-	
+
 	// 检查是否是整数序列
 	isIntSequence := true
 	for i := 0; i < min(10, len(data)/8); i++ {
@@ -185,11 +183,11 @@ func detectDataMode(data []byte) DataMode {
 			}
 		}
 	}
-	
+
 	if isIntSequence && len(data) >= 16 {
 		return ModeSortedInts
 	}
-	
+
 	return ModeGeneric
 }
 
@@ -197,26 +195,26 @@ func detectDataMode(data []byte) DataMode {
 func (c *ZSTDCompressor) compressSortedInts(data []byte) []byte {
 	result := make([]byte, 0, len(data))
 	result = append(result, byte(ModeSortedInts))
-	
+
 	// 写入第一个值(完整)
 	if len(data) >= 8 {
 		result = append(result, data[:8]...)
 	}
-	
+
 	// 计算差值并压缩
 	i := 8
 	for i+8 <= len(data) {
 		prev := int64(binary.LittleEndian.Uint64(data[i-8 : i]))
 		curr := int64(binary.LittleEndian.Uint64(data[i : i+8]))
 		delta := curr - prev
-		
+
 		// Varint编码
 		var encoded [10]byte
 		n := encodeVarint(encoded[:], delta)
 		result = append(result, encoded[:n]...)
 		i += 8
 	}
-	
+
 	return result
 }
 
@@ -225,13 +223,13 @@ func (c *ZSTDCompressor) decompressSortedInts(data []byte) ([]byte, error) {
 	if len(data) < 8 {
 		return nil, errors.New("数据太短")
 	}
-	
+
 	result := make([]byte, 0, len(data)*10)
-	
+
 	// 读取第一个值
 	prev := int64(binary.LittleEndian.Uint64(data[:8]))
 	result = append(result, data[:8]...)
-	
+
 	// 解码差值
 	i := 8
 	for i < len(data) {
@@ -240,13 +238,13 @@ func (c *ZSTDCompressor) decompressSortedInts(data []byte) ([]byte, error) {
 			break
 		}
 		prev += delta
-		
+
 		var val [8]byte
 		binary.LittleEndian.PutUint64(val[:], uint64(prev))
 		result = append(result, val[:]...)
 		i += n
 	}
-	
+
 	return result, nil
 }
 
@@ -254,22 +252,22 @@ func (c *ZSTDCompressor) decompressSortedInts(data []byte) ([]byte, error) {
 func (c *ZSTDCompressor) compressText(data []byte) []byte {
 	result := make([]byte, 0, len(data)+256)
 	result = append(result, byte(ModeText))
-	
+
 	// 简单的字典压缩
 	dict := buildTextDictionary(data)
-	
+
 	// 写入字典大小
 	var dictSize [4]byte
 	binary.LittleEndian.PutUint32(dictSize[:], uint32(len(dict)))
 	result = append(result, dictSize[:]...)
-	
+
 	// 写入字典
 	result = append(result, dict...)
-	
+
 	// 使用字典压缩数据
 	compressed := compressWithDictionary(data, dict)
 	result = append(result, compressed...)
-	
+
 	return result
 }
 
@@ -278,19 +276,19 @@ func (c *ZSTDCompressor) decompressText(data []byte) ([]byte, error) {
 	if len(data) < 4 {
 		return nil, errors.New("数据太短")
 	}
-	
+
 	// 读取字典大小
 	dictSize := binary.LittleEndian.Uint32(data[:4])
 	if int(dictSize) > len(data)-4 {
 		return nil, errors.New("字典大小无效")
 	}
-	
+
 	// 读取字典
 	dict := data[4 : 4+dictSize]
-	
+
 	// 读取压缩数据
 	compressed := data[4+dictSize:]
-	
+
 	// 解压
 	return decompressWithDictionary(compressed, dict)
 }
@@ -299,32 +297,31 @@ func (c *ZSTDCompressor) decompressText(data []byte) ([]byte, error) {
 func (c *ZSTDCompressor) compressGeneric(data []byte) []byte {
 	result := make([]byte, 0, len(data)+64)
 	result = append(result, byte(ModeGeneric))
-	
+
 	// 简单的游程编码 + 字典压缩
 	windowSize := 4096
 	minMatch := 4
-	
+
 	i := 0
 	for i < len(data) {
 		bestLen := 0
 		bestOffset := 0
-		
+
 		// 在滑动窗口中查找最长匹配
 		start := max(0, i-windowSize)
 		for j := start; j < i; j++ {
-			len := 0
-			for i+len < len(data) && j+len < i && data[i+len] == data[j+len] {
-				len++
-				if len >= 255 {
+			matchLen := 0
+			for i+matchLen < len(data) && j+matchLen < i && data[i+matchLen] == data[j+matchLen] {
+				matchLen++
+				if matchLen >= 255 {
 					break
 				}
 			}
-			if len > bestLen && len >= minMatch {
-				bestLen = len
+			if matchLen > bestLen && matchLen >= minMatch {
+				bestLen = matchLen
 				bestOffset = i - j
 			}
 		}
-		
 		if bestLen >= minMatch {
 			// 写入引用: 0xFF 偏移(2字节) 长度(1字节)
 			result = append(result, 0xFF)
@@ -339,21 +336,21 @@ func (c *ZSTDCompressor) compressGeneric(data []byte) []byte {
 			i++
 		}
 	}
-	
+
 	return result
 }
 
 // decompressGeneric 解压通用数据
 func (c *ZSTDCompressor) decompressGeneric(data []byte) ([]byte, error) {
 	result := make([]byte, 0, len(data)*10)
-	
+
 	i := 0
 	for i < len(data) {
 		if data[i] == 0xFF && i+3 <= len(data) {
 			offset := binary.LittleEndian.Uint16(data[i+1 : i+3])
 			length := int(data[i+3])
 			i += 4
-			
+
 			start := len(result) - int(offset)
 			for j := 0; j < length; j++ {
 				result = append(result, result[start+j])
@@ -363,14 +360,14 @@ func (c *ZSTDCompressor) decompressGeneric(data []byte) ([]byte, error) {
 			i++
 		}
 	}
-	
+
 	return result, nil
 }
 
 // LZ4Compressor LZ4压缩器
 // 特点：极速压缩解压，适合日志数据
 type LZ4Compressor struct {
-	ratio atomic.Float64
+	ratio AtomicFloat64
 }
 
 func NewLZ4Compressor() *LZ4Compressor {
@@ -381,15 +378,15 @@ func (c *LZ4Compressor) Compress(data []byte) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	
+
 	// 使用简化实现
 	compressed := c.lz4Compress(data)
-	
+
 	if len(compressed) > 0 {
 		ratio := float64(len(data)) / float64(len(compressed))
 		c.ratio.Store(ratio)
 	}
-	
+
 	return compressed, nil
 }
 
@@ -426,7 +423,7 @@ func (c *LZ4Compressor) lz4Decompress(data []byte) ([]byte, error) {
 // DeltaCompressor 增量编码压缩器
 // 适合时序数据：时间戳差值小，值变化平滑
 type DeltaCompressor struct {
-	ratio atomic.Float64
+	ratio AtomicFloat64
 }
 
 func NewDeltaCompressor() *DeltaCompressor {
@@ -437,10 +434,10 @@ func (c *DeltaCompressor) Compress(data []byte) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	
+
 	result := make([]byte, 0, len(data))
 	result = append(result, byte(ModeDelta))
-	
+
 	// 检测并压缩
 	if isTimeSeriesData(data) {
 		compressed := c.compressTimeSeries(data)
@@ -449,12 +446,12 @@ func (c *DeltaCompressor) Compress(data []byte) ([]byte, error) {
 		compressed := c.compressDelta(data)
 		result = append(result, compressed...)
 	}
-	
+
 	if len(result) > 1 {
 		ratio := float64(len(data)) / float64(len(result)-1)
 		c.ratio.Store(ratio)
 	}
-	
+
 	return result, nil
 }
 
@@ -462,7 +459,7 @@ func (c *DeltaCompressor) Decompress(data []byte) ([]byte, error) {
 	if len(data) == 0 || data[0] != byte(ModeDelta) {
 		return nil, errors.New("无效数据格式")
 	}
-	
+
 	return c.decompressDelta(data[1:])
 }
 
@@ -484,7 +481,7 @@ func isTimeSeriesData(data []byte) bool {
 	if len(data) < 16 {
 		return false
 	}
-	
+
 	count := 0
 	for i := 0; i+8 <= len(data) && i < 64; i += 8 {
 		ts := int64(binary.LittleEndian.Uint64(data[i : i+8]))
@@ -492,57 +489,57 @@ func isTimeSeriesData(data []byte) bool {
 			count++
 		}
 	}
-	
+
 	return count >= 4
 }
 
 // compressTimeSeries 压缩时序数据
 func (c *DeltaCompressor) compressTimeSeries(data []byte) []byte {
 	result := make([]byte, 0, len(data))
-	
+
 	// 写入第一个时间戳
 	if len(data) >= 8 {
 		result = append(result, data[:8]...)
 	}
-	
+
 	// 压缩时间戳差值
 	i := 8
 	for i+8 <= len(data) {
 		prev := int64(binary.LittleEndian.Uint64(data[i-8 : i]))
 		curr := int64(binary.LittleEndian.Uint64(data[i : i+8]))
 		delta := curr - prev
-		
+
 		var encoded [10]byte
 		n := encodeVarint(encoded[:], delta)
 		result = append(result, encoded[:n]...)
 		i += 8
 	}
-	
+
 	return result
 }
 
 // compressDelta 压缩差值
 func (c *DeltaCompressor) compressDelta(data []byte) []byte {
 	result := make([]byte, 0, len(data))
-	
+
 	// 写入第一个值
 	if len(data) >= 8 {
 		result = append(result, data[:8]...)
 	}
-	
+
 	// 计算并压缩差值
 	i := 8
 	for i+8 <= len(data) {
 		prev := binary.LittleEndian.Uint64(data[i-8 : i])
 		curr := binary.LittleEndian.Uint64(data[i : i+8])
 		delta := curr - prev
-		
+
 		var encoded [10]byte
 		n := encodeVarint(encoded[:], int64(delta))
 		result = append(result, encoded[:n]...)
 		i += 8
 	}
-	
+
 	return result
 }
 
@@ -551,26 +548,26 @@ func (c *DeltaCompressor) decompressDelta(data []byte) ([]byte, error) {
 	if len(data) < 8 {
 		return nil, errors.New("数据太短")
 	}
-	
+
 	result := make([]byte, 0, len(data)*10)
 	result = append(result, data[:8]...)
-	
+
 	i := 8
 	for i < len(data) {
 		delta, n := decodeVarint(data[i:])
 		if n == 0 {
 			break
 		}
-		
+
 		prev := int64(binary.LittleEndian.Uint64(result[len(result)-8:]))
 		curr := prev + delta
-		
+
 		var val [8]byte
 		binary.LittleEndian.PutUint64(val[:], uint64(curr))
 		result = append(result, val[:]...)
 		i += n
 	}
-	
+
 	return result, nil
 }
 
@@ -580,8 +577,8 @@ func (c *DeltaCompressor) decompressDelta(data []byte) ([]byte, error) {
 
 // MetricCompressor 结构化指标专用 Zstandard 压缩器
 type MetricCompressor struct {
-	level int            // 压缩级别（1-22，默认19追求高压缩比）
-	ratio atomic.Float64
+	level int // 压缩级别（1-22，默认19追求高压缩比）
+	ratio AtomicFloat64
 }
 
 // NewMetricCompressor 创建指标专用压缩器
@@ -676,9 +673,9 @@ type metricDataMode byte
 
 const (
 	modeTimestampSeries metricDataMode = iota + 1 // 时间戳密集序列
-	modeNumericTable                               // 数值表格
-	modeTaggedMetric                               // 带标签指标
-	modeGenericMetric                              // 通用指标
+	modeNumericTable                              // 数值表格
+	modeTaggedMetric                              // 带标签指标
+	modeGenericMetric                             // 通用指标
 )
 
 // detectMetricMode 检测指标数据模式
@@ -860,7 +857,7 @@ func (c *MetricCompressor) compressNumericTable(data []byte) []byte {
 				// 写入有效字节（跳过前导零和后导零）
 				startByte := lz / 8
 				endByte := (63 - tz) / 8
-				result = append(result, data[i*8+startByte:i*8+endByte+1]...)
+				result = append(result, data[int(i)*8+int(startByte):int(i)*8+int(endByte)+1]...)
 
 				leadingZeros = lz
 				trailingZeros = tz
@@ -1313,7 +1310,7 @@ func (c *MetricCompressor) decompressLZ77(data []byte) ([]byte, error) {
 
 // SnappyCompressor Snappy 风格压缩器（日志数据专用）
 type SnappyCompressor struct {
-	ratio atomic.Float64
+	ratio AtomicFloat64
 }
 
 // NewSnappyCompressor 创建 Snappy 压缩器
@@ -1402,20 +1399,19 @@ func (c *SnappyCompressor) dedupLines(data []byte) []byte {
 			count++
 		}
 
-		line := lines[i]
-		lineLen := len(line)
+		_ = len(lines[i]) // lineLen 暂时未使用
 
 		if count == 1 {
 			// 单次出现：写入 0x00 + 行内容
 			result = append(result, 0x00)
-			result = append(result, line...)
+			result = append(result, lines[i]...)
 		} else {
 			// 重复出现：写入 0x01 + 计数(2字节) + 行内容
 			result = append(result, 0x01)
 			var countBuf [2]byte
 			binary.LittleEndian.PutUint16(countBuf[:], uint16(count))
 			result = append(result, countBuf[:]...)
-			result = append(result, line...)
+			result = append(result, lines[i]...)
 		}
 
 		// 写入换行符
@@ -1493,7 +1489,7 @@ type snappyMode byte
 
 const (
 	snappyModeDedup snappyMode = iota + 1 // 行去重模式
-	snappyModeRaw                        // 原始 LZ77 模式
+	snappyModeRaw                         // 原始 LZ77 模式
 )
 
 // snappyCompress Snappy 风格 LZ77 压缩
@@ -1693,7 +1689,7 @@ func decodeUint(b []byte) (uint64, int) {
 	var result uint64
 	var shift uint
 	n := 0
-	
+
 	for n < len(b) {
 		c := uint64(b[n])
 		n++
@@ -1703,7 +1699,7 @@ func decodeUint(b []byte) (uint64, int) {
 		}
 		shift += 7
 	}
-	
+
 	return 0, 0
 }
 
@@ -1711,7 +1707,7 @@ func decodeUint(b []byte) (uint64, int) {
 func buildTextDictionary(data []byte) []byte {
 	// 统计高频子串
 	freq := make(map[string]int)
-	
+
 	for i := 0; i+4 < len(data); i++ {
 		// 提取4-8字节的子串
 		for l := 4; l <= 8 && i+l <= len(data); l++ {
@@ -1719,7 +1715,7 @@ func buildTextDictionary(data []byte) []byte {
 			freq[substr]++
 		}
 	}
-	
+
 	// 选择高频项作为字典
 	var dict bytes.Buffer
 	for s, c := range freq {
@@ -1728,17 +1724,17 @@ func buildTextDictionary(data []byte) []byte {
 			dict.WriteByte(0) // 分隔符
 		}
 	}
-	
+
 	return dict.Bytes()
 }
 
 // compressWithDictionary 使用字典压缩
 func compressWithDictionary(data, dict []byte) []byte {
 	result := make([]byte, 0, len(data))
-	
+
 	// 简单实现: 替换字典中的匹配
 	remaining := data
-	
+
 	for len(remaining) > 0 {
 		matched := false
 		// 查找最长匹配
@@ -1760,26 +1756,26 @@ func compressWithDictionary(data, dict []byte) []byte {
 				}
 			}
 		}
-		
+
 		if !matched {
 			result = append(result, remaining[0])
 			remaining = remaining[1:]
 		}
 	}
-	
+
 	return result
 }
 
 // decompressWithDictionary 使用字典解压
 func decompressWithDictionary(data, dict []byte) ([]byte, error) {
 	result := make([]byte, 0, len(data)*10)
-	
+
 	i := 0
 	for i < len(data) {
 		if data[i] == 0xFE && i+3 <= len(data) {
 			idx := binary.LittleEndian.Uint16(data[i+1 : i+3])
 			length := int(data[i+3])
-			
+
 			start := int(idx)
 			if start+length <= len(dict) {
 				result = append(result, dict[start:start+length]...)
@@ -1790,7 +1786,7 @@ func decompressWithDictionary(data, dict []byte) ([]byte, error) {
 			i++
 		}
 	}
-	
+
 	return result, nil
 }
 

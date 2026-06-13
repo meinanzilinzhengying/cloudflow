@@ -22,23 +22,23 @@ type ResourceLimit struct {
 
 // ResourceLimiter 资源限制器
 type ResourceLimiter struct {
-	log          *logger.Logger
-	limit        ResourceLimit
-	mu           sync.RWMutex
-	stopCh       chan struct{}
-	interval     time.Duration
-	
+	log      *logger.Logger
+	limit    ResourceLimit
+	mu       sync.RWMutex
+	stopCh   chan struct{}
+	interval time.Duration
+
 	// 状态
-	isLimited    bool      // 是否处于限制状态
-	isSilent     bool      // 是否处于静默状态
-	silentStart  time.Time // 静默开始时间
+	isLimited      bool          // 是否处于限制状态
+	isSilent       bool          // 是否处于静默状态
+	silentStart    time.Time     // 静默开始时间
 	silentDuration time.Duration // 静默持续时间
-	
+
 	// 回调
-	onLimit      func()    // 触发限制时的回调
-	onSilent     func()    // 进入静默时的回调
-	onRecover    func()    // 恢复时的回调
-	
+	onLimit   func() // 触发限制时的回调
+	onSilent  func() // 进入静默时的回调
+	onRecover func() // 恢复时的回调
+
 	// 采集控制
 	collectionPaused bool
 	pauseCh          chan struct{}
@@ -59,8 +59,8 @@ type ResourceLimiterConfig struct {
 func DefaultResourceLimiterConfig() ResourceLimiterConfig {
 	return ResourceLimiterConfig{
 		Limit: ResourceLimit{
-			MaxCPUCore:    1.0,   // 默认1核
-			MaxMemoryMB:   1024,  // 默认1GB
+			MaxCPUCore:    1.0,  // 默认1核
+			MaxMemoryMB:   1024, // 默认1GB
 			MaxGoroutines: 10000,
 		},
 		Interval:       5 * time.Second,  // 5秒检查一次
@@ -76,7 +76,7 @@ func NewResourceLimiter(log *logger.Logger, cfg ResourceLimiterConfig) *Resource
 	if cfg.SilentDuration <= 0 {
 		cfg.SilentDuration = 60 * time.Second
 	}
-	
+
 	return &ResourceLimiter{
 		log:            log,
 		limit:          cfg.Limit,
@@ -153,31 +153,31 @@ func (rl *ResourceLimiter) monitorLoop() {
 // checkAndLimit 检查资源并执行限制
 func (rl *ResourceLimiter) checkAndLimit() {
 	stats := rl.collectStats()
-	
+
 	// 检查是否超限
 	cpuExceeded := rl.limit.MaxCPUCore > 0 && stats.CPUUsage > rl.limit.MaxCPUCore*100
 	memExceeded := rl.limit.MaxMemoryMB > 0 && stats.MemoryMB > rl.limit.MaxMemoryMB
 	goroutineExceeded := rl.limit.MaxGoroutines > 0 && stats.GoroutineNum > rl.limit.MaxGoroutines
-	
+
 	exceeded := cpuExceeded || memExceeded || goroutineExceeded
-	
+
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	
+
 	if exceeded && !rl.isLimited {
 		// 触发资源限制
 		rl.isLimited = true
 		rl.enterSilentModeLocked()
-		
+
 		if rl.onLimit != nil {
 			go rl.onLimit()
 		}
-		
+
 		rl.log.Warnf("资源超限触发限制: CPU=%.1f%%(>%d%%), 内存=%.0fMB(>%dMB), 协程=%d(>%d)",
 			stats.CPUUsage, int(rl.limit.MaxCPUCore*100),
 			stats.MemoryMB, int(rl.limit.MaxMemoryMB),
 			stats.GoroutineNum, rl.limit.MaxGoroutines)
-		
+
 	} else if !exceeded && rl.isLimited {
 		// 检查是否可以恢复
 		if time.Since(rl.silentStart) >= rl.silentDuration {
@@ -185,17 +185,17 @@ func (rl *ResourceLimiter) checkAndLimit() {
 			rl.isLimited = false
 			rl.isSilent = false
 			rl.collectionPaused = false
-			
+
 			// 发送恢复信号
 			select {
 			case rl.resumeCh <- struct{}{}:
 			default:
 			}
-			
+
 			if rl.onRecover != nil {
 				go rl.onRecover()
 			}
-			
+
 			rl.log.Info("资源恢复正常，退出限制模式")
 		}
 	}
@@ -206,24 +206,24 @@ func (rl *ResourceLimiter) enterSilentModeLocked() {
 	rl.isSilent = true
 	rl.silentStart = time.Now()
 	rl.collectionPaused = true
-	
+
 	// 发送暂停信号
 	select {
 	case rl.pauseCh <- struct{}{}:
 	default:
 	}
-	
+
 	// 触发GC释放内存
 	go func() {
 		runtime.GC()
 		debug.FreeOSMemory()
 		rl.log.Info("资源限制: 已触发GC和内存释放")
 	}()
-	
+
 	if rl.onSilent != nil {
 		go rl.onSilent()
 	}
-	
+
 	rl.log.Warnf("进入静默模式，持续时间: %s", rl.silentDuration)
 }
 
@@ -231,10 +231,10 @@ func (rl *ResourceLimiter) enterSilentModeLocked() {
 func (rl *ResourceLimiter) collectStats() ResourceStats {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	
+
 	// 获取CPU使用率 (简化实现，实际需要更复杂的计算)
 	cpuUsage := rl.getCPUUsage()
-	
+
 	return ResourceStats{
 		Timestamp:    time.Now(),
 		GoroutineNum: runtime.NumGoroutine(),
@@ -247,17 +247,17 @@ func (rl *ResourceLimiter) collectStats() ResourceStats {
 func (rl *ResourceLimiter) getCPUUsage() float64 {
 	// 使用简单的自实现方式获取CPU使用率
 	// 实际生产环境建议使用gopsutil等库
-	
+
 	var usage syscall.Rusage
 	err := syscall.Getrusage(syscall.RUSAGE_SELF, &usage)
 	if err != nil {
 		return 0
 	}
-	
+
 	// 计算用户态+内核态CPU时间
 	totalTime := float64(usage.Utime.Sec+usage.Stime.Sec)*1000 +
 		float64(usage.Utime.Usec+usage.Stime.Usec)/1000
-	
+
 	// 简化的CPU使用率估算 (实际应该基于时间差计算)
 	return totalTime / 10 // 简化计算
 }
@@ -278,7 +278,7 @@ func (rl *ResourceLimiter) GetStats() ResourceStats {
 func (rl *ResourceLimiter) Status() string {
 	rl.mu.RLock()
 	defer rl.mu.RUnlock()
-	
+
 	stats := rl.collectStats()
 	return fmt.Sprintf("CPU=%.1f%%, Memory=%.0fMB, Goroutines=%d, Limited=%v, Silent=%v",
 		stats.CPUUsage, stats.MemoryMB, stats.GoroutineNum, rl.isLimited, rl.isSilent)

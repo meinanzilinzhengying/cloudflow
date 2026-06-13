@@ -8,6 +8,7 @@ import (
 	"io"
 	"sort"
 	"time"
+	"strings"
 )
 
 // ==================== 对比分析数据结构 ====================
@@ -133,7 +134,8 @@ func (c *CPUComparator) Compare(
 	offCPUTotal := c.calculateOffCPUTotal(offCPUEvents)
 	comparison.OffCPUTotal = offCPUTotal
 
-	// 3. 计算百分比	total := onCPUTotal + offCPUTotal
+	// 3. 计算百分比
+	total := onCPUTotal + offCPUTotal
 	if total > 0 {
 		comparison.OnCPUPercent = float64(onCPUTotal) * 100.0 / float64(total)
 		comparison.OffCPUPercent = float64(offCPUTotal) * 100.0 / float64(total)
@@ -402,9 +404,9 @@ func (c *CPUComparator) getTopFunction(stack []string) string {
 
 // GenerateReport 生成对比分析报告
 func (c *CPUComparator) GenerateReport(comparison *CPUComparison, output io.Writer) error {
-	fmt.Fprintln(output, "="*60)
+	fmt.Fprintln(output, strings.Repeat("=", 60))
 	fmt.Fprintln(output, "ON/OFF-CPU 对比分析报告")
-	fmt.Fprintln(output, "="*60)
+	fmt.Fprintln(output, strings.Repeat("=", 60))
 	fmt.Fprintln(output)
 
 	// 基本信息
@@ -442,7 +444,7 @@ func (c *CPUComparator) GenerateReport(comparison *CPUComparison, output io.Writ
 	fmt.Fprintln(output, "【热点函数对比 (Top 20)】")
 	fmt.Fprintf(output, "%-40s %10s %10s %10s %12s\n",
 		"函数名", "ON-CPU(ms)", "OFF-CPU(ms)", "瓶颈类型", "占比")
-	fmt.Fprintln(output, "-"*90)
+		fmt.Fprintln(output, strings.Repeat("-", 90))
 	for i, fn := range comparison.HotFunctions {
 		if i >= 20 {
 			break

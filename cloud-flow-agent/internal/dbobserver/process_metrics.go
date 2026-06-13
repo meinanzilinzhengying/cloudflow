@@ -17,20 +17,20 @@ import (
 
 // ProcessMetricsCollector 进程指标采集器
 type ProcessMetricsCollector struct {
-	config       *ObserverConfig
+	config *ObserverConfig
 
 	// 进程指标缓存
-	metrics      map[uint32]*ProcessMetrics
-	metricsMu    sync.RWMutex
+	metrics   map[uint32]*ProcessMetrics
+	metricsMu sync.RWMutex
 
 	// 数据库进程映射
-	dbProcesses  map[uint32]*DBProcessInfo
-	dbProcMu     sync.RWMutex
+	dbProcesses map[uint32]*DBProcessInfo
+	dbProcMu    sync.RWMutex
 
 	// 历史指标（用于计算增量）
-	lastMetrics  map[uint32]*ProcessMetrics
-	lastTime     map[uint32]time.Time
-	historyMu    sync.RWMutex
+	lastMetrics map[uint32]*ProcessMetrics
+	lastTime    map[uint32]time.Time
+	historyMu   sync.RWMutex
 
 	// 采集间隔
 	collectInterval time.Duration
@@ -505,41 +505,28 @@ type NetworkMetricsCollector struct {
 	mu           sync.RWMutex
 }
 
-// NetDevStat 网络设备统计
-type NetDevStat struct {
+// NetDevStats 网络设备统计（用于计算）
+type NetDevStats struct {
 	Interface string
 	RxBytes   uint64
 	RxPackets uint64
 	RxErrors  uint64
-	TxDropped uint64
+	RxDropped uint64
 	TxBytes   uint64
 	TxPackets uint64
 	TxErrors  uint64
 	TxDropped uint64
 }
 
-// NetDevStat 网络设备统计（用于计算）
-type NetDevStats struct {
-	Interface  string
-	RxBytes    uint64
-	RxPackets  uint64
-	RxErrors   uint64
-	RxDropped  uint64
-	TxBytes    uint64
-	TxPackets  uint64
-	TxErrors   uint64
-	TxDropped  uint64
-}
-
 // NewNetworkMetricsCollector 创建网络指标采集器
 func NewNetworkMetricsCollector() *NetworkMetricsCollector {
 	return &NetworkMetricsCollector{
-		lastNetStats: make(map[string]*NetDevStat),
+		lastNetStats: make(map[string]*NetDevStats),
 	}
 }
 
 // Collect 采集网络指标
-func (c *NetworkMetricsCollector) Collect() map[string]*NetDevStat {
+func (c *NetworkMetricsCollector) Collect() map[string]*NetDevStats {
 	// 读取 /proc/net/dev
 	file, err := os.Open("/proc/net/dev")
 	if err != nil {
@@ -547,7 +534,7 @@ func (c *NetworkMetricsCollector) Collect() map[string]*NetDevStat {
 	}
 	defer file.Close()
 
-	stats := make(map[string]*NetDevStat)
+	stats := make(map[string]*NetDevStats)
 	scanner := bufio.NewScanner(file)
 
 	// 跳过前两行标题
@@ -563,7 +550,7 @@ func (c *NetworkMetricsCollector) Collect() map[string]*NetDevStat {
 
 		// 解析网络设备统计
 		iface := strings.TrimSuffix(fields[0], ":")
-		stat := &NetDevStat{
+		stat := &NetDevStats{
 			Interface: iface,
 		}
 
@@ -583,7 +570,7 @@ func (c *NetworkMetricsCollector) Collect() map[string]*NetDevStat {
 	}
 
 	c.mu.Lock()
-	c.lastNetStats = make(map[string]*NetDevStat)
+	c.lastNetStats = make(map[string]*NetDevStats)
 	for k, v := range stats {
 		c.lastNetStats[k] = v
 	}
@@ -594,7 +581,7 @@ func (c *NetworkMetricsCollector) Collect() map[string]*NetDevStat {
 }
 
 // GetDelta 获取增量指标
-func (c *NetworkMetricsCollector) GetDelta(iface string) *NetDevStat {
+func (c *NetworkMetricsCollector) GetDelta(iface string) *NetDevStats {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -617,16 +604,16 @@ type DiskIOMetricsCollector struct {
 
 // DiskIOStat 磁盘 IO 统计
 type DiskIOStat struct {
-	Device       string
-	Reads        uint64  // 读次数
-	Writes       uint64  // 写次数
-	ReadBytes    uint64  // 读字节数
-	WriteBytes   uint64  // 写字节数
-	ReadTime     uint64  // 读时间（毫秒）
-	WriteTime    uint64  // 写时间（毫秒）
-	IOPSTotal    uint64  // IOPS 总数
-	Throughput   uint64  // 吞吐量（字节/秒）
-	AvgLatency   float64 // 平均延迟（毫秒）
+	Device     string
+	Reads      uint64  // 读次数
+	Writes     uint64  // 写次数
+	ReadBytes  uint64  // 读字节数
+	WriteBytes uint64  // 写字节数
+	ReadTime   uint64  // 读时间（毫秒）
+	WriteTime  uint64  // 写时间（毫秒）
+	IOPSTotal  uint64  // IOPS 总数
+	Throughput uint64  // 吞吐量（字节/秒）
+	AvgLatency float64 // 平均延迟（毫秒）
 }
 
 // NewDiskIOMetricsCollector 创建磁盘 IO 指标采集器
@@ -726,18 +713,18 @@ type ProcessMetricsAggregator struct {
 
 // AggregatedMetrics 聚合指标
 type AggregatedMetrics struct {
-	DatabaseType    DatabaseType
-	ProcessCount    int
-	TotalCPU        float64
-	TotalMemory     int64
-	TotalIORead     int64
-	TotalIOWrite    int64
-	TotalConnCount  int
-	AvgCPU          float64
-	AvgMemory       int64
-	MaxCPU          float64
-	MaxMemory       int64
-	UpdateTime      time.Time
+	DatabaseType   DatabaseType
+	ProcessCount   int
+	TotalCPU       float64
+	TotalMemory    int64
+	TotalIORead    int64
+	TotalIOWrite   int64
+	TotalConnCount int
+	AvgCPU         float64
+	AvgMemory      int64
+	MaxCPU         float64
+	MaxMemory      int64
+	UpdateTime     time.Time
 }
 
 // NewProcessMetricsAggregator 创建进程指标聚合器
@@ -806,10 +793,10 @@ func (a *ProcessMetricsAggregator) GetAggregated(dbType DatabaseType) *Aggregate
 
 // MetricsCorrelator 指标关联器
 type MetricsCorrelator struct {
-	processCollector  *ProcessMetricsCollector
-	networkCollector  *NetworkMetricsCollector
-	diskCollector     *DiskIOMetricsCollector
-	aggregator        *ProcessMetricsAggregator
+	processCollector *ProcessMetricsCollector
+	networkCollector *NetworkMetricsCollector
+	diskCollector    *DiskIOMetricsCollector
+	aggregator       *ProcessMetricsAggregator
 
 	// 关联规则
 	correlations map[string]*CorrelationRule
@@ -818,18 +805,18 @@ type MetricsCorrelator struct {
 
 // CorrelationRule 关联规则
 type CorrelationRule struct {
-	Name        string
-	Condition   func(*SQLEvent, *ProcessMetrics) bool
-	Correlate   func(*SQLEvent, *ProcessMetrics) *CorrelatedEvent
+	Name      string
+	Condition func(*SQLEvent, *ProcessMetrics) bool
+	Correlate func(*SQLEvent, *ProcessMetrics) *CorrelatedEvent
 }
 
 // CorrelatedEvent 关联事件
 type CorrelatedEvent struct {
-	SQLEvent      *SQLEvent
-	ProcessMetrics *ProcessMetrics
-	NetworkMetrics *NetDevStat
-	DiskMetrics   *DiskIOStat
-	CorrelationScore float64
+	SQLEvent          *SQLEvent
+	ProcessMetrics    *ProcessMetrics
+	NetworkMetrics    *NetDevStats
+	DiskMetrics       *DiskIOStat
+	CorrelationScore  float64
 	CorrelationReason string
 }
 

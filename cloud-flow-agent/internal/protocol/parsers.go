@@ -158,9 +158,6 @@ func (p *PostgreSQLParser) Parse(ctx context.Context, data []byte, metadata *Pac
 	case 'B': // Bind
 		result.IsRequest = true
 		result.Fields["msg_type"] = "Bind"
-	case 'E': // Execute
-		result.IsRequest = true
-		result.Fields["msg_type"] = "Execute"
 	case 'C': // Close
 		result.IsRequest = true
 		result.Fields["msg_type"] = "Close"

@@ -25,10 +25,10 @@ type DataType uint8
 
 const (
 	DataTypeUnknown DataType = iota
-	DataTypeMetric       // 结构化指标数据
-	DataTypeLog          // 日志数据
-	DataTypeTrace        // 追踪数据
-	DataTypeEvent        // 事件数据
+	DataTypeMetric           // 结构化指标数据
+	DataTypeLog              // 日志数据
+	DataTypeTrace            // 追踪数据
+	DataTypeEvent            // 事件数据
 )
 
 // String 返回数据类型名称
@@ -51,34 +51,34 @@ func (t DataType) String() string {
 type CompressionType uint8
 
 const (
-	CompressionNone CompressionType = iota
-	CompressionZSTD     // ZSTD压缩，高压缩率
-	CompressionLZ4      // LZ4压缩，高速度
-	CompressionDelta    // 增量编码压缩
-	CompressionSnappy   // Snappy压缩，日志数据专用，高速+合理压缩比
+	CompressionNone   CompressionType = iota
+	CompressionZSTD                   // ZSTD压缩，高压缩率
+	CompressionLZ4                    // LZ4压缩，高速度
+	CompressionDelta                  // 增量编码压缩
+	CompressionSnappy                 // Snappy压缩，日志数据专用，高速+合理压缩比
 )
 
 // DataPoint 数据点
 type DataPoint struct {
-	Timestamp int64     // 时间戳(纳秒)
-	Tags      map[string]string // 标签
+	Timestamp int64                  // 时间戳(纳秒)
+	Tags      map[string]string      // 标签
 	Fields    map[string]interface{} // 字段值
-	DataType  DataType // 数据类型
-	Source    string   // 数据源
+	DataType  DataType               // 数据类型
+	Source    string                 // 数据源
 }
 
 // Chunk 数据块
 type Chunk struct {
-	mu        sync.RWMutex
-	id        uint64
-	startTime int64
-	endTime   int64
-	dataType  DataType
-	compressed bool
+	mu              sync.RWMutex
+	id              uint64
+	startTime       int64
+	endTime         int64
+	dataType        DataType
+	compressed      bool
 	compressionType CompressionType // 记录本块使用的压缩算法
-	data      []byte
-	index     *ChunkIndex
-	refCount  atomic.Int32
+	data            []byte
+	index           *ChunkIndex
+	refCount        atomic.Int32
 }
 
 // ChunkIndex 数据块索引
@@ -91,14 +91,14 @@ type ChunkIndex struct {
 	// 字段统计
 	fields map[string]struct {
 		min, max, sum float64
-		count int64
+		count         int64
 	}
 }
 
 // RetentionConfig 保留期配置
 type RetentionConfig struct {
-	Enabled      bool          // 启用保留策略
-	DefaultDays  int           // 默认保留天数
+	Enabled      bool             // 启用保留策略
+	DefaultDays  int              // 默认保留天数
 	CustomPeriod map[DataType]int // 自定义类型保留天数
 }
 
@@ -141,7 +141,7 @@ func DefaultStorageOptions(baseDir string) *StorageOptions {
 		CompressionType:   CompressionZSTD, // 默认ZSTD压缩
 		IndexEnabled:      true,            // 启用索引
 		RetentionInterval: time.Hour,       // 每小时检查一次
-		MaxOpenFiles:     1024,
+		MaxOpenFiles:      1024,
 	}
 }
 
@@ -152,19 +152,19 @@ type TimeSeriesStore struct {
 	mu          sync.RWMutex
 	shards      map[uint32]*Shard // 按数据源分片
 	writeBuffer map[DataType]*WriteBuffer
-	compressor  Compressor       // 默认压缩器（向后兼容）
+	compressor  Compressor              // 默认压缩器（向后兼容）
 	compressors map[DataType]Compressor // 按数据类型路由的压缩器
 	index       Index
 	stopCh      chan struct{}
 	wg          sync.WaitGroup
-	
+
 	// 统计信息
 	stats struct {
-		写入统计   atomic.Uint64
-		读取统计   atomic.Uint64
+		写入统计  atomic.Uint64
+		读取统计  atomic.Uint64
 		压缩前字节 atomic.Uint64
 		压缩后字节 atomic.Uint64
-		丢弃统计   atomic.Uint64
+		丢弃统计  atomic.Uint64
 	}
 }
 
@@ -179,11 +179,11 @@ type Shard struct {
 
 // WriteBuffer 写缓冲区
 type WriteBuffer struct {
-	mu      sync.Mutex
-	data    []DataPoint
-	size    int
-	cond    *sync.Cond
-	closed  bool
+	mu     sync.Mutex
+	data   []DataPoint
+	size   int
+	cond   *sync.Cond
+	closed bool
 }
 
 // NewTimeSeriesStore 创建时序数据存储
@@ -191,12 +191,12 @@ func NewTimeSeriesStore(opts *StorageOptions, log *logger.Logger) (*TimeSeriesSt
 	if opts == nil {
 		opts = DefaultStorageOptions("/var/lib/github.com/meinanzilinzhengying/cloudflow/agent/storage")
 	}
-	
+
 	// 确保目录存在
 	if err := os.MkdirAll(opts.BaseDir, 0755); err != nil {
 		return nil, fmt.Errorf("创建存储目录失败: %w", err)
 	}
-	
+
 	// 创建压缩器
 	compressor, err := NewCompressor(opts.CompressionType)
 	if err != nil {
@@ -209,13 +209,13 @@ func NewTimeSeriesStore(opts *StorageOptions, log *logger.Logger) (*TimeSeriesSt
 	compressors[DataTypeLog] = NewSnappyCompressor()    // 日志数据 → Snappy 快速压缩
 	compressors[DataTypeTrace] = compressor             // 追踪数据 → 使用默认压缩器
 	compressors[DataTypeEvent] = compressor             // 事件数据 → 使用默认压缩器
-	
+
 	// 创建索引
 	var index Index
 	if opts.IndexEnabled {
 		index = NewTSIDXIndex()
 	}
-	
+
 	store := &TimeSeriesStore{
 		opts:        opts,
 		log:         log,
@@ -226,7 +226,7 @@ func NewTimeSeriesStore(opts *StorageOptions, log *logger.Logger) (*TimeSeriesSt
 		index:       index,
 		stopCh:      make(chan struct{}),
 	}
-	
+
 	// 初始化写缓冲区
 	for dt := DataTypeMetric; dt <= DataTypeEvent; dt++ {
 		store.writeBuffer[dt] = &WriteBuffer{
@@ -235,17 +235,17 @@ func NewTimeSeriesStore(opts *StorageOptions, log *logger.Logger) (*TimeSeriesSt
 		}
 		store.writeBuffer[dt].cond = sync.NewCond(&store.writeBuffer[dt].mu)
 	}
-	
+
 	// 启动后台任务
 	store.wg.Add(1)
 	go store.flushLoop()
-	
+
 	store.wg.Add(1)
 	go store.retentionLoop()
-	
-	store.log.Infof("时序存储初始化完成: 目录=%s, 保留期=%d天, 压缩=%s", 
-		opts.BaseDir, opts.Retention.DefaultDays, opts.CompressionType.String())
-	
+
+	store.log.Infof("时序存储初始化完成: 目录=%s, 保留期=%d天, 压缩=%s",
+		opts.BaseDir, opts.Retention.DefaultDays, string(opts.CompressionType))
+
 	return store, nil
 }
 
@@ -254,7 +254,7 @@ func (s *TimeSeriesStore) Write(points ...DataPoint) error {
 	if len(points) == 0 {
 		return nil
 	}
-	
+
 	// 按数据类型分组
 	buffers := make(map[DataType][]DataPoint)
 	for _, p := range points {
@@ -264,15 +264,15 @@ func (s *TimeSeriesStore) Write(points ...DataPoint) error {
 		}
 		buffers[dt] = append(buffers[dt], p)
 	}
-	
+
 	// 写入缓冲区
 	for dt, pts := range buffers {
 		if err := s.writeToBuffer(dt, pts); err != nil {
 			return err
 		}
 	}
-	
-	atomic.AddUint64(&s.stats.写入统计, uint64(len(points)))
+
+	s.stats.写入统计.Add(uint64(len(points)))
 	return nil
 }
 
@@ -282,16 +282,16 @@ func (s *TimeSeriesStore) writeToBuffer(dt DataType, points []DataPoint) error {
 	if buf == nil {
 		return errors.New("缓冲区未初始化")
 	}
-	
+
 	buf.mu.Lock()
 	defer buf.mu.Unlock()
-	
+
 	if buf.closed {
 		return errors.New("缓冲区已关闭")
 	}
-	
+
 	buf.data = append(buf.data, points...)
-	
+
 	// 检查是否需要自动刷新
 	if len(buf.data) >= buf.size {
 		select {
@@ -299,17 +299,17 @@ func (s *TimeSeriesStore) writeToBuffer(dt DataType, points []DataPoint) error {
 		default:
 		}
 	}
-	
+
 	return nil
 }
 
 // flushLoop 刷新循环
 func (s *TimeSeriesStore) flushLoop() {
 	defer s.wg.Done()
-	
+
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-s.stopCh:
@@ -325,19 +325,19 @@ func (s *TimeSeriesStore) flushLoop() {
 func (s *TimeSeriesStore) flushAll() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
-	for dt, buf := s.writeBuffer {
+
+	for dt, buf := range s.writeBuffer {
 		buf.mu.Lock()
 		if len(buf.data) > 0 {
 			// 交换缓冲区
 			data := buf.data
 			buf.data = make([]DataPoint, 0, buf.size)
 			buf.mu.Unlock()
-			
+
 			// 写入存储
 			if err := s.writeChunk(dt, data); err != nil {
 				s.log.Warnf("写入数据块失败: %v", err)
-				atomic.AddUint64(&s.stats.丢弃统计, uint64(len(data)))
+				s.stats.丢弃统计.Add(uint64(len(data)))
 			}
 		} else {
 			buf.mu.Unlock()
@@ -350,13 +350,13 @@ func (s *TimeSeriesStore) writeChunk(dt DataType, points []DataPoint) error {
 	if len(points) == 0 {
 		return nil
 	}
-	
+
 	// 按时间排序
 	sortDataPoints(points)
-	
+
 	// 计算分片ID
 	shardID := calculateShardID(points[0].Source, dt)
-	
+
 	s.mu.Lock()
 	shard, ok := s.shards[shardID]
 	if !ok {
@@ -372,37 +372,37 @@ func (s *TimeSeriesStore) writeChunk(dt DataType, points []DataPoint) error {
 	shard.mu.Lock()
 	s.mu.Unlock()
 	defer shard.mu.Unlock()
-	
+
 	// 创建数据块
 	chunk := &Chunk{
-		id:        atomic.AddUint64(&s.stats.写入统计, 0),
+		id:        s.stats.写入统计.Add(0),
 		startTime: points[0].Timestamp,
 		endTime:   points[len(points)-1].Timestamp,
 		dataType:  dt,
 	}
-	
+
 	// 序列化数据
 	data, err := s.serializePoints(points)
 	if err != nil {
 		return fmt.Errorf("序列化数据失败: %w", err)
 	}
-	
+
 	// 按数据类型选择压缩器
 	cmp := s.getCompressor(dt)
-	
+
 	// 压缩数据
 	compressed, err := cmp.Compress(data)
 	if err != nil {
 		return fmt.Errorf("压缩数据失败: %w", err)
 	}
-	
-	atomic.AddUint64(&s.stats.压缩前字节, uint64(len(data)))
-	atomic.AddUint64(&s.stats.压缩后字节, uint64(len(compressed)))
-	
+
+	s.stats.压缩前字节.Add(uint64(len(data)))
+	s.stats.压缩后字节.Add(uint64(len(compressed)))
+
 	chunk.data = compressed
 	chunk.compressed = true
 	chunk.compressionType = cmp.Type()
-	
+
 	// 创建索引
 	if s.index != nil {
 		chunk.index = s.createChunkIndex(chunk, points)
@@ -410,18 +410,18 @@ func (s *TimeSeriesStore) writeChunk(dt DataType, points []DataPoint) error {
 			s.log.Warnf("添加索引失败: %v", err)
 		}
 	}
-	
+
 	shard.chunks = append(shard.chunks, chunk)
-	
+
 	// 持久化
 	if err := s.persistChunk(shard, chunk); err != nil {
 		return fmt.Errorf("持久化数据块失败: %w", err)
 	}
-	
+
 	s.log.Debugf("写入数据块: 类型=%s, 条数=%d, 大小=%d/%d字节, 压缩比=%.1f:1",
-		dt.String(), len(points), len(data), len(compressed), 
+		dt.String(), len(points), len(data), len(compressed),
 		float64(len(data))/float64(len(compressed)))
-	
+
 	return nil
 }
 
@@ -429,13 +429,13 @@ func (s *TimeSeriesStore) writeChunk(dt DataType, points []DataPoint) error {
 func (s *TimeSeriesStore) serializePoints(points []DataPoint) ([]byte, error) {
 	// 使用简单高效的二进制格式
 	buf := make([]byte, 0, len(points)*64) // 预估每条64字节
-	
+
 	for _, p := range points {
 		// 时间戳(8字节)
 		var timestamp [8]byte
 		putUint64(timestamp[:], uint64(p.Timestamp))
 		buf = append(buf, timestamp[:]...)
-		
+
 		// 标签数量(2字节) + 标签数据
 		tags := p.Tags
 		if tags == nil {
@@ -444,14 +444,14 @@ func (s *TimeSeriesStore) serializePoints(points []DataPoint) ([]byte, error) {
 		var tagCount [2]byte
 		putUint16(tagCount[:], uint16(len(tags)))
 		buf = append(buf, tagCount[:]...)
-		
+
 		for k, v := range tags {
 			buf = append(buf, byte(len(k)))
 			buf = append(buf, k...)
 			buf = append(buf, byte(len(v)))
 			buf = append(buf, v...)
 		}
-		
+
 		// 字段数量(2字节) + 字段数据
 		fields := p.Fields
 		if fields == nil {
@@ -459,11 +459,11 @@ func (s *TimeSeriesStore) serializePoints(points []DataPoint) ([]byte, error) {
 		}
 		putUint16(tagCount[:], uint16(len(fields)))
 		buf = append(buf, tagCount[:]...)
-		
+
 		for k, v := range fields {
 			buf = append(buf, byte(len(k)))
 			buf = append(buf, k...)
-			
+
 			// 写入值
 			switch val := v.(type) {
 			case float64:
@@ -485,23 +485,23 @@ func (s *TimeSeriesStore) serializePoints(points []DataPoint) ([]byte, error) {
 			}
 		}
 	}
-	
+
 	return buf, nil
 }
 
 // createChunkIndex 创建块索引
 func (s *TimeSeriesStore) createChunkIndex(chunk *Chunk, points []DataPoint) *ChunkIndex {
 	index := &ChunkIndex{
-		minTime: chunk.startTime,
-		maxTime: chunk.endTime,
-		count:   int64(len(points)),
+		minTime:    chunk.startTime,
+		maxTime:    chunk.endTime,
+		count:      int64(len(points)),
 		timeSeries: make(map[string][]byte),
 		fields: make(map[string]struct {
 			min, max, sum float64
-			count int64
+			count         int64
 		}),
 	}
-	
+
 	// 构建时间序列索引
 	for _, p := range points {
 		tsKey := buildTimeSeriesKey(p.Tags)
@@ -511,7 +511,7 @@ func (s *TimeSeriesStore) createChunkIndex(chunk *Chunk, points []DataPoint) *Ch
 			putUint64(offset[:], 0) // 简化，实际应存储真实偏移
 			index.timeSeries[tsKey] = offset[:]
 		}
-		
+
 		// 字段统计
 		for k, v := range p.Fields {
 			if fv, ok := v.(float64); ok {
@@ -533,22 +533,22 @@ func (s *TimeSeriesStore) createChunkIndex(chunk *Chunk, points []DataPoint) *Ch
 			}
 		}
 	}
-	
+
 	return index
 }
 
 // persistChunk 持久化数据块
 func (s *TimeSeriesStore) persistChunk(shard *Shard, chunk *Chunk) error {
 	// 构建文件路径
-	filename := fmt.Sprintf("%s_%d_%d_%d.chunk", 
+	filename := fmt.Sprintf("%s_%d_%d_%d.chunk",
 		shard.dataType.String(), shard.id, chunk.startTime, chunk.endTime)
 	path := filepath.Join(s.opts.BaseDir, filename)
-	
+
 	// 写入文件
 	if err := os.WriteFile(path, chunk.data, 0644); err != nil {
 		return fmt.Errorf("写入文件失败: %w", err)
 	}
-	
+
 	// 写入索引文件
 	if chunk.index != nil {
 		indexPath := path + ".idx"
@@ -556,7 +556,7 @@ func (s *TimeSeriesStore) persistChunk(shard *Shard, chunk *Chunk) error {
 			s.log.Warnf("写入索引文件失败: %v", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -564,24 +564,24 @@ func (s *TimeSeriesStore) persistChunk(shard *Shard, chunk *Chunk) error {
 func (s *TimeSeriesStore) persistIndex(path string, index *ChunkIndex) error {
 	// 简化的索引持久化
 	data := make([]byte, 0)
-	
+
 	// 写入元数据
 	var meta [24]byte
 	putInt64(meta[:8], index.minTime)
 	putInt64(meta[8:16], index.maxTime)
 	putInt64(meta[16:24], index.count)
 	data = append(data, meta[:]...)
-	
+
 	return os.WriteFile(path, data, 0644)
 }
 
 // retentionLoop 保留期管理循环
 func (s *TimeSeriesStore) retentionLoop() {
 	defer s.wg.Done()
-	
+
 	ticker := time.NewTicker(s.opts.RetentionInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-s.stopCh:
@@ -599,17 +599,17 @@ func (s *TimeSeriesStore) retentionLoop() {
 // cleanupExpiredData 清理过期数据
 func (s *TimeSeriesStore) cleanupExpiredData() error {
 	now := time.Now().UnixNano()
-	
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	var deletedCount int
-	for shardID, shard := range s.shards {
+	for _, shard := range s.shards {
 		shard.mu.Lock()
-		
+
 		retention := s.opts.Retention.GetRetentionDays(shard.dataType)
 		cutoffTime := now - int64(retention)*24*60*60*1e9
-		
+
 		var validChunks []*Chunk
 		for _, chunk := range shard.chunks {
 			if chunk.endTime < cutoffTime {
@@ -624,43 +624,43 @@ func (s *TimeSeriesStore) cleanupExpiredData() error {
 				validChunks = append(validChunks, chunk)
 			}
 		}
-		
+
 		shard.chunks = validChunks
-		
+
 		// 删除空分片
 		if len(shard.chunks) == 0 {
-			delete(s.shards, shardID)
+			delete(s.shards, shard.id)
 		}
-		
+
 		shard.mu.Unlock()
 	}
-	
+
 	if deletedCount > 0 {
 		s.log.Infof("清理过期数据: 删除%d个数据块", deletedCount)
 	}
-	
+
 	return nil
 }
 
 // deleteChunk 删除数据块
 func (s *TimeSeriesStore) deleteChunk(shard *Shard, chunk *Chunk) error {
-	filename := fmt.Sprintf("%s_%d_%d_%d.chunk", 
+	filename := fmt.Sprintf("%s_%d_%d_%d.chunk",
 		shard.dataType.String(), shard.id, chunk.startTime, chunk.endTime)
 	path := filepath.Join(s.opts.BaseDir, filename)
-	
+
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	
+
 	// 删除索引文件
 	indexPath := path + ".idx"
 	os.Remove(indexPath)
-	
+
 	// 从索引中移除
 	if s.index != nil {
 		s.index.RemoveChunk(shard.id, chunk.index)
 	}
-	
+
 	return nil
 }
 
@@ -669,15 +669,15 @@ func (s *TimeSeriesStore) Query(q *Query) (*QueryResult, error) {
 	if q == nil {
 		return nil, errors.New("查询条件为空")
 	}
-	
+
 	start := time.Now()
-	atomic.AddUint64(&s.stats.读取统计, 1)
-	
+	s.stats.读取统计.Add(1)
+
 	// 使用索引加速查询
 	if s.index != nil && q.UseIndex {
 		return s.queryWithIndex(q)
 	}
-	
+
 	return s.queryWithoutIndex(q, start)
 }
 
@@ -689,16 +689,16 @@ func (s *TimeSeriesStore) queryWithIndex(q *Query) (*QueryResult, error) {
 			StartTime: time.Now(),
 		},
 	}
-	
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// 查找匹配的分片
-	for shardID, shard := range s.shards {
+	for _, shard := range s.shards {
 		if !q.MatchDataType(shard.dataType) {
 			continue
 		}
-		
+
 		shard.mu.RLock()
 		for _, chunk := range shard.chunks {
 			// 时间范围过滤
@@ -708,13 +708,13 @@ func (s *TimeSeriesStore) queryWithIndex(q *Query) (*QueryResult, error) {
 			if chunk.startTime > q.EndTime {
 				continue
 			}
-			
+
 			// 解压并过滤数据
 			points, err := s.decompressChunk(chunk)
 			if err != nil {
 				continue
 			}
-			
+
 			// 应用查询条件过滤
 			for _, p := range points {
 				if q.MatchPoint(p) {
@@ -724,10 +724,10 @@ func (s *TimeSeriesStore) queryWithIndex(q *Query) (*QueryResult, error) {
 		}
 		shard.mu.RUnlock()
 	}
-	
+
 	result.Meta.Duration = time.Since(result.Meta.StartTime)
-	result.Meta.TotalPoints = len(result.Points)
-	
+	result.Meta.TotalPoints = int64(len(result.Points))
+
 	return result, nil
 }
 
@@ -739,26 +739,26 @@ func (s *TimeSeriesStore) queryWithoutIndex(q *Query, start time.Time) (*QueryRe
 			StartTime: start,
 		},
 	}
-	
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	for _, shard := range s.shards {
 		if !q.MatchDataType(shard.dataType) {
 			continue
 		}
-		
+
 		shard.mu.RLock()
 		for _, chunk := range shard.chunks {
 			if chunk.endTime < q.StartTime || chunk.startTime > q.EndTime {
 				continue
 			}
-			
+
 			points, err := s.decompressChunk(chunk)
 			if err != nil {
 				continue
 			}
-			
+
 			for _, p := range points {
 				if q.MatchPoint(p) {
 					result.Points = append(result.Points, p)
@@ -767,10 +767,10 @@ func (s *TimeSeriesStore) queryWithoutIndex(q *Query, start time.Time) (*QueryRe
 		}
 		shard.mu.RUnlock()
 	}
-	
+
 	result.Meta.Duration = time.Since(result.Meta.StartTime)
-	result.Meta.TotalPoints = len(result.Points)
-	
+	result.Meta.TotalPoints = int64(len(result.Points))
+
 	return result, nil
 }
 
@@ -779,14 +779,14 @@ func (s *TimeSeriesStore) decompressChunk(chunk *Chunk) ([]DataPoint, error) {
 	if !chunk.compressed {
 		return nil, errors.New("数据块未压缩")
 	}
-	
+
 	// 按数据类型选择解压器
 	cmp := s.getCompressor(chunk.dataType)
 	data, err := cmp.Decompress(chunk.data)
 	if err != nil {
 		return nil, fmt.Errorf("解压失败: %w", err)
 	}
-	
+
 	return s.deserializePoints(data)
 }
 
@@ -794,24 +794,24 @@ func (s *TimeSeriesStore) decompressChunk(chunk *Chunk) ([]DataPoint, error) {
 func (s *TimeSeriesStore) deserializePoints(data []byte) ([]DataPoint, error) {
 	points := make([]DataPoint, 0)
 	offset := 0
-	
+
 	for offset < len(data) {
 		p := DataPoint{}
-		
+
 		// 读取时间戳
 		if offset+8 > len(data) {
 			break
 		}
-		p.Timestamp = int64(getUint64(data[offset:offset+8]))
+		p.Timestamp = int64(getUint64(data[offset : offset+8]))
 		offset += 8
-		
+
 		// 读取标签
 		if offset+2 > len(data) {
 			break
 		}
-		tagCount := int(getUint16(data[offset:offset+2]))
+		tagCount := int(getUint16(data[offset : offset+2]))
 		offset += 2
-		
+
 		p.Tags = make(map[string]string)
 		for i := 0; i < tagCount; i++ {
 			if offset+1 > len(data) {
@@ -819,35 +819,35 @@ func (s *TimeSeriesStore) deserializePoints(data []byte) ([]DataPoint, error) {
 			}
 			kLen := int(data[offset])
 			offset++
-			
+
 			if offset+kLen > len(data) {
 				break
 			}
 			k := string(data[offset : offset+kLen])
 			offset += kLen
-			
+
 			if offset+1 > len(data) {
 				break
 			}
 			vLen := int(data[offset])
 			offset++
-			
+
 			if offset+vLen > len(data) {
 				break
 			}
 			v := string(data[offset : offset+vLen])
 			offset += vLen
-			
+
 			p.Tags[k] = v
 		}
-		
+
 		// 读取字段
 		if offset+2 > len(data) {
 			break
 		}
-		fieldCount := int(getUint16(data[offset:offset+2]))
+		fieldCount := int(getUint16(data[offset : offset+2]))
 		offset += 2
-		
+
 		p.Fields = make(map[string]interface{})
 		for i := 0; i < fieldCount; i++ {
 			if offset+1 > len(data) {
@@ -855,19 +855,19 @@ func (s *TimeSeriesStore) deserializePoints(data []byte) ([]DataPoint, error) {
 			}
 			fLen := int(data[offset])
 			offset++
-			
+
 			if offset+fLen > len(data) {
 				break
 			}
 			fk := string(data[offset : offset+fLen])
 			offset += fLen
-			
+
 			if offset+1 > len(data) {
 				break
 			}
 			typeMark := data[offset]
 			offset++
-			
+
 			switch typeMark {
 			case 1: // float64
 				if offset+8 > len(data) {
@@ -879,7 +879,7 @@ func (s *TimeSeriesStore) deserializePoints(data []byte) ([]DataPoint, error) {
 				if offset+8 > len(data) {
 					break
 				}
-				p.Fields[fk] = int64(getUint64(data[offset:offset+8]))
+				p.Fields[fk] = int64(getUint64(data[offset : offset+8]))
 				offset += 8
 			case 3: // string
 				if offset+1 > len(data) {
@@ -894,10 +894,10 @@ func (s *TimeSeriesStore) deserializePoints(data []byte) ([]DataPoint, error) {
 				offset += sLen
 			}
 		}
-		
+
 		points = append(points, p)
 	}
-	
+
 	return points, nil
 }
 
@@ -930,17 +930,17 @@ func (s *TimeSeriesStore) GetCompressionRatio(dt DataType) float64 {
 // GetStats 获取存储统计
 func (s *TimeSeriesStore) GetStats() StorageStats {
 	stats := StorageStats{
-		WriteCount:    atomic.LoadUint64(&s.stats.写入统计),
-		ReadCount:     atomic.LoadUint64(&s.stats.读取统计),
-		DroppedCount:  atomic.LoadUint64(&s.stats.丢弃统计),
-		RawBytes:      atomic.LoadUint64(&s.stats.压缩前字节),
-		CompressedBytes: atomic.LoadUint64(&s.stats.压缩后字节),
+		WriteCount:      s.stats.写入统计.Load(),
+		ReadCount:       s.stats.读取统计.Load(),
+		DroppedCount:    s.stats.丢弃统计.Load(),
+		RawBytes:        s.stats.压缩前字节.Load(),
+		CompressedBytes: s.stats.压缩后字节.Load(),
 	}
-	
+
 	if stats.RawBytes > 0 {
 		stats.CompressionRatio = float64(stats.RawBytes) / float64(stats.CompressedBytes)
 	}
-	
+
 	// 统计分片和块数量
 	s.mu.RLock()
 	stats.ShardCount = len(s.shards)
@@ -950,7 +950,7 @@ func (s *TimeSeriesStore) GetStats() StorageStats {
 		shard.mu.RUnlock()
 	}
 	s.mu.RUnlock()
-	
+
 	return stats
 }
 
@@ -958,10 +958,10 @@ func (s *TimeSeriesStore) GetStats() StorageStats {
 func (s *TimeSeriesStore) Close() error {
 	close(s.stopCh)
 	s.wg.Wait()
-	
+
 	// 刷新剩余数据
 	s.flushAll()
-	
+
 	s.log.Infof("时序存储已关闭: 统计=%+v", s.GetStats())
 	return nil
 }

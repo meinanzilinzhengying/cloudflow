@@ -12,28 +12,28 @@ import (
 
 // NativeMemService Java 堆外内存检测服务
 type NativeMemService struct {
-	tracker *NativeMemTracker
+	tracker  *NativeMemTracker
 	detector *LeakDetector
 }
 
 // NativeMemRequest 堆外内存检测请求
 type NativeMemRequest struct {
-	PID            uint32  `json:"pid"`              // Java 进程 ID
-	Duration       int     `json:"duration"`         // 检测时长(秒)
-	MinBlockSize   int64   `json:"min_block_size"`   // 最小追踪块大小
-	MaxBlocks      int     `json:"max_blocks"`       // 最大追踪块数
-	MinLeakAgeSec  int     `json:"min_leak_age_sec"` // 最小泄漏年龄(秒)
-	GenerateReport bool    `json:"generate_report"`  // 是否生成报告
+	PID            uint32 `json:"pid"`              // Java 进程 ID
+	Duration       int    `json:"duration"`         // 检测时长(秒)
+	MinBlockSize   int64  `json:"min_block_size"`   // 最小追踪块大小
+	MaxBlocks      int    `json:"max_blocks"`       // 最大追踪块数
+	MinLeakAgeSec  int    `json:"min_leak_age_sec"` // 最小泄漏年龄(秒)
+	GenerateReport bool   `json:"generate_report"`  // 是否生成报告
 }
 
 // NativeMemResponse 堆外内存检测响应
 type NativeMemResponse struct {
-	Status       string            `json:"status"`        // 状态
-	Stats        NativeMemStats    `json:"stats"`         // 堆外内存统计
-	LeakSummary  *LeakSummary      `json:"leak_summary"`  // 泄漏摘要
-	Report       string            `json:"report"`        // 文本报告
-	Snapshot     *NativeMemSnapshot `json:"snapshot"`     // 内存快照
-	Error        string            `json:"error"`         // 错误信息
+	Status      string             `json:"status"`       // 状态
+	Stats       NativeMemStats     `json:"stats"`        // 堆外内存统计
+	LeakSummary *LeakSummary       `json:"leak_summary"` // 泄漏摘要
+	Report      string             `json:"report"`       // 文本报告
+	Snapshot    *NativeMemSnapshot `json:"snapshot"`     // 内存快照
+	Error       string             `json:"error"`        // 错误信息
 }
 
 // NewNativeMemService 创建堆外内存检测服务

@@ -40,11 +40,11 @@ type CMDBClient interface {
 
 // AssetFilter 资产过滤条件
 type AssetFilter struct {
-	AssetTypes  []string          `json:"asset_types"`
-	Statuses    []string          `json:"statuses"`
-	Labels      map[string]string `json:"labels"`
-	Page        int               `json:"page"`
-	PageSize    int               `json:"page_size"`
+	AssetTypes []string          `json:"asset_types"`
+	Statuses   []string          `json:"statuses"`
+	Labels     map[string]string `json:"labels"`
+	Page       int               `json:"page"`
+	PageSize   int               `json:"page_size"`
 }
 
 // HTTPClient HTTP实现的CMDB客户端
@@ -178,8 +178,8 @@ func (c *HTTPClient) fetchAssetsPage(ctx context.Context, filter *AssetFilter) (
 
 	// 解析响应
 	var resp struct {
-		Code    int          `json:"code"`
-		Message string       `json:"message"`
+		Code    int    `json:"code"`
+		Message string `json:"message"`
 		Data    struct {
 			Items    []CMDBAsset `json:"items"`
 			Total    int         `json:"total"`
@@ -250,8 +250,8 @@ func (c *HTTPClient) FetchLabels(ctx context.Context, assetIDs []string) (map[st
 	}
 
 	var resp struct {
-		Code    int                        `json:"code"`
-		Message string                     `json:"message"`
+		Code    int                          `json:"code"`
+		Message string                       `json:"message"`
 		Data    map[string]map[string]string `json:"data"`
 	}
 

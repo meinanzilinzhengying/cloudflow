@@ -12,30 +12,30 @@ import (
 // Metrics 指标收集器
 type Metrics struct {
 	// 采集指标
-	collectCount        prometheus.Counter
-	collectErrors       prometheus.Counter
-	collectDuration     prometheus.Histogram
+	collectCount    prometheus.Counter
+	collectErrors   prometheus.Counter
+	collectDuration prometheus.Histogram
 
 	// 发送指标
-	sendCount           prometheus.Counter
-	sendErrors          prometheus.Counter
-	sendDuration        prometheus.Histogram
-	sendBytes           prometheus.Counter
+	sendCount    prometheus.Counter
+	sendErrors   prometheus.Counter
+	sendDuration prometheus.Histogram
+	sendBytes    prometheus.Counter
 
 	// 心跳指标
-	heartbeatCount      prometheus.Counter
-	heartbeatErrors     prometheus.Counter
+	heartbeatCount  prometheus.Counter
+	heartbeatErrors prometheus.Counter
 
 	// EBPF 指标
-	ebpfCollectCount    prometheus.Counter
-	ebpfCollectErrors   prometheus.Counter
+	ebpfCollectCount  prometheus.Counter
+	ebpfCollectErrors prometheus.Counter
 
 	// 数据丢弃指标 (C3 修复)
-	dataDroppedCount    prometheus.Counter
-	bufOverflowCount    prometheus.Counter
+	dataDroppedCount prometheus.Counter
+	bufOverflowCount prometheus.Counter
 
 	// 注册中心
-	registry            *prometheus.Registry
+	registry *prometheus.Registry
 }
 
 // New 创建指标收集器
@@ -53,8 +53,8 @@ func New() *Metrics {
 			Help: "Total number of collection errors",
 		}),
 		collectDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name: "cloud_flow_agent_collect_duration_seconds",
-			Help: "Duration of metric collection in seconds",
+			Name:    "cloud_flow_agent_collect_duration_seconds",
+			Help:    "Duration of metric collection in seconds",
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 10),
 		}),
 
@@ -68,8 +68,8 @@ func New() *Metrics {
 			Help: "Total number of send errors",
 		}),
 		sendDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name: "cloud_flow_agent_send_duration_seconds",
-			Help: "Duration of metric send in seconds",
+			Name:    "cloud_flow_agent_send_duration_seconds",
+			Help:    "Duration of metric send in seconds",
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 10),
 		}),
 		sendBytes: prometheus.NewCounter(prometheus.CounterOpts{

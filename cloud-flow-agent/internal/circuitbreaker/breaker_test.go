@@ -36,7 +36,7 @@ func TestBreakerStateTransition(t *testing.T) {
 	}
 
 	breaker := NewBreaker(config)
-	
+
 	// 模拟资源快照 - CPU 超过降级阈值
 	snapshot := ResourceSnapshot{
 		CPUUsagePercent: 85.0,
@@ -125,7 +125,7 @@ func TestResourceSnapshotCalculation(t *testing.T) {
 	assert.InDelta(t, 75.5, snapshot.CPUUsagePercent, 0.01, "CPU 使用率应正确")
 	assert.Equal(t, 512, snapshot.MemoryUsageMB, "内存使用应正确")
 	assert.Equal(t, 1024, snapshot.MaxMemoryMB, "最大内存应正确")
-	
+
 	// 计算内存使用百分比
 	memPercent := float64(snapshot.MemoryUsageMB) / float64(snapshot.MaxMemoryMB) * 100
 	assert.InDelta(t, 50.0, memPercent, 0.01, "内存使用百分比应为 50%")
@@ -141,16 +141,16 @@ func TestBreakerStartStop(t *testing.T) {
 	}
 
 	breaker := NewBreaker(config)
-	
+
 	// 启动熔断器
 	breaker.Start()
-	
+
 	// 等待一小段时间让 goroutine 运行
 	time.Sleep(150 * time.Millisecond)
-	
+
 	// 停止熔断器
 	breaker.Stop()
-	
+
 	// 验证可以安全停止多次
 	breaker.Stop() // 第二次调用不应 panic
 }
@@ -165,7 +165,7 @@ func TestOnStateChangeCallback(t *testing.T) {
 	}
 
 	breaker := NewBreaker(config)
-	
+
 	callbackCalled := false
 	breaker.OnStateChange(func(from, to State, snapshot ResourceSnapshot) {
 		callbackCalled = true

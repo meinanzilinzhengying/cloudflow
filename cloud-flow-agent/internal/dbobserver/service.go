@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -367,13 +368,13 @@ func (s *DBObserverService) GetStatus() *ServiceStatus {
 	processMetrics := s.observer.GetAllProcessMetrics()
 
 	return &ServiceStatus{
-		Running:          running,
-		TotalSQLCount:    len(stats),
-		SlowQueryCount:   len(slowQueries),
-		ProcessCount:     len(processMetrics),
-		DatabaseTypes:    s.config.DatabaseTypes,
-		CollectInterval:  s.config.CollectInterval,
-		SlowThreshold:    s.config.SlowQueryThreshold,
+		Running:         running,
+		TotalSQLCount:   len(stats),
+		SlowQueryCount:  len(slowQueries),
+		ProcessCount:    len(processMetrics),
+		DatabaseTypes:   s.config.DatabaseTypes,
+		CollectInterval: s.config.CollectInterval,
+		SlowThreshold:   s.config.SlowQueryThreshold,
 	}
 }
 
@@ -392,10 +393,10 @@ type ServiceStatus struct {
 
 // AlertManager 告警管理器
 type AlertManager struct {
-	alerts     []*SlowQueryAlert
-	maxAlerts  int
-	mu         sync.RWMutex
-	handlers   []func(*SlowQueryAlert)
+	alerts    []*SlowQueryAlert
+	maxAlerts int
+	mu        sync.RWMutex
+	handlers  []func(*SlowQueryAlert)
 }
 
 // NewAlertManager 创建告警管理器
@@ -451,9 +452,9 @@ func (m *AlertManager) AddHandler(handler func(*SlowQueryAlert)) {
 
 // ConfigManager 配置管理器
 type ConfigManager struct {
-	config    *ObserverConfig
+	config     *ObserverConfig
 	configPath string
-	mu        sync.RWMutex
+	mu         sync.RWMutex
 }
 
 // NewConfigManager 创建配置管理器
