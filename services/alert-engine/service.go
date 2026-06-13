@@ -348,14 +348,14 @@ func (s *Service) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthzHandler)
 	mux.Handle("/metrics", metrics.Handler())
-	mux.HandleFunc("/api/alerts", s.listAlertsHTTPHandler)
-	mux.HandleFunc("/api/alerts/create", s.createAlertHTTPHandler)
-	mux.HandleFunc("/api/alerts/update", s.updateAlertHTTPHandler)
-	mux.HandleFunc("/api/alerts/resolve", s.resolveAlertHTTPHandler)
-	mux.HandleFunc("/api/rules", s.listRulesHTTPHandler)
-	mux.HandleFunc("/api/rules/create", s.createRuleHTTPHandler)
-	mux.HandleFunc("/api/rules/update", s.updateRuleHTTPHandler)
-	mux.HandleFunc("/api/rules/delete", s.deleteRuleHTTPHandler)
+	mux.HandleFunc("/alerts", s.listAlertsHTTPHandler)
+	mux.HandleFunc("/alerts/create", s.createAlertHTTPHandler)
+	mux.HandleFunc("/alerts/update", s.updateAlertHTTPHandler)
+	mux.HandleFunc("/alerts/resolve", s.resolveAlertHTTPHandler)
+	mux.HandleFunc("/rules", s.listRulesHTTPHandler)
+	mux.HandleFunc("/rules/create", s.createRuleHTTPHandler)
+	mux.HandleFunc("/rules/update", s.updateRuleHTTPHandler)
+	mux.HandleFunc("/rules/delete", s.deleteRuleHTTPHandler)
 
 	var handler http.Handler = mux
 	// P0-3 修复: 应用共享认证中间件

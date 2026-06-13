@@ -37,12 +37,13 @@ const createApiClient = (baseURL) => {
   )
 
   // Response interceptor for error handling
+  // NOTE: Do NOT redirect on 401 - this SPA has no separate login page.
+  // The login is handled inline by components. Redirecting causes infinite reload loops.
   client.interceptors.response.use(
     (response) => response.data,
     (error) => {
       if (error.response?.status === 401) {
-        localStorage.removeItem('cloudflow_token')
-        window.location.href = '/login'
+        console.warn('[API] Authentication expired or invalid for:', error.config?.url)
       }
       return Promise.reject(error)
     }
