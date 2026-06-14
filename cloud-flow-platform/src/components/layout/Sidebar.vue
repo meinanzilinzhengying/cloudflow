@@ -36,7 +36,7 @@
 </template>
 
 <script setup>
-import { Activity, LayoutDashboard, Cpu, HeartPulse, Settings, Bell, Circle } from 'lucide-vue-next'
+import { Activity, LayoutDashboard, Cpu, HeartPulse, Settings, Bell, Circle, FileText, Brain, ExternalLink } from 'lucide-vue-next'
 
 defineProps({
   modules: {
@@ -58,7 +58,10 @@ function getIcon(name) {
     HeartPulse,
     Settings,
     Bell,
-    Circle
+    Circle,
+    FileText,
+    Brain,
+    ExternalLink
   }
   return icons[name] || Circle
 }

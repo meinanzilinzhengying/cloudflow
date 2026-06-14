@@ -149,6 +149,7 @@ import {
   Lightbulb,
   Map,
   Bell,
+  Briefcase,
 } from 'lucide-vue-next'
 
 const props = defineProps({
