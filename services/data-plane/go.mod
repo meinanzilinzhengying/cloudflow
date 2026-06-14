@@ -3,6 +3,7 @@ module github.com/meinanzilinzhengying/cloudflow/services/data-plane
 go 1.22
 
 require (
+	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/IBM/sarama v1.50.1
 	github.com/prometheus/client_golang v1.21.1
 	github.com/meinanzilinzhengying/cloudflow/pkg v0.0.0
@@ -11,3 +12,4 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.5
 	google.golang.org/grpc v1.80.0
 )
+
