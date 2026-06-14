@@ -148,7 +148,7 @@ import ManagementSettings from './components/pages/management/ManagementSettings
 const isDark = ref(false)
 const loading = ref(false)
 const sidebarCollapsed = ref(false)
-const activeMenu = ref('dashboard')
+const activeMenu = ref(localStorage.getItem('cloudflow_menu') || 'dashboard')
 
 onMounted(() => {
   if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -169,6 +169,7 @@ const toggleSidebar = () => {
 
 const handleMenuChange = (menu) => {
   activeMenu.value = menu
+  localStorage.setItem('cloudflow_menu', menu)
   loading.value = true
   setTimeout(() => {
     loading.value = false
