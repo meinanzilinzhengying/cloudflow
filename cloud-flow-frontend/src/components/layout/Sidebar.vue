@@ -167,6 +167,14 @@ const menuItems = computed(() => [
     icon: LayoutDashboard,
   },
   {
+    id: 'business',
+    label: '业务系统',
+    icon: Briefcase,
+    children: [
+      { id: 'business', label: '业务总览', icon: Briefcase },
+    ],
+  },
+  {
     id: 'traffic',
     label: '网络流量',
     icon: TrendingUp,

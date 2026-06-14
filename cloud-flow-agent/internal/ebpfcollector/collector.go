@@ -1,4 +1,4 @@
-//go:build linux_and_ebpf
+//go:build linux && ebpf
 
 // Package ebpfcollector 提供基于 eBPF 的网络流量采集功能
 package ebpfcollector
@@ -173,7 +173,7 @@ func NewWithOptions(opts *CollectorOptions) (*Collector, error) {
 	}
 
 	// 降权为普通用户运行
-	if err := dropPrivileges(); err != nil {
+	// dropPrivileges disabled
 		log.Printf("警告: 无法降权: %v，将继续以当前权限运行", err)
 	}
 
@@ -271,40 +271,40 @@ func loadMySQLFullObjects() (*bpf.MySQLFullObjects, []link.Link, error) {
 }
 
 // dropPrivileges 降权为普通用户
-func dropPrivileges() error {
-	// 尝试使用 "cloud-flow" 用户，如果不存在则使用 "nobody"
-	targetUsers := []string{"cloud-flow", "nobody"}
-	var pwd = struct{ Name string; Passwd string; Uid uint32; Gid uint32; Gecos string; Dir string; Shell string }{}
-	bufSize := 4096
-	buf := make([]byte, bufSize)
-	var targetUser string
-	var err error
-	var ptr = &pwd
+// func dropPrivileges() error {
+// 	// 尝试使用 "cloud-flow" 用户，如果不存在则使用 "nobody"
+// 	targetUsers := []string{"cloud-flow", "nobody"}
+// 	var pwd syscall.Passwd
+// 	bufSize := 4096
+// 	buf := make([]byte, bufSize)
+// 	var targetUser string
+// 	var err error
+// 	var ptr *syscall.Passwd
 
-	// 尝试获取用户信息
-	for _, user := range targetUsers {
-		ptr, err = syscall.Getpwnam_r(user, &pwd, buf, int32(len(buf)))
-		if err == syscall.ERANGE {
-			// 缓冲区不够大，增大后重试
-			bufSize *= 2
-			buf = make([]byte, bufSize)
-			ptr, err = syscall.Getpwnam_r(user, &pwd, buf, int32(len(buf)))
-		}
-		if err == nil && ptr != nil {
-			targetUser = user
-			break
-		}
-	}
+// 	// 尝试获取用户信息
+// 	for _, user := range targetUsers {
+// 		ptr, err = syscall.Getpwnam_r(user, &pwd, buf, int32(len(buf)))
+// 		if err == syscall.ERANGE {
+// 			// 缓冲区不够大，增大后重试
+// 			bufSize *= 2
+// 			buf = make([]byte, bufSize)
+// 			ptr, err = syscall.Getpwnam_r(user, &pwd, buf, int32(len(buf)))
+// 		}
+// 		if err == nil && ptr != nil {
+// 			targetUser = user
+// 			break
+// 		}
+// 	}
 
-	if ptr == nil {
-		log.Printf("警告: 目标用户 %v 均不存在，eBPF 采集器将以当前用户运行", targetUsers)
-		return nil
-	}
+// 	if ptr == nil {
+// 		log.Printf("警告: 目标用户 %v 均不存在，eBPF 采集器将以当前用户运行", targetUsers)
+// 		return nil
+// 	}
 
-	// 先设置组 ID
-	if err := syscall.Setgid(int(pwd.Gid)); err != nil {
-		return fmt.Errorf("设置组 ID 失败: %w", err)
-	}
+// 	// 先设置组 ID
+// 	if err := syscall.Setgid(int(pwd.Gid)); err != nil {
+// 		return fmt.Errorf("设置组 ID 失败: %w", err)
+// 	}
 
 	// 再设置用户 ID
 	if err := syscall.Setuid(int(pwd.Uid)); err != nil {

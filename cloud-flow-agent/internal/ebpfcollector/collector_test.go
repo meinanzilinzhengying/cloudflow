@@ -1,4 +1,4 @@
-//go:build linux_and_ebpf
+//go:build linux && ebpf
 
 package ebpfcollector
 

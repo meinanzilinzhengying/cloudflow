@@ -236,6 +236,7 @@ func (r *Reporter) doSend(batch *edge.MetricsBatch) error {
 	defer cancel()
 
 	r.stats.sentTotal.Add(1)
+fmt.Println("[ReliableReporter] doSend: calling SendMetrics with", len(batch.Metrics), "metrics")
 	return r.sender.SendMetrics(ctx, batch)
 }
 

@@ -29,6 +29,7 @@
           <TrafficTopN v-else-if="activeMenu === 'traffic-topn'" />
           <TrafficMap v-else-if="activeMenu === 'traffic-map'" />
           <TrafficReplay v-else-if="activeMenu === 'traffic-replay'" />
+          <BusinessDashboard v-else-if="activeMenu === 'business'" />
 
           <!-- Topology -->
           <TopologyService v-else-if="activeMenu === 'topology-service'" />
@@ -144,6 +145,8 @@ import ManagementUser from './components/pages/management/ManagementUser.vue'
 import ManagementTenant from './components/pages/management/ManagementTenant.vue'
 import ManagementApiKey from './components/pages/management/ManagementApiKey.vue'
 import ManagementSettings from './components/pages/management/ManagementSettings.vue'
+// Business
+import BusinessDashboard from './components/pages/BusinessDashboard.vue'
 
 const isDark = ref(false)
 const loading = ref(false)

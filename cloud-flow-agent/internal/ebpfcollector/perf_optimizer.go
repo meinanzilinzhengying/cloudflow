@@ -1,4 +1,4 @@
-//go:build linux_and_ebpf
+//go:build linux && ebpf
 
 // Package ebpfcollector 提供eBPF采集性能优化功能
 package ebpfcollector
