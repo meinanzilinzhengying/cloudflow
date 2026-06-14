@@ -1,5 +1,6 @@
-//go:build ignore
-// Original: //go:build linux && cgo
+//go:build linux && cgo
+// Libbpf-based eBPF collector backend
+// Requires CGO and libbpf development libraries
 
 // Package ebpfcollector 提供基于 eBPF 的网络流量采集功能
 //

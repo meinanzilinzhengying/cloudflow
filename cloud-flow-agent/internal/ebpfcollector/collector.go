@@ -172,10 +172,9 @@ func NewWithOptions(opts *CollectorOptions) (*Collector, error) {
 		}
 	}
 
-	// 降权为普通用户运行
-	// dropPrivileges disabled
-		log.Printf("警告: 无法降权: %v，将继续以当前权限运行", err)
-	}
+	// 降权为普通用户运行（暂未启用）
+	// TODO: 完善权限降权功能后启用
+	log.Printf("权限降权功能暂未启用，采集器将以当前权限运行")
 
 	return collector, nil
 }
@@ -270,60 +269,9 @@ func loadMySQLFullObjects() (*bpf.MySQLFullObjects, []link.Link, error) {
 	return mysqlFullObjs, mysqlFullLinks, nil
 }
 
-// dropPrivileges 降权为普通用户
-// func dropPrivileges() error {
-// 	// 尝试使用 "cloud-flow" 用户，如果不存在则使用 "nobody"
-// 	targetUsers := []string{"cloud-flow", "nobody"}
-// 	var pwd syscall.Passwd
-// 	bufSize := 4096
-// 	buf := make([]byte, bufSize)
-// 	var targetUser string
-// 	var err error
-// 	var ptr *syscall.Passwd
-
-// 	// 尝试获取用户信息
-// 	for _, user := range targetUsers {
-// 		ptr, err = syscall.Getpwnam_r(user, &pwd, buf, int32(len(buf)))
-// 		if err == syscall.ERANGE {
-// 			// 缓冲区不够大，增大后重试
-// 			bufSize *= 2
-// 			buf = make([]byte, bufSize)
-// 			ptr, err = syscall.Getpwnam_r(user, &pwd, buf, int32(len(buf)))
-// 		}
-// 		if err == nil && ptr != nil {
-// 			targetUser = user
-// 			break
-// 		}
-// 	}
-
-// 	if ptr == nil {
-// 		log.Printf("警告: 目标用户 %v 均不存在，eBPF 采集器将以当前用户运行", targetUsers)
-// 		return nil
-// 	}
-
-// 	// 先设置组 ID
-// 	if err := syscall.Setgid(int(pwd.Gid)); err != nil {
-// 		return fmt.Errorf("设置组 ID 失败: %w", err)
-// 	}
-
-	// 再设置用户 ID
-	if err := syscall.Setuid(int(pwd.Uid)); err != nil {
-		return fmt.Errorf("设置用户 ID 失败: %w", err)
-	}
-
-	// 验证权限是否已降
-	if syscall.Getuid() != int(pwd.Uid) || syscall.Getgid() != int(pwd.Gid) {
-		return fmt.Errorf("权限降权验证失败")
-	}
-
-	// 验证是否能够读取 /proc 目录
-	if _, err := os.ReadDir("/proc"); err != nil {
-		log.Printf("警告: 降权后无法读取 /proc 目录: %v，某些功能可能受限", err)
-	}
-
-	log.Printf("成功降权为用户 %s (UID: %d, GID: %d)", targetUser, pwd.Uid, pwd.Gid)
-	return nil
-}
+// dropPrivileges 降权为普通用户（已废弃，待重构）
+// 该功能暂时禁用，eBPF采集需要root权限
+// TODO: 重构为eBPF加载完成后安全降权
 
 // NewWithFallback 创建一个采集器，如果 eBPF 不可用则使用回退方案
 func NewWithFallback() (*Collector, error) {
