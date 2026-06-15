@@ -1,0 +1,52 @@
+[Unit]
+Description=CloudFlow eBPF Network Agent
+Documentation=https://github.com/meinanzilinzhengying/cloudflow
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/cloudflow/agent
+
+# 启动命令
+ExecStart=/opt/cloudflow/agent/bin/cloud-flow-agent --config /opt/cloudflow/agent/config/config.yaml
+
+# 重启策略
+Restart=always
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=5
+
+# 资源限制
+LimitNOFILE=65536
+LimitNPROC=65536
+LimitMEMLOCK=infinity
+
+# eBPF 需要的权限
+AmbientCapabilities=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_NET_RAW CAP_BPF CAP_PERFMON
+SecureBits=keep-caps
+
+# 安全加固
+NoNewPrivileges=false
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=false
+ProtectKernelTunables=false
+ProtectKernelModules=false
+ProtectControlGroups=false
+RestrictSUIDSGID=true
+
+# 日志配置
+StandardOutput=journal+console
+StandardError=journal+console
+SyslogIdentifier=cloudflow-agent
+SyslogLevel=info
+
+# 环境变量
+Environment=GOMAXPROCS=4
+Environment=GODEBUG=madvdontneed=1
+
+[Install]
+WantedBy=multi-user.target

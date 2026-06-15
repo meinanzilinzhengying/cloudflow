@@ -340,6 +340,33 @@ func (s *ClickHouseStorage) Close() error {
 	return s.db.Close()
 }
 
+// ==================== 通用SQL操作 ====================
+
+func (s *ClickHouseStorage) Exec(ctx context.Context, sql string, args ...interface{}) (Result, error) {
+	res, err := s.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &sqlResult{res: res}, nil
+}
+
+func (s *ClickHouseStorage) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
+	rows, err := s.db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &sqlRows{rows: rows}, nil
+}
+
+func (s *ClickHouseStorage) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
+	row := s.db.QueryRowContext(ctx, sql, args...)
+	return &sqlRow{row: row}
+}
+
+func (s *ClickHouseStorage) RawDB() *sql.DB {
+	return s.db
+}
+
 // ==================== ClickHouse方言实现 ====================
 
 func (d *ClickHouseDialect) ConvertCreateTable(sql string) string {

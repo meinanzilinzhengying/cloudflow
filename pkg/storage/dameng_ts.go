@@ -328,6 +328,47 @@ func (s *DamengTSStorage) Close() error {
 	return s.db.Close()
 }
 
+// ==================== 通用SQL操作 ====================
+
+func (s *DamengTSStorage) Exec(ctx context.Context, sql string, args ...interface{}) (Result, error) {
+	// SQL语法转换
+	dialect := &DamengDialect{}
+	sql = dialect.ConvertUpdate(sql)
+	sql = dialect.ConvertDelete(sql)
+	sql = dialect.ConvertInsert(sql)
+
+	res, err := s.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &sqlResult{res: res}, nil
+}
+
+func (s *DamengTSStorage) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
+	// SQL语法转换
+	dialect := &DamengDialect{}
+	sql = dialect.ConvertSelect(sql)
+
+	rows, err := s.db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &sqlRows{rows: rows}, nil
+}
+
+func (s *DamengTSStorage) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
+	// SQL语法转换
+	dialect := &DamengDialect{}
+	sql = dialect.ConvertSelect(sql)
+
+	row := s.db.QueryRowContext(ctx, sql, args...)
+	return &sqlRow{row: row}
+}
+
+func (s *DamengTSStorage) RawDB() *sql.DB {
+	return s.db
+}
+
 // ==================== 达梦DM8时序方言实现 ====================
 
 func (d *DamengTSDialect) ConvertCreateTable(sql string) string {

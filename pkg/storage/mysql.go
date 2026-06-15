@@ -15,8 +15,8 @@ type MySQLDriver struct{}
 
 // MySQLStorage MySQL关系型存储实现
 type MySQLStorage struct {
-	db   *sql.DB
-	cfg  *Config
+	db  *sql.DB
+	cfg *Config
 }
 
 // MySQLDialect MySQL方言实现
@@ -92,7 +92,7 @@ func (s *MySQLStorage) Exec(ctx context.Context, sql string, args ...interface{}
 	if err != nil {
 		return nil, err
 	}
-	return &mysqlResult{res}, nil
+	return &sqlResult{res: res}, nil
 }
 
 func (s *MySQLStorage) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
@@ -100,12 +100,12 @@ func (s *MySQLStorage) Query(ctx context.Context, sql string, args ...interface{
 	if err != nil {
 		return nil, err
 	}
-	return &mysqlRows{rows}, nil
+	return &sqlRows{rows: rows}, nil
 }
 
 func (s *MySQLStorage) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	row := s.db.QueryRowContext(ctx, sql, args...)
-	return &mysqlRow{row}
+	return &sqlRow{row: row}
 }
 
 func (s *MySQLStorage) BeginTx(ctx context.Context) (Tx, error) {
@@ -113,7 +113,7 @@ func (s *MySQLStorage) BeginTx(ctx context.Context) (Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &mysqlTx{tx}, nil
+	return &sqlTx{tx: tx}, nil
 }
 
 func (s *MySQLStorage) Ping(ctx context.Context) error {
@@ -190,41 +190,81 @@ func (d *MySQLDialect) ConvertPlaceholder(sql string, argCount int) string {
 	return sql
 }
 
-// ==================== 包装类 ====================
+// ==================== 通用包装类（所有驱动共享） ====================
 
-type mysqlResult struct {
-	sql.Result
+type sqlResult struct {
+	res sql.Result
 }
 
-type mysqlRows struct {
-	*sql.Rows
+func (r *sqlResult) LastInsertId() (int64, error) {
+	return r.res.LastInsertId()
 }
 
-type mysqlRow struct {
-	*sql.Row
+func (r *sqlResult) RowsAffected() (int64, error) {
+	return r.res.RowsAffected()
 }
 
-type mysqlTx struct {
-	*sql.Tx
+type sqlRows struct {
+	rows *sql.Rows
 }
 
-func (tx *mysqlTx) Exec(ctx context.Context, sql string, args ...interface{}) (Result, error) {
-	res, err := tx.Tx.ExecContext(ctx, sql, args...)
+func (r *sqlRows) Next() bool {
+	return r.rows.Next()
+}
+
+func (r *sqlRows) Scan(dest ...interface{}) error {
+	return r.rows.Scan(dest...)
+}
+
+func (r *sqlRows) Close() error {
+	return r.rows.Close()
+}
+
+func (r *sqlRows) Err() error {
+	return r.rows.Err()
+}
+
+func (r *sqlRows) Columns() ([]string, error) {
+	return r.rows.Columns()
+}
+
+type sqlRow struct {
+	row *sql.Row
+}
+
+func (r *sqlRow) Scan(dest ...interface{}) error {
+	return r.row.Scan(dest...)
+}
+
+type sqlTx struct {
+	tx *sql.Tx
+}
+
+func (tx *sqlTx) Commit() error {
+	return tx.tx.Commit()
+}
+
+func (tx *sqlTx) Rollback() error {
+	return tx.tx.Rollback()
+}
+
+func (tx *sqlTx) Exec(ctx context.Context, sql string, args ...interface{}) (Result, error) {
+	res, err := tx.tx.ExecContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	return &mysqlResult{res}, nil
+	return &sqlResult{res: res}, nil
 }
 
-func (tx *mysqlTx) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
-	rows, err := tx.Tx.QueryContext(ctx, sql, args...)
+func (tx *sqlTx) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
+	rows, err := tx.tx.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	return &mysqlRows{rows}, nil
+	return &sqlRows{rows: rows}, nil
 }
 
-func (tx *mysqlTx) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
-	row := tx.Tx.QueryRowContext(ctx, sql, args...)
-	return &mysqlRow{row}
+func (tx *sqlTx) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
+	row := tx.tx.QueryRowContext(ctx, sql, args...)
+	return &sqlRow{row: row}
 }

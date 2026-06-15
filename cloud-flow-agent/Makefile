@@ -59,6 +59,21 @@ build: bpf
 	@echo "Building agent for $(ARCH)..."
 	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) go build $(GOFLAGS) -o cloud-flow-agent ./cmd/
 
+# 编译 Go 程序（不编译BPF，用于快速迭代）
+build-go:
+	@echo "Building Go agent for $(ARCH)..."
+	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) go build $(GOFLAGS) -o cloud-flow-agent ./cmd/
+
+# Release 版本 - 静态链接
+release: bpf
+	@echo "Building RELEASE agent for $(ARCH) (static linked)..."
+	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) go build \
+		-ldflags "-s -w -linkmode external -extldflags '-static'" \
+		-o cloud-flow-agent ./cmd/
+	@echo "Binary size:"
+	@ls -lh cloud-flow-agent
+	@file cloud-flow-agent
+
 # 交叉编译 ARM64
 build-arm64:
 	$(MAKE) ARCH=aarch64 build
@@ -66,6 +81,14 @@ build-arm64:
 # 交叉编译 x86_64
 build-x86_64:
 	$(MAKE) ARCH=x86_64 build
+
+# Release 交叉编译 ARM64
+release-arm64:
+	$(MAKE) ARCH=aarch64 release
+
+# Release 交叉编译 x86_64
+release-x86_64:
+	$(MAKE) ARCH=x86_64 release
 
 # 清理
 clean:
@@ -77,11 +100,15 @@ help:
 	@echo "Cloud Flow Agent - 跨架构编译"
 	@echo ""
 	@echo "用法:"
-	@echo "  make              - 编译当前架构"
-	@echo "  make build-arm64  - 交叉编译 ARM64"
-	@echo "  make build-x86_64 - 交叉编译 x86_64"
-	@echo "  make bpf          - 仅编译 BPF 程序"
-	@echo "  make clean        - 清理"
+	@echo "  make                - 编译当前架构（BPF + Go）"
+	@echo "  make build-go       - 仅编译 Go 程序（快速迭代）"
+	@echo "  make release        - 静态链接发布版本"
+	@echo "  make build-arm64    - 交叉编译 ARM64"
+	@echo "  make build-x86_64   - 交叉编译 x86_64"
+	@echo "  make release-arm64  - 发布版本 ARM64"
+	@echo "  make release-x86_64 - 发布版本 x86_64"
+	@echo "  make bpf            - 仅编译 BPF 程序"
+	@echo "  make clean          - 清理"
 	@echo ""
 	@echo "变量:"
 	@echo "  CLANG=...         - 指定 clang 路径"
