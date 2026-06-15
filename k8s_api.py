@@ -5,6 +5,10 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 KUBECTL = '/usr/local/bin/kubectl'
 KUBECONFIG = '/root/.kube/config'
 
+# CORS白名单配置
+CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:8080').split(',')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS]
+
 def k8s_get(resource):
     cmd = [KUBECTL, 'get', resource, '-o', 'json', '--kubeconfig', KUBECONFIG, '--request-timeout', '10']
     if resource in ('pods', 'services'):
@@ -18,11 +22,18 @@ def k8s_get(resource):
         return {'error': str(e)}
 
 class H(BaseHTTPRequestHandler):
+    def _set_cors_headers(self):
+        origin = self.headers.get('Origin')
+        if origin and origin in CORS_ALLOWED_ORIGINS:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Access-Control-Allow-Credentials', 'true')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self._set_cors_headers()
         self.end_headers()
+
     def do_GET(self):
         path = self.path.rstrip('/')
         endpoints = {
@@ -38,9 +49,10 @@ class H(BaseHTTPRequestHandler):
         d = fn()
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self._set_cors_headers()
         self.end_headers()
         self.wfile.write(json.dumps(d).encode())
+
     def log_message(self, *a): pass
 
 if __name__ == '__main__':
