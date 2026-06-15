@@ -123,6 +123,22 @@ func (g *probeGRPC) Heartbeat(ctx context.Context, req *edge.HeartbeatRequest) (
 func (g *probeGRPC) SendTraces(ctx context.Context, batch *edge.TraceBatch) (*edge.SendResponse, error) { return &edge.SendResponse{Success: true}, nil }
 func (g *probeGRPC) SendProfiling(ctx context.Context, batch *edge.ProfilingBatch) (*edge.SendResponse, error) { return &edge.SendResponse{Success: true}, nil }
 func (g *probeGRPC) SendLogs(ctx context.Context, batch *edge.LogBatch) (*edge.SendResponse, error) { return &edge.SendResponse{Success: true}, nil }
-func (g *probeGRPC) GetConfig(ctx context.Context, req *edge.GetConfigRequest) (*edge.GetConfigResponse, error) { return &edge.GetConfigResponse{Success: true}, nil }
+func (g *probeGRPC) GetConfig(ctx context.Context, req *edge.GetConfigRequest) (*edge.GetConfigResponse, error) {
+	// TODO: #15 - 实现完整的配置版本管理 + SHA256校验
+	// 当前返回基础默认配置
+	return &edge.GetConfigResponse{
+		Success:    true,
+		HasUpdate:  true,
+		ServerTime: time.Now().Unix(),
+		Config: &edge.CollectionConfig{
+			Enabled:        true,
+			SamplingRate:   100,
+			FlushInterval:  1000,
+			BatchSize:      100,
+			QueueSize:      10000,
+			HeartbeatInterval: 10,
+		},
+	}, nil
+}
 func (g *probeGRPC) DiscoverEdges(ctx context.Context, req *edge.DiscoverEdgesRequest) (*edge.DiscoverEdgesResponse, error) { return &edge.DiscoverEdgesResponse{Success: true}, nil }
 func (g *probeGRPC) StreamData(stream edge.ProbeService_StreamDataServer) error { return fmt.Errorf("not implemented") }

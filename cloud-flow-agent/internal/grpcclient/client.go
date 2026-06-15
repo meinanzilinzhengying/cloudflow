@@ -381,10 +381,7 @@ func (c *Client) GetConfig(ctx context.Context, req *edge.GetConfigRequest) (*ed
 		ctx, cancel = context.WithTimeout(ctx, rpcTimeout)
 		defer cancel()
 	}
-
-	// 使用 ProbeService 的 GetConfig 方法（需要在proto中定义）
-	// 这里暂时使用通用方法，后续需要服务端支持
-	return nil, fmt.Errorf("GetConfig 需要服务端支持")
+	return c.client.GetConfig(grpcutil.WithAuth(ctx, c.apiKey), req)
 }
 
 func (c *Client) Close() error {
