@@ -1,6 +1,6 @@
 module github.com/meinanzilinzhengying/cloudflow/services/shared
 
-go 1.25.0
+go 1.22
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
