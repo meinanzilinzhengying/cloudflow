@@ -16,10 +16,6 @@ require (
 )
 
 replace (
-	github.com/meinanzilinzhengying/cloudflow/services/proto => ../services/proto
-)
-
-replace (
 	github.com/meinanzilinzhengying/cloudflow/services/alert-engine => ../services/alert-engine
 	github.com/meinanzilinzhengying/cloudflow/services/auth-service => ../services/auth-service
 	github.com/meinanzilinzhengying/cloudflow/services/control-plane => ../services/control-plane
@@ -28,7 +24,9 @@ replace (
 	github.com/meinanzilinzhengying/cloudflow/services/query-service => ../services/query-service
 	github.com/meinanzilinzhengying/cloudflow/services/shared => ../services/shared
 	github.com/meinanzilinzhengying/cloudflow/services/shared/auth => ../services/shared/auth
+	github.com/meinanzilinzhengying/cloudflow/services/shared/resilience => ../services/shared/resilience
 	github.com/meinanzilinzhengying/cloudflow/services/tenant-service => ../services/tenant-service
 	github.com/meinanzilinzhengying/cloudflow/services/topology-engine => ../services/topology-engine
-	github.com/meinanzilinzhengying/cloudflow/services/shared/resilience => ../services/shared/resilience
 )
+
+replace golang.org/x/sys => golang.org/x/sys v0.18.0

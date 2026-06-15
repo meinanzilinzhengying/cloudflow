@@ -12,7 +12,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.1
 	go.uber.org/zap v1.27.0
-	golang.org/x/sys v0.45.0
+	golang.org/x/sys v0.18.0
 	google.golang.org/grpc v1.80.0
 )
 
@@ -51,3 +51,5 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace golang.org/x/sys => golang.org/x/sys v0.18.0
