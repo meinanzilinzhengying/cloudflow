@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // ==================== 清理执行器类型 ====================
@@ -237,7 +239,7 @@ func (s *CleanupScheduler) executeWithIsolation(ctx context.Context, category Da
 	_, err := s.executor(taskCtx, category)
 	if err != nil {
 		// 记录错误但不中断其他清理
-		_ = err
+		log.Debugf("cleanup task failed: %v", err)
 	}
 }
 
