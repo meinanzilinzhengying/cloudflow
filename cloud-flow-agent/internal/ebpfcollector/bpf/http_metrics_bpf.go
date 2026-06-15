@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"log"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -179,7 +180,7 @@ func AttachHTTPMetricsProbes(objs *HTTPMetricsObjects) ([]link.Link, error) {
 		l, err := link.Kprobe("tcp_data_queue", objs.TraceTcpDataQueue, nil)
 		if err != nil {
 			// tcp_data_queue可能在某些内核中不可用
-			_ = err
+			log.Debugf("attach tcp_data_queue kprobe failed: %v", err)
 		} else {
 			links = append(links, l)
 		}

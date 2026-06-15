@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"log"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -279,7 +280,7 @@ func AttachMySQLFullProbes(objs *MySQLFullObjects) ([]link.Link, error) {
 		l, err := link.Kprobe("tcp_recvmsg", objs.TraceMySQLRecvmsgResponse, nil)
 		if err != nil {
 			// 如果失败，不视为致命错误，因为可能和上面的recvmsg冲突
-			_ = err
+			log.Debugf("mysql response probe attach failed: %v", err)
 		} else {
 			links = append(links, l)
 		}

@@ -2,6 +2,7 @@ package cgroup
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -63,7 +64,9 @@ func NewManager(cfg *Config) (*Manager, error) {
 		cpuMaxPath := filepath.Join(cgroupPath, "cpu.max")
 		if err := writeCgroupFile(cpuMaxPath, cpuLimit); err != nil {
 			// 清理已创建的目录
-			_ = os.RemoveAll(cgroupPath)
+			if cleanupErr := os.RemoveAll(cgroupPath); cleanupErr != nil {
+				log.Debugf("cleanup cgroup directory failed: %v", cleanupErr)
+			}
 			return nil, fmt.Errorf("写入cpu.max失败: %w", err)
 		}
 	}
@@ -74,7 +77,9 @@ func NewManager(cfg *Config) (*Manager, error) {
 		memoryMaxPath := filepath.Join(cgroupPath, "memory.max")
 		if err := writeCgroupFile(memoryMaxPath, memoryLimit); err != nil {
 			// 清理已创建的目录
-			_ = os.RemoveAll(cgroupPath)
+			if cleanupErr := os.RemoveAll(cgroupPath); cleanupErr != nil {
+				log.Debugf("cleanup cgroup directory failed: %v", cleanupErr)
+			}
 			return nil, fmt.Errorf("写入memory.max失败: %w", err)
 		}
 	}
@@ -123,7 +128,9 @@ func (m *Manager) Close() error {
 	// 将进程移回根cgroup
 	procsPath := filepath.Join(cgroupV2Root, "cgroup.procs")
 	pidStr := strconv.Itoa(m.pid)
-	_ = writeCgroupFile(procsPath, pidStr)
+	if err := writeCgroupFile(procsPath, pidStr); err != nil {
+		log.Debugf("move process back to root cgroup failed: %v", err)
+	}
 
 	// 删除cgroup目录
 	// 注意：只有当cgroup为空时才能删除

@@ -5,6 +5,7 @@ package ebpfcollector
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -41,7 +43,9 @@ type Collector struct {
 	httpFullLinks   []link.Link
 	dnsFullLinks    []link.Link
 	mysqlFullLinks  []link.Link
-	stopCh          chan struct{}
+	ctx             context.Context
+	cancel          context.CancelFunc
+	wg              sync.WaitGroup
 	collectCh       chan []*edge.MetricData
 	enableTCPMetrics  bool
 	enableHTTPMetrics bool
@@ -102,7 +106,6 @@ func NewWithOptions(opts *CollectorOptions) (*Collector, error) {
 	collector := &Collector{
 		objs:             objs,
 		links:            links,
-		stopCh:           make(chan struct{}),
 		collectCh:        make(chan []*edge.MetricData, 10),
 		enableTCPMetrics:  opts.EnableTCPMetrics,
 		enableHTTPMetrics: opts.EnableHTTPMetrics,
@@ -315,12 +318,17 @@ func (c *Collector) IsMySQLFullAvailable() bool {
 
 // Start 启动采集器
 func (c *Collector) Start() {
-	go c.collectLoop()
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+	c.wg.Add(1)
+	go c.collectLoop(c.ctx)
 }
 
 // Stop 停止采集器
 func (c *Collector) Stop() {
-	close(c.stopCh)
+	if c.cancel != nil {
+		c.cancel()
+	}
+	c.wg.Wait()
 	for _, l := range c.links {
 		l.Close()
 	}
@@ -425,12 +433,16 @@ func NewCollector(opts *CollectorOptions) (EBPFCollectorInterface, error) {
 }
 
 // collectLoop 采集循环
-func (c *Collector) collectLoop() {
+func (c *Collector) collectLoop(ctx context.Context) {
+	defer c.wg.Done()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-ctx.Done():
+			log.Info("collectLoop stopped gracefully")
+			return
 		case <-ticker.C:
 			metrics := c.collectData()
 			if len(metrics) > 0 {
@@ -439,8 +451,6 @@ func (c *Collector) collectLoop() {
 				default:
 				}
 			}
-		case <-c.stopCh:
-			return
 		}
 	}
 }
@@ -545,7 +555,9 @@ func (c *Collector) collectTCPMetrics(now int64) []*edge.MetricData {
 		metrics = append(metrics, metric)
 
 		// 遍历后删除已读取的条目，避免重复采集
-		_ = c.tcpMetricsObjs.TcpFlowStatsMap.Delete(&flowKey)
+		if err := c.tcpMetricsObjs.TcpFlowStatsMap.Delete(&flowKey); err != nil {
+			log.Debugf("delete tcp flow stats map entry failed: %v", err)
+		}
 	}
 
 	// 阶段 2：读取 global_tcp_metrics_map 全局汇总
