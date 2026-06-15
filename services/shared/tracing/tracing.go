@@ -97,7 +97,9 @@ func getTraceIDFromCtx(ctx context.Context) string {
 		}
 	}
 	if v := ctx.Value(traceIDKey{}); v != nil {
-		return v.(string)
+		if traceID, ok := v.(string); ok {
+			return traceID
+		}
 	}
 	return generateTraceID()
 }
