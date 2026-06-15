@@ -165,7 +165,10 @@ func (e *Engine) SubmitWithCallback(packet RawPacket, flow interface{}, callback
 	}
 
 	// 从对象池获取任务
-	task := e.taskPool.Get().(*ParseTask)
+	task, ok := e.taskPool.Get().(*ParseTask)
+	if !ok {
+		task = &ParseTask{}
+	}
 	task.Packet = packet
 	task.Flow = flow
 	task.Callback = callback

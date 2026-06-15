@@ -274,7 +274,7 @@ func isInlineRedisCommand(data []byte) bool {
 	}
 
 	// 检查是否以 RESP 类型字符开头
-	if bytes.IndexByte([]byte("+-:$*_#!,(">"), data[0]) >= 0 {
+	if bytes.IndexByte([]byte("+-:$*_#!,(>"), data[0]) >= 0 {
 		return false
 	}
 
@@ -354,9 +354,9 @@ func detectDNS(data []byte, dstPort uint16) (bool, float64) {
 
 var globalDetector = NewProtocolDetector()
 
-// DetectProtocol 全局协议检测函数
-func DetectProtocol(data []byte, dstPort uint16) (ParserType, float64) {
-	return globalDetector.Detect(data, dstPort)
+// GetGlobalDetector 获取全局检测器
+func GetGlobalDetector() *ProtocolDetector {
+	return globalDetector
 }
 
 // RegisterDetectionRule 注册自定义检测规则
