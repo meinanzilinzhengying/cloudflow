@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
@@ -428,7 +429,15 @@ func (c *Collector) collectFlows() {
 		}
 	}
 
-	// TODO: 发送metrics到通道
+	// 发送metrics到通道（非阻塞）
+	if len(metrics) > 0 {
+		select {
+		case c.collectCh <- metrics:
+			c.log.Debugf("[VXLAN] 发送 %d 条VXLAN流量指标", len(metrics))
+		default:
+			c.log.Warnf("[VXLAN] metrics通道已满，丢弃 %d 条指标", len(metrics))
+		}
+	}
 }
 
 // parseInnerFlowInfo 解析内层流量信息
@@ -453,8 +462,42 @@ func (c *Collector) parseInnerFlowInfo(data []byte) *InnerFlowInfo {
 
 // mirrorToTap 镜像流量到TAP设备
 func (c *Collector) mirrorToTap(info *InnerFlowInfo, rawPacket []byte) {
-	// TODO: 实现TAP镜像
-	// 需要重构内层以太网帧并写入TAP设备
+	if c.tapDevice == nil {
+		return
+	}
+
+	// 构造内层以太网帧
+	// 以太网头部: 目的MAC(6) + 源MAC(6) + 以太类型(2)
+	ethernetHeader := make([]byte, 14)
+
+	// 使用广播MAC作为目的MAC
+	copy(ethernetHeader[0:6], []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF})
+	// 使用虚拟源MAC
+	copy(ethernetHeader[6:12], []byte{0x00, 0x11, 0x22, 0x33, 0x44, 0x55})
+
+	// 设置以太类型: IPv4=0x0800, IPv6=0x86DD
+	if info.InnerIPVersion == 4 {
+		binary.BigEndian.PutUint16(ethernetHeader[12:14], 0x0800)
+	} else if info.InnerIPVersion == 6 {
+		binary.BigEndian.PutUint16(ethernetHeader[12:14], 0x86DD)
+	}
+
+	// 构造完整数据包: 以太网头部 + IP数据包（从rawPacket中提取内层）
+	// 简化实现：直接写入以太网头部 + 原始数据包的内层部分
+	packet := append(ethernetHeader, rawPacket...)
+
+	// 写入TAP设备
+	n, err := c.tapDevice.Write(packet)
+	if err != nil {
+		c.log.Errorf("[VXLAN] TAP镜像写入失败: %v", err)
+		return
+	}
+
+	// 更新统计
+	atomic.AddUint64(&c.stats.tapMirrorPackets, 1)
+	atomic.AddUint64(&c.stats.tapMirrorBytes, uint64(n))
+
+	c.log.Debugf("[VXLAN] TAP镜像成功: VNI=%d, bytes=%d", info.VNI, n)
 }
 
 // flowToMetric 将流量数据转换为指标
