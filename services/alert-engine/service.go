@@ -14,7 +14,6 @@ package alertengine
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -27,8 +26,7 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
-
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
@@ -43,11 +41,13 @@ type Config struct {
 	GrpcAddr    string // :9009
 	HttpAddr    string // :8009
 
-	// P0-02 修复: TiDB 配置
-	TiDBAddr     string
-	TiDBUser     string
-	TiDBPassword string
-	TiDBDatabase string
+	// 关系型数据库配置
+	RelationalDBType     storage.DatabaseType
+	RelationalDBHost     string
+	RelationalDBPort     int
+	RelationalDBUser     string
+	RelationalDBPassword string
+	RelationalDBDatabase string
 
 	// Auth Service 地址
 	AuthAddr string
@@ -74,17 +74,22 @@ type Config struct {
 
 func DefaultConfig() *Config {
 	return &Config{
-		ServiceName:   "alert-engine",
-		Version:       "1.0.0",
-		GrpcAddr:      ":9009",
-		HttpAddr:      ":8009",
-		TiDBDatabase:  "cloudflow_alert",
-		AuthAddr:      "auth-service:9003",
-		EvalInterval:  15 * time.Second,
-		MaxRules:      10000,
-		TLSEnabled:    false,
-		TLSInsecureSkip: false,
-		MockMetricsEnabled: false,
+		ServiceName:          "alert-engine",
+		Version:              "1.0.0",
+		GrpcAddr:             ":9009",
+		HttpAddr:             ":8009",
+		RelationalDBType:     storage.DBTypeMySQL,
+		RelationalDBHost:     "mysql",
+		RelationalDBPort:     3306,
+		RelationalDBUser:     "root",
+		RelationalDBPassword: "",
+		RelationalDBDatabase: "cloudflow_alert",
+		AuthAddr:             "auth-service:9003",
+		EvalInterval:         15 * time.Second,
+		MaxRules:             10000,
+		TLSEnabled:           false,
+		TLSInsecureSkip:      false,
+		MockMetricsEnabled:   false,
 	}
 }
 
@@ -101,8 +106,8 @@ type activeAlert struct {
 type Service struct {
 	config *Config
 
-	// P0-02 修复: TiDB 数据库连接
-	db *sql.DB
+	// 关系型数据库抽象层
+	db storage.RelationalStorage
 
 	// P0-3 修复: 共享认证中间件
 	auth *auth.Authenticator
@@ -168,10 +173,10 @@ func New(config *Config) (*Service, error) {
 		s.auth = authMiddleware
 	}
 
-	// P0-02 修复: 初始化 TiDB 连接
-	if config.TiDBAddr != "" {
-		if err := s.initTiDB(); err != nil {
-			return nil, fmt.Errorf("TiDB init failed: %w", err)
+	// 初始化关系型数据库连接
+	if config.RelationalDBHost != "" {
+		if err := s.initDatabase(); err != nil {
+			return nil, fmt.Errorf("database init failed: %w", err)
 		}
 	}
 
@@ -187,30 +192,31 @@ func New(config *Config) (*Service, error) {
 	return s, nil
 }
 
-// initTiDB P0-02 修复: 初始化 TiDB 连接和表结构
-func (s *Service) initTiDB() error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
-		s.config.TiDBUser,
-		s.config.TiDBPassword,
-		s.config.TiDBAddr,
-		s.config.TiDBDatabase,
-	)
-
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return fmt.Errorf("TiDB open failed: %w", err)
+// initDatabase 初始化关系型数据库连接和表结构
+func (s *Service) initDatabase() error {
+	cfg := storage.Config{
+		Type:         s.config.RelationalDBType,
+		Host:         s.config.RelationalDBHost,
+		Port:         s.config.RelationalDBPort,
+		User:         s.config.RelationalDBUser,
+		Password:     s.config.RelationalDBPassword,
+		Database:     s.config.RelationalDBDatabase,
+		MaxOpenConns: 50,
+		MaxIdleConns: 10,
+		MaxLifetime:  5 * time.Minute,
 	}
 
-	db.SetMaxOpenConns(50)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	db, err := storage.OpenRelational(cfg)
+	if err != nil {
+		return fmt.Errorf("database open failed: %w", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return fmt.Errorf("TiDB ping failed: %w", err)
+		return fmt.Errorf("database ping failed: %w", err)
 	}
 
 	s.db = db
@@ -225,7 +231,8 @@ func (s *Service) initTiDB() error {
 		fmt.Printf("Warning: failed to load active alerts: %v\n", err)
 	}
 
-	fmt.Printf("Alert Engine TiDB connected: %s/%s\n", s.config.TiDBAddr, s.config.TiDBDatabase)
+	fmt.Printf("Alert Engine database connected: %s:%d/%s (type=%s)\n",
+		s.config.RelationalDBHost, s.config.RelationalDBPort, s.config.RelationalDBDatabase, s.config.RelationalDBType)
 	return nil
 }
 
@@ -379,8 +386,8 @@ func (s *Service) Start() error {
 	go s.runPeriodicEvaluation()
 
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_SERVING)
-	fmt.Printf("Alert Engine started: gRPC=%s, HTTP=%s (TiDB=%s)\n",
-		s.config.GrpcAddr, s.config.HttpAddr, s.config.TiDBAddr)
+	fmt.Printf("Alert Engine started: gRPC=%s, HTTP=%s (DB=%s:%d/%s)\n",
+		s.config.GrpcAddr, s.config.HttpAddr, s.config.RelationalDBHost, s.config.RelationalDBPort, s.config.RelationalDBDatabase)
 	return nil
 }
 
@@ -634,8 +641,8 @@ func (s *Service) createNotification(tenantID, ruleID, alertID, title, message s
 // validateRuleOwnership P2-1: 验证规则所有权
 func (s *Service) validateRuleOwnership(ctx context.Context, ruleId string) error {
 	var tenantId string
-	err := s.db.QueryRow("SELECT tenant_id FROM alert_rules WHERE rule_id = ?", ruleId).Scan(&tenantId)
-	if err == sql.ErrNoRows {
+	err := s.db.QueryRow(ctx, "SELECT tenant_id FROM alert_rules WHERE rule_id = ?", ruleId).Scan(&tenantId)
+	if storage.IsNotFound(err) {
 		return fmt.Errorf("rule not found")
 	}
 	if err != nil {
@@ -709,7 +716,7 @@ func (s *Service) GetRule(ctx context.Context, req *svcproto.GetAlertRuleRequest
 		&rule.CreatedAt,
 		&rule.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if storage.IsNotFound(err) {
 		return &svcproto.GetAlertRuleResponse{Rule: nil}, nil
 	}
 	if err != nil {
@@ -756,7 +763,7 @@ func (s *Service) DeleteRule(ctx context.Context, req *svcproto.DeleteAlertRuleR
 		return &svcproto.DeleteAlertRuleResponse{Success: false, Message: err.Error()}, nil
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx)
 	if err != nil {
 		return &svcproto.DeleteAlertRuleResponse{Success: false, Message: err.Error()}, nil
 	}
@@ -877,7 +884,7 @@ func (s *Service) GetAlert(ctx context.Context, req *svcproto.GetAlertRequest) (
 		&alert.CreatedAt,
 		&alert.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if storage.IsNotFound(err) {
 		return &svcproto.GetAlertResponse{Alert: nil}, nil
 	}
 	if err != nil {
