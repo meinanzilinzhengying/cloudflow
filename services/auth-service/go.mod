@@ -9,3 +9,5 @@ require (
 	github.com/prometheus/client_golang v1.21.1
 	google.golang.org/grpc v1.62.1
 )
+
+replace github.com/prometheus/common => github.com/prometheus/common v0.48.0
