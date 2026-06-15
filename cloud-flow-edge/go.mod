@@ -3,13 +3,13 @@ module github.com/meinanzilinzhengying/cloudflow/edge
 go 1.22
 
 require (
-	github.com/meinanzilinzhengying/cloudflow/pkg v0.0.0
-	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/IBM/sarama v1.50.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/protobuf v1.5.4
 	github.com/hashicorp/consul/api v1.25.1
 	github.com/joho/godotenv v1.5.1
+	github.com/meinanzilinzhengying/cloudflow/pkg v0.0.0
+	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/prometheus/client_golang v1.19.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/spf13/viper v1.18.2
@@ -18,8 +18,6 @@ require (
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 )
-
-
 
 require (
 	github.com/armon/go-metrics v0.4.1 // indirect
@@ -78,3 +76,5 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace golang.org/x/sys => golang.org/x/sys v0.18.0

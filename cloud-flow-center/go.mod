@@ -3,13 +3,13 @@ module github.com/meinanzilinzhengying/cloudflow/center
 go 1.22
 
 require (
-	github.com/meinanzilinzhengying/cloudflow/pkg v0.0.0-00010101000000-000000000000
-	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/IBM/sarama v1.50.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/golang-jwt/jwt/v5 v5.2.0
+	github.com/meinanzilinzhengying/cloudflow/pkg v0.0.0-00010101000000-000000000000
+	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/prometheus/client_golang v1.19.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/spf13/viper v1.18.2
@@ -19,8 +19,6 @@ require (
 	golang.org/x/crypto v0.52.0
 	google.golang.org/grpc v1.80.0
 )
-
-
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
@@ -91,3 +89,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace golang.org/x/sys => golang.org/x/sys v0.18.0

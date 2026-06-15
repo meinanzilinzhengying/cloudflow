@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,10 +44,27 @@ func NewServer(cfg *config.Config, log *logger.Logger, llmClient *llm.Client) *S
 
 // corsMiddleware wraps an http.Handler with CORS headers.
 func corsMiddleware(next http.Handler) http.Handler {
+	// 从环境变量读取允许的来源，逗号分隔
+	allowedOrigins := strings.Split(os.Getenv("CORS_ALLOWED_ORIGINS"), ",")
+	if len(allowedOrigins) == 0 || allowedOrigins[0] == "" {
+		// 默认值：本地开发环境
+		allowedOrigins = []string{"http://localhost:3000", "http://localhost:8080"}
+	}
+
+	// 构建来源映射用于快速查找
+	originMap := make(map[string]bool)
+	for _, origin := range allowedOrigins {
+		originMap[strings.TrimSpace(origin)] = true
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		origin := r.Header.Get("Origin")
+		if origin != "" && originMap[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)

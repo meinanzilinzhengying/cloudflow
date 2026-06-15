@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -107,12 +108,18 @@ func (d *DualWriteRelationalStorage) Exec(ctx context.Context, sql string, args 
 	if d.mode >= ModeAsyncWrite && d.secondary != nil {
 		if d.mode == ModeSyncWrite {
 			// 同步双写
-			_, _ = d.secondary.Exec(ctx, sql, args...)
+			_, secErr := d.secondary.Exec(ctx, sql, args...)
+			if secErr != nil {
+				log.Printf("[ERROR] dual write sync failed: secondary database write error: %v, sql: %.100s", secErr, sql)
+			}
 		} else {
 			// 异步双写
-			go func() {
-				_, _ = d.secondary.Exec(context.Background(), sql, args...)
-			}()
+			go func(sql string, args ...interface{}) {
+				_, secErr := d.secondary.Exec(context.Background(), sql, args...)
+				if secErr != nil {
+					log.Printf("[ERROR] dual write async failed: secondary database write error: %v, sql: %.100s", secErr, sql)
+				}
+			}(sql, args...)
 		}
 	}
 

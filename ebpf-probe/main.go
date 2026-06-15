@@ -17,10 +17,13 @@ import (
 )
 
 var (
-	probeID    = envOrDefault("PROBE_ID", "vm2-probe")
-	ifaceName  = envOrDefault("INTERFACE", "ens33")
-	clickHouse = envOrDefault("CLICKHOUSE_ADDR", "192.168.58.130:9000")
-	flushInt   = 10 * time.Second
+	probeID           = envOrDefault("PROBE_ID", "vm2-probe")
+	ifaceName         = envOrDefault("INTERFACE", "ens33")
+	clickHouse        = envOrDefault("CLICKHOUSE_ADDR", "192.168.58.130:9000")
+	clickHouseUser    = envOrDefault("CLICKHOUSE_USER", "default")
+	clickHousePassword = envOrDefault("CLICKHOUSE_PASSWORD", "")
+	clickHouseDB      = envOrDefault("CLICKHOUSE_DATABASE", "cloudflow")
+	flushInt          = 10 * time.Second
 )
 
 func envOrDefault(key, def string) string {
@@ -49,9 +52,13 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	log.Printf("[EBPF-Probe] 启动: probe=%s iface=%s", probeID, ifaceName)
 
+	if clickHousePassword == "" {
+		log.Printf("[WARNING] CLICKHOUSE_PASSWORD 环境变量未设置，使用空密码连接")
+	}
+
 	db, err := sql.Open("clickhouse",
-		fmt.Sprintf("tcp://%s?username=default&password=ClickHouse2024Secure&database=cloudflow",
-			clickHouse))
+		fmt.Sprintf("tcp://%s?username=%s&password=%s&database=%s",
+			clickHouse, clickHouseUser, clickHousePassword, clickHouseDB))
 	if err != nil {
 		log.Fatalf("ClickHouse 连接失败: %v", err)
 	}
