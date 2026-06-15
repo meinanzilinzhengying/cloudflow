@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,10 +19,9 @@ import (
 	"google.golang.org/grpc/health"
 	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-
-	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/meinanzilinzhengying/cloudflow/services/auth-service/auth"
 	"github.com/meinanzilinzhengying/cloudflow/services/auth-service/rbac"
@@ -59,11 +59,13 @@ type Config struct {
 	// RBAC
 	SuperAdminRole string
 
-	// TiDB (P0-02 修复: 用户持久化)
-	TiDBAddr     string
-	TiDBUser     string
-	TiDBPassword string
-	TiDBDatabase string
+	// 关系型数据库配置
+	RelationalDBType     storage.DatabaseType
+	RelationalDBHost     string
+	RelationalDBPort     int
+	RelationalDBUser     string
+	RelationalDBPassword string
+	RelationalDBDatabase string
 
 	// P0-2 修复: TLS 配置
 	TLSEnabled      bool
@@ -77,33 +79,41 @@ type Config struct {
 // DefaultConfig 默认配置
 func DefaultConfig() *Config {
 	cfg := &Config{
-		ServiceName:    "auth-service",
-		Version:        "1.0.0",
-		GrpcAddr:       ":9006",
-		HttpAddr:       ":8006",
-		JWTIssuer:      "cloudflow",
-		JWTExpireSec:   86400,   // 24h
-		JWTRefreshSec:  604800,  // 7d
-		SuperAdminRole: "super_admin",
-		TiDBDatabase:   "cloudflow_auth",
-		TLSEnabled:     false,
-		TLSInsecureSkip: false,
+		ServiceName:         "auth-service",
+		Version:             "1.0.0",
+		GrpcAddr:            ":9006",
+		HttpAddr:            ":8006",
+		JWTIssuer:           "cloudflow",
+		JWTExpireSec:        86400,   // 24h
+		JWTRefreshSec:       604800,  // 7d
+		SuperAdminRole:      "super_admin",
+		RelationalDBType:    storage.DBMySQL,
+		RelationalDBHost:    "mysql",
+		RelationalDBPort:    3306,
+		RelationalDBUser:    "root",
+		RelationalDBDatabase: "cloudflow_auth",
+		TLSEnabled:          false,
+		TLSInsecureSkip:     false,
 	}
 
-	// "TIDB_ADDR" from env, default tidb:4000
-	if v := os.Getenv("TIDB_ADDR"); v != "" {
-		cfg.TiDBAddr = v
-	} else {
-		cfg.TiDBAddr = "tidb:4000"
+	// 从环境变量读取配置
+	if v := os.Getenv("RELATIONAL_DB_TYPE"); v != "" {
+		cfg.RelationalDBType = storage.DatabaseType(v)
 	}
-	if v := os.Getenv("TIDB_USER"); v != "" {
-		cfg.TiDBUser = v
-	} else {
-		cfg.TiDBUser = "root"
+	if v := os.Getenv("RELATIONAL_DB_HOST"); v != "" {
+		cfg.RelationalDBHost = v
 	}
-	cfg.TiDBPassword = os.Getenv("TIDB_PASSWORD")
-	if v := os.Getenv("TIDB_DATABASE"); v != "" {
-		cfg.TiDBDatabase = v
+	if v := os.Getenv("RELATIONAL_DB_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			cfg.RelationalDBPort = p
+		}
+	}
+	if v := os.Getenv("RELATIONAL_DB_USER"); v != "" {
+		cfg.RelationalDBUser = v
+	}
+	cfg.RelationalDBPassword = os.Getenv("RELATIONAL_DB_PASSWORD")
+	if v := os.Getenv("RELATIONAL_DB_DATABASE"); v != "" {
+		cfg.RelationalDBDatabase = v
 	}
 	return cfg
 }
@@ -122,8 +132,8 @@ type Service struct {
 	// RBAC
 	rbacEngine *rbac.RBACEngine
 
-	// P0-02 修复: TiDB 用户存储
-	db     *sql.DB
+	// 关系型数据库存储
+	db     storage.RelationalStorage
 	gormDB *gorm.DB
 
 	// 用户缓存 (热路径优化，但数据来源于 TiDB)
@@ -215,29 +225,21 @@ func New(config *Config) (*Service, error) {
 		}
 	}
 
-	// P0-02 修复: 初始化 TiDB 连接
-	if config.TiDBAddr != "" {
-		if err := s.initTiDB(); err != nil {
-			return nil, fmt.Errorf("TiDB init failed: %w", err)
-		}
-
-		// P0-02 修复: 使用 GormAdapter 初始化 RBAC 引擎
-		gormAdapter, err := rbacadapter.NewGormAdapter(s.gormDB)
-		if err != nil {
-			return nil, fmt.Errorf("RBAC adapter init failed: %w", err)
-		}
-
-		s.rbacEngine = rbac.NewRBACEngineWithAdapter(rbac.RBACConfig{
-			SuperAdminRole:         config.SuperAdminRole,
-			DefaultPoliciesEnabled: true,
-		}, gormAdapter)
-	} else {
-		// 没有数据库时使用内存适配器（仅用于开发/测试）
-		s.rbacEngine = rbac.NewRBACEngine(rbac.RBACConfig{
-			SuperAdminRole:         config.SuperAdminRole,
-			DefaultPoliciesEnabled: true,
-		})
+	// 初始化关系型数据库连接
+	if err := s.initDatabase(); err != nil {
+		return nil, fmt.Errorf("database init failed: %w", err)
 	}
+
+	// 使用 GormAdapter 初始化 RBAC 引擎
+	gormAdapter, err := rbacadapter.NewGormAdapter(s.gormDB)
+	if err != nil {
+		return nil, fmt.Errorf("RBAC adapter init failed: %w", err)
+	}
+
+	s.rbacEngine = rbac.NewRBACEngineWithAdapter(rbac.RBACConfig{
+		SuperAdminRole:         config.SuperAdminRole,
+		DefaultPoliciesEnabled: true,
+	}, gormAdapter)
 
 	// 初始化 gRPC 服务器
 	var grpcOptions []grpc.ServerOption
@@ -252,35 +254,32 @@ func New(config *Config) (*Service, error) {
 	return s, nil
 }
 
-// initTiDB P0-02 修复: 初始化 TiDB 连接和用户表
-func (s *Service) initTiDB() error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
-		s.config.TiDBUser,
-		s.config.TiDBPassword,
-		s.config.TiDBAddr,
-		s.config.TiDBDatabase,
-	)
-
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return fmt.Errorf("TiDB open failed: %w", err)
+// initDatabase 初始化关系型数据库连接和用户表
+func (s *Service) initDatabase() error {
+	cfg := &storage.Config{
+		Type:     s.config.RelationalDBType,
+		Host:     s.config.RelationalDBHost,
+		Port:     s.config.RelationalDBPort,
+		User:     s.config.RelationalDBUser,
+		Password: s.config.RelationalDBPassword,
+		Database: s.config.RelationalDBDatabase,
 	}
 
-	db.SetMaxOpenConns(50)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(5 * time.Minute)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		db.Close()
-		return fmt.Errorf("TiDB ping failed: %w", err)
+	db, err := storage.OpenRelational(cfg)
+	if err != nil {
+		return fmt.Errorf("database open failed: %w", err)
 	}
 
 	s.db = db
 
-	// P0-02 修复: 初始化 GORM DB (用于 RBAC 持久化)
+	// 初始化 GORM DB (用于 RBAC 持久化)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
+		s.config.RelationalDBUser,
+		s.config.RelationalDBPassword,
+		s.config.RelationalDBHost,
+		s.config.RelationalDBPort,
+		s.config.RelationalDBDatabase,
+	)
 	gormDB, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return fmt.Errorf("GORM open failed: %w", err)
@@ -297,7 +296,8 @@ func (s *Service) initTiDB() error {
 		return fmt.Errorf("load users to cache failed: %w", err)
 	}
 
-	fmt.Printf("Auth Service TiDB connected: %s/%s\n", s.config.TiDBAddr, s.config.TiDBDatabase)
+	fmt.Printf("Auth Service connected: database=%s, host=%s:%d/%s\n", 
+		s.config.RelationalDBType, s.config.RelationalDBHost, s.config.RelationalDBPort, s.config.RelationalDBDatabase)
 	return nil
 }
 
@@ -422,8 +422,8 @@ func (s *Service) Start() error {
 	go func() { s.httpServer.ListenAndServe() }()
 
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_SERVING)
-	fmt.Printf("Auth Service started: gRPC=%s, HTTP=%s (TiDB=%s)\n", 
-		s.config.GrpcAddr, s.config.HttpAddr, s.config.TiDBAddr)
+	fmt.Printf("Auth Service started: gRPC=%s, HTTP=%s (database=%s)\n", 
+		s.config.GrpcAddr, s.config.HttpAddr, s.config.RelationalDBType)
 	return nil
 }
 
@@ -723,7 +723,7 @@ func (s *Service) findUserFromDB(username string) (*UserInfo, error) {
 		username,
 	).Scan(&user.UserID, &user.Username, &user.Password, &user.TenantID, &user.Role)
 	
-	if err == sql.ErrNoRows {
+	if storage.IsNotFound(err) {
 		return nil, nil
 	}
 	if err != nil {

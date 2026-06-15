@@ -15,7 +15,6 @@ package dataplane
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,7 +31,6 @@ import (
 	gopsutil_host "github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	gopsutil_net "github.com/shirou/gopsutil/v3/net"
-	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -40,6 +38,7 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/meinanzilinzhengying/cloudflow/pkg/flow"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/data-plane/sampling"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
@@ -89,12 +88,14 @@ type Config struct {
 	WorkerCount   int
 
 	// 存储后端
-	ClickHouseAddr      string
-	ClickHouseUser      string
-	ClickHousePassword  string
-	ClickHouseDatabase string
-	VictoriaMetricsAddr string
-	LokiAddr            string
+	TimeSeriesDBType     storage.DatabaseType
+	TimeSeriesDBHost     string
+	TimeSeriesDBPort     int
+	TimeSeriesDBUser     string
+	TimeSeriesDBPassword string
+	TimeSeriesDBDatabase string
+	VictoriaMetricsAddr  string
+	LokiAddr             string
 
 	// 其他服务
 	ControlPlaneAddr string
@@ -116,24 +117,26 @@ type Config struct {
 // DefaultConfig 默认配置
 func DefaultConfig() *Config {
 	return &Config{
-		ServiceName:         "data-plane",
-		Version:             "1.0.0",
-		GrpcAddr:            ":9002",
-		MetricsAddr:         ":9102",
-		BatchSize:           10000,
-		FlushInterval:       time.Second,
-		QueueSize:           100000,
-		WorkerCount:         4,
-		ClickHouseAddr:      "clickhouse:9000",
-		ClickHouseUser:      "default",
-		ClickHousePassword:  "",
-		ClickHouseDatabase:  "cloudflow",
-		VictoriaMetricsAddr: "http://victoriametrics:8428",
-		LokiAddr:            "http://loki:3100",
-		AuthAddr:            "auth-service:9003", // P0-3 修复: 认证服务地址
-		Sampling:            sampling.NewSamplingConfig(),
-		TLSEnabled:          false,
-		TLSInsecureSkip:     false,
+		ServiceName:          "data-plane",
+		Version:              "1.0.0",
+		GrpcAddr:             ":9002",
+		MetricsAddr:          ":9102",
+		BatchSize:            10000,
+		FlushInterval:        time.Second,
+		QueueSize:            100000,
+		WorkerCount:          4,
+		TimeSeriesDBType:     storage.DBTypeClickHouse,
+		TimeSeriesDBHost:     "clickhouse",
+		TimeSeriesDBPort:     9000,
+		TimeSeriesDBUser:     "default",
+		TimeSeriesDBPassword: "",
+		TimeSeriesDBDatabase: "cloudflow",
+		VictoriaMetricsAddr:  "http://victoriametrics:8428",
+		LokiAddr:             "http://loki:3100",
+		AuthAddr:             "auth-service:9003", // P0-3 修复: 认证服务地址
+		Sampling:             sampling.NewSamplingConfig(),
+		TLSEnabled:           false,
+		TLSInsecureSkip:      false,
 	}
 }
 
@@ -172,7 +175,7 @@ type Service struct {
 	logQueue    chan interface{}
 
 	// 存储
-	clickHouseDB *sql.DB
+	tsDB storage.TimeSeriesStorage
 	vmHTTPClient *http.Client
 	lokiHTTPClient *http.Client
 
@@ -301,9 +304,9 @@ func (s *Service) Start() error {
 	// 启动采样引擎后台任务
 	s.samplingEngine.Start(context.Background())
 
-	// 初始化 ClickHouse 连接
-	if err := s.initClickHouse(); err != nil {
-		return fmt.Errorf("ClickHouse init failed: %w", err)
+	// 初始化时序数据库连接
+	if err := s.initTimeSeriesDB(); err != nil {
+		return fmt.Errorf("TimeSeriesDB init failed: %w", err)
 	}
 
 	// 启动 gRPC
@@ -397,9 +400,9 @@ func (s *Service) Stop() {
 		}
 	}
 
-	// 关闭 ClickHouse 连接
-	if s.clickHouseDB != nil {
-		s.clickHouseDB.Close()
+	// 关闭时序数据库连接
+	if s.tsDB != nil {
+		s.tsDB.Close()
 	}
 
 	// P0-3 修复: 清理认证中间件资源
@@ -408,101 +411,81 @@ func (s *Service) Stop() {
 	}
 }
 
-// initClickHouse 初始化 ClickHouse 连接
-func (s *Service) initClickHouse() error {
-	if s.config.ClickHouseAddr == "" {
-		return nil // ClickHouse 未配置，跳过
+// initTimeSeriesDB 初始化时序数据库连接
+func (s *Service) initTimeSeriesDB() error {
+	cfg := &storage.Config{
+		Type:     s.config.TimeSeriesDBType,
+		Host:     s.config.TimeSeriesDBHost,
+		Port:     s.config.TimeSeriesDBPort,
+		User:     s.config.TimeSeriesDBUser,
+		Password: s.config.TimeSeriesDBPassword,
+		Database: s.config.TimeSeriesDBDatabase,
 	}
 
-	database := s.config.ClickHouseDatabase
-	if database == "" {
-		database = "cloudflow"
-	}
-
-	// 构建 DSN，支持用户名和密码认证
-	var dsn string
-	if s.config.ClickHouseUser != "" && s.config.ClickHousePassword != "" {
-		dsn = fmt.Sprintf("clickhouse://%s:%s@%s/%s", 
-			s.config.ClickHouseUser, s.config.ClickHousePassword, 
-			s.config.ClickHouseAddr, database)
-	} else if s.config.ClickHouseUser != "" {
-		dsn = fmt.Sprintf("clickhouse://%s@%s/%s", 
-			s.config.ClickHouseUser, s.config.ClickHouseAddr, database)
-	} else {
-		dsn = fmt.Sprintf("clickhouse://%s/%s", s.config.ClickHouseAddr, database)
-	}
-
-	db, err := sql.Open("clickhouse", dsn)
+	db, err := storage.OpenTimeSeries(cfg)
 	if err != nil {
 		return err
 	}
 
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
-
-	// 测试连接
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		return err
-	}
-
-	s.clickHouseDB = db
-	fmt.Printf("Data Plane ClickHouse connected: %s/%s\n", s.config.ClickHouseAddr, database)
+	s.tsDB = db
+	fmt.Printf("Data Plane TimeSeriesDB connected: type=%s, host=%s:%d/%s\n", 
+		s.config.TimeSeriesDBType, s.config.TimeSeriesDBHost, s.config.TimeSeriesDBPort, s.config.TimeSeriesDBDatabase)
 	return nil
 }
 
-// writeToClickHouse 写入 Flow 到 ClickHouse
-func (s *Service) writeToClickHouse(flows []*flow.UnifiedFlow) error {
-	if s.clickHouseDB == nil {
-		return fmt.Errorf("ClickHouse not configured")
+// writeFlowsToTimeSeriesDB 写入 Flow 到时序数据库
+func (s *Service) writeFlowsToTimeSeriesDB(flows []*flow.UnifiedFlow) error {
+	if s.tsDB == nil {
+		return fmt.Errorf("TimeSeriesDB not configured")
 	}
 
-	tx, err := s.clickHouseDB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	stmt, err := tx.Prepare(`
-		INSERT INTO flows (
-			timestamp, flow_id, schema_version,
-			src_ip, dst_ip, src_port, dst_port, protocol, tcp_flags,
-			l7_protocol, method, path, status_code, req_size, resp_size,
-			grpc_service, grpc_method, grpc_status,
-			pid, process_name, comm,
-			container_id, container_name, image,
-			pod, namespace, deployment, service, node,
-			trace_id, span_id, parent_id,
-			host_id, hostname, tenant_id,
-			bytes, packets, latency_ns, direction, exception, tags
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	for _, f := range flows {
-		_, err := stmt.Exec(
-			f.Timestamp, f.FlowID, f.SchemaVersion,
-			f.SrcIP.String(), f.DstIP.String(), f.SrcPort, f.DstPort, f.Protocol, f.TCPFlags,
-			f.L7Protocol, f.Method, f.Path.String(), f.StatusCode, f.ReqSize, f.RespSize,
-			f.GetGRPCService(), f.GetGRPCMethod(), 0,
-			f.PID, f.ProcessName.String(), f.Comm.String(),
-			f.ContainerID.String(), f.ContainerName.String(), f.Image.String(),
-			f.Pod.String(), f.Namespace.String(), f.Deployment.String(), f.Service.String(), f.Node.String(),
-			f.TraceID.String(), f.SpanID.String(), f.ParentID.String(),
-			f.HostID.String(), f.Hostname.String(), f.TenantID.String(),
-			f.Bytes, f.Packets, f.LatencyNs, f.Direction, f.GetL7Exception(), "",
-		)
-		if err != nil {
-			return err
+	// 转换为 storage.Flow 格式
+	storageFlows := make([]*storage.Flow, len(flows))
+	for i, f := range flows {
+		storageFlows[i] = &storage.Flow{
+			Timestamp:     f.Timestamp,
+			FlowID:        f.FlowID,
+			SchemaVersion: f.SchemaVersion,
+			SrcIP:         f.SrcIP.String(),
+			DstIP:         f.DstIP.String(),
+			SrcPort:       f.SrcPort,
+			DstPort:       f.DstPort,
+			Protocol:      f.Protocol.String(),
+			TCPFlags:      f.TCPFlags,
+			L7Protocol:    f.L7Protocol.String(),
+			Method:        httpMethodToString(f.Method),
+			Path:          f.Path.String(),
+			StatusCode:    f.StatusCode,
+			ReqSize:       f.ReqSize,
+			RespSize:      f.RespSize,
+			GRPCService:   f.GetGRPCService(),
+			GRPCMethod:    f.GetGRPCMethod(),
+			PID:           f.PID,
+			ProcessName:   f.ProcessName.String(),
+			Comm:          f.Comm.String(),
+			ContainerID:   f.ContainerID.String(),
+			ContainerName: f.ContainerName.String(),
+			Image:         f.Image.String(),
+			Pod:           f.Pod.String(),
+			Namespace:     f.Namespace.String(),
+			Deployment:    f.Deployment.String(),
+			Service:       f.Service.String(),
+			Node:          f.Node.String(),
+			TraceID:       f.TraceID.String(),
+			SpanID:        f.SpanID.String(),
+			ParentID:      f.ParentID.String(),
+			HostID:        f.HostID.String(),
+			Hostname:      f.Hostname.String(),
+			TenantID:      f.TenantID.String(),
+			Bytes:         f.Bytes,
+			Packets:       f.Packets,
+			LatencyNs:     f.LatencyNs,
+			Direction:     f.Direction,
+			Exception:     f.GetL7Exception(),
 		}
 	}
 
-	return tx.Commit()
+	return s.tsDB.InsertFlows(context.Background(), storageFlows)
 }
 
 // WriteToVictoriaMetrics P0-06 新增: 写入指标到 VictoriaMetrics
@@ -855,11 +838,11 @@ func (s *Service) flushFlows(batch []*flow.UnifiedFlow) {
 	var mu sync.Mutex // FIX: 保护 error 变量的并发写入
 	var chErr, vmErr, lokiErr error
 
-	// 并行写入 ClickHouse
+	// 并行写入时序数据库
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := s.writeToClickHouse(batch); err != nil {
+		if err := s.writeFlowsToTimeSeriesDB(batch); err != nil {
 			mu.Lock()
 			chErr = err
 			mu.Unlock()
@@ -898,7 +881,7 @@ func (s *Service) flushFlows(batch []*flow.UnifiedFlow) {
 	if chErr != nil || vmErr != nil || lokiErr != nil {
 		s.stats.WriteErrors += uint64(len(batch))
 		if chErr != nil {
-			fmt.Printf("ClickHouse write error: %v\n", chErr)
+			fmt.Printf("TimeSeriesDB write error: %v\n", chErr)
 		}
 		if vmErr != nil {
 			fmt.Printf("VictoriaMetrics write error: %v\n", vmErr)

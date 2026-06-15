@@ -1,6 +1,6 @@
 module github.com/meinanzilinzhengying/cloudflow/services/control-plane
 
-go 1.25.0
+go 1.22
 
 require (
 	github.com/meinanzilinzhengying/cloudflow/services/proto v0.0.0
