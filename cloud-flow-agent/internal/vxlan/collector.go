@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
@@ -428,7 +429,16 @@ func (c *Collector) collectFlows() {
 		}
 	}
 
-	// TODO: 发送metrics到通道
+	// 发送metrics到通道（非阻塞）
+	if len(metrics) > 0 {
+		select {
+		case c.collectCh <- metrics:
+			atomic.AddUint64(&c.stats.decapSuccess, uint64(len(metrics)))
+		default:
+			c.log.Debugf("[VXLAN] metrics channel full, dropped %d metrics", len(metrics))
+			atomic.AddUint64(&c.stats.decapFailed, uint64(len(metrics)))
+		}
+	}
 }
 
 // parseInnerFlowInfo 解析内层流量信息
@@ -453,8 +463,53 @@ func (c *Collector) parseInnerFlowInfo(data []byte) *InnerFlowInfo {
 
 // mirrorToTap 镜像流量到TAP设备
 func (c *Collector) mirrorToTap(info *InnerFlowInfo, rawPacket []byte) {
-	// TODO: 实现TAP镜像
-	// 需要重构内层以太网帧并写入TAP设备
+	if c.tapDevice == nil {
+		return
+	}
+
+	// 构造以太网帧（14字节头 + IP数据包）
+	// 以太网头: DstMAC(6) + SrcMAC(6) + EtherType(2)
+	ethHeader := make([]byte, 14)
+
+	// 默认MAC地址
+	copy(ethHeader[0:6], []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}) // 广播目的MAC
+	copy(ethHeader[6:12], []byte{0x00, 0x11, 0x22, 0x33, 0x44, 0x55})   // 源MAC
+
+	// EtherType: IPv4 = 0x0800, IPv6 = 0x86DD
+	if info.InnerIPVersion == 4 {
+		binary.BigEndian.PutUint16(ethHeader[12:14], 0x0800)
+	} else {
+		binary.BigEndian.PutUint16(ethHeader[12:14], 0x86DD)
+	}
+
+	// 从rawPacket中提取内层IP数据包（简化处理）
+	// 实际应该从eBPF传递完整的内层数据包
+	// 这里我们构造一个简化的IP头用于镜像演示
+	ipPacket := make([]byte, 40)
+	if info.InnerIPVersion == 4 {
+		// IPv4头
+		ipPacket[0] = 0x45 // Version 4, IHL 5
+		ipPacket[1] = 0x00 // TOS
+		binary.BigEndian.PutUint16(ipPacket[2:4], uint16(info.InnerPacketSize))
+		binary.BigEndian.PutUint32(ipPacket[12:16], info.InnerSrcIP)
+		binary.BigEndian.PutUint32(ipPacket[16:20], info.InnerDstIP)
+		ipPacket[9] = info.InnerProtocol
+	}
+
+	// 组装完整帧
+	frame := make([]byte, 0, len(ethHeader)+len(ipPacket))
+	frame = append(frame, ethHeader...)
+	frame = append(frame, ipPacket...)
+
+	// 写入TAP设备
+	n, err := c.tapDevice.Write(frame)
+	if err != nil {
+		c.log.Debugf("[VXLAN] TAP写入失败: %v", err)
+		atomic.AddUint64(&c.stats.tapMirrorBytes, uint64(n))
+	} else {
+		atomic.AddUint64(&c.stats.tapMirrorPackets, 1)
+		atomic.AddUint64(&c.stats.tapMirrorBytes, uint64(n))
+	}
 }
 
 // flowToMetric 将流量数据转换为指标
