@@ -5,6 +5,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -18,6 +19,14 @@ const (
 	DatabaseKingBase   DatabaseType = "kingbase"
 	DatabaseGaussDB    DatabaseType = "gaussdb"
 	DatabaseOceanBase  DatabaseType = "oceanbase"
+
+	// 别名，兼容旧代码
+	DBMySQL      = DatabaseMySQL
+	DBClickHouse = DatabaseClickHouse
+	DBDameng     = DatabaseDameng
+	DBKingBase   = DatabaseKingBase
+	DBGaussDB    = DatabaseGaussDB
+	DBOceanBase  = DatabaseOceanBase
 )
 
 // DualWriteMode 双写模式
@@ -91,6 +100,7 @@ type RelationalStorage interface {
 
 	// 连接管理
 	Ping(ctx context.Context) error
+	PingContext(ctx context.Context) error
 	Close() error
 
 	// 获取原生DB（用于特殊场景）
@@ -98,6 +108,17 @@ type RelationalStorage interface {
 
 	// 数据库类型
 	Type() DatabaseType
+}
+
+// IsNotFound 判断是否为记录未找到错误
+func IsNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "no rows in result set") ||
+		strings.Contains(errStr, "not found") ||
+		strings.Contains(errStr, "record not found")
 }
 
 // Flow 流量数据

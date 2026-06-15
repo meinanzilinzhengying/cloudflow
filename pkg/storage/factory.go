@@ -150,6 +150,16 @@ func (d *DualWriteRelationalStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
+func (d *DualWriteRelationalStorage) PingContext(ctx context.Context) error {
+	if err := d.primary.PingContext(ctx); err != nil {
+		return err
+	}
+	if d.secondary != nil {
+		_ = d.secondary.PingContext(ctx)
+	}
+	return nil
+}
+
 func (d *DualWriteRelationalStorage) Close() error {
 	if err := d.primary.Close(); err != nil {
 		return err

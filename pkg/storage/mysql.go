@@ -120,6 +120,10 @@ func (s *MySQLStorage) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }
 
+func (s *MySQLStorage) PingContext(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 func (s *MySQLStorage) Close() error {
 	return s.db.Close()
 }

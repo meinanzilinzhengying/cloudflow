@@ -120,6 +120,10 @@ func (s *KingBaseStorage) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }
 
+func (s *KingBaseStorage) PingContext(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 func (s *KingBaseStorage) Close() error {
 	return s.db.Close()
 }

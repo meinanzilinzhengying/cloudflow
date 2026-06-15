@@ -135,6 +135,10 @@ func (s *DamengStorage) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }
 
+func (s *DamengStorage) PingContext(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 func (s *DamengStorage) Close() error {
 	return s.db.Close()
 }
