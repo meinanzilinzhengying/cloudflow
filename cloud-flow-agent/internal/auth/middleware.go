@@ -6,10 +6,16 @@
 package auth
 
 import (
-t"time"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/agent/pkg/logger"
@@ -165,22 +171,55 @@ func (m *Middleware) parseToken(authHeader string) (*tenant.User, error) {
 }
 
 // validateBearerToken 验证Bearer Token
+// Token格式: user_id:timestamp:hmac_sha256_signature
+// 签名计算: HMAC-SHA256(user_id + ":" + timestamp, secret_key)
 func (m *Middleware) validateBearerToken(token string) (*tenant.User, error) {
-	// 简化实现：Token格式为 "user_id:timestamp:signature"
-	// 实际生产环境应使用JWT
-	
 	parts := strings.Split(token, ":")
-	if len(parts) < 2 {
+	if len(parts) != 3 {
 		return nil, nil
 	}
 	
 	userID := parts[0]
+	timestampStr := parts[1]
+	signature := parts[2]
+	
+	// 验证时间戳，防止重放攻击（24小时有效期）
+	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
+	if err != nil {
+		return nil, nil
+	}
+	
+	now := time.Now().Unix()
+	if now-timestamp > 86400 || timestamp > now+300 {
+		return nil, nil
+	}
+	
+	// 验证HMAC签名
+	secretKey := os.Getenv("CLOUD_FLOW_JWT_SECRET")
+	if secretKey == "" {
+		secretKey = "default-secret-key-change-in-production"
+	}
+	
+	message := userID + ":" + timestampStr
+	expectedSignature := computeHMAC(message, secretKey)
+	
+	if !hmac.Equal([]byte(signature), []byte(expectedSignature)) {
+		return nil, nil
+	}
+	
 	user := m.tenantManager.GetUser(userID)
 	if user == nil {
 		return nil, nil
 	}
 	
 	return user, nil
+}
+
+// computeHMAC 计算HMAC-SHA256签名
+func computeHMAC(message, key string) string {
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(message))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // validateBasicAuth 验证Basic Auth
@@ -200,22 +239,28 @@ func (m *Middleware) validateBasicAuth(token string) (*tenant.User, error) {
 }
 
 // validateAPIKey 验证API Key
+// 从环境变量或安全存储中读取，不硬编码在源码中
 func (m *Middleware) validateAPIKey(key string) (*tenant.User, error) {
-	// 简化实现：API Key直接映射到用户
-	// 实际生产环境应查询数据库验证
+	// API Key格式: user_id:random_string
+	// 实际生产环境应查询数据库或密钥管理服务验证
+	// 开发环境支持从环境变量配置测试密钥
 	
-	// 模拟几个测试API Key
-	apiKeyMap := map[string]string{
-		"admin-key-123":    "admin",
-		"tenant1-key-456":  "tenant1",
-		"tenant2-key-789":  "tenant2",
+	parts := strings.SplitN(key, ":", 2)
+	if len(parts) != 2 {
+		return nil, nil
 	}
 	
-	if username, ok := apiKeyMap[key]; ok {
-		user := m.tenantManager.GetUserByUsername(username)
-		if user != nil {
-			return user, nil
-		}
+	userID := parts[0]
+	user := m.tenantManager.GetUser(userID)
+	if user == nil {
+		return nil, nil
+	}
+	
+	// 验证API Key哈希（实际应查询数据库）
+	// 开发环境：支持环境变量配置的测试密钥
+	validKeys := os.Getenv("CLOUD_FLOW_API_KEYS")
+	if validKeys != "" && strings.Contains(validKeys, key) {
+		return user, nil
 	}
 	
 	return nil, nil
@@ -270,12 +315,38 @@ func (m *Middleware) MockAuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// CORS 跨域中间件
+// CORS 跨域中间件（安全配置）
+// 从环境变量读取允许的源列表，不使用通配符
 func CORS(next http.Handler) http.Handler {
+	// 从环境变量配置允许的源
+	allowedOrigins := strings.Split(os.Getenv("CLOUD_FLOW_ALLOWED_ORIGINS"), ",")
+	if len(allowedOrigins) == 0 || allowedOrigins[0] == "" {
+		// 默认仅允许本地开发
+		allowedOrigins = []string{
+			"http://localhost:3000",
+			"http://localhost:8080",
+			"http://127.0.0.1:3000",
+			"http://127.0.0.1:8080",
+		}
+	}
+	
+	allowedOriginMap := make(map[string]bool)
+	for _, origin := range allowedOrigins {
+		allowedOriginMap[strings.TrimSpace(origin)] = true
+	}
+	
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		
+		// 验证源是否在白名单中
+		if origin != "" && allowedOriginMap[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+		
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400")
 		
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)

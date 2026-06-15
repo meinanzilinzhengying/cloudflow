@@ -16,7 +16,6 @@ package tenantservice
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -27,10 +26,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
 	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
-
-	_ "github.com/go-sql-driver/mysql"
-
+	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
@@ -51,11 +49,19 @@ type Config struct {
 	// Auth Service 地址
 	AuthAddr string
 
-	// P0-02 修复: TiDB 配置
-	TiDBAddr     string
-	TiDBUser     string
-	TiDBPassword string
-	TiDBDatabase string
+	// P0-02 修复: 数据库配置（支持多数据库类型）
+	DBType         storage.DatabaseType // mysql / dameng / kingbase
+	DBHost         string
+	DBPort         int
+	DBUser         string
+	DBPassword     string
+	DBDatabase     string
+	DBMaxOpenConns int
+	DBMaxIdleConns int
+
+	// 双写配置（平滑迁移用）
+	DBEnableDualWrite bool
+	DBDualWriteMode   storage.DualWriteMode
 
 	DefaultRetentionDays   int
 	DefaultMaxAgents       int
@@ -75,12 +81,19 @@ type Config struct {
 // DefaultConfig 默认配置
 func DefaultConfig() *Config {
 	return &Config{
-		ServiceName:           "tenant-service",
-		Version:               "1.0.0",
-		GrpcAddr:              ":9010",
-		HttpAddr:              ":8010",
-		AuthAddr:              "auth-service:9006",
-		TiDBDatabase:          "cloudflow_tenant",
+		ServiceName:        "tenant-service",
+		Version:            "1.0.0",
+		GrpcAddr:           ":9010",
+		HttpAddr:           ":8010",
+		AuthAddr:           "auth-service:9006",
+		DBType:             storage.DBMySQL, // 默认MySQL，兼容旧配置
+		DBHost:             "127.0.0.1",
+		DBPort:             3306,
+		DBDatabase:         "cloudflow_tenant",
+		DBMaxOpenConns:     50,
+		DBMaxIdleConns:     10,
+		DBEnableDualWrite:  false,
+		DBDualWriteMode:    storage.ModeOldOnly,
 		DefaultRetentionDays:  30,
 		DefaultMaxAgents:      100,
 		DefaultMaxFlowsPerDay: 10_000_000,
@@ -99,8 +112,8 @@ func DefaultConfig() *Config {
 type Service struct {
 	config *Config
 
-	// P0-02 修复: TiDB 数据库连接
-	db *sql.DB
+	// P0-02 修复: 数据库抽象层（支持MySQL/达梦/金仓）
+	db storage.RelationalStorage
 
 	// Auth Service 连接（旧字段保留用于兼容）
 	authConn *grpc.ClientConn
@@ -164,10 +177,10 @@ func New(config *Config) (*Service, error) {
 		s.auth = authMiddleware
 	}
 
-	// P0-02 修复: 初始化 TiDB 连接
-	if config.TiDBAddr != "" {
-		if err := s.initTiDB(); err != nil {
-			return nil, fmt.Errorf("TiDB init failed: %w", err)
+	// P0-02 修复: 初始化数据库连接（支持多数据库类型）
+	if config.DBHost != "" {
+		if err := s.initDatabase(); err != nil {
+			return nil, fmt.Errorf("database init failed: %w", err)
 		}
 	}
 
@@ -183,30 +196,32 @@ func New(config *Config) (*Service, error) {
 	return s, nil
 }
 
-// initTiDB P0-02 修复: 初始化 TiDB 连接和表结构
-func (s *Service) initTiDB() error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_bin",
-		s.config.TiDBUser,
-		s.config.TiDBPassword,
-		s.config.TiDBAddr,
-		s.config.TiDBDatabase,
-	)
-
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return fmt.Errorf("TiDB open failed: %w", err)
+// initDatabase P0-02 修复: 初始化数据库连接（支持多数据库类型）
+func (s *Service) initDatabase() error {
+	cfg := storage.Config{
+		Type:           s.config.DBType,
+		Host:           s.config.DBHost,
+		Port:           s.config.DBPort,
+		User:           s.config.DBUser,
+		Password:       s.config.DBPassword,
+		Database:       s.config.DBDatabase,
+		MaxOpenConns:   s.config.DBMaxOpenConns,
+		MaxIdleConns:   s.config.DBMaxIdleConns,
+		EnableDualWrite: s.config.DBEnableDualWrite,
+		DualWriteMode:  s.config.DBDualWriteMode,
 	}
 
-	db.SetMaxOpenConns(50)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	db, err := storage.OpenRelational(cfg)
+	if err != nil {
+		return fmt.Errorf("database open failed: %w", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return fmt.Errorf("TiDB ping failed: %w", err)
+		return fmt.Errorf("database ping failed: %w", err)
 	}
 
 	s.db = db
@@ -216,7 +231,8 @@ func (s *Service) initTiDB() error {
 		return fmt.Errorf("init tables failed: %w", err)
 	}
 
-	fmt.Printf("Tenant Service TiDB connected: %s/%s\n", s.config.TiDBAddr, s.config.TiDBDatabase)
+	fmt.Printf("Tenant Service connected: %s@%s:%d/%s\n",
+		s.config.DBType, s.config.DBHost, s.config.DBPort, s.config.DBDatabase)
 	return nil
 }
 
@@ -384,8 +400,8 @@ func (s *Service) Start() error {
 	go func() { s.httpServer.ListenAndServe() }()
 
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_SERVING)
-	fmt.Printf("Tenant Service started: gRPC=%s, HTTP=%s (TiDB=%s)\n",
-		s.config.GrpcAddr, s.config.HttpAddr, s.config.TiDBAddr)
+	fmt.Printf("Tenant Service started: gRPC=%s, HTTP=%s (DB=%s)\n",
+		s.config.GrpcAddr, s.config.HttpAddr, s.config.DBType)
 	return nil
 }
 
@@ -493,7 +509,7 @@ func (s *Service) GetTenant(ctx context.Context, req *svcproto.GetTenantRequest)
 		&tenant.CreatedAt,
 		&tenant.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if storage.IsNotFound(err) {
 		return &svcproto.GetTenantResponse{Tenant: nil}, nil
 	}
 	if err != nil {
@@ -529,7 +545,7 @@ func (s *Service) DeleteTenant(ctx context.Context, req *svcproto.DeleteTenantRe
 	}
 
 	// 开启事务
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx)
 	if err != nil {
 		return &svcproto.DeleteTenantResponse{Success: false, Message: err.Error()}, nil
 	}
@@ -635,7 +651,7 @@ func (s *Service) GetProject(ctx context.Context, req *svcproto.GetProjectReques
 		&project.Status,
 		&project.CreatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if storage.IsNotFound(err) {
 		return &svcproto.GetProjectResponse{Project: nil}, nil
 	}
 	if err != nil {
@@ -689,7 +705,7 @@ func (s *Service) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (
 		&quota.MaxAlertRules,
 		&quota.RetentionDays,
 	)
-	if err == sql.ErrNoRows {
+	if storage.IsNotFound(err) {
 		// 返回默认配额
 		return &svcproto.GetQuotaResponse{
 			Quota: &svcproto.Quota{
