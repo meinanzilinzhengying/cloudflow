@@ -208,7 +208,11 @@ func (p *GRPCParser) Parse(ctx context.Context, input *l7parser.ParserInput, sta
 	streamID := uint32(0) // 从 HTTP/2 frame 中获取
 
 	stateVal, _ := p.streamStates.LoadOrStore(flowID, &grpcStreamState{})
-	streamState := stateVal.(*grpcStreamState)
+	streamState, ok := stateVal.(*grpcStreamState)
+	if !ok {
+		log.Errorf("invalid stream state type: expected *grpcStreamState, got %T", stateVal)
+		return
+	}
 
 	// 解析 gRPC 特有信息
 	p.parseGRPCInfo(httpResult, streamState, streamID)

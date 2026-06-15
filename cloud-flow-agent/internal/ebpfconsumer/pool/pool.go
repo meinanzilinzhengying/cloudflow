@@ -115,7 +115,11 @@ func (p *Pool) GetRawEvent() *RawEvent {
 		return &RawEvent{}
 	}
 	atomic.AddUint64(&p.reuseCount, 1)
-	e := v.(*RawEvent)
+	e, ok := v.(*RawEvent)
+	if !ok {
+		atomic.AddUint64(&p.allocCount, 1)
+		return &RawEvent{}
+	}
 	// 清零关键字段
 	e.Len = 0
 	e.Flags = 0
@@ -139,7 +143,11 @@ func (p *Pool) GetParsedFlow() *ParsedFlow {
 		return &ParsedFlow{}
 	}
 	atomic.AddUint64(&p.reuseCount, 1)
-	f := v.(*ParsedFlow)
+	f, ok := v.(*ParsedFlow)
+	if !ok {
+		atomic.AddUint64(&p.allocCount, 1)
+		return &ParsedFlow{}
+	}
 	// 清零关键字段
 	f.Bytes = 0
 	f.Packets = 0
@@ -164,7 +172,11 @@ func (p *Pool) GetBatchBuffer() *BatchBuffer {
 		return &BatchBuffer{}
 	}
 	atomic.AddUint64(&p.reuseCount, 1)
-	b := v.(*BatchBuffer)
+	b, ok := v.(*BatchBuffer)
+	if !ok {
+		atomic.AddUint64(&p.allocCount, 1)
+		return &BatchBuffer{}
+	}
 	b.Count = 0
 	return b
 }
