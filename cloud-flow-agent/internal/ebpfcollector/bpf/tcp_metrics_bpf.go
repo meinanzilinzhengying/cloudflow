@@ -184,10 +184,12 @@ func AttachTCPMetricsProbes(objs *TCPMetricsObjects) ([]link.Link, error) {
 
 	// 附加tcp_v6_connect入口探针
 	if objs.TraceTcpV6ConnectEntry != nil {
-		_, err := link.Kprobe("tcp_v6_connect", objs.TraceTcpV6ConnectEntry, nil)
+		l, err := link.Kprobe("tcp_v6_connect", objs.TraceTcpV6ConnectEntry, nil)
 		if err != nil {
 			// IPv6可能不支持,不视为致命错误
 			log.Debugf("tcp_v6_connect probe attach failed: %v", err)
+		} else {
+			links = append(links, l)
 		}
 	}
 
