@@ -291,9 +291,17 @@ func (sm *SecurityMiddleware) RequireOwnership(resourceOwner string) func(http.H
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			userID, ok := r.Context().Value(userContextKey).(string)
-			role, _ := r.Context().Value(roleContextKey).(string)
+			if !ok {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			role, ok := r.Context().Value(roleContextKey).(string)
+			if !ok {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
 			
-			if !ok || userID == "" {
+			if userID == "" {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
