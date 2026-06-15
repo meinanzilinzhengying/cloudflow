@@ -567,15 +567,34 @@ func (c *NetworkMetricsCollector) Collect() map[string]*NetDevStats {
 		}
 
 		// 接收统计
-		stat.RxBytes, _ = strconv.ParseUint(fields[1], 10, 64)
-		stat.RxPackets, _ = strconv.ParseUint(fields[2], 10, 64)
-		stat.RxErrors, _ = strconv.ParseUint(fields[3], 10, 64)
+		var err error
+		stat.RxBytes, err = strconv.ParseUint(fields[1], 10, 64)
+		if err != nil {
+			log.Debugf("parse RxBytes failed: %v, value: %s", err, fields[1])
+		}
+		stat.RxPackets, err = strconv.ParseUint(fields[2], 10, 64)
+		if err != nil {
+			log.Debugf("parse RxPackets failed: %v, value: %s", err, fields[2])
+		}
+		stat.RxErrors, err = strconv.ParseUint(fields[3], 10, 64)
+		if err != nil {
+			log.Debugf("parse RxErrors failed: %v, value: %s", err, fields[3])
+		}
 		// fields[4] = rx dropped, fields[5] = rx fifo, fields[6] = rx frame, fields[7] = rx compressed, fields[8] = rx multicast
 
 		// 发送统计
-		stat.TxBytes, _ = strconv.ParseUint(fields[9], 10, 64)
-		stat.TxPackets, _ = strconv.ParseUint(fields[10], 10, 64)
-		stat.TxErrors, _ = strconv.ParseUint(fields[11], 10, 64)
+		stat.TxBytes, err = strconv.ParseUint(fields[9], 10, 64)
+		if err != nil {
+			log.Debugf("parse TxBytes failed: %v, value: %s", err, fields[9])
+		}
+		stat.TxPackets, err = strconv.ParseUint(fields[10], 10, 64)
+		if err != nil {
+			log.Debugf("parse TxPackets failed: %v, value: %s", err, fields[10])
+		}
+		stat.TxErrors, err = strconv.ParseUint(fields[11], 10, 64)
+		if err != nil {
+			log.Debugf("parse TxErrors failed: %v, value: %s", err, fields[11])
+		}
 		// fields[12] = tx dropped, ...
 
 		stats[iface] = stat
@@ -662,18 +681,37 @@ func (c *DiskIOMetricsCollector) Collect() map[string]*DiskIOStat {
 		}
 
 		// 读统计
-		stat.Reads, _ = strconv.ParseUint(fields[3], 10, 64)
+		var err error
+		stat.Reads, err = strconv.ParseUint(fields[3], 10, 64)
+		if err != nil {
+			log.Debugf("parse Reads failed: %v, value: %s", err, fields[3])
+		}
 		// fields[4] = reads merged
-		sectorsRead, _ := strconv.ParseUint(fields[5], 10, 64)
+		sectorsRead, err := strconv.ParseUint(fields[5], 10, 64)
+		if err != nil {
+			log.Debugf("parse sectorsRead failed: %v, value: %s", err, fields[5])
+		}
 		stat.ReadBytes = sectorsRead * 512 // 每扇区 512 字节
-		stat.ReadTime, _ = strconv.ParseUint(fields[6], 10, 64)
+		stat.ReadTime, err = strconv.ParseUint(fields[6], 10, 64)
+		if err != nil {
+			log.Debugf("parse ReadTime failed: %v, value: %s", err, fields[6])
+		}
 
 		// 写统计
-		stat.Writes, _ = strconv.ParseUint(fields[7], 10, 64)
+		stat.Writes, err = strconv.ParseUint(fields[7], 10, 64)
+		if err != nil {
+			log.Debugf("parse Writes failed: %v, value: %s", err, fields[7])
+		}
 		// fields[8] = writes merged
-		sectorsWritten, _ := strconv.ParseUint(fields[9], 10, 64)
+		sectorsWritten, err := strconv.ParseUint(fields[9], 10, 64)
+		if err != nil {
+			log.Debugf("parse sectorsWritten failed: %v, value: %s", err, fields[9])
+		}
 		stat.WriteBytes = sectorsWritten * 512
-		stat.WriteTime, _ = strconv.ParseUint(fields[10], 10, 64)
+		stat.WriteTime, err = strconv.ParseUint(fields[10], 10, 64)
+		if err != nil {
+			log.Debugf("parse WriteTime failed: %v, value: %s", err, fields[10])
+		}
 
 		// 计算汇总指标
 		stat.IOPSTotal = stat.Reads + stat.Writes

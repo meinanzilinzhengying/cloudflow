@@ -555,7 +555,9 @@ func (c *Collector) collectTCPMetrics(now int64) []*edge.MetricData {
 		metrics = append(metrics, metric)
 
 		// 遍历后删除已读取的条目，避免重复采集
-		_ = c.tcpMetricsObjs.TcpFlowStatsMap.Delete(&flowKey)
+		if err := c.tcpMetricsObjs.TcpFlowStatsMap.Delete(&flowKey); err != nil {
+			log.Debugf("delete tcp flow stats map entry failed: %v", err)
+		}
 	}
 
 	// 阶段 2：读取 global_tcp_metrics_map 全局汇总
