@@ -1,0 +1,118 @@
+# CloudFlow 配置文件示例
+# 支持国产数据库：达梦DM8、人大金仓KingBaseES、高斯GaussDB、OceanBase
+
+# ============================================================================
+# 关系型数据库配置（租户、用户、权限等）
+# ============================================================================
+relational_db:
+  # 数据库类型: mysql / dameng / kingbase / gaussdb / oceanbase
+  type: mysql
+
+  # MySQL 配置（默认，兼容模式）
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: ""
+  database: cloudflow
+  max_open_conns: 100
+  max_idle_conns: 20
+  max_lifetime: 3600
+
+  # 达梦DM8 配置示例
+  # type: dameng
+  # host: 127.0.0.1
+  # port: 5236
+  # user: SYSDBA
+  # password: SYSDBA
+  # database: CLOUDFLOW
+  # max_open_conns: 100
+  # max_idle_conns: 20
+  # max_lifetime: 3600
+
+  # 人大金仓KingBaseES 配置示例
+  # type: kingbase
+  # host: 127.0.0.1
+  # port: 54321
+  # user: SYSTEM
+  # password: MANAGER
+  # database: cloudflow
+  # max_open_conns: 100
+  # max_idle_conns: 20
+  # max_lifetime: 3600
+
+  # 双写模式配置（渐进式迁移用）
+  enable_dual_write: false
+  # 双写模式: 0=仅旧库 1=异步双写 2=同步双写 3=读切分 4=仅新库
+  dual_write_mode: 0
+  # 从库配置（迁移目标库）
+  secondary_type: dameng
+  secondary_host: 127.0.0.1
+  secondary_port: 5236
+
+# ============================================================================
+# 时序数据库配置（流量数据、监控指标等）
+# ============================================================================
+timeseries_db:
+  # 数据库类型: clickhouse / dameng
+  type: clickhouse
+
+  # ClickHouse 配置（默认）
+  host: 127.0.0.1
+  port: 9000
+  user: default
+  password: ""
+  database: cloudflow
+  max_open_conns: 50
+  max_idle_conns: 10
+  max_lifetime: 3600
+
+  # 达梦DM8时序版 配置示例
+  # type: dameng
+  # host: 127.0.0.1
+  # port: 5236
+  # user: SYSDBA
+  # password: SYSDBA
+  # database: CLOUDFLOW_TS
+
+# ============================================================================
+# KV存储配置（缓存、会话、限流等）
+# ============================================================================
+kv_store:
+  # 存储类型: redis / gaussdb
+  type: redis
+
+  # Redis 配置（默认）
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  max_open_conns: 100
+  max_idle_conns: 20
+  max_lifetime: 3600
+
+  # GaussDB(for Redis) 配置示例
+  # type: gaussdb
+  # host: 127.0.0.1
+  # port: 6379
+  # password: your_password
+
+# ============================================================================
+# 双写模式5级切换说明
+# ============================================================================
+# Mode 0 (ModeOldOnly): 仅写旧库，新库待命
+#   - 用途：迁移准备阶段，新库环境搭建
+#
+# Mode 1 (ModeAsyncWrite): 主库写成功后异步双写从库
+#   - 用途：数据预热，不影响主库性能
+#   - 风险：从库可能有延迟，不保证最终一致
+#
+# Mode 2 (ModeSyncWrite): 同步双写，主从都必须成功
+#   - 用途：数据一致性保障阶段
+#   - 影响：主库写入性能略有下降
+#
+# Mode 3 (ModeReadSplit): 读流量灰度切分到新库
+#   - 用途：验证新库查询性能与正确性
+#   - 可按百分比/租户灰度切流
+#
+# Mode 4 (ModeNewOnly): 完全切到新库，旧库下线
+#   - 用途：迁移完成，旧库仅保留用于回滚
+#   - 观察期：7-14天，确认无误后删除旧库
