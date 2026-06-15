@@ -483,57 +483,6 @@ services:
     networks:
       - cloudflow-net
 
-  # ---------------------------------------------------------------------------
-  # 4. eBPF Agent（网络流量采集）
-  # ---------------------------------------------------------------------------
-  # CloudFlow eBPF Agent - 主机网络流量采集
-  # 注意：eBPF Agent 需要特权模式运行，且需要挂载内核相关目录
-  cloud-flow-agent:
-    build:
-      context: ./cloud-flow-agent
-      dockerfile: Dockerfile
-    container_name: cloudflow-ebpf-agent
-    restart: unless-stopped
-    privileged: true  # eBPF 需要特权模式
-    pid: host  # 访问主机进程命名空间
-    network_mode: host  # 访问主机网络命名空间
-    depends_on:
-      control-plane:
-        condition: service_healthy
-      data-plane:
-        condition: service_healthy
-    environment:
-      TZ: Asia/Shanghai
-      SERVICE_NAME: cloud-flow-agent
-      CONTROL_PLANE_ADDR: "localhost:9001"
-      DATA_PLANE_ADDR: "localhost:9002"
-      METRICS_ADDR: ":9090"
-      MGMT_IFACE: "eth0"
-      # eBPF 后端选择: libbpf / cilium / auto
-      CLOUD_FLOW_BPF_BACKEND: "auto"
-      # 采集功能开关
-      ENABLE_TCP_METRICS: "true"
-      ENABLE_HTTP_METRICS: "true"
-      ENABLE_HTTP_FULL: "false"
-      ENABLE_DNS_FULL: "false"
-      ENABLE_MYSQL_FULL: "false"
-      # 日志级别
-      LOG_LEVEL: "info"
-    volumes:
-      # eBPF 必需挂载
-      - /sys/fs/bpf:/sys/fs/bpf
-      - /lib/modules:/lib/modules:ro
-      - /usr/src:/usr/src:ro
-      - /etc/localtime:/etc/localtime:ro
-      # 调试用
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/healthz"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
   # AI Service（AI 智能分析服务）
   ai-service:
     build:
