@@ -945,7 +945,9 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if maxCnt > 0 {
 			for _, svc := range topServices {
-				svc["percentage"] = float64(svc["qps"].(int64)) / float64(maxCnt) * 100.0
+				if qps, ok := svc["qps"].(int64); ok {
+					svc["percentage"] = float64(qps) / float64(maxCnt) * 100.0
+				}
 			}
 		}
 	}
