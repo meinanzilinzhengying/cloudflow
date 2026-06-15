@@ -713,7 +713,9 @@ func (s *Service) ValidateAPIKey(ctx context.Context, req *svcproto.ValidateAPIK
 func (s *Service) findUserFromDB(username string) (*UserInfo, error) {
 	// 先从缓存查找
 	if cached, ok := s.usersCache.Load(username); ok {
-		return cached.(*UserInfo), nil
+		if userInfo, ok := cached.(*UserInfo); ok {
+			return userInfo, nil
+		}
 	}
 
 	// 缓存未命中，从 TiDB 查询
