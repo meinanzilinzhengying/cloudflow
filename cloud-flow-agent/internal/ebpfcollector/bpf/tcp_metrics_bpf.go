@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"log"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -186,7 +187,7 @@ func AttachTCPMetricsProbes(objs *TCPMetricsObjects) ([]link.Link, error) {
 		_, err := link.Kprobe("tcp_v6_connect", objs.TraceTcpV6ConnectEntry, nil)
 		if err != nil {
 			// IPv6可能不支持,不视为致命错误
-			_ = err
+			log.Debugf("tcp_v6_connect probe attach failed: %v", err)
 		}
 	}
 
@@ -231,7 +232,7 @@ func AttachTCPMetricsProbes(objs *TCPMetricsObjects) ([]link.Link, error) {
 		l, err := link.Kprobe("tcp_drop", objs.TraceTcpDrop, nil)
 		if err != nil {
 			// tcp_drop可能在某些内核中不可用
-			_ = err
+			log.Debugf("tcp_drop probe attach failed: %v", err)
 		} else {
 			links = append(links, l)
 		}
@@ -251,7 +252,7 @@ func AttachTCPMetricsProbes(objs *TCPMetricsObjects) ([]link.Link, error) {
 		l, err := link.Kprobe("tcp_sendmsg", objs.TraceTcpSendmsg, nil)
 		if err != nil {
 			// tcp_sendmsg可能在某些内核中不可用
-			_ = err
+			log.Debugf("tcp_sendmsg probe attach failed: %v", err)
 		} else {
 			links = append(links, l)
 		}
@@ -262,7 +263,7 @@ func AttachTCPMetricsProbes(objs *TCPMetricsObjects) ([]link.Link, error) {
 		l, err := link.Kprobe("tcp_recvmsg", objs.TraceTcpRecvmsg, nil)
 		if err != nil {
 			// tcp_recvmsg可能在某些内核中不可用
-			_ = err
+			log.Debugf("tcp_recvmsg probe attach failed: %v", err)
 		} else {
 			links = append(links, l)
 		}
