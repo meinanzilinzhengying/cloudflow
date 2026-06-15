@@ -175,9 +175,12 @@ func NewWithOptions(opts *CollectorOptions) (*Collector, error) {
 		}
 	}
 
-	// 降权为普通用户运行（暂未启用）
-	// TODO: 完善权限降权功能后启用
-	log.Printf("权限降权功能暂未启用，采集器将以当前权限运行")
+	// eBPF程序加载完成后，降权为nobody用户运行
+	if err := syscall.Setuid(65534); err != nil { // nobody uid
+		log.Printf("警告: 权限降权失败: %v，将继续以当前权限运行", err)
+	} else {
+		log.Printf("成功降权为nobody用户运行")
+	}
 
 	return collector, nil
 }
