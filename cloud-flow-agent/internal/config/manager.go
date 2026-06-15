@@ -100,7 +100,12 @@ func (m *Manager) GetConfig() *CollectionConfig {
 	if cfg == nil {
 		return m.buildDefaultConfig()
 	}
-	return cfg.(*CollectionConfig)
+	config, ok := cfg.(*CollectionConfig)
+	if !ok {
+		m.log.Error("invalid config type in atomic value")
+		return m.buildDefaultConfig()
+	}
+	return config
 }
 
 func (m *Manager) GetVersion() int64 {

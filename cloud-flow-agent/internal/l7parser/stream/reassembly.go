@@ -131,7 +131,10 @@ func (rb *ReassemblyBuffer) Add(seq uint32, data []byte, isLast bool) error {
 // insertSegment 插入片段到有序位置
 func (rb *ReassemblyBuffer) insertSegment(seg *Segment) {
 	for e := rb.segments.Front(); e != nil; e = e.Next() {
-		s := e.Value.(*Segment)
+		s, ok := e.Value.(*Segment)
+		if !ok {
+			continue
+		}
 		if seg.Seq < s.Seq {
 			rb.segments.InsertBefore(seg, e)
 			return
@@ -155,8 +158,16 @@ func (rb *ReassemblyBuffer) mergeOverlaps() {
 	}
 
 	for e := rb.segments.Front(); e != nil && e.Next() != nil; {
-		curr := e.Value.(*Segment)
-		next := e.Next().Value.(*Segment)
+		curr, ok := e.Value.(*Segment)
+		if !ok {
+			e = e.Next()
+			continue
+		}
+		next, ok := e.Next().Value.(*Segment)
+		if !ok {
+			e = e.Next()
+			continue
+		}
 
 		currEnd := curr.Seq + curr.Len
 		nextEnd := next.Seq + next.Len
@@ -196,7 +207,11 @@ func (rb *ReassemblyBuffer) GetNext() ([]byte, bool) {
 		return nil, false
 	}
 
-	first := rb.segments.Front().Value.(*Segment)
+	firstElem := rb.segments.Front()
+	first, ok := firstElem.Value.(*Segment)
+	if !ok {
+		return nil, false
+	}
 
 	// 检查是否是我们期望的下一个序列号
 	if rb.nextSeq != 0 && first.Seq != rb.nextSeq {
@@ -209,7 +224,7 @@ func (rb *ReassemblyBuffer) GetNext() ([]byte, bool) {
 
 	// 更新状态
 	rb.nextSeq = first.Seq + first.Len
-	rb.segments.Remove(rb.segments.Front())
+	rb.segments.Remove(firstElem)
 	rb.curSize -= len(data)
 	rb.lastAct = time.Now().UnixNano()
 
@@ -225,7 +240,11 @@ func (rb *ReassemblyBuffer) PeekNext() ([]byte, bool) {
 		return nil, false
 	}
 
-	first := rb.segments.Front().Value.(*Segment)
+	firstElem := rb.segments.Front()
+	first, ok := firstElem.Value.(*Segment)
+	if !ok {
+		return nil, false
+	}
 
 	if rb.nextSeq != 0 && first.Seq != rb.nextSeq {
 		return nil, false
@@ -243,7 +262,12 @@ func (rb *ReassemblyBuffer) HasGap() bool {
 		return false
 	}
 
-	first := rb.segments.Front().Value.(*Segment)
+	firstElem := rb.segments.Front()
+	first, ok := firstElem.Value.(*Segment)
+	if !ok {
+		return false
+	}
+
 	return rb.nextSeq != 0 && first.Seq > rb.nextSeq
 }
 
@@ -256,7 +280,12 @@ func (rb *ReassemblyBuffer) GapSize() uint32 {
 		return 0
 	}
 
-	first := rb.segments.Front().Value.(*Segment)
+	firstElem := rb.segments.Front()
+	first, ok := firstElem.Value.(*Segment)
+	if !ok {
+		return 0
+	}
+
 	if rb.nextSeq != 0 && first.Seq > rb.nextSeq {
 		return first.Seq - rb.nextSeq
 	}
@@ -300,7 +329,11 @@ func (rb *ReassemblyBuffer) evictOld() {
 	expireTime := now - int64(rb.timeout)
 
 	for e := rb.segments.Front(); e != nil; {
-		seg := e.Value.(*Segment)
+		seg, ok := e.Value.(*Segment)
+		if !ok {
+			e = e.Next()
+			continue
+		}
 		next := e.Next()
 
 		if seg.ts < expireTime {
@@ -357,7 +390,9 @@ func NewStreamManager(maxStreams int, maxBufSize int, maxGap uint32, timeout tim
 func (sm *StreamManager) GetOrCreate(flowID uint64) *ReassemblyBuffer {
 	// 尝试获取现有流
 	if v, ok := sm.streams.Load(flowID); ok {
-		return v.(*ReassemblyBuffer)
+		if buf, ok := v.(*ReassemblyBuffer); ok {
+			return buf
+		}
 	}
 
 	// 检查流数量限制
@@ -378,7 +413,10 @@ func (sm *StreamManager) GetOrCreate(flowID uint64) *ReassemblyBuffer {
 	// 存储 (可能覆盖其他流，但概率低)
 	actual, loaded := sm.streams.LoadOrStore(flowID, buf)
 	if loaded {
-		return actual.(*ReassemblyBuffer)
+		if actualBuf, ok := actual.(*ReassemblyBuffer); ok {
+			return actualBuf
+		}
+		return buf
 	}
 
 	sm.stats.TotalStreams++
@@ -390,7 +428,9 @@ func (sm *StreamManager) GetOrCreate(flowID uint64) *ReassemblyBuffer {
 // Get 获取流缓冲区
 func (sm *StreamManager) Get(flowID uint64) (*ReassemblyBuffer, bool) {
 	if v, ok := sm.streams.Load(flowID); ok {
-		return v.(*ReassemblyBuffer), true
+		if buf, ok := v.(*ReassemblyBuffer); ok {
+			return buf, true
+		}
 	}
 	return nil, false
 }
@@ -420,7 +460,10 @@ func (sm *StreamManager) cleanup() {
 	expireTime := now - int64(sm.timeout)
 
 	sm.streams.Range(func(key, value interface{}) bool {
-		buf := value.(*ReassemblyBuffer)
+		buf, ok := value.(*ReassemblyBuffer)
+		if !ok {
+			return true
+		}
 		if buf.lastAct < expireTime {
 			sm.streams.Delete(key)
 			sm.stats.Expired++
@@ -438,10 +481,15 @@ func (sm *StreamManager) evictOldest() {
 	var oldestTime int64 = time.Now().UnixNano()
 
 	sm.streams.Range(func(key, value interface{}) bool {
-		buf := value.(*ReassemblyBuffer)
+		buf, ok := value.(*ReassemblyBuffer)
+		if !ok {
+			return true
+		}
 		if buf.lastAct < oldestTime {
 			oldestTime = buf.lastAct
-			oldestKey = key.(uint64)
+			if k, ok := key.(uint64); ok {
+				oldestKey = k
+			}
 		}
 		return true
 	})

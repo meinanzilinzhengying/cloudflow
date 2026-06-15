@@ -456,7 +456,11 @@ func (p *HTTP2Parser) Parse(ctx context.Context, input *l7parser.ParserInput, st
 	// 获取或创建 HPACK 解码器
 	flowID := input.Packet.Metadata.FlowID
 	decoder, _ := p.decoders.LoadOrStore(flowID, NewHPACKDecoder())
-	hpack := decoder.(*HPACKDecoder)
+	hpack, ok := decoder.(*HPACKDecoder)
+	if !ok {
+		log.Errorf("invalid decoder type: expected *HPACKDecoder, got %T", decoder)
+		return nil, state, errors.New("invalid HPACK decoder type")
+	}
 
 	// 跳过连接序言
 	offset := 0

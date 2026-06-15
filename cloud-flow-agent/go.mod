@@ -1,6 +1,6 @@
 module github.com/meinanzilinzhengying/cloudflow/agent
 
-go 1.25.0
+go 1.22
 
 require (
 	github.com/cilium/ebpf v0.11.0
@@ -8,11 +8,12 @@ require (
 	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.5.0
+	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/viper v1.16.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.1
 	go.uber.org/zap v1.27.0
-	golang.org/x/sys v0.45.0
+	golang.org/x/sys v0.40.0
 	google.golang.org/grpc v1.62.1
 )
 
@@ -45,7 +46,7 @@ require (
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -53,3 +54,11 @@ require (
 replace golang.org/x/sys => golang.org/x/sys v0.18.0
 
 replace github.com/prometheus/common => github.com/prometheus/common v0.48.0
+
+replace golang.org/x/net => golang.org/x/net v0.24.0
+
+replace google.golang.org/genproto/googleapis/rpc => google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de
+
+replace github.com/prometheus/procfs => github.com/prometheus/procfs v0.12.0
+
+replace golang.org/x/text => golang.org/x/text v0.14.0
