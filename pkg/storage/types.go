@@ -72,6 +72,7 @@ type Rows interface {
 	Scan(dest ...interface{}) error
 	Close() error
 	Err() error
+	Columns() ([]string, error)
 }
 
 // Row 单行查询结果
@@ -94,18 +95,14 @@ type RelationalStorage interface {
 	Exec(ctx context.Context, sql string, args ...interface{}) (Result, error)
 	Query(ctx context.Context, sql string, args ...interface{}) (Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...interface{}) Row
-
 	// 事务
 	BeginTx(ctx context.Context) (Tx, error)
-
 	// 连接管理
 	Ping(ctx context.Context) error
 	PingContext(ctx context.Context) error
 	Close() error
-
 	// 获取原生DB（用于特殊场景）
 	RawDB() *sql.DB
-
 	// 数据库类型
 	Type() DatabaseType
 }
@@ -178,9 +175,18 @@ type TimeSeriesStorage interface {
 	QueryFlows(ctx context.Context, query *FlowQuery) ([]*Flow, error)
 	AggregateFlows(ctx context.Context, agg *FlowAggregate) ([]*AggregateResult, error)
 
+	// 通用SQL操作（兼容现有代码）
+	Exec(ctx context.Context, sql string, args ...interface{}) (Result, error)
+	Query(ctx context.Context, sql string, args ...interface{}) (Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) Row
+
 	// 连接管理
 	Ping(ctx context.Context) error
+	PingContext(ctx context.Context) error
 	Close() error
+
+	// 获取原生DB（用于特殊场景）
+	RawDB() *sql.DB
 
 	// 数据库类型
 	Type() DatabaseType
@@ -209,19 +215,15 @@ type Dialect interface {
 	// DDL转换
 	ConvertCreateTable(sql string) string
 	ConvertCreateIndex(sql string) string
-
 	// DML转换
 	ConvertSelect(sql string) string
 	ConvertInsert(sql string) string
 	ConvertUpdate(sql string) string
 	ConvertDelete(sql string) string
-
 	// 函数映射
 	MapFunction(funcName string, args ...string) string
-
 	// 分页转换
 	ApplyPagination(sql string, offset, limit int) string
-
 	// 占位符转换
 	ConvertPlaceholder(sql string, argCount int) string
 }
@@ -232,10 +234,8 @@ type Driver interface {
 	OpenRelational(cfg *Config) (RelationalStorage, error)
 	OpenTimeSeries(cfg *Config) (TimeSeriesStorage, error)
 	OpenKV(cfg *Config) (KVStorage, error)
-
 	// 获取方言
 	GetDialect() Dialect
-
 	// 驱动类型
 	Type() DatabaseType
 }

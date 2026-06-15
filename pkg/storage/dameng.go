@@ -14,8 +14,8 @@ type DamengDriver struct{}
 
 // DamengStorage 达梦DM8关系型存储实现
 type DamengStorage struct {
-	db   *sql.DB
-	cfg  *Config
+	db  *sql.DB
+	cfg *Config
 }
 
 // DamengDialect 达梦DM8方言实现
@@ -94,33 +94,33 @@ func (s *DamengStorage) Exec(ctx context.Context, sql string, args ...interface{
 	sql = dialect.ConvertUpdate(sql)
 	sql = dialect.ConvertDelete(sql)
 	sql = dialect.ConvertInsert(sql)
-	
+
 	res, err := s.db.ExecContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	return &damengResult{res}, nil
+	return &sqlResult{res: res}, nil
 }
 
 func (s *DamengStorage) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
 	// SQL语法转换
 	dialect := &DamengDialect{}
 	sql = dialect.ConvertSelect(sql)
-	
+
 	rows, err := s.db.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	return &damengRows{rows}, nil
+	return &sqlRows{rows: rows}, nil
 }
 
 func (s *DamengStorage) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	// SQL语法转换
 	dialect := &DamengDialect{}
 	sql = dialect.ConvertSelect(sql)
-	
+
 	row := s.db.QueryRowContext(ctx, sql, args...)
-	return &damengRow{row}
+	return &sqlRow{row: row}
 }
 
 func (s *DamengStorage) BeginTx(ctx context.Context) (Tx, error) {
@@ -128,7 +128,7 @@ func (s *DamengStorage) BeginTx(ctx context.Context) (Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &damengTx{tx}, nil
+	return &damengTx{tx: tx}, nil
 }
 
 func (s *DamengStorage) Ping(ctx context.Context) error {
@@ -159,22 +159,22 @@ var (
 
 func (d *DamengDialect) ConvertCreateTable(sql string) string {
 	result := sql
-	
+
 	// 转换反引号为双引号
 	result = backtickRegex.ReplaceAllString(result, "\"")
-	
+
 	// 转换 AUTO_INCREMENT -> IDENTITY
 	result = autoIncRegex.ReplaceAllString(result, "IDENTITY(1,1)")
-	
+
 	// 移除 UNSIGNED
 	result = unsignedRegex.ReplaceAllString(result, "")
-	
+
 	// 转换 TIMESTAMP ON UPDATE
 	result = strings.ReplaceAll(result, "ON UPDATE CURRENT_TIMESTAMP", "")
-	
+
 	// 转换 ENGINE=InnoDB
 	result = regexp.MustCompile(`(?i)\s*ENGINE\s*=\s*\w+`).ReplaceAllString(result, "")
-	
+
 	return result
 }
 
@@ -185,35 +185,35 @@ func (d *DamengDialect) ConvertCreateIndex(sql string) string {
 
 func (d *DamengDialect) ConvertSelect(sql string) string {
 	result := sql
-	
+
 	// 转换反引号为双引号
 	result = backtickRegex.ReplaceAllString(result, "\"")
-	
+
 	// 转换 IFNULL -> NVL
 	result = ifnullRegex.ReplaceAllString(result, "NVL(")
-	
+
 	// 转换 NOW() -> SYSDATE
 	result = regexp.MustCompile(`(?i)NOW\s*\(\s*\)`).ReplaceAllString(result, "SYSDATE")
-	
+
 	// 转换 LIMIT -> ROWNUM 或 达梦LIMIT语法（达梦支持LIMIT）
 	// 达梦DM8支持标准 LIMIT OFFSET 语法，无需转换
-	
+
 	return result
 }
 
 func (d *DamengDialect) ConvertInsert(sql string) string {
 	result := sql
-	
+
 	// 转换反引号为双引号
 	result = backtickRegex.ReplaceAllString(result, "\"")
-	
+
 	// 转换 ON DUPLICATE KEY UPDATE -> MERGE
 	// 注意：复杂的MERGE转换需要更复杂的处理，这里先标记
 	if strings.Contains(strings.ToLower(result), "on duplicate key update") {
 		// 简单场景：记录日志，后续手动处理
 		// 实际项目中可以实现更复杂的MERGE转换
 	}
-	
+
 	return result
 }
 
@@ -263,50 +263,46 @@ func (d *DamengDialect) ConvertPlaceholder(sql string, argCount int) string {
 	return sql
 }
 
-// ==================== 包装类 ====================
-
-type damengResult struct {
-	sql.Result
-}
-
-type damengRows struct {
-	*sql.Rows
-}
-
-type damengRow struct {
-	*sql.Row
-}
+// ==================== 达梦事务包装类（带SQL转换） ====================
 
 type damengTx struct {
-	*sql.Tx
+	tx *sql.Tx
+}
+
+func (tx *damengTx) Commit() error {
+	return tx.tx.Commit()
+}
+
+func (tx *damengTx) Rollback() error {
+	return tx.tx.Rollback()
 }
 
 func (tx *damengTx) Exec(ctx context.Context, sql string, args ...interface{}) (Result, error) {
 	dialect := &DamengDialect{}
 	sql = dialect.ConvertUpdate(sql)
-	
-	res, err := tx.Tx.ExecContext(ctx, sql, args...)
+
+	res, err := tx.tx.ExecContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	return &damengResult{res}, nil
+	return &sqlResult{res: res}, nil
 }
 
 func (tx *damengTx) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
 	dialect := &DamengDialect{}
 	sql = dialect.ConvertSelect(sql)
-	
-	rows, err := tx.Tx.QueryContext(ctx, sql, args...)
+
+	rows, err := tx.tx.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
-	return &damengRows{rows}, nil
+	return &sqlRows{rows: rows}, nil
 }
 
 func (tx *damengTx) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	dialect := &DamengDialect{}
 	sql = dialect.ConvertSelect(sql)
-	
-	row := tx.Tx.QueryRowContext(ctx, sql, args...)
-	return &damengRow{row}
+
+	row := tx.tx.QueryRowContext(ctx, sql, args...)
+	return &sqlRow{row: row}
 }

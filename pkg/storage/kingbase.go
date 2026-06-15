@@ -13,8 +13,8 @@ type KingBaseDriver struct{}
 
 // KingBaseStorage 人大金仓关系型存储实现
 type KingBaseStorage struct {
-	db   *sql.DB
-	cfg  *Config
+	db  *sql.DB
+	cfg *Config
 }
 
 // KingBaseDialect 人大金仓方言实现
@@ -92,7 +92,7 @@ func (s *KingBaseStorage) Exec(ctx context.Context, sql string, args ...interfac
 	if err != nil {
 		return nil, err
 	}
-	return &kingbaseResult{res}, nil
+	return &sqlResult{res: res}, nil
 }
 
 func (s *KingBaseStorage) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
@@ -100,12 +100,12 @@ func (s *KingBaseStorage) Query(ctx context.Context, sql string, args ...interfa
 	if err != nil {
 		return nil, err
 	}
-	return &kingbaseRows{rows}, nil
+	return &sqlRows{rows: rows}, nil
 }
 
 func (s *KingBaseStorage) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	row := s.db.QueryRowContext(ctx, sql, args...)
-	return &kingbaseRow{row}
+	return &sqlRow{row: row}
 }
 
 func (s *KingBaseStorage) BeginTx(ctx context.Context) (Tx, error) {
@@ -113,7 +113,7 @@ func (s *KingBaseStorage) BeginTx(ctx context.Context) (Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &kingbaseTx{tx}, nil
+	return &sqlTx{tx: tx}, nil
 }
 
 func (s *KingBaseStorage) Ping(ctx context.Context) error {
@@ -137,13 +137,13 @@ func (s *KingBaseStorage) RawDB() *sql.DB {
 func (d *KingBaseDialect) ConvertCreateTable(sql string) string {
 	// KingBase高度兼容MySQL语法
 	result := sql
-	
+
 	// 少量转换：IFNULL -> NVL（可选）
 	result = strings.ReplaceAll(result, "IFNULL(", "NVL(")
-	
+
 	// KingBase支持 ON UPDATE CURRENT_TIMESTAMP
 	// KingBase支持 AUTO_INCREMENT
-	
+
 	return result
 }
 
@@ -191,43 +191,4 @@ func (d *KingBaseDialect) ApplyPagination(sql string, offset, limit int) string 
 func (d *KingBaseDialect) ConvertPlaceholder(sql string, argCount int) string {
 	// KingBase兼容MySQL的?占位符
 	return sql
-}
-
-// ==================== 包装类 ====================
-
-type kingbaseResult struct {
-	sql.Result
-}
-
-type kingbaseRows struct {
-	*sql.Rows
-}
-
-type kingbaseRow struct {
-	*sql.Row
-}
-
-type kingbaseTx struct {
-	*sql.Tx
-}
-
-func (tx *kingbaseTx) Exec(ctx context.Context, sql string, args ...interface{}) (Result, error) {
-	res, err := tx.Tx.ExecContext(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-	return &kingbaseResult{res}, nil
-}
-
-func (tx *kingbaseTx) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
-	rows, err := tx.Tx.QueryContext(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-	return &kingbaseRows{rows}, nil
-}
-
-func (tx *kingbaseTx) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
-	row := tx.Tx.QueryRowContext(ctx, sql, args...)
-	return &kingbaseRow{row}
 }

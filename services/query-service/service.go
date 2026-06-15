@@ -18,7 +18,6 @@ package queryservice
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -26,13 +25,13 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
-	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service/correlation"
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service/otel"
@@ -50,10 +49,15 @@ type Config struct {
 	DataPlaneAddr       string
 	TopologyAddr        string
 	AlertAddr           string
-	ClickHouseAddr      string
-	ClickHouseUser      string
-	ClickHousePassword  string
-	ClickHouseDatabase  string
+
+	// 时序数据库配置（支持ClickHouse/达梦时序版）
+	TimeSeriesDBType     storage.DatabaseType
+	TimeSeriesDBHost     string
+	TimeSeriesDBPort     int
+	TimeSeriesDBUser     string
+	TimeSeriesDBPassword string
+	TimeSeriesDBDatabase string
+
 	VictoriaMetricsAddr string
 	LokiAddr            string
 
@@ -76,10 +80,12 @@ func DefaultConfig() *Config {
 		Version:              "1.0.0",
 		GrpcAddr:             ":9007",
 		HttpAddr:             ":8007",
-		ClickHouseAddr:       "clickhouse:9000",
-		ClickHouseUser:       "default",
-		ClickHousePassword:   "",
-		ClickHouseDatabase:   "cloudflow",
+		TimeSeriesDBType:     storage.DatabaseClickHouse,
+		TimeSeriesDBHost:     "clickhouse",
+		TimeSeriesDBPort:     9000,
+		TimeSeriesDBUser:     "default",
+		TimeSeriesDBPassword: "",
+		TimeSeriesDBDatabase: "cloudflow",
 		VictoriaMetricsAddr:  "http://victoriametrics:8428",
 		LokiAddr:             "http://loki:3100",
 		QueryTimeout:         30 * time.Second,
@@ -101,8 +107,9 @@ type Stats struct {
 type Service struct {
 	config *Config
 
-	// 数据库连接
-	clickHouseDB *sql.DB
+	// 数据库连接 - 使用抽象层
+	tsDB storage.TimeSeriesStorage
+
 	vmHTTPClient *http.Client
 
 	// 客户端连接
@@ -127,7 +134,6 @@ type Service struct {
 
 	// P0-2 修复: TLS 凭证
 	grpcCreds credentials.TransportCredentials
-
 	startTime time.Time
 }
 
@@ -159,9 +165,9 @@ func New(config *Config) (*Service, error) {
 		}
 	}
 
-	// 初始化 ClickHouse 连接
-	if err := s.initClickHouse(); err != nil {
-		return nil, fmt.Errorf("ClickHouse init failed: %w", err)
+	// 初始化时序数据库连接（支持ClickHouse/达梦时序版）
+	if err := s.initTimeSeriesDB(); err != nil {
+		return nil, fmt.Errorf("TimeSeriesDB init failed: %w", err)
 	}
 
 	// 初始化 VictoriaMetrics HTTP 客户端
@@ -179,7 +185,6 @@ func New(config *Config) (*Service, error) {
 		grpc.MaxSendMsgSize(64*1024*1024),
 	)
 	s.grpcServer = grpc.NewServer(grpcOptions...)
-
 	RegisterQueryService(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
@@ -198,7 +203,6 @@ func New(config *Config) (*Service, error) {
 // P0-2 修复: getGRPCDialOptions 获取 gRPC dial 选项
 func (s *Service) getGRPCDialOptions() ([]grpc.DialOption, error) {
 	var options []grpc.DialOption
-
 	if s.config.TLSEnabled {
 		tlsCfg := tlsutil.Config{
 			Enabled:      s.config.TLSEnabled,
@@ -218,43 +222,37 @@ func (s *Service) getGRPCDialOptions() ([]grpc.DialOption, error) {
 		// 注意：我们需要确保导入了 insecure 包
 		// 这里暂时跳过，因为我们没有连接到其他服务的代码
 	}
-
 	return options, nil
 }
 
-// initClickHouse 初始化 ClickHouse 连接
-func (s *Service) initClickHouse() error {
-	if s.config.ClickHouseAddr == "" {
+// initTimeSeriesDB 初始化时序数据库连接（支持ClickHouse/达梦时序版）
+func (s *Service) initTimeSeriesDB() error {
+	if s.config.TimeSeriesDBHost == "" {
 		return nil
 	}
 
-	// 构建 DSN，支持用户名和密码认证
-	var dsn string
-	if s.config.ClickHouseUser != "" && s.config.ClickHousePassword != "" {
-		dsn = fmt.Sprintf("clickhouse://%s:%s@%s/%s",
-			s.config.ClickHouseUser, s.config.ClickHousePassword,
-			s.config.ClickHouseAddr, s.config.ClickHouseDatabase)
-	} else if s.config.ClickHouseUser != "" {
-		dsn = fmt.Sprintf("clickhouse://%s@%s/%s",
-			s.config.ClickHouseUser, s.config.ClickHouseAddr, s.config.ClickHouseDatabase)
-	} else {
-		dsn = fmt.Sprintf("clickhouse://%s/%s", s.config.ClickHouseAddr, s.config.ClickHouseDatabase)
+	cfg := &storage.Config{
+		Type:         s.config.TimeSeriesDBType,
+		Host:         s.config.TimeSeriesDBHost,
+		Port:         s.config.TimeSeriesDBPort,
+		User:         s.config.TimeSeriesDBUser,
+		Password:     s.config.TimeSeriesDBPassword,
+		Database:     s.config.TimeSeriesDBDatabase,
+		MaxOpenConns: 10,
+		MaxIdleConns: 5,
+		MaxLifetime:  3600,
 	}
 
-	db, err := sql.Open("clickhouse", dsn)
+	db, err := storage.OpenTimeSeries(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to open ClickHouse: %w", err)
+		return fmt.Errorf("failed to open TimeSeriesDB: %w", err)
 	}
 
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(time.Hour)
-
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("failed to ping ClickHouse: %w", err)
+	if err := db.Ping(context.Background()); err != nil {
+		return fmt.Errorf("failed to ping TimeSeriesDB: %w", err)
 	}
 
-	s.clickHouseDB = db
+	s.tsDB = db
 	return nil
 }
 
@@ -263,7 +261,6 @@ func (s *Service) Start() error {
 	if err != nil {
 		return fmt.Errorf("gRPC listen failed: %w", err)
 	}
-
 	go func() {
 		s.grpcServer.Serve(lis)
 	}()
@@ -297,7 +294,8 @@ func (s *Service) Start() error {
 	s.correlationEngine.Start(ctx)
 
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_SERVING)
-	fmt.Printf("Query Service started: gRPC=%s, HTTP=%s\n", s.config.GrpcAddr, s.config.HttpAddr)
+	fmt.Printf("Query Service started: gRPC=%s, HTTP=%s, DB=%s\n",
+		s.config.GrpcAddr, s.config.HttpAddr, s.config.TimeSeriesDBType)
 	return nil
 }
 
@@ -305,6 +303,7 @@ func (s *Service) Stop() {
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_NOT_SERVING)
 	s.otlpReceiver.Stop()
 	s.correlationEngine.Stop()
+
 	if s.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -312,11 +311,13 @@ func (s *Service) Stop() {
 			s.httpServer.Close()
 		}
 	}
+
 	if s.grpcServer != nil {
 		s.grpcServer.GracefulStop()
 	}
-	if s.clickHouseDB != nil {
-		s.clickHouseDB.Close()
+
+	if s.tsDB != nil {
+		s.tsDB.Close()
 	}
 }
 
@@ -328,7 +329,7 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
-	if s.clickHouseDB == nil {
+	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
 
@@ -375,7 +376,7 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 	query += " LIMIT ?"
 	args = append(args, limit)
 
-	rows, err := s.clickHouseDB.QueryContext(ctx, query, args...)
+	rows, err := s.tsDB.Query(ctx, query, args...)
 	if err != nil {
 		s.statsMu.Lock()
 		s.stats.QueryErrors++
@@ -386,18 +387,15 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 
 	records := []map[string]interface{}{}
 	columns, _ := rows.Columns()
-
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
-
 		if err := rows.Scan(valuePtrs...); err != nil {
 			continue
 		}
-
 		record := make(map[string]interface{})
 		for i, col := range columns {
 			record[col] = values[i]
@@ -425,7 +423,7 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
-	if s.clickHouseDB == nil {
+	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
 
@@ -464,7 +462,7 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 	query += " LIMIT ?"
 	args = append(args, limit)
 
-	rows, err := s.clickHouseDB.QueryContext(ctx, query, args...)
+	rows, err := s.tsDB.Query(ctx, query, args...)
 	if err != nil {
 		s.statsMu.Lock()
 		s.stats.QueryErrors++
@@ -475,18 +473,15 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 
 	records := []map[string]interface{}{}
 	columns, _ := rows.Columns()
-
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
-
 		if err := rows.Scan(valuePtrs...); err != nil {
 			continue
 		}
-
 		record := make(map[string]interface{})
 		for i, col := range columns {
 			record[col] = values[i]
@@ -514,7 +509,7 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
-	if s.clickHouseDB == nil {
+	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
 
@@ -553,7 +548,7 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 	query += " LIMIT ?"
 	args = append(args, limit)
 
-	rows, err := s.clickHouseDB.QueryContext(ctx, query, args...)
+	rows, err := s.tsDB.Query(ctx, query, args...)
 	if err != nil {
 		s.statsMu.Lock()
 		s.stats.QueryErrors++
@@ -564,18 +559,15 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 
 	records := []map[string]interface{}{}
 	columns, _ := rows.Columns()
-
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
 		valuePtrs := make([]interface{}, len(columns))
 		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
-
 		if err := rows.Scan(valuePtrs...); err != nil {
 			continue
 		}
-
 		record := make(map[string]interface{})
 		for i, col := range columns {
 			record[col] = values[i]
@@ -602,7 +594,7 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
-	if s.clickHouseDB == nil {
+	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
 
@@ -657,7 +649,6 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 	// 添加过滤条件
 	filterQuery := ""
 	filterArgs := []interface{}{}
-
 	if req.TenantId != "" {
 		filterQuery += " AND tenant_id = ?"
 		filterArgs = append(filterArgs, req.TenantId)
@@ -677,7 +668,6 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 
 	// 执行所有查询
 	dashboardData := make(map[string]interface{})
-
 	for _, q := range queries {
 		// P2-01 修复: 修复 GROUP BY * 为正确的 GROUP BY 子句
 		var fullQuery string
@@ -694,25 +684,22 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 			fullQuery = q.query + filterQuery + " ORDER BY 1 DESC LIMIT 100"
 		}
 
-		rows, err := s.clickHouseDB.QueryContext(ctx, fullQuery, filterArgs...)
+		rows, err := s.tsDB.Query(ctx, fullQuery, filterArgs...)
 		if err != nil {
 			continue
 		}
 
 		records := []map[string]interface{}{}
 		columns, _ := rows.Columns()
-
 		for rows.Next() {
 			values := make([]interface{}, len(columns))
 			valuePtrs := make([]interface{}, len(columns))
 			for i := range values {
 				valuePtrs[i] = &values[i]
 			}
-
 			if err := rows.Scan(valuePtrs...); err != nil {
 				continue
 			}
-
 			record := make(map[string]interface{})
 			for i, col := range columns {
 				record[col] = values[i]
@@ -720,7 +707,6 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 			records = append(records, record)
 		}
 		rows.Close()
-
 		dashboardData[q.name] = records
 	}
 
@@ -752,17 +738,21 @@ func (s *Service) QueryOTLPTraces(ctx context.Context, req *svcproto.TraceQueryR
 	if req.Limit == 0 {
 		query.Limit = 100
 	}
+
 	spans := s.otlpReceiver.TraceStore().SearchSpans(query)
+
 	// Group spans by trace ID
 	traceMap := make(map[string][]*otel.Span)
 	for _, span := range spans {
 		traceMap[span.TraceID] = append(traceMap[span.TraceID], span)
 	}
+
 	var traces []*svcproto.TraceInfo
 	for traceID, spans := range traceMap {
 		var minStart, maxEnd int64
 		var errCount int
 		var spanInfos []*svcproto.SpanInfo
+
 		for _, sp := range spans {
 			if minStart == 0 || sp.StartTime < minStart {
 				minStart = sp.StartTime
@@ -775,6 +765,7 @@ func (s *Service) QueryOTLPTraces(ctx context.Context, req *svcproto.TraceQueryR
 			}
 			spanInfos = append(spanInfos, convertSpanToProto(sp))
 		}
+
 		traces = append(traces, &svcproto.TraceInfo{
 			TraceId:     traceID,
 			ServiceName: spans[0].ServiceName,
@@ -785,6 +776,7 @@ func (s *Service) QueryOTLPTraces(ctx context.Context, req *svcproto.TraceQueryR
 			Spans:       spanInfos,
 		})
 	}
+
 	return &svcproto.TraceQueryResponse{Traces: traces, Total: len(traces)}, nil
 }
 
@@ -794,11 +786,13 @@ func (s *Service) GetRootCauseAnalysis(ctx context.Context, req *svcproto.RootCa
 	if report == nil {
 		return &svcproto.RootCauseResponse{}, nil
 	}
+
 	resp := &svcproto.RootCauseResponse{
 		TraceId:          report.TraceID,
 		AffectedServices: report.AffectedServices,
 		SuggestedCauses:  report.SuggestedCauses,
 	}
+
 	for _, es := range report.ErrorSpans {
 		resp.ErrorSpans = append(resp.ErrorSpans, &svcproto.SpanInfo{
 			TraceId: report.TraceID, SpanId: es.SpanID,
@@ -806,6 +800,7 @@ func (s *Service) GetRootCauseAnalysis(ctx context.Context, req *svcproto.RootCa
 			DurationNs: es.DurationNs,
 		})
 	}
+
 	for _, ss := range report.SlowSpans {
 		resp.SlowSpans = append(resp.SlowSpans, &svcproto.SpanInfo{
 			TraceId: report.TraceID, SpanId: ss.SpanID,
@@ -813,6 +808,7 @@ func (s *Service) GetRootCauseAnalysis(ctx context.Context, req *svcproto.RootCa
 			DurationNs: ss.DurationNs,
 		})
 	}
+
 	for _, fl := range report.RelatedFlows {
 		resp.RelatedFlows = append(resp.RelatedFlows, &svcproto.FlowTraceLink{
 			TraceId: fl.TraceID, SpanId: fl.SpanID,
@@ -823,12 +819,14 @@ func (s *Service) GetRootCauseAnalysis(ctx context.Context, req *svcproto.RootCa
 			Bytes: fl.FlowBytes, Timestamp: fl.FlowTimestamp,
 		})
 	}
+
 	return resp, nil
 }
 
 // QueryCorrelation 关联查询
 func (s *Service) QueryCorrelation(ctx context.Context, req *svcproto.CorrelationQueryRequest) (*svcproto.CorrelationQueryResponse, error) {
 	var traceIDs []string
+
 	switch req.QueryType {
 	case "trace_to_flow":
 		links := s.correlationEngine.GetFlowsByTraceID(req.TraceId)
@@ -844,11 +842,13 @@ func (s *Service) QueryCorrelation(ctx context.Context, req *svcproto.Correlatio
 			})
 		}
 		return &svcproto.CorrelationQueryResponse{Flows: flows, Total: len(flows)}, nil
+
 	case "service_to_trace":
 		traceIDs = s.correlationEngine.GetTracesByService(req.ServiceName)
 	case "process_to_trace":
 		traceIDs = s.correlationEngine.GetTracesByProcess(req.ProcessName, req.Pid)
 	}
+
 	// Convert trace IDs to TraceInfo
 	var traces []*svcproto.TraceInfo
 	for _, tid := range traceIDs {
@@ -858,6 +858,7 @@ func (s *Service) QueryCorrelation(ctx context.Context, req *svcproto.Correlatio
 		}
 		traces = append(traces, convertTraceToProto(trace))
 	}
+
 	return &svcproto.CorrelationQueryResponse{Traces: traces, Total: len(traces)}, nil
 }
 
@@ -876,6 +877,7 @@ func (s *Service) GetOTLPStats(ctx context.Context, req *svcproto.HealthCheckReq
 }
 
 // HTTP Handlers
+
 func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, `{"status":"healthy","service":"%s"}`, s.config.ServiceName)
@@ -884,7 +886,7 @@ func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if s.clickHouseDB == nil {
+	if s.tsDB == nil {
 		writeJSON(w, map[string]interface{}{
 			"totalFlows": 0, "activeAgents": 0, "activeServices": 0,
 			"trafficLabels": []string{}, "trafficInbound": []int64{}, "trafficOutbound": []int64{},
@@ -895,16 +897,17 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var totalFlows, activeAgents, activeServices int64
-	s.clickHouseDB.QueryRowContext(ctx, "SELECT count() FROM cloudflow.flows").Scan(&totalFlows)
-	s.clickHouseDB.QueryRowContext(ctx, "SELECT count(DISTINCT probe_id) FROM cloudflow.flows WHERE probe_id != '' AND probe_id != 'test'").Scan(&activeAgents)
-	s.clickHouseDB.QueryRowContext(ctx, "SELECT count(DISTINCT dst_ip) FROM cloudflow.flows WHERE dst_ip != '' AND dst_ip NOT IN ('test','cpu','memory','network')").Scan(&activeServices)
+	s.tsDB.QueryRow(ctx, "SELECT count() FROM cloudflow.flows").Scan(&totalFlows)
+	s.tsDB.QueryRow(ctx, "SELECT count(DISTINCT probe_id) FROM cloudflow.flows WHERE probe_id != '' AND probe_id != 'test'").Scan(&activeAgents)
+	s.tsDB.QueryRow(ctx, "SELECT count(DISTINCT dst_ip) FROM cloudflow.flows WHERE dst_ip != '' AND dst_ip NOT IN ('test','cpu','memory','network')").Scan(&activeServices)
 
-	rows, _ := s.clickHouseDB.QueryContext(ctx, `
+	rows, _ := s.tsDB.Query(ctx, `
 		SELECT toStartOfMinute(timestamp) as t, sum(bytes) as total
 		FROM cloudflow.flows
 		WHERE timestamp > now() - INTERVAL 30 MINUTE
 		GROUP BY t ORDER BY t
 	`)
+
 	var trafficLabels []string
 	var trafficInbound []int64
 	if rows != nil {
@@ -919,12 +922,13 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	topRows, _ := s.clickHouseDB.QueryContext(ctx, `
+	topRows, _ := s.tsDB.Query(ctx, `
 		SELECT dst_ip, count() as cnt
 		FROM cloudflow.flows
 		WHERE timestamp > now() - INTERVAL 30 MINUTE AND dst_ip != '' AND dst_ip NOT IN ('test','cpu','memory','network')
 		GROUP BY dst_ip ORDER BY cnt DESC LIMIT 5
 	`)
+
 	var topServices []map[string]interface{}
 	if topRows != nil {
 		defer topRows.Close()
@@ -933,7 +937,9 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 			var name string
 			var cnt int64
 			if topRows.Scan(&name, &cnt) == nil {
-				if cnt > maxCnt { maxCnt = cnt }
+				if cnt > maxCnt {
+					maxCnt = cnt
+				}
 				topServices = append(topServices, map[string]interface{}{"name": name, "qps": cnt, "percentage": 0.0})
 			}
 		}
@@ -945,9 +951,10 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cpuVal, memVal, netVal := 0.0, 0.0, 0.0
-	s.clickHouseDB.QueryRowContext(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='cpu_percent' ORDER BY timestamp DESC LIMIT 1").Scan(&cpuVal)
-	s.clickHouseDB.QueryRowContext(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='memory' ORDER BY timestamp DESC LIMIT 1").Scan(&memVal)
-	s.clickHouseDB.QueryRowContext(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='network' ORDER BY timestamp DESC LIMIT 1").Scan(&netVal)
+	s.tsDB.QueryRow(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='cpu_percent' ORDER BY timestamp DESC LIMIT 1").Scan(&cpuVal)
+	s.tsDB.QueryRow(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='memory' ORDER BY timestamp DESC LIMIT 1").Scan(&memVal)
+	s.tsDB.QueryRow(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='network' ORDER BY timestamp DESC LIMIT 1").Scan(&netVal)
+
 	resources := []map[string]interface{}{
 		{"name": "CPU", "percentage": cpuVal, "color": "stroke-primary-500"},
 		{"name": "Memory", "percentage": memVal, "color": "stroke-accent-500"},
@@ -956,7 +963,7 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var avgLatency float64
-	s.clickHouseDB.QueryRowContext(ctx, "SELECT avg(latency_ms) FROM cloudflow.flows WHERE latency_ms > 0 AND timestamp > now() - INTERVAL 30 MINUTE").Scan(&avgLatency)
+	s.tsDB.QueryRow(ctx, "SELECT avg(latency_ms) FROM cloudflow.flows WHERE latency_ms > 0 AND timestamp > now() - INTERVAL 30 MINUTE").Scan(&avgLatency)
 
 	result := map[string]interface{}{
 		"totalFlows": totalFlows, "activeAgents": activeAgents, "activeServices": activeServices,
@@ -967,8 +974,10 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 		"flowsChange": "0%", "agentsChange": "0", "servicesChange": "0",
 		"tracesChange": "0%", "alertsChange": "0%", "latencyChange": "0ms",
 	}
+
 	writeJSON(w, result)
 }
+
 func (s *Service) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	req := &svcproto.QueryFlowRequest{
 		TenantId:  r.URL.Query().Get("tenant_id"),
@@ -1031,7 +1040,7 @@ func (s *Service) topologyHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Service) alertsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
 		"alerts": []interface{}{},
-		"total": 0,
+		"total":  0,
 	})
 }
 
@@ -1039,20 +1048,25 @@ func (s *Service) otelTracesHandler(w http.ResponseWriter, r *http.Request) {
 	// Proxy to trace store search
 	writeJSON(w, s.otlpReceiver.TraceStore().SearchSpans(otel.SpanQuery{Limit: 100}))
 }
+
 func (s *Service) otelMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.otlpReceiver.MetricsStore().GetAllSeriesNames())
 }
+
 func (s *Service) otelLogsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.otlpReceiver.LogStore().Query(otel.LogQuery{Limit: 100}))
 }
+
 func (s *Service) otelStatsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.otlpReceiver.Stats())
 }
+
 func (s *Service) rcaHandler(w http.ResponseWriter, r *http.Request) {
 	traceID := r.URL.Query().Get("trace_id")
 	resp, _ := s.GetRootCauseAnalysis(r.Context(), &svcproto.RootCauseRequest{TraceId: traceID})
 	writeJSON(w, resp)
 }
+
 func (s *Service) correlationHandler(w http.ResponseWriter, r *http.Request) {
 	queryType := r.URL.Query().Get("type")
 	traceID := r.URL.Query().Get("trace_id")
@@ -1064,6 +1078,7 @@ func (s *Service) correlationHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper functions
+
 func convertSpanToProto(sp *otel.Span) *svcproto.SpanInfo {
 	return &svcproto.SpanInfo{
 		TraceId: sp.TraceID, SpanId: sp.SpanID, ParentSpanId: sp.ParentSpanID,
@@ -1123,29 +1138,37 @@ func RegisterQueryService(s *grpc.Server, svc *Service) {
 }
 
 func (g *queryGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
-	return &svcproto.HealthCheckResponse{Healthy: true, Version: g.svc.config.Version}, nil
+	return &svcproto.HealthCheckResponse{Status: "healthy"}, nil
 }
+
 func (g *queryGRPC) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
 	return g.svc.QueryFlows(ctx, req)
 }
+
 func (g *queryGRPC) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
 	return g.svc.QueryMetrics(ctx, req)
 }
+
 func (g *queryGRPC) QueryTraces(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
 	return g.svc.QueryTraces(ctx, req)
 }
+
 func (g *queryGRPC) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {
 	return g.svc.QueryDashboard(ctx, req)
 }
+
 func (g *queryGRPC) QueryOTLPTraces(ctx context.Context, req *svcproto.TraceQueryRequest) (*svcproto.TraceQueryResponse, error) {
 	return g.svc.QueryOTLPTraces(ctx, req)
 }
+
 func (g *queryGRPC) GetRootCauseAnalysis(ctx context.Context, req *svcproto.RootCauseRequest) (*svcproto.RootCauseResponse, error) {
 	return g.svc.GetRootCauseAnalysis(ctx, req)
 }
+
 func (g *queryGRPC) QueryCorrelation(ctx context.Context, req *svcproto.CorrelationQueryRequest) (*svcproto.CorrelationQueryResponse, error) {
 	return g.svc.QueryCorrelation(ctx, req)
 }
+
 func (g *queryGRPC) GetOTLPStats(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.OTLPIngestStats, error) {
 	return g.svc.GetOTLPStats(ctx, req)
 }
