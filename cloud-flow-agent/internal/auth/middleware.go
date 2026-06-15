@@ -197,7 +197,13 @@ func (m *Middleware) validateBearerToken(token string) (*tenant.User, error) {
 	// 验证HMAC签名
 	secretKey := os.Getenv("CLOUD_FLOW_JWT_SECRET")
 	if secretKey == "" {
-		secretKey = "default-secret-key-change-in-production"
+		secretKey = os.Getenv("CONFIG_JWT_SECRET")
+	}
+	if secretKey == "" {
+		panic("CLOUD_FLOW_JWT_SECRET or CONFIG_JWT_SECRET environment variable must be set")
+	}
+	if len(secretKey) < 32 {
+		panic("JWT secret key must be at least 32 characters long")
 	}
 	
 	message := userID + ":" + timestampStr
