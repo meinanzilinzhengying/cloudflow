@@ -28,20 +28,22 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// 以太网类型常量
+const (
+	ETH_TYPE_IPv4 = 0x0800
+	ETH_TYPE_IPv6 = 0x86DD
+)
+
 // VXLANDecapConfig VXLAN解封装配置
 type VXLANDecapConfig struct {
 	// 管理网卡接口
 	MgmtIface string
-
 	// 是否启用TAP镜像
 	EnableTapMirror bool
-
 	// TAP设备名称（默认 vxlan-tap0）
 	TapDeviceName string
-
 	// 是否解析内层协议
 	ParseInnerProtocol bool
-
 	// 采集间隔
 	CollectInterval time.Duration
 }
@@ -181,7 +183,6 @@ func (c *Collector) Start() error {
 
 	c.log.Infof("[VXLAN] 解封装采集器已启动: iface=%s, tap=%v",
 		c.cfg.MgmtIface, c.cfg.EnableTapMirror)
-
 	return nil
 }
 
@@ -218,8 +219,18 @@ func (c *Collector) Stop() error {
 
 // Collect 采集数据
 func (c *Collector) Collect() []*edge.MetricData {
-	// 从内部通道读取
-	return nil // 实际实现中从collectCh读取
+	// 从内部通道非阻塞读取
+	select {
+	case metrics := <-c.collectCh:
+		return metrics
+	default:
+		return nil
+	}
+}
+
+// CollectChannel 获取采集数据通道
+func (c *Collector) CollectChannel() <-chan []*edge.MetricData {
+	return c.collectCh
 }
 
 // loadBPF 加载eBPF程序
@@ -306,8 +317,8 @@ func (c *Collector) attachTC() error {
 	if err != nil {
 		return fmt.Errorf("附加TC程序失败: %w", err)
 	}
-
 	c.tcLink = l
+
 	return nil
 }
 
@@ -381,7 +392,6 @@ func (c *Collector) eventLoop() {
 			// 解析内层流量信息
 			if len(record.RawSample) >= 48 { // sizeof(InnerFlowInfo)
 				info := c.parseInnerFlowInfo(record.RawSample)
-
 				// 镜像到TAP设备
 				if c.cfg.EnableTapMirror && c.tapDevice != nil {
 					c.mirrorToTap(info, record.RawSample)
@@ -420,7 +430,6 @@ func (c *Collector) collectFlows() {
 	// 遍历flow map
 	var key DecapFlowKey
 	var stats DecapFlowStats
-
 	entries := c.flowMap.Iterate()
 	for entries.Next(&key, &stats) {
 		metric := c.flowToMetric(&key, &stats, now)
@@ -436,8 +445,8 @@ func (c *Collector) collectFlows() {
 			// 发送成功
 			c.log.Debugf("[VXLAN] 发送 %d 条流量指标", len(metrics))
 		default:
-			// 通道满，丢弃
-			c.log.Debugf("[VXLAN] 通道已满，丢弃 %d 条流量指标", len(metrics))
+			// 通道满，丢弃并记录日志
+			c.log.Debugf("[VXLAN] metrics channel full, dropped %d metrics", len(metrics))
 		}
 	}
 }
@@ -468,53 +477,44 @@ func (c *Collector) mirrorToTap(info *InnerFlowInfo, rawPacket []byte) {
 		return
 	}
 
-	// 构造以太网帧头（14字节）
-	// 目的MAC: 广播地址 FF:FF:FF:FF:FF:FF
-	// 源MAC: 固定 00:11:22:33:44:55
-	// 以太类型: 0x0800 (IPv4) 或 0x86DD (IPv6)
-	etherFrame := make([]byte, 14)
-	// 目的MAC - 广播
-	etherFrame[0] = 0xFF
-	etherFrame[1] = 0xFF
-	etherFrame[2] = 0xFF
-	etherFrame[3] = 0xFF
-	etherFrame[4] = 0xFF
-	etherFrame[5] = 0xFF
-	// 源MAC
-	etherFrame[6] = 0x00
-	etherFrame[7] = 0x11
-	etherFrame[8] = 0x22
-	etherFrame[9] = 0x33
-	etherFrame[10] = 0x44
-	etherFrame[11] = 0x55
+	// 构造14字节以太网帧头
+	ethFrame := make([]byte, 14)
+	// 目的MAC地址（广播）
+	copy(ethFrame[0:6], []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF})
+	// 源MAC地址（固定）
+	copy(ethFrame[6:12], []byte{0x00, 0x11, 0x22, 0x33, 0x44, 0x55})
 	// 以太类型
 	if info.InnerIPVersion == 4 {
-		etherFrame[12] = 0x08
-		etherFrame[13] = 0x00 // IPv4
+		binary.BigEndian.PutUint16(ethFrame[12:14], ETH_TYPE_IPv4)
+	} else if info.InnerIPVersion == 6 {
+		binary.BigEndian.PutUint16(ethFrame[12:14], ETH_TYPE_IPv6)
 	} else {
-		etherFrame[12] = 0x86
-		etherFrame[13] = 0xDD // IPv6
+		binary.BigEndian.PutUint16(ethFrame[12:14], ETH_TYPE_IPv4)
 	}
 
-	// 构造简化的IP头用于镜像演示
+	// 构造简化IP头用于镜像演示
 	ipHeader := make([]byte, 20)
-	ipHeader[0] = 0x45 // IPv4, IHL=5
-	ipHeader[1] = 0x00 // TOS
-	totalLen := uint16(20 + 8) // IP头 + UDP头
-	binary.BigEndian.PutUint16(ipHeader[2:4], totalLen)
-	ipHeader[8] = 0x40 // TTL=64
-	if info.InnerProtocol == 6 {
-		ipHeader[9] = 0x06 // TCP
-	} else {
-		ipHeader[9] = 0x11 // UDP
-	}
-	// 源IP
-	binary.LittleEndian.PutUint32(ipHeader[12:16], info.InnerSrcIP)
-	// 目的IP
-	binary.LittleEndian.PutUint32(ipHeader[16:20], info.InnerDstIP)
+	ipHeader[0] = 0x45 // Version 4, IHL 5
+	ipHeader[8] = 64    // TTL
+	ipHeader[9] = info.InnerProtocol
+	binary.BigEndian.PutUint32(ipHeader[12:16], info.InnerSrcIP)
+	binary.BigEndian.PutUint32(ipHeader[16:20], info.InnerDstIP)
 
-	// 组合完整帧: 以太网头 + IP头
-	fullFrame := append(etherFrame, ipHeader...)
+	// 构造传输层头
+	var transportHeader []byte
+	if info.InnerProtocol == 6 { // TCP
+		transportHeader = make([]byte, 20)
+		binary.BigEndian.PutUint16(transportHeader[0:2], info.InnerSrcPort)
+		binary.BigEndian.PutUint16(transportHeader[2:4], info.InnerDstPort)
+	} else if info.InnerProtocol == 17 { // UDP
+		transportHeader = make([]byte, 8)
+		binary.BigEndian.PutUint16(transportHeader[0:2], info.InnerSrcPort)
+		binary.BigEndian.PutUint16(transportHeader[2:4], info.InnerDstPort)
+	}
+
+	// 合并帧
+	fullFrame := append(ethFrame, ipHeader...)
+	fullFrame = append(fullFrame, transportHeader...)
 
 	// 写入TAP设备
 	_, err := c.tapDevice.Write(fullFrame)
@@ -532,7 +532,6 @@ func (c *Collector) mirrorToTap(info *InnerFlowInfo, rawPacket []byte) {
 func (c *Collector) flowToMetric(key *DecapFlowKey, stats *DecapFlowStats, now int64) *edge.MetricData {
 	innerSrcIP := make(net.IP, 4)
 	binary.LittleEndian.PutUint32(innerSrcIP, key.InnerSrcIP)
-
 	innerDstIP := make(net.IP, 4)
 	binary.LittleEndian.PutUint32(innerDstIP, key.InnerDstIP)
 
@@ -553,17 +552,51 @@ func (c *Collector) flowToMetric(key *DecapFlowKey, stats *DecapFlowStats, now i
 		Bytes:     int64(stats.Bytes),
 		Packets:   int64(stats.Packets),
 		Tags: map[string]string{
-			"source":          "vxlan_decap",
-			"vni":             fmt.Sprintf("%d", key.VNI),
+			"source":           "vxlan_decap",
+			"vni":              fmt.Sprintf("%d", key.VNI),
 			"inner_ip_version": fmt.Sprintf("%d", key.InnerIPVersion),
 		},
 	}
 }
 
+// VNIStats VNI维度统计
+type VNIStats struct {
+	VNI        uint32 `json:"vni"`
+	Packets    uint64 `json:"packets"`
+	Bytes      uint64 `json:"bytes"`
+	Flows      uint64 `json:"flows"`
+	LastUpdate int64  `json:"last_update"`
+}
+
 // Stats 返回统计信息
 func (c *Collector) Stats() map[string]interface{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	return map[string]interface{}{
-		"tap_enabled": c.cfg.EnableTapMirror,
-		"tap_device":  c.tapName,
+		"tap_enabled":        c.cfg.EnableTapMirror,
+		"tap_device":         c.tapName,
+		"total_packets":      atomic.LoadUint64(&c.stats.totalVXLANPackets),
+		"decap_success":      atomic.LoadUint64(&c.stats.decapSuccess),
+		"decap_failed":       atomic.LoadUint64(&c.stats.decapFailed),
+		"tap_mirror_packets": atomic.LoadUint64(&c.stats.tapMirrorPackets),
+		"tap_mirror_bytes":   atomic.LoadUint64(&c.stats.tapMirrorBytes),
 	}
+}
+
+// GetVNIStats 获取所有VNI统计
+func (c *Collector) GetVNIStats() map[uint32]*VNIStats {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	// 实际实现中从eBPF map聚合
+	return make(map[uint32]*VNIStats)
+}
+
+// ResetStats 重置统计
+func (c *Collector) ResetStats() {
+	atomic.StoreUint64(&c.stats.totalVXLANPackets, 0)
+	atomic.StoreUint64(&c.stats.decapSuccess, 0)
+	atomic.StoreUint64(&c.stats.decapFailed, 0)
+	atomic.StoreUint64(&c.stats.tapMirrorPackets, 0)
+	atomic.StoreUint64(&c.stats.tapMirrorBytes, 0)
 }

@@ -1,0 +1,82 @@
+groups:
+  - name: cloudflow.rules
+    rules:
+      # 服务宕机告警
+      - alert: ServiceDown
+        expr: up{job=~"cloudflow-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务 {{ $labels.job }} 宕机"
+          description: "服务 {{ $labels.job }} 已离线超过1分钟"
+
+      # 高CPU告警
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job=~"cloudflow-.*"}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.job }} CPU使用率过高"
+          description: "服务 {{ $labels.job }} CPU使用率超过80%，持续5分钟"
+
+      # 高内存告警
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job=~"cloudflow-.*"} / 1024 / 1024 / 1024 > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.job }} 内存使用率过高"
+          description: "服务 {{ $labels.job }} 内存使用率超过85%，持续5分钟"
+
+      # 高错误率告警
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务 {{ $labels.job }} 错误率过高"
+          description: "服务 {{ $labels.job }} 5xx错误率超过5%，持续2分钟"
+
+      # 高延迟告警
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.job }} 请求延迟过高"
+          description: "服务 {{ $labels.job }} P95延迟超过500ms，持续2分钟"
+
+      # eBPF采集异常告警
+      - alert: EBPFCollectionError
+        expr: rate(cloudflow_ebpf_dropped_total[5m]) / rate(cloudflow_ebpf_packets_total[5m]) * 100 > 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Agent {{ $labels.agent }} eBPF采集丢包率过高"
+          description: "Agent {{ $labels.agent }} 丢包率超过1%，持续1分钟"
+
+      # 数据库连接异常告警
+      - alert: DatabaseConnectionError
+        expr: increase(database_connection_errors_total[5m]) > 3
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "数据库连接异常"
+          description: "数据库连接失败超过3次"
+
+      # Agent离线告警
+      - alert: AgentOffline
+        expr: time() - cloudflow_agent_last_heartbeat_timestamp > 300
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent {{ $labels.agent }} 离线"
+          description: "Agent {{ $labels.agent }} 心跳超时超过5分钟"

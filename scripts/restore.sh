@@ -1,122 +1,48 @@
 #!/bin/bash
-# CloudFlow 数据恢复脚本
-# Usage: ./restore.sh <backup_timestamp> [clickhouse|redis|victoria|all]
+# CloudFlow 恢复脚本
 
 set -e
 
-BACKUP_DIR="/backup/cloudflow"
-TIMESTAMP=$1
-LOG_FILE="/var/log/cloudflow/restore_$(date +%Y%m%d_%H%M%S).log"
+BACKUP_DIR="/var/backups/cloudflow"
 
-log() {
-    echo "[$(date)] $1" | tee -a $LOG_FILE
-}
+echo "=== CloudFlow 恢复开始 $(date) ==="
 
-log "Starting CloudFlow restore from backup: $TIMESTAMP"
+if [ -z "$1" ]; then
+    echo "用法: $0 <备份时间戳>"
+    echo "可用备份:"
+    ls -lh "$BACKUP_DIR"
+    exit 1
+fi
 
-case "$2" in
-    clickhouse)
-        log "Restoring ClickHouse..."
-        
-        log "Downloading backup..."
-        clickhouse-backup download full_$TIMESTAMP
-        
-        log "Stopping ClickHouse service..."
-        systemctl stop cloudflow-clickhouse
-        
-        log "Restoring data..."
-        clickhouse-backup restore full_$TIMESTAMP
-        
-        log "Starting ClickHouse service..."
-        systemctl start cloudflow-clickhouse
-        
-        log "Verifying..."
-        clickhouse-client -q "SELECT COUNT(*) FROM flow_logs"
-        
-        log "ClickHouse restore completed"
-        ;;
-    
-    redis)
-        log "Restoring Redis..."
-        
-        log "Stopping Redis service..."
-        systemctl stop redis
-        
-        log "Restoring data..."
-        cp $BACKUP_DIR/redis_$TIMESTAMP.rdb /var/lib/redis/dump.rdb
-        chown redis:redis /var/lib/redis/dump.rdb
-        
-        log "Starting Redis service..."
-        systemctl start redis
-        
-        log "Verifying..."
-        redis-cli PING
-        
-        log "Redis restore completed"
-        ;;
-    
-    victoria)
-        log "Restoring VictoriaMetrics..."
-        
-        log "Stopping VictoriaMetrics service..."
-        systemctl stop victoriametrics
-        
-        log "Restoring data..."
-        vmrestore -storageDataPath=/storage/victoria-metrics-data \
-                  -src=gs://victoria-backup/$TIMESTAMP
-        
-        log "Starting VictoriaMetrics service..."
-        systemctl start victoriametrics
-        
-        log "Verifying..."
-        curl -s http://localhost:8428/api/v1/label/job/values
-        
-        log "VictoriaMetrics restore completed"
-        ;;
-    
-    all)
-        log "Restoring ALL components..."
-        
-        log "Stopping CloudFlow services..."
-        systemctl stop cloudflow-center
-        systemctl stop cloudflow-edge
-        systemctl stop cloudflow-agent
-        
-        log "Restoring Redis (P0)..."
-        systemctl stop redis
-        cp $BACKUP_DIR/redis_$TIMESTAMP.rdb /var/lib/redis/dump.rdb
-        chown redis:redis /var/lib/redis/dump.rdb
-        systemctl start redis
-        
-        log "Restoring ClickHouse (P1)..."
-        systemctl stop cloudflow-clickhouse
-        clickhouse-backup download full_$TIMESTAMP
-        clickhouse-backup restore full_$TIMESTAMP
-        systemctl start cloudflow-clickhouse
-        
-        log "Restoring VictoriaMetrics (P2)..."
-        systemctl stop victoriametrics
-        vmrestore -storageDataPath=/storage/victoria-metrics-data \
-                  -src=gs://victoria-backup/$TIMESTAMP
-        systemctl start victoriametrics
-        
-        log "Starting CloudFlow services..."
-        systemctl start cloudflow-center
-        systemctl start cloudflow-edge
-        systemctl start cloudflow-agent
-        
-        log "Validating restore..."
-        curl -s http://localhost:8080/api/healthz
-        redis-cli PING
-        clickhouse-client -q "SELECT COUNT(*) FROM flow_logs LIMIT 1"
-        
-        log "ALL components restored successfully"
-        ;;
-    
-    *)
-        echo "Usage: $0 <backup_timestamp> [clickhouse|redis|victoria|all]"
-        exit 1
-        ;;
-esac
+TIMESTAMP="$1"
 
-log "Restore completed successfully"
+# 1. MySQL恢复
+echo "1/3 恢复MySQL数据库..."
+if [ -f "$BACKUP_DIR/mysql_${TIMESTAMP}.sql" ]; then
+    MYSQL_HOST="${MYSQL_HOST:-localhost}"
+    MYSQL_PORT="${MYSQL_PORT:-3306}"
+    MYSQL_USER="${MYSQL_USER:-root}"
+    MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
+    MYSQL_DATABASE="${MYSQL_DATABASE:-cloudflow}"
+    
+    mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" \
+        "$MYSQL_DATABASE" < "$BACKUP_DIR/mysql_${TIMESTAMP}.sql"
+    echo "   MySQL恢复完成"
+else
+    echo "   MySQL备份文件不存在，跳过"
+fi
+
+# 2. 配置文件恢复
+echo "2/3 恢复配置文件..."
+if [ -f "$BACKUP_DIR/config_${TIMESTAMP}.tar.gz" ]; then
+    tar -xzf "$BACKUP_DIR/config_${TIMESTAMP}.tar.gz" -C /
+    echo "   配置文件恢复完成"
+else
+    echo "   配置备份文件不存在，跳过"
+fi
+
+# 3. 验证
+echo "3/3 验证恢复..."
+echo "   请手动验证服务状态"
+
+echo "=== CloudFlow 恢复完成 $(date) ==="

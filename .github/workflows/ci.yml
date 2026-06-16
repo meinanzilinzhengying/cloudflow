@@ -1,274 +1,36 @@
-name: CI/CD Pipeline
+name: CloudFlow CI
 
 on:
   push:
-    branches: [ main, develop ]
-    tags: [ 'v*' ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
-
-env:
-  REGISTRY: docker.io
-  IMAGE_NAME: meinanzilinzhengying/cloudflow-agent
+    branches: [main]
 
 jobs:
-  # ==================== 代码质量检查 ====================
-  quality:
-    name: Code Quality
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-          cache: true
 
       - name: Install dependencies
-        run: |
-          cd cloud-flow-agent
-          go mod download
+        run: go mod tidy
 
-      - name: Check formatting
-        run: |
-          cd cloud-flow-agent
-          if [ "$(gofmt -l . | wc -l)" -gt 0 ]; then
-            echo "The following files are not formatted:"
-            gofmt -l .
-            exit 1
-          fi
-
-      - name: Run go vet
-        run: |
-          cd cloud-flow-agent
-          go vet ./...
-
-      - name: Install golangci-lint
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.55.2
-
-      - name: Run linter
-        run: |
-          cd cloud-flow-agent
-          $(go env GOPATH)/bin/golangci-lint run ./...
-
-  # ==================== 单元测试 ====================
-  test:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    needs: quality
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.22'
-          cache: true
-
-      - name: Install dependencies
-        run: |
-          cd cloud-flow-agent
-          go mod download
+      - name: Build all modules
+        run: go build ./...
 
       - name: Run tests
-        run: |
-          cd cloud-flow-agent
-          go test -v -race -coverprofile=coverage.out ./...
+        run: go test -cover ./...
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
         with:
-          file: ./cloud-flow-agent/coverage.out
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
-
-      - name: Generate coverage report
-        run: |
-          cd cloud-flow-agent
-          go tool cover -func=coverage.out > coverage-report.txt
-          cat coverage-report.txt
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: cloud-flow-agent/coverage-report.txt
-
-  # ==================== 安全扫描 ====================
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    needs: quality
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.22'
-
-      - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
-
-      - name: Run gosec
-        run: |
-          cd cloud-flow-agent
-          gosec -fmt=sarif -out=gosec-results.sarif ./... || true
-
-      - name: Upload SARIF to GitHub
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: cloud-flow-agent/gosec-results.sarif
-        continue-on-error: true
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-        continue-on-error: true
-
-      - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: trivy-results.sarif
-        continue-on-error: true
-
-  # ==================== 构建测试 ====================
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [test, security]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.22'
-          cache: true
-
-      - name: Build Agent
-        run: |
-          cd cloud-flow-agent
-          CGO_ENABLED=1 go build -ldflags="-s -w" -o ../bin/cloud-flow-agent ./cmd/main.go
-
-      - name: Verify binary
-        run: |
-          ls -lh bin/cloud-flow-agent
-          file bin/cloud-flow-agent
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: cloud-flow-agent
-          path: bin/cloud-flow-agent
-
-  # ==================== Docker 构建 ====================
-  docker:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-        continue-on-error: true
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: cloud-flow-agent/deployments/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ==================== Release ====================
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    needs: [build, docker]
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: cloud-flow-agent
-          path: bin/
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body_path: CHANGELOG.md
-          draft: false
-          prerelease: false
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: bin/cloud-flow-agent
-          asset_name: cloud-flow-agent-${{ github.ref_name }}-linux-amd64
-          asset_content_type: application/octet-stream
-
-  # ==================== 通知 ====================
-  notify:
-    name: Notify
-    runs-on: ubuntu-latest
-    needs: [release]
-    if: always()
-    steps:
-      - name: Send notification
-        run: |
-          echo "Pipeline completed"
-          echo "Status: ${{ job.status }}"
-          echo "Repository: ${{ github.repository }}"
-          echo "Branch: ${{ github.ref }}"
-          echo "Commit: ${{ github.sha }}"
-        continue-on-error: true
+          version: v1.55

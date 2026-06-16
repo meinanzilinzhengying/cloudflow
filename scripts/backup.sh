@@ -1,95 +1,66 @@
 #!/bin/bash
-# CloudFlow 自动备份脚本
-# Usage: ./backup.sh [full|incremental|redis|all]
+# CloudFlow 备份脚本
 
 set -e
 
-BACKUP_DIR="/backup/cloudflow"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-LOG_FILE="$BACKUP_DIR/backup_$TIMESTAMP.log"
+BACKUP_DIR="/var/backups/cloudflow"
+DATE=$(date +%Y%m%d_%H%M%S)
+RETENTION_DAYS=7
 
 # 创建备份目录
-mkdir -p $BACKUP_DIR
+mkdir -p "$BACKUP_DIR"
 
-log() {
-    echo "[$(date)] $1" | tee -a $LOG_FILE
-}
+echo "=== CloudFlow 备份开始 $(date) ==="
 
-log "Starting CloudFlow backup..."
+# 1. MySQL备份
+echo "1/4 备份MySQL数据库..."
+if command -v mysqldump &> /dev/null; then
+    MYSQL_HOST="${MYSQL_HOST:-localhost}"
+    MYSQL_PORT="${MYSQL_PORT:-3306}"
+    MYSQL_USER="${MYSQL_USER:-root}"
+    MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
+    MYSQL_DATABASE="${MYSQL_DATABASE:-cloudflow}"
+    
+    mysqldump -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" \
+        --single-transaction --routines --triggers "$MYSQL_DATABASE" \
+        > "$BACKUP_DIR/mysql_$DATE.sql"
+    echo "   MySQL备份完成: $BACKUP_DIR/mysql_$DATE.sql"
+else
+    echo "   mysqldump未找到，跳过MySQL备份"
+fi
 
-case "$1" in
-    full)
-        log "Performing FULL backup..."
-        
-        log "Backing up ClickHouse (full)..."
-        clickhouse-backup create --name full_$TIMESTAMP
-        clickhouse-backup upload full_$TIMESTAMP
-        
-        log "Backing up Redis..."
-        redis-cli BGSAVE
-        sleep 10
-        cp /var/lib/redis/dump.rdb $BACKUP_DIR/redis_full_$TIMESTAMP.rdb
-        
-        log "FULL backup completed"
-        ;;
+# 2. ClickHouse备份
+echo "2/4 备份ClickHouse数据库..."
+if command -v clickhouse-client &> /dev/null; then
+    CLICKHOUSE_HOST="${CLICKHOUSE_HOST:-localhost}"
+    CLICKHOUSE_PORT="${CLICKHOUSE_PORT:-9000}"
+    CLICKHOUSE_USER="${CLICKHOUSE_USER:-default}"
+    CLICKHOUSE_PASSWORD="${CLICKHOUSE_PASSWORD:-}"
+    CLICKHOUSE_DATABASE="${CLICKHOUSE_DATABASE:-cloudflow}"
     
-    incremental)
-        log "Performing INCREMENTAL backup..."
-        
-        log "Backing up ClickHouse (incremental)..."
-        clickhouse-backup create --name incr_$TIMESTAMP --incremental
-        clickhouse-backup upload incr_$TIMESTAMP
-        
-        log "Backing up Redis..."
-        redis-cli BGSAVE
-        sleep 10
-        cp /var/lib/redis/dump.rdb $BACKUP_DIR/redis_incr_$TIMESTAMP.rdb
-        
-        log "Backing up VictoriaMetrics..."
-        vmbackup -storageDataPath=/storage/victoria-metrics-data \
-                 -snapshot.createURL=http://localhost:8428/snapshot/create \
-                 -dst=gs://victoria-backup/$TIMESTAMP
-        
-        log "INCREMENTAL backup completed"
-        ;;
-    
-    redis)
-        log "Backing up Redis only..."
-        redis-cli BGSAVE
-        sleep 10
-        cp /var/lib/redis/dump.rdb $BACKUP_DIR/redis_$TIMESTAMP.rdb
-        log "Redis backup completed"
-        ;;
-    
-    all)
-        log "Performing ALL backups..."
-        
-        log "Backing up ClickHouse..."
-        clickhouse-backup create --name full_$TIMESTAMP
-        clickhouse-backup upload full_$TIMESTAMP
-        
-        log "Backing up Redis..."
-        redis-cli BGSAVE
-        sleep 10
-        cp /var/lib/redis/dump.rdb $BACKUP_DIR/redis_$TIMESTAMP.rdb
-        
-        log "Backing up VictoriaMetrics..."
-        vmbackup -storageDataPath=/storage/victoria-metrics-data \
-                 -snapshot.createURL=http://localhost:8428/snapshot/create \
-                 -dst=gs://victoria-backup/$TIMESTAMP
-        
-        log "Archiving Kafka data..."
-        kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
-          --export --group backup-consumer \
-          --topic cloudflow-traffic > $BACKUP_DIR/kafka_$TIMESTAMP.json
-        
-        log "ALL backups completed"
-        ;;
-    
-    *)
-        echo "Usage: $0 [full|incremental|redis|all]"
-        exit 1
-        ;;
-esac
+    clickhouse-client -h "$CLICKHOUSE_HOST" --port "$CLICKHOUSE_PORT" \
+        -u "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" \
+        --query="BACKUP DATABASE $CLICKHOUSE_DATABASE TO Disk('backups', 'clickhouse_$DATE')"
+    echo "   ClickHouse备份完成"
+else
+    echo "   clickhouse-client未找到，跳过ClickHouse备份"
+fi
 
-log "Backup completed successfully"
+# 3. 配置文件备份
+echo "3/4 备份配置文件..."
+CONFIG_DIR="${CONFIG_DIR:-/opt/cloudflow/config}"
+if [ -d "$CONFIG_DIR" ]; then
+    tar -czf "$BACKUP_DIR/config_$DATE.tar.gz" -C "$(dirname "$CONFIG_DIR")" "$(basename "$CONFIG_DIR")"
+    echo "   配置文件备份完成: $BACKUP_DIR/config_$DATE.tar.gz"
+else
+    echo "   配置目录不存在，跳过"
+fi
+
+# 4. 清理旧备份
+echo "4/4 清理${RETENTION_DAYS}天前的旧备份..."
+find "$BACKUP_DIR" -type f -mtime +$RETENTION_DAYS -delete
+echo "   清理完成"
+
+echo "=== CloudFlow 备份完成 $(date) ==="
+echo "备份目录: $BACKUP_DIR"
+ls -lh "$BACKUP_DIR"
