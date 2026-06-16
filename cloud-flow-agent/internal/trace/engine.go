@@ -571,8 +571,8 @@ func (p *Propagator) Inject(ctx context.Context, headers http.Header) {
 	if spanCtx == nil {
 		return
 	}
-	sc := spanCtx.(*SpanContext)
-	if sc == nil {
+	sc, ok := spanCtx.(*SpanContext)
+	if !ok || sc == nil {
 		return
 	}
 
@@ -597,7 +597,11 @@ func (p *Propagator) Extract(ctx context.Context) *SpanContext {
 	if spanCtx == nil {
 		return nil
 	}
-	return spanCtx.(*SpanContext)
+	sc, ok := spanCtx.(*SpanContext)
+	if !ok {
+		return nil
+	}
+	return sc
 }
 
 // ExtractHTTP 从HTTP请求提取

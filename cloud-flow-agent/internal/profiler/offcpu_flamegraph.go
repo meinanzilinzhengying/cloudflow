@@ -247,8 +247,8 @@ func (fg *OffCPUFlameGraph) writeSVG(output io.Writer, root *offCPUFlameNode, to
 	fmt.Fprintln(output)
 
 	// 写入副标题（统计信息）
-	totalEvents := stats["total_events"].(int)
-	totalDurationMs := stats["total_duration_ms"].(int64)
+	totalEvents, _ := stats["total_events"].(int)
+	totalDurationMs, _ := stats["total_duration_ms"].(int64)
 	fmt.Fprintf(output, `<text x="%d" y="35" text-anchor="middle" font-family="%s" font-size="11" fill="rgb(100,100,100)">事件数: %d | 总阻塞: %d ms</text>`,
 		fg.Width/2, fg.FontFamily, totalEvents, totalDurationMs)
 	fmt.Fprintln(output)
@@ -420,7 +420,10 @@ func (fg *OffCPUFlameGraph) truncateText(text string, maxWidth int) string {
 
 // writeStats 写入统计信息
 func (fg *OffCPUFlameGraph) writeStats(output io.Writer, stats map[string]interface{}, y int) {
-	reasonDurations := stats["reason_durations_ms"].(map[OffCPUReason]int64)
+	reasonDurations, ok := stats["reason_durations_ms"].(map[OffCPUReason]int64)
+	if !ok {
+		return
+	}
 
 	// 按阻塞时长排序
 	type reasonStat struct {

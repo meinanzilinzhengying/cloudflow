@@ -111,7 +111,9 @@ func (r *Registry) GetByType(parserType ParserType) (Parser, bool) {
 func (r *Registry) All() []Parser {
 	// 原子读取缓存
 	if cached := r.parsers.Load(); cached != nil {
-		return cached.([]Parser)
+		if parsers, ok := cached.([]Parser); ok {
+			return parsers
+		}
 	}
 	return nil
 }
