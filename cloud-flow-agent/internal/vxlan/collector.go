@@ -218,8 +218,18 @@ func (c *Collector) Stop() error {
 
 // Collect 采集数据
 func (c *Collector) Collect() []*edge.MetricData {
-	// 从内部通道读取
-	return nil // 实际实现中从collectCh读取
+	// 从内部通道非阻塞读取
+	select {
+	case metrics := <-c.collectCh:
+		return metrics
+	default:
+		return nil
+	}
+}
+
+// CollectChannel 获取采集数据通道
+func (c *Collector) CollectChannel() <-chan []*edge.MetricData {
+	return c.collectCh
 }
 
 // loadBPF 加载eBPF程序
@@ -550,10 +560,45 @@ func (c *Collector) flowToMetric(key *DecapFlowKey, stats *DecapFlowStats, now i
 	}
 }
 
+// VNIStats VNI维度统计
+type VNIStats struct {
+	VNI        uint32 `json:"vni"`
+	Packets    uint64 `json:"packets"`
+	Bytes      uint64 `json:"bytes"`
+	Flows      uint64 `json:"flows"`
+	LastUpdate int64  `json:"last_update"`
+}
+
 // Stats 返回统计信息
 func (c *Collector) Stats() map[string]interface{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	return map[string]interface{}{
-		"tap_enabled": c.cfg.EnableTapMirror,
-		"tap_device":  c.tapName,
+		"tap_enabled":        c.cfg.EnableTapMirror,
+		"tap_device":         c.tapName,
+		"total_packets":      atomic.LoadUint64(&c.stats.totalVXLANPackets),
+		"decap_success":      atomic.LoadUint64(&c.stats.decapSuccess),
+		"decap_failed":       atomic.LoadUint64(&c.stats.decapFailed),
+		"tap_mirror_packets": atomic.LoadUint64(&c.stats.tapMirrorPackets),
+		"tap_mirror_bytes":   atomic.LoadUint64(&c.stats.tapMirrorBytes),
 	}
+}
+
+// GetVNIStats 获取所有VNI统计
+func (c *Collector) GetVNIStats() map[uint32]*VNIStats {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// 实际实现中从eBPF map聚合
+	return make(map[uint32]*VNIStats)
+}
+
+// ResetStats 重置统计
+func (c *Collector) ResetStats() {
+	atomic.StoreUint64(&c.stats.totalVXLANPackets, 0)
+	atomic.StoreUint64(&c.stats.decapSuccess, 0)
+	atomic.StoreUint64(&c.stats.decapFailed, 0)
+	atomic.StoreUint64(&c.stats.tapMirrorPackets, 0)
+	atomic.StoreUint64(&c.stats.tapMirrorBytes, 0)
 }
