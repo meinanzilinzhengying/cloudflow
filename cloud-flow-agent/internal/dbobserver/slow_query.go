@@ -291,7 +291,11 @@ func (h SlowQueryHeap) Less(i, j int) bool { return h[i].Score < h[j].Score } //
 func (h SlowQueryHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 func (h *SlowQueryHeap) Push(x interface{}) {
-	*h = append(*h, x.(*SlowQueryRecord))
+	record, ok := x.(*SlowQueryRecord)
+	if !ok {
+		return
+	}
+	*h = append(*h, record)
 }
 
 func (h *SlowQueryHeap) Pop() interface{} {
