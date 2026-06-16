@@ -115,7 +115,7 @@ services:
       TZ: Asia/Shanghai
       CLICKHOUSE_DB: cloudflow
       CLICKHOUSE_USER: "${CLICKHOUSE_USER:-default}"
-      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-ClickHouse2024Secure}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD environment variable is required}"
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
@@ -228,7 +228,7 @@ services:
       JWT_EXPIRE_SEC: 86400
       JWT_REFRESH_SEC: 604800
       SUPER_ADMIN_ROLE: super_admin
-      ADMIN_INITIAL_PASSWORD: "admin123"
+      ADMIN_INITIAL_PASSWORD: "${ADMIN_INITIAL_PASSWORD:?ADMIN_INITIAL_PASSWORD environment variable is required}"
       TIDB_ADDR: "tidb:4000"
       TIDB_USER: root
       TIDB_PASSWORD: ""
@@ -354,7 +354,7 @@ services:
       WORKER_COUNT: 4
       CLICKHOUSE_ADDR: "clickhouse:9000"
       CLICKHOUSE_USER: "${CLICKHOUSE_USER:-default}"
-      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-ClickHouse2024Secure}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD environment variable is required}"
       CLICKHOUSE_DATABASE: cloudflow
       VICTORIAMETRICS_ADDR: "http://victoriametrics:8428"
       LOKI_ADDR: "http://loki:3100"
@@ -390,7 +390,7 @@ services:
       HTTP_ADDR: ":8007"
       CLICKHOUSE_ADDR: "clickhouse:9000"
       CLICKHOUSE_USER: "${CLICKHOUSE_USER:-default}"
-      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-ClickHouse2024Secure}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD environment variable is required}"
       CLICKHOUSE_DATABASE: cloudflow
       CACHE_ENABLED: "true"
       CACHE_TTL: "300s"
@@ -428,7 +428,7 @@ services:
       HTTP_ADDR: ":8008"
       CLICKHOUSE_ADDR: "clickhouse:9000"
       CLICKHOUSE_USER: "${CLICKHOUSE_USER:-default}"
-      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-ClickHouse2024Secure}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD environment variable is required}"
       CLICKHOUSE_DATABASE: cloudflow
       REDIS_ADDR: "redis:6379"
       DATA_PLANE_ADDR: "data-plane:9002"
@@ -470,7 +470,7 @@ services:
       REDIS_ADDR: "redis:6379"
       CLICKHOUSE_ADDR: "clickhouse:9000"
       CLICKHOUSE_USER: "${CLICKHOUSE_USER:-default}"
-      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-ClickHouse2024Secure}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD environment variable is required}"
       CLICKHOUSE_DATABASE: cloudflow
       AUTH_ADDR: "auth-service:9006"
       CONTROL_PLANE_ADDR: "control-plane:9001"
@@ -494,7 +494,7 @@ services:
       - "8082:8082"  # HTTP API
     environment:
       TZ: Asia/Shanghai
-      CLOUDFLOW_AI_JWT_SECRET_KEY: "${CLOUDFLOW_AI_JWT_SECRET_KEY:-cloudflow-ai-jwt-secret-key-change-me}"
+      CLOUDFLOW_AI_JWT_SECRET_KEY: "${CLOUDFLOW_AI_JWT_SECRET_KEY:?CLOUDFLOW_AI_JWT_SECRET_KEY environment variable is required}"
       CLOUDFLOW_AI_API_KEY: "${CLOUDFLOW_AI_API_KEY:-}"
       CLOUDFLOW_AI_DEEPSEEK_KEY: "${CLOUDFLOW_AI_DEEPSEEK_KEY:-}"
       CLOUDFLOW_AI_QWEN_KEY: "${CLOUDFLOW_AI_QWEN_KEY:-}"
@@ -662,7 +662,7 @@ services:
     environment:
       TZ: Asia/Shanghai
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD environment variable is required}"
       GF_USERS_ALLOW_SIGN_UP: "false"
       # GF_INSTALL_PLUGINS: "" # disabled to avoid network timeout
     volumes:
