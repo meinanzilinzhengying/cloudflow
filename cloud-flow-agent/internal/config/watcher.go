@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 // ConfigChangeEvent 配置变更事件
@@ -24,16 +24,16 @@ type ConfigChangeEvent struct {
 // ConfigChangeListener 配置变更监听器
 type ConfigChangeListener func(event ConfigChangeEvent)
 
-// ConfigWatcher 配置文件监视器
+// ConfigWatcher 配置监视器
 type ConfigWatcher struct {
-	configPath  string
-	watcher     *fsnotify.Watcher
-	listeners   []ConfigChangeListener
-	ctx         context.Context
-	cancel      context.CancelFunc
-	mu          sync.RWMutex
-	isWatching  bool
-	lastConfig  *Config
+	configPath string
+	watcher    *fsnotify.Watcher
+	listeners  []ConfigChangeListener
+	ctx        context.Context
+	cancel     context.CancelFunc
+	mu         sync.RWMutex
+	isWatching bool
+	lastConfig *Config
 	debounceDur time.Duration
 }
 
@@ -46,7 +46,12 @@ func NewConfigWatcher(configPath string) (*ConfigWatcher, error) {
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create fsnotify watcher: %w", err)
+		return nil, fmt.Errorf("failed to create watcher: %w", err)
+	}
+
+	if err := watcher.Add(filepath.Dir(absPath)); err != nil {
+		watcher.Close()
+		return nil, fmt.Errorf("failed to add watch: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -54,7 +59,6 @@ func NewConfigWatcher(configPath string) (*ConfigWatcher, error) {
 	return &ConfigWatcher{
 		configPath:  absPath,
 		watcher:     watcher,
-		listeners:   make([]ConfigChangeListener, 0),
 		ctx:         ctx,
 		cancel:      cancel,
 		debounceDur: 500 * time.Millisecond,
@@ -71,27 +75,24 @@ func (w *ConfigWatcher) AddListener(listener ConfigChangeListener) {
 // Start 开始监视
 func (w *ConfigWatcher) Start() error {
 	w.mu.Lock()
-	defer w.mu.Unlock()
-
 	if w.isWatching {
+		w.mu.Unlock()
 		return nil
 	}
-
-	// 监视配置文件所在目录
-	configDir := filepath.Dir(w.configPath)
-	if err := w.watcher.Add(configDir); err != nil {
-		return fmt.Errorf("failed to watch directory %s: %w", configDir, err)
-	}
-
 	w.isWatching = true
+	w.mu.Unlock()
 
-	// 启动监视循环
+	// 加载初始配置
+	initialCfg, err := LoadConfig(w.configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load initial config: %w", err)
+	}
+	w.lastConfig = initialCfg
+
 	go w.watchLoop()
-
-	// 启动SIGHUP信号处理
 	go w.watchSignals()
 
-	logrus.Infof("config watcher started for: %s", w.configPath)
+	zap.L().Info("config watcher started", zap.String("path", w.configPath))
 	return nil
 }
 
@@ -108,62 +109,64 @@ func (w *ConfigWatcher) Stop() {
 	w.watcher.Close()
 	w.isWatching = false
 
-	logrus.Info("config watcher stopped")
+	zap.L().Info("config watcher stopped")
 }
 
-// watchLoop 监视循环
+// watchLoop 文件系统监视循环
 func (w *ConfigWatcher) watchLoop() {
 	var debounceTimer *time.Timer
+	debounceChan := make(chan struct{}, 1)
 
 	for {
 		select {
 		case <-w.ctx.Done():
 			return
-
 		case event, ok := <-w.watcher.Events:
 			if !ok {
 				return
 			}
 
-			// 只处理配置文件的写入事件
+			// 只关注配置文件的变更
 			if event.Name != w.configPath {
 				continue
 			}
 
+			// 只处理写入和创建事件
 			if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) {
 				continue
 			}
-
-			logrus.Infof("config file changed: %s, operation: %s", event.Name, event.Op)
 
 			// 防抖处理
 			if debounceTimer != nil {
 				debounceTimer.Stop()
 			}
 			debounceTimer = time.AfterFunc(w.debounceDur, func() {
-				w.reloadConfig()
+				debounceChan <- struct{}{}
 			})
+
+		case <-debounceChan:
+			w.reloadConfig()
 
 		case err, ok := <-w.watcher.Errors:
 			if !ok {
 				return
 			}
-			logrus.Errorf("config watcher error: %v", err)
+			zap.L().Error("config watcher error", zap.Error(err))
 		}
 	}
 }
 
-// watchSignals 监视SIGHUP信号
+// watchSignals 监听SIGHUP信号
 func (w *ConfigWatcher) watchSignals() {
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGHUP)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGHUP)
 
 	for {
 		select {
 		case <-w.ctx.Done():
 			return
-		case <-sigCh:
-			logrus.Info("received SIGHUP signal, reloading config")
+		case <-sigChan:
+			zap.L().Info("received SIGHUP, reloading config")
 			w.reloadConfig()
 		}
 	}
@@ -171,44 +174,45 @@ func (w *ConfigWatcher) watchSignals() {
 
 // reloadConfig 重新加载配置
 func (w *ConfigWatcher) reloadConfig() {
-	w.mu.Lock()
-	oldConfig := w.lastConfig
-	w.mu.Unlock()
+	w.mu.RLock()
+	oldCfg := w.lastConfig
+	w.mu.RUnlock()
 
-	// 读取新配置
-	newConfig, err := LoadConfig(w.configPath)
+	zap.L().Info("reloading config", zap.String("path", w.configPath))
+
+	newCfg, err := LoadConfig(w.configPath)
 	if err != nil {
-		logrus.Errorf("failed to reload config: %v", err)
+		zap.L().Error("failed to reload config", zap.Error(err))
 		w.notifyListeners(ConfigChangeEvent{
-			OldConfig: oldConfig,
+			OldConfig: oldCfg,
 			NewConfig: nil,
-			Error:     fmt.Errorf("load config failed: %w", err),
+			Error:     err,
 		})
 		return
 	}
 
-	// 验证配置
-	if err := newConfig.Validate(); err != nil {
-		logrus.Errorf("invalid config: %v, keeping old config", err)
+	// 验证新配置
+	if err := newCfg.Validate(); err != nil {
+		zap.L().Error("new config validation failed, keeping old config", zap.Error(err))
 		w.notifyListeners(ConfigChangeEvent{
-			OldConfig: oldConfig,
+			OldConfig: oldCfg,
 			NewConfig: nil,
-			Error:     fmt.Errorf("config validation failed: %w", err),
+			Error:     fmt.Errorf("validation failed: %w", err),
 		})
 		return
 	}
 
-	// 更新缓存
+	// 更新配置
 	w.mu.Lock()
-	w.lastConfig = newConfig
+	w.lastConfig = newCfg
 	w.mu.Unlock()
 
-	logrus.Info("config reloaded successfully")
+	zap.L().Info("config reloaded successfully")
 
-	// 通知所有监听器
+	// 通知监听器
 	w.notifyListeners(ConfigChangeEvent{
-		OldConfig: oldConfig,
-		NewConfig: newConfig,
+		OldConfig: oldCfg,
+		NewConfig: newCfg,
 		Error:     nil,
 	})
 }

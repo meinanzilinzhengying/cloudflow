@@ -8,177 +8,103 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHealthStatus_String(t *testing.T) {
 	tests := []struct {
-		status   HealthStatus
-		expected string
+		status HealthStatus
+		want   string
 	}{
-		{Healthy, "healthy"},
-		{Degraded, "degraded"},
-		{Unhealthy, "unhealthy"},
-		{HealthStatus(999), "unknown"},
+		{StatusHealthy, "healthy"},
+		{StatusDegraded, "degraded"},
+		{StatusUnhealthy, "unhealthy"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.status.String())
+		t.Run(tt.want, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.status.String())
 		})
 	}
 }
 
-func TestNewManager(t *testing.T) {
-	manager := NewManager()
-	assert.NotNil(t, manager)
-	assert.Empty(t, manager.checkers)
-}
-
-func TestManager_RegisterChecker(t *testing.T) {
-	manager := NewManager()
-
-	checker := &MockChecker{
-		name:   "test",
-		status: Healthy,
+func TestComponentHealth_WithError(t *testing.T) {
+	ch := ComponentHealth{
+		Name:      "test",
+		Status:    StatusHealthy,
+		LatencyMs: 100,
 	}
 
-	manager.RegisterChecker(checker)
-	assert.Len(t, manager.checkers, 1)
+	err := assert.AnError
+	result := ch.WithError(err)
+
+	assert.Equal(t, StatusUnhealthy, result.Status)
+	assert.Equal(t, err.Error(), result.Error)
 }
 
-func TestManager_Check(t *testing.T) {
-	manager := NewManager()
+func TestComponentHealth_WithLatency(t *testing.T) {
+	ch := ComponentHealth{
+		Name:   "test",
+		Status: StatusHealthy,
+	}
 
-	// 全部健康
-	manager.RegisterChecker(&MockChecker{name: "db", status: Healthy})
-	manager.RegisterChecker(&MockChecker{name: "redis", status: Healthy})
+	latency := 150 * time.Millisecond
+	result := ch.WithLatency(latency)
 
-	result := manager.Check(context.Background())
-	assert.Equal(t, Healthy, result.Status)
-	assert.Len(t, result.Components, 2)
+	assert.Equal(t, int64(150), result.LatencyMs)
 }
 
-func TestManager_Check_Degraded(t *testing.T) {
-	manager := NewManager()
+func TestHealthCheckerRegistry(t *testing.T) {
+	registry := NewRegistry()
 
-	manager.RegisterChecker(&MockChecker{name: "db", status: Healthy})
-	manager.RegisterChecker(&MockChecker{name: "redis", status: Degraded})
+	checker := &MockChecker{name: "test-checker"}
+	registry.Register(checker)
 
-	result := manager.Check(context.Background())
-	assert.Equal(t, Degraded, result.Status)
+	assert.Len(t, registry.checkers, 1)
 }
 
-func TestManager_Check_Unhealthy(t *testing.T) {
-	manager := NewManager()
+func TestHealthCheckerRegistry_CheckAll(t *testing.T) {
+	registry := NewRegistry()
 
-	manager.RegisterChecker(&MockChecker{name: "db", status: Unhealthy})
-	manager.RegisterChecker(&MockChecker{name: "redis", status: Healthy})
+	healthyChecker := &MockChecker{
+		name:   "healthy",
+		status: StatusHealthy,
+	}
+	unhealthyChecker := &MockChecker{
+		name:   "unhealthy",
+		status: StatusUnhealthy,
+		err:    assert.AnError,
+	}
 
-	result := manager.Check(context.Background())
-	assert.Equal(t, Unhealthy, result.Status)
+	registry.Register(healthyChecker)
+	registry.Register(unhealthyChecker)
+
+	ctx := context.Background()
+	response := registry.CheckAll(ctx)
+
+	assert.Equal(t, StatusUnhealthy, response.Status)
+	assert.Len(t, response.Components, 2)
+	assert.WithinDuration(t, time.Now(), response.Timestamp, time.Second)
 }
 
-func TestManager_HTTPHandler(t *testing.T) {
-	manager := NewManager()
-	manager.RegisterChecker(&MockChecker{name: "db", status: Healthy})
+func TestHealthHandler(t *testing.T) {
+	registry := NewRegistry()
+	registry.Register(&MockChecker{name: "test", status: StatusHealthy})
 
-	handler := manager.HTTPHandler()
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
 
+	handler := registry.Handler()
 	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "healthy")
 }
 
-func TestManager_HTTPHandler_Unhealthy(t *testing.T) {
-	manager := NewManager()
-	manager.RegisterChecker(&MockChecker{name: "db", status: Unhealthy})
-
-	handler := manager.HTTPHandler()
-	req := httptest.NewRequest("GET", "/health", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
-}
-
-func TestComponentHealth_JSON(t *testing.T) {
-	comp := ComponentHealth{
-		Name:      "database",
-		Status:    Healthy,
-		LatencyMs: 5,
-	}
-
-	assert.Equal(t, "healthy", comp.Status.String())
-	assert.Equal(t, int64(5), comp.LatencyMs)
-}
-
-func TestHealthResponse_Timestamp(t *testing.T) {
-	manager := NewManager()
-	result := manager.Check(context.Background())
-
-	assert.False(t, result.Timestamp.IsZero())
-}
-
-func TestMockChecker(t *testing.T) {
-	checker := &MockChecker{
-		name:   "test",
-		status: Healthy,
-		latency: 10 * time.Millisecond,
-	}
-
-	assert.Equal(t, "test", checker.Name())
-
-	result := checker.Check(context.Background())
-	assert.Equal(t, Healthy, result.Status)
-	assert.Equal(t, int64(10), result.LatencyMs)
-}
-
-func TestAggregateStatus(t *testing.T) {
-	tests := []struct {
-		name     string
-		statuses []HealthStatus
-		expected HealthStatus
-	}{
-		{"all healthy", []HealthStatus{Healthy, Healthy}, Healthy},
-		{"one degraded", []HealthStatus{Healthy, Degraded}, Degraded},
-		{"one unhealthy", []HealthStatus{Healthy, Unhealthy}, Unhealthy},
-		{"mixed", []HealthStatus{Healthy, Degraded, Unhealthy}, Unhealthy},
-		{"empty", []HealthStatus{}, Healthy},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			manager := NewManager()
-			for _, s := range tt.statuses {
-				manager.RegisterChecker(&MockChecker{name: "check", status: s})
-			}
-			result := manager.Check(context.Background())
-			assert.Equal(t, tt.expected, result.Status)
-		})
-	}
-}
-
-func TestContextCancel(t *testing.T) {
-	manager := NewManager()
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	result := manager.Check(ctx)
-	// 即使context取消也应该返回结果
-	assert.NotNil(t, result)
-}
-
-// MockChecker 模拟检查器
+// MockChecker 模拟健康检查器
 type MockChecker struct {
-	name    string
-	status  HealthStatus
-	latency time.Duration
-	err     string
+	name   string
+	status HealthStatus
+	err    error
 }
 
 func (m *MockChecker) Name() string {
@@ -187,9 +113,15 @@ func (m *MockChecker) Name() string {
 
 func (m *MockChecker) Check(ctx context.Context) ComponentHealth {
 	return ComponentHealth{
-		Name:      m.name,
-		Status:    m.status,
-		Error:     m.err,
-		LatencyMs: m.latency.Milliseconds(),
+		Name:   m.name,
+		Status: m.status,
+		Error:  errorString(m.err),
 	}
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }

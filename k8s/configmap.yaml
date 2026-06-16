@@ -1,0 +1,57 @@
+# CloudFlow ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflow-config
+  namespace: cloudflow
+data:
+  config.yaml: |
+    # 全局配置
+    log_level: info
+    environment: production
+
+    # 关系型数据库配置
+    relational_db:
+      type: mysql
+      host: mysql
+      port: 3306
+      user: root
+      database: cloudflow
+      max_open_conns: 100
+      max_idle_conns: 20
+      enable_dual_write: false
+      dual_write_mode: ModeOldOnly
+
+    # 时序数据库配置
+    timeseries_db:
+      type: clickhouse
+      host: clickhouse
+      port: 9000
+      user: default
+      database: cloudflow
+
+    # KV存储配置
+    kv_store:
+      type: redis
+      host: redis
+      port: 6379
+      db: 0
+
+    # etcd配置
+    etcd:
+      endpoints:
+        - http://etcd:2379
+      dial_timeout: 5s
+
+    # CORS配置
+    cors:
+      allowed_origins:
+        - http://localhost:3000
+        - http://localhost:8080
+
+    # eBPF Agent配置
+    agent:
+      collect_interval: 1s
+      batch_size: 100
+      flush_interval: 1s
+      enable_vxlan: true
