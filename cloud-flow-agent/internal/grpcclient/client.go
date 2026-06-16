@@ -124,7 +124,9 @@ func (c *Client) connect() error {
 		// 连接已经就绪，无需等待
 		c.mu.Lock()
 		if c.conn != nil {
-			_ = c.conn.Close()
+			if err := c.conn.Close(); err != nil {
+				c.logger.Debugf("关闭旧连接失败: %v", err)
+			}
 		}
 		c.conn = conn
 		c.client = edge.NewProbeServiceClient(conn)
@@ -132,23 +134,31 @@ func (c *Client) connect() error {
 		return nil
 	}
 	if currentState != connectivity.Connecting {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			c.logger.Debugf("关闭连接失败: %v", err)
+		}
 		return fmt.Errorf("连接边缘节点失败，状态: %v", currentState)
 	}
 	if !conn.WaitForStateChange(ctx, connectivity.Connecting) {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			c.logger.Debugf("关闭连接失败: %v", err)
+		}
 		return fmt.Errorf("连接边缘节点超时 [%s]", c.addr)
 	}
 
 	if conn.GetState() != connectivity.Ready {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			c.logger.Debugf("关闭连接失败: %v", err)
+		}
 		return fmt.Errorf("连接边缘节点失败，状态: %v", conn.GetState())
 	}
 
 	// 4. 关闭旧连接并更新新连接（加锁保护，保证原子性）
 	c.mu.Lock()
 	if c.conn != nil {
-		_ = c.conn.Close()
+		if err := c.conn.Close(); err != nil {
+			c.logger.Debugf("关闭旧连接失败: %v", err)
+		}
 	}
 	c.conn = conn
 	c.client = edge.NewProbeServiceClient(conn)

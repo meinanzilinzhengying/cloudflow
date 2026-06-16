@@ -387,7 +387,9 @@ func (m *TenantManager) GetTenantStats(tenantID string) map[string]interface{} {
 	
 	for _, user := range m.users {
 		if user.TenantID == tenantID {
-			stats["user_count"] = stats["user_count"].(int) + 1
+			if count, ok := stats["user_count"].(int); ok {
+				stats["user_count"] = count + 1
+			}
 		}
 	}
 	

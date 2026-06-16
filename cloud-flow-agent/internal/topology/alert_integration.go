@@ -378,12 +378,18 @@ func (i *AlertIntegrator) GetAlertSummary() map[string]interface{} {
 	}
 	
 	for _, stats := range i.nodeAlertStats {
-		summary["total_active_alerts"] = summary["total_active_alerts"].(int) + stats.TotalAlerts
+		if total, ok := summary["total_active_alerts"].(int); ok {
+			summary["total_active_alerts"] = total + stats.TotalAlerts
+		}
 		
 		if stats.CriticalCount > 0 {
-			summary["critical_nodes"] = summary["critical_nodes"].(int) + 1
+			if critical, ok := summary["critical_nodes"].(int); ok {
+				summary["critical_nodes"] = critical + 1
+			}
 		} else if stats.WarningCount > 0 {
-			summary["warning_nodes"] = summary["warning_nodes"].(int) + 1
+			if warning, ok := summary["warning_nodes"].(int); ok {
+				summary["warning_nodes"] = warning + 1
+			}
 		}
 	}
 	

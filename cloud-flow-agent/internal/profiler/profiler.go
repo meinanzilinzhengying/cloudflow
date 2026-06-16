@@ -551,7 +551,10 @@ func joinFrames(frames []string) string {
 func (p *Profiler) Close() error {
 	// 如果正在运行，先停止
 	if p.enabled {
-		_ = p.Stop()
+		if err := p.Stop(); err != nil {
+			// 记录日志但继续清理
+			// log.Debugf("stop profiler during close: %v", err)
+		}
 	}
 
 	p.mu.Lock()

@@ -84,7 +84,11 @@ func (h DurationHeap) Less(i, j int) bool { return h[i] < h[j] }
 func (h DurationHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 func (h *DurationHeap) Push(x interface{}) {
-	*h = append(*h, x.(int64))
+	val, ok := x.(int64)
+	if !ok {
+		return
+	}
+	*h = append(*h, val)
 }
 
 func (h *DurationHeap) Pop() interface{} {
@@ -737,7 +741,11 @@ func (h StatsHeap) Less(i, j int) bool { return h.lessFunc(h.items[i], h.items[j
 func (h StatsHeap) Swap(i, j int)      { h.items[i], h.items[j] = h.items[j], h.items[i] }
 
 func (h *StatsHeap) Push(x interface{}) {
-	h.items = append(h.items, x.(*SQLStats))
+	item, ok := x.(*SQLStats)
+	if !ok {
+		return
+	}
+	h.items = append(h.items, item)
 }
 
 func (h *StatsHeap) Pop() interface{} {
@@ -763,7 +771,11 @@ func (h *StatsHeap) PushItem(item *SQLStats) {
 
 // Pop 弹出元素
 func (h *StatsHeap) PopItem() *SQLStats {
-	return heap.Pop(h).(*SQLStats)
+	item, ok := heap.Pop(h).(*SQLStats)
+	if !ok {
+		return nil
+	}
+	return item
 }
 
 // TopN 获取 Top N
