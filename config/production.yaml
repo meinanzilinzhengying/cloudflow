@@ -1,171 +1,91 @@
 # CloudFlow 生产环境配置示例
 # 请根据实际环境修改以下配置
 
-##############################################################################
-# 服务基础配置
-##############################################################################
-server:
-  # 服务监听地址
-  http_addr: 0.0.0.0:8080
-  grpc_addr: 0.0.0.0:50051
-  
-  # 运行模式: debug / release
-  mode: release
-  
-  # 最大并发连接数
-  max_connections: 10000
-  
-  # 请求超时（秒）
-  request_timeout: 30
-  
-  # 优雅关闭超时（秒）
-  shutdown_timeout: 30
-
-##############################################################################
-# 日志配置
-##############################################################################
-log:
-  # 日志级别: debug / info / warn / error
-  level: info
-  
-  # 日志格式: json / text
-  format: json
-  
-  # 日志输出路径
-  output: /var/log/cloudflow
-  
-  # 日志文件最大大小（MB）
-  max_size: 100
-  
-  # 日志文件保留天数
-  max_age: 30
-  
-  # 日志文件最大备份数
-  max_backups: 10
-  
-  # 是否压缩备份日志
-  compress: true
-
-##############################################################################
+###########################################################################
 # 关系型数据库配置（MySQL/达梦/人大金仓/高斯/OceanBase）
-##############################################################################
+###########################################################################
 relational_db:
   # 数据库类型: mysql / dameng / kingbase / gaussdb / oceanbase
   type: mysql
   
-  # 数据库连接配置
-  host: mysql-prod.cloudflow.internal
+  # 数据库连接
+  host: mysql
   port: 3306
-  user: cloudflow
-  password: ${MYSQL_PASSWORD}
+  user: root
+  password: "${MYSQL_ROOT_PASSWORD}"
   database: cloudflow
   
   # 连接池配置
   max_open_conns: 100
   max_idle_conns: 20
-  conn_max_lifetime: 3600
-  conn_max_idle_time: 600
+  conn_max_lifetime: 3600  # 秒
   
-  # 连接超时（秒）
-  connect_timeout: 10
-  
-  # 读写超时（秒）
-  read_timeout: 30
-  write_timeout: 30
-  
-  # 双写模式配置（数据库迁移时使用）
+  # 双写模式（零中断迁移）
+  # 0: ModeOldOnly - 仅旧库
+  # 1: ModeAsyncWrite - 异步双写
+  # 2: ModeSyncWrite - 同步双写
+  # 3: ModeReadSplit - 读流量切分
+  # 4: ModeNewOnly - 仅新库
   enable_dual_write: false
+  dual_write_mode: 0
+  read_split_ratio: 0.5
   
-  # 双写模式:
-  # ModeOldOnly     - 仅写旧库（基准模式）
-  # ModeAsyncWrite  - 主库成功后异步写从库
-  # ModeSyncWrite   - 同步双写，主从都成功才返回
-  # ModeReadSplit   - 读流量按比例切分到新库
-  # ModeNewOnly     - 仅写新库（迁移完成）
-  dual_write_mode: ModeOldOnly
-  
-  # 读流量切分比例（0-100，仅ModeReadSplit模式生效）
-  read_split_ratio: 0
-  
-  # 从库配置（双写模式时填写）
+  # 从库配置（双写模式）
   secondary:
     type: dameng
-    host: dameng-prod.cloudflow.internal
+    host: dameng
     port: 5236
     user: SYSDBA
-    password: ${DM_PASSWORD}
-    database: cloudflow
+    password: "${DAMENG_PASSWORD}"
+    database: CLOUDFLOW
 
-##############################################################################
+###########################################################################
 # 时序数据库配置（ClickHouse/达梦时序版）
-##############################################################################
+###########################################################################
 timeseries_db:
   # 数据库类型: clickhouse / dameng
   type: clickhouse
   
-  # 数据库连接配置
-  host: clickhouse-prod.cloudflow.internal
+  # 数据库连接
+  host: clickhouse
   port: 9000
-  user: cloudflow
-  password: ${CLICKHOUSE_PASSWORD}
+  user: default
+  password: "${CLICKHOUSE_PASSWORD}"
   database: cloudflow
   
-  # 连接池配置
-  max_open_conns: 50
-  max_idle_conns: 10
-  
-  # 批量写入配置
+  # 性能调优
   batch_size: 10000
-  flush_interval: 1
-  
-  # 写入重试配置
+  flush_interval: 1000  # 毫秒
   max_retries: 3
-  retry_interval: 1
 
-##############################################################################
+###########################################################################
 # KV存储配置（Redis/GaussDB(for Redis)）
-##############################################################################
+###########################################################################
 kv_store:
-  # 存储类型: redis / gaussdb
+  # 存储类型: redis / gauss_redis
   type: redis
   
   # 连接配置
-  host: redis-prod.cloudflow.internal
+  host: redis
   port: 6379
-  password: ${REDIS_PASSWORD}
-  database: 0
+  password: "${REDIS_PASSWORD}"
+  db: 0
   
-  # 连接池配置
-  pool_size: 100
+  # 连接池
+  pool_size: 50
   min_idle_conns: 10
   
-  # 超时配置
-  dial_timeout: 5
-  read_timeout: 3
-  write_timeout: 3
-  
-  # 集群模式（Redis Cluster）
-  cluster_enabled: false
-  cluster_nodes:
-    # - redis-node-1:6379
-    # - redis-node-2:6379
-    # - redis-node-3:6379
+  # 过期时间
+  default_ttl: 3600  # 秒
 
-##############################################################################
-# Kafka消息队列配置
-##############################################################################
+###########################################################################
+# Kafka消息队列
+###########################################################################
 kafka:
-  # Broker地址列表
   brokers:
-    - kafka-1.cloudflow.internal:9092
-    - kafka-2.cloudflow.internal:9092
-    - kafka-3.cloudflow.internal:9092
-  
-  # Topic配置
-  topics:
-    flow_topic: cloudflow_flows
-    metric_topic: cloudflow_metrics
-    alert_topic: cloudflow_alerts
+    - kafka:9092
+  topic: cloudflow-flows
+  group_id: cloudflow-consumer
   
   # 生产者配置
   producer:
@@ -173,227 +93,131 @@ kafka:
     retries: 3
     batch_size: 16384
     linger_ms: 5
-    compression_type: snappy
   
   # 消费者配置
   consumer:
-    group_id: cloudflow-consumer
     auto_offset_reset: latest
     enable_auto_commit: true
 
-##############################################################################
-# etcd服务发现配置
-##############################################################################
+###########################################################################
+# etcd服务发现
+###########################################################################
 etcd:
-  # 节点地址列表
   endpoints:
-    - etcd-1.cloudflow.internal:2379
-    - etcd-2.cloudflow.internal:2379
-    - etcd-3.cloudflow.internal:2379
+    - etcd:2379
+  dial_timeout: 5000  # 毫秒
+  auto_sync_interval: 30000
   
-  # 认证配置
-  username: ${ETCD_USERNAME}
-  password: ${ETCD_PASSWORD}
-  
-  # 超时配置
-  dial_timeout: 5
-  request_timeout: 10
-  
-  # 服务注册TTL（秒）
-  lease_ttl: 30
-  
-  # 健康检查间隔（秒）
-  health_check_interval: 30
+  # 重连配置
+  max_retries: 10
+  initial_backoff: 1000  # 毫秒
+  max_backoff: 30000     # 毫秒
 
-##############################################################################
+###########################################################################
 # 安全配置
-##############################################################################
+###########################################################################
 security:
-  # JWT密钥（必须32位以上，生产环境必须修改！）
-  jwt_secret: ${CLOUD_FLOW_JWT_SECRET}
+  # JWT密钥（必须≥32位，通过环境变量设置）
+  jwt_secret: "${CLOUD_FLOW_JWT_SECRET}"
   
-  # JWT过期时间（小时）
-  jwt_expire_hours: 24
+  # Token过期时间
+  token_ttl: 86400  # 秒（24小时）
   
-  # Token黑名单启用
-  enable_token_blacklist: true
-  
-  # CORS跨域白名单
-  cors_allowed_origins:
-    - https://cloudflow.yourcompany.com
-    - https://cloudflow-admin.yourcompany.com
-  
-  # CORS允许的方法
-  cors_allowed_methods:
-    - GET
-    - POST
-    - PUT
-    - DELETE
-    - OPTIONS
-  
-  # CORS允许的头
-  cors_allowed_headers:
-    - Content-Type
-    - Authorization
-    - X-Request-ID
-  
-  # 是否允许凭证
-  cors_allow_credentials: true
+  # CORS白名单（逗号分隔）
+  cors_allowed_origins: "${CORS_ALLOWED_ORIGINS}"
   
   # TLS配置
   tls:
     enabled: false
-    cert_file: /etc/cloudflow/ssl/server.crt
-    key_file: /etc/cloudflow/ssl/server.key
-    ca_file: /etc/cloudflow/ssl/ca.crt
+    cert_file: /etc/cloudflow/tls/server.crt
+    key_file: /etc/cloudflow/tls/server.key
+    ca_file: /etc/cloudflow/tls/ca.crt
 
-##############################################################################
-# eBPF Agent配置
-##############################################################################
-agent:
-  # 默认采集网卡（空表示所有网卡）
-  default_interface: ""
+###########################################################################
+# eBPF采集配置
+###########################################################################
+ebpf:
+  # 采集网卡（空表示所有网卡）
+  interfaces: []
   
   # eBPF后端: libbpf / cilium / auto
-  ebpf_backend: auto
+  backend: auto
   
-  # 采集采样率（0-100）
-  sample_rate: 100
+  # 采样率（1=全采样，10=1/10采样）
+  sample_rate: 1
   
-  # 心跳间隔（秒）
-  heartbeat_interval: 10
+  # 批量上报
+  batch_size: 100
+  flush_interval: 1000  # 毫秒
   
-  # 配置拉取间隔（秒）
-  config_fetch_interval: 30
-  
-  # 数据上报批量大小
-  report_batch_size: 100
-  
-  # 数据上报间隔（秒）
-  report_interval: 1
-  
-  # 最大队列长度
-  max_queue_size: 100000
-  
-  # 队列满时丢弃策略: DropOldest / DropNewest
-  drop_policy: DropOldest
+  # VXLAN采集
+  vxlan:
+    enabled: true
+    port: 8472
+    tap_device: tap0
 
-##############################################################################
-# 告警引擎配置
-##############################################################################
-alert:
-  # 告警引擎启用
-  enabled: true
+###########################################################################
+# 日志配置
+###########################################################################
+logging:
+  # 日志级别: debug / info / warn / error
+  level: info
   
-  # 规则检查间隔（秒）
-  rule_check_interval: 60
+  # 输出格式: json / text
+  format: json
   
-  # 告警静默时间（秒）
-  silence_duration: 300
+  # 输出路径
+  output:
+    - stdout
+    - /var/log/cloudflow/cloudflow.log
   
-  # 告警通道
-  channels:
-    # Webhook
-    - type: webhook
-      url: https://alert-manager.yourcompany.com/webhook
-      method: POST
-      headers:
-        Content-Type: application/json
-    
-    # 邮件
-    # - type: email
-    #   smtp_host: smtp.yourcompany.com
-    #   smtp_port: 587
-    #   username: alert@yourcompany.com
-    #   password: ${EMAIL_PASSWORD}
-    #   from: alert@yourcompany.com
-    #   to:
-    #     - admin@yourcompany.com
-    
-    # 钉钉
-    # - type: dingtalk
-    #   webhook: https://oapi.dingtalk.com/robot/send?access_token=xxx
-    #   secret: ${DINGTALK_SECRET}
+  # 日志轮转
+  rotation:
+    max_size: 100    # MB
+    max_age: 30      # 天
+    max_backups: 10
+    compress: true
 
-##############################################################################
+###########################################################################
 # 监控配置
-##############################################################################
+###########################################################################
 monitoring:
   # Prometheus指标暴露
   prometheus:
     enabled: true
-    path: /metrics
     port: 9090
+    path: /metrics
   
-  # OpenTelemetry追踪
-  otel:
-    enabled: false
-    endpoint: otel-collector.cloudflow.internal:4317
-    service_name: cloudflow
-    sample_rate: 0.1
+  # 健康检查
+  health_check:
+    enabled: true
+    port: 8080
+    path: /health
+    interval: 30  # 秒
 
-##############################################################################
-# 性能调优参数
-##############################################################################
-performance:
-  # 工作线程数（默认等于CPU核数）
-  worker_threads: 0
+###########################################################################
+# 告警配置
+###########################################################################
+alerting:
+  # 告警通道
+  channels:
+    - type: webhook
+      url: "${ALERT_WEBHOOK_URL}"
+      method: POST
   
-  # 每个CPU的流处理协程数
-  goroutines_per_cpu: 4
-  
-  # 最大内存使用（MB，0表示不限制）
-  max_memory_mb: 0
-  
-  # CPU亲和性绑定
-  cpu_affinity: false
-  
-  # 大页内存启用
-  huge_pages: false
-  
-  # 网络缓冲区大小（字节）
-  socket_buffer_size: 16777216
-
-##############################################################################
-# 高可用配置
-##############################################################################
-high_availability:
-  # 集群模式启用
-  cluster_enabled: false
-  
-  # 节点ID（集群内唯一）
-  node_id: node-1
-  
-  # 节点角色: master / worker / all
-  node_role: all
-  
-  # 选主超时（秒）
-  election_timeout: 15
-  
-  # 数据同步间隔（秒）
-  sync_interval: 5
-
-##############################################################################
-# 环境变量说明
-##############################################################################
-# 以下环境变量必须在启动前设置：
-#
-# 数据库密码：
-#   MYSQL_PASSWORD        - MySQL数据库密码
-#   CLICKHOUSE_PASSWORD   - ClickHouse数据库密码
-#   REDIS_PASSWORD        - Redis密码
-#   DM_PASSWORD           - 达梦数据库密码（双写时）
-#
-# 安全配置：
-#   CLOUD_FLOW_JWT_SECRET - JWT签名密钥（至少32位）
-#   ETCD_USERNAME         - etcd用户名（如启用认证）
-#   ETCD_PASSWORD         - etcd密码（如启用认证）
-#
-# 告警配置：
-#   EMAIL_PASSWORD        - 邮件告警密码
-#   DINGTALK_SECRET       - 钉钉告警密钥
-#
-# 示例启动命令：
-#   export MYSQL_PASSWORD="your_secure_password"
-#   export CLOUD_FLOW_JWT_SECRET="your_32_character_secret_key"
-#   ./cloudflow-center --config config/production.yaml
+  # 告警规则
+  rules:
+    - name: high_cpu
+      expr: cpu_usage > 80
+      duration: 300
+      severity: warning
+    
+    - name: high_memory
+      expr: memory_usage > 85
+      duration: 300
+      severity: warning
+    
+    - name: high_drop_rate
+      expr: drop_rate > 1
+      duration: 60
+      severity: critical
