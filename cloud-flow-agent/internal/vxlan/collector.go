@@ -28,20 +28,22 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// 以太网类型常量
+const (
+	ETH_TYPE_IPv4 = 0x0800
+	ETH_TYPE_IPv6 = 0x86DD
+)
+
 // VXLANDecapConfig VXLAN解封装配置
 type VXLANDecapConfig struct {
 	// 管理网卡接口
 	MgmtIface string
-
 	// 是否启用TAP镜像
 	EnableTapMirror bool
-
 	// TAP设备名称（默认 vxlan-tap0）
 	TapDeviceName string
-
 	// 是否解析内层协议
 	ParseInnerProtocol bool
-
 	// 采集间隔
 	CollectInterval time.Duration
 }
@@ -181,7 +183,6 @@ func (c *Collector) Start() error {
 
 	c.log.Infof("[VXLAN] 解封装采集器已启动: iface=%s, tap=%v",
 		c.cfg.MgmtIface, c.cfg.EnableTapMirror)
-
 	return nil
 }
 
@@ -316,8 +317,8 @@ func (c *Collector) attachTC() error {
 	if err != nil {
 		return fmt.Errorf("附加TC程序失败: %w", err)
 	}
-
 	c.tcLink = l
+
 	return nil
 }
 
@@ -391,7 +392,6 @@ func (c *Collector) eventLoop() {
 			// 解析内层流量信息
 			if len(record.RawSample) >= 48 { // sizeof(InnerFlowInfo)
 				info := c.parseInnerFlowInfo(record.RawSample)
-
 				// 镜像到TAP设备
 				if c.cfg.EnableTapMirror && c.tapDevice != nil {
 					c.mirrorToTap(info, record.RawSample)
@@ -430,7 +430,6 @@ func (c *Collector) collectFlows() {
 	// 遍历flow map
 	var key DecapFlowKey
 	var stats DecapFlowStats
-
 	entries := c.flowMap.Iterate()
 	for entries.Next(&key, &stats) {
 		metric := c.flowToMetric(&key, &stats, now)
@@ -444,6 +443,7 @@ func (c *Collector) collectFlows() {
 		select {
 		case c.collectCh <- metrics:
 			// 发送成功
+			c.log.Debugf("[VXLAN] 发送 %d 条流量指标", len(metrics))
 		default:
 			// 通道满，丢弃并记录日志
 			c.log.Debugf("[VXLAN] metrics channel full, dropped %d metrics", len(metrics))
@@ -532,7 +532,6 @@ func (c *Collector) mirrorToTap(info *InnerFlowInfo, rawPacket []byte) {
 func (c *Collector) flowToMetric(key *DecapFlowKey, stats *DecapFlowStats, now int64) *edge.MetricData {
 	innerSrcIP := make(net.IP, 4)
 	binary.LittleEndian.PutUint32(innerSrcIP, key.InnerSrcIP)
-
 	innerDstIP := make(net.IP, 4)
 	binary.LittleEndian.PutUint32(innerDstIP, key.InnerDstIP)
 
@@ -553,8 +552,8 @@ func (c *Collector) flowToMetric(key *DecapFlowKey, stats *DecapFlowStats, now i
 		Bytes:     int64(stats.Bytes),
 		Packets:   int64(stats.Packets),
 		Tags: map[string]string{
-			"source":          "vxlan_decap",
-			"vni":             fmt.Sprintf("%d", key.VNI),
+			"source":           "vxlan_decap",
+			"vni":              fmt.Sprintf("%d", key.VNI),
 			"inner_ip_version": fmt.Sprintf("%d", key.InnerIPVersion),
 		},
 	}
@@ -589,7 +588,6 @@ func (c *Collector) Stats() map[string]interface{} {
 func (c *Collector) GetVNIStats() map[uint32]*VNIStats {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-
 	// 实际实现中从eBPF map聚合
 	return make(map[uint32]*VNIStats)
 }

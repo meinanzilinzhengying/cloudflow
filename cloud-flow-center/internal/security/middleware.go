@@ -327,8 +327,14 @@ func (sm *SecurityMiddleware) AuditLog() func(http.HandlerFunc) http.HandlerFunc
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			userID, _ := r.Context().Value(userContextKey).(string)
-			role, _ := r.Context().Value(roleContextKey).(string)
+			userID, ok := r.Context().Value(userContextKey).(string)
+			if !ok {
+				userID = "unknown"
+			}
+			role, ok := r.Context().Value(roleContextKey).(string)
+			if !ok {
+				role = "unknown"
+			}
 			
 			// P1-06 修复: 创建响应包装器以捕获状态码
 			wrappedWriter := &responseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
@@ -376,12 +382,18 @@ const (
 )
 
 func GetUserIDFromContext(r *http.Request) string {
-	userID, _ := r.Context().Value(userContextKey).(string)
+	userID, ok := r.Context().Value(userContextKey).(string)
+	if !ok {
+		return ""
+	}
 	return userID
 }
 
 func GetRoleFromContext(r *http.Request) string {
-	role, _ := r.Context().Value(roleContextKey).(string)
+	role, ok := r.Context().Value(roleContextKey).(string)
+	if !ok {
+		return ""
+	}
 	return role
 }
 

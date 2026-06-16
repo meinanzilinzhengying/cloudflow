@@ -1400,7 +1400,12 @@ func today() string {
 
 func (s *Server) handleExportMetricsJSON(w http.ResponseWriter, r *http.Request) {
 	// 导出功能需要 editor 或 admin 角色
-	role, _ := r.Context().Value(roleContextKey).(string)
+	role, ok := r.Context().Value(roleContextKey).(string)
+	if !ok {
+		s.log.Error("invalid role type in context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	if role != "admin" && role != "editor" {
 		s.writeJSONWithStatus(w, r, http.StatusForbidden, map[string]interface{}{"error": "Permission denied: editor or admin role required"})
 		return
@@ -1457,7 +1462,12 @@ func (s *Server) handleExportMetricsJSON(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) handleExportMetricsCSV(w http.ResponseWriter, r *http.Request) {
 	// 导出功能需要 editor 或 admin 角色
-	role, _ := r.Context().Value(roleContextKey).(string)
+	role, ok := r.Context().Value(roleContextKey).(string)
+	if !ok {
+		s.log.Error("invalid role type in context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	if role != "admin" && role != "editor" {
 		s.writeJSONWithStatus(w, r, http.StatusForbidden, map[string]interface{}{"error": "Permission denied: editor or admin role required"})
 		return
@@ -1529,7 +1539,12 @@ func (s *Server) handleExportMetricsCSV(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleExportTracesJSON(w http.ResponseWriter, r *http.Request) {
 	// 导出功能需要 editor 或 admin 角色
-	role, _ := r.Context().Value(roleContextKey).(string)
+	role, ok := r.Context().Value(roleContextKey).(string)
+	if !ok {
+		s.log.Error("invalid role type in context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	if role != "admin" && role != "editor" {
 		s.writeJSONWithStatus(w, r, http.StatusForbidden, map[string]interface{}{"error": "Permission denied: editor or admin role required"})
 		return
@@ -1583,7 +1598,12 @@ func (s *Server) handleExportTracesJSON(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleExportTracesCSV(w http.ResponseWriter, r *http.Request) {
 	// 导出功能需要 editor 或 admin 角色
-	role, _ := r.Context().Value(roleContextKey).(string)
+	role, ok := r.Context().Value(roleContextKey).(string)
+	if !ok {
+		s.log.Error("invalid role type in context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	if role != "admin" && role != "editor" {
 		s.writeJSONWithStatus(w, r, http.StatusForbidden, map[string]interface{}{"error": "Permission denied: editor or admin role required"})
 		return
@@ -2276,7 +2296,12 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 		s.writeJSONWithStatus(w, r, http.StatusUnauthorized, map[string]interface{}{"success": false, "message": "未授权"})
 		return
 	}
-	role, _ := r.Context().Value(roleContextKey).(string)
+	role, ok := r.Context().Value(roleContextKey).(string)
+	if !ok {
+		s.log.Error("invalid role type in context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 
 	// 从数据库获取用户偏好设置
 	prefs := map[string]interface{}{
@@ -3326,7 +3351,12 @@ func (s *Server) handleGetSystemConfig(w http.ResponseWriter, r *http.Request) {
 // 如需持久化，建议后续实现配置写入到数据库或配置文件。
 func (s *Server) handleUpdateSystemConfig(w http.ResponseWriter, r *http.Request) {
 	// 仅管理员可修改系统配置
-	role, _ := r.Context().Value(roleContextKey).(string)
+	role, ok := r.Context().Value(roleContextKey).(string)
+	if !ok {
+		s.log.Error("invalid role type in context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	if role != "admin" {
 		s.writeJSONWithStatus(w, r, http.StatusForbidden, map[string]interface{}{"success": false, "message": "仅管理员可修改系统配置"})
 		return
@@ -3522,7 +3552,12 @@ func (s *Server) handleK8sServices(w http.ResponseWriter, r *http.Request) {
 
 // handleExportAdvanced 高级导出（支持多维度筛选导出）
 func (s *Server) handleExportAdvanced(w http.ResponseWriter, r *http.Request) {
-	role, _ := r.Context().Value(roleContextKey).(string)
+	role, ok := r.Context().Value(roleContextKey).(string)
+	if !ok {
+		s.log.Error("invalid role type in context")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	if role != "admin" && role != "editor" {
 		s.writeJSONWithStatus(w, r, http.StatusForbidden, map[string]interface{}{"success": false, "message": "Permission denied: editor or admin role required"})
 		return
