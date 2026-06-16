@@ -41,7 +41,11 @@ var healthServer *http.Server
 
 // loadCfg 安全加载配置一致快照
 func loadCfg() *config.Config {
-	return cfg.Load().(*config.Config)
+	c, ok := cfg.Load().(*config.Config)
+	if !ok {
+		return &config.Config{}
+	}
+	return c
 }
 
 func main() {

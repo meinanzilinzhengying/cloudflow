@@ -7,7 +7,7 @@ replace golang.org/x/sys => golang.org/x/sys v0.18.0
 replace github.com/prometheus/common => github.com/prometheus/common v0.48.0
 
 require (
-	github.com/fsnotify/fsnotify v1.10.1
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/spf13/viper v1.21.0
 	go.uber.org/zap v1.28.0
 )
