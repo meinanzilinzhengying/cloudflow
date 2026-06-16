@@ -8,29 +8,95 @@ on:
 
 jobs:
   build:
+    name: Build & Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Go
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: true
 
       - name: Install dependencies
         run: go mod tidy
 
-      - name: Build all modules
+      - name: Build
         run: go build ./...
 
-      - name: Run tests
-        run: go test -cover ./...
+      - name: Run tests with coverage
+        run: go test -v -coverprofile=coverage.txt -covermode=atomic ./...
 
-      - name: Run go vet
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.txt
+          fail_ci_if_error: false
+
+      - name: Go vet
         run: go vet ./...
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.55
+          args: --timeout=5m
+
+  multi-arch-build:
+    name: Multi-arch Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Build ${{ matrix.arch }}
+        env:
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -o cloudflow-agent-${{ matrix.arch }} ./cloud-flow-agent
+          go build -o cloudflow-center-${{ matrix.arch }} ./cloud-flow-center
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflow-binaries-${{ matrix.arch }}
+          path: cloudflow-*-${{ matrix.arch }}
+
+  codeql:
+    name: CodeQL Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: Build
+        run: go build ./...
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
