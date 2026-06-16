@@ -1,0 +1,177 @@
+groups:
+  - name: cloudflow_alerts
+    rules:
+      # ============================================
+      # 1. 服务可用性告警
+      # ============================================
+      - alert: ServiceDown
+        expr: up{job=~"cloudflow-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "服务宕机告警"
+          description: "服务 {{ $labels.job }} 已宕机超过1分钟"
+          instance: "{{ $labels.instance }}"
+
+      - alert: AgentOffline
+        expr: cloudflow_agent_heartbeat_timestamp < time() - 300
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Agent离线告警"
+          description: "Agent {{ $labels.agent_id }} 心跳超时超过5分钟"
+          agent_id: "{{ $labels.agent_id }}"
+
+      # ============================================
+      # 2. 系统资源告警
+      # ============================================
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "CPU使用率过高告警"
+          description: "实例 {{ $labels.instance }} CPU使用率超过80%，持续5分钟"
+          value: "{{ $value | humanizePercentage }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "内存使用率过高告警"
+          description: "实例 {{ $labels.instance }} 内存使用率超过85%，持续5分钟"
+          value: "{{ $value | humanizePercentage }}"
+
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "磁盘使用率过高告警"
+          description: "实例 {{ $labels.instance }} 磁盘使用率超过90%，持续5分钟"
+          value: "{{ $value | humanizePercentage }}"
+
+      # ============================================
+      # 3. 业务错误告警
+      # ============================================
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[2m])) / sum(rate(http_requests_total[2m])) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "HTTP错误率过高告警"
+          description: "HTTP 5xx错误率超过5%，持续2分钟"
+          value: "{{ $value | humanizePercentage }}"
+
+      - alert: HighGRPCErrorRate
+        expr: sum(rate(grpc_server_handled_total{grpc_code!="OK"}[2m])) / sum(rate(grpc_server_handled_total[2m])) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "gRPC错误率过高告警"
+          description: "gRPC错误率超过5%，持续2分钟"
+          value: "{{ $value | humanizePercentage }}"
+
+      # ============================================
+      # 4. 性能延迟告警
+      # ============================================
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[2m])) by (le)) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "HTTP请求延迟过高告警"
+          description: "HTTP请求P95延迟超过500ms，持续2分钟"
+          value: "{{ $value | humanizeDuration }}"
+
+      - alert: HighQueryLatency
+        expr: histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[2m])) by (le)) > 1
+        for: 2m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "数据库查询延迟过高告警"
+          description: "数据库查询P95延迟超过1秒，持续2分钟"
+          value: "{{ $value | humanizeDuration }}"
+
+      # ============================================
+      # 5. eBPF采集告警
+      # ============================================
+      - alert: HighPacketLoss
+        expr: rate(cloudflow_ebpf_packets_dropped_total[1m]) / rate(cloudflow_ebpf_packets_total[1m]) * 100 > 1
+        for: 1m
+        labels:
+          severity: warning
+          category: ebpf
+        annotations:
+          summary: "eBPF采集丢包告警"
+          description: "eBPF采集丢包率超过1%，持续1分钟"
+          value: "{{ $value | humanizePercentage }}"
+          interface: "{{ $labels.interface }}"
+
+      - alert: EbpfCollectorError
+        expr: increase(cloudflow_ebpf_errors_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: critical
+          category: ebpf
+        annotations:
+          summary: "eBPF采集错误告警"
+          description: "eBPF采集器5分钟内错误超过10次"
+          value: "{{ $value }}"
+
+      # ============================================
+      # 6. 数据库告警
+      # ============================================
+      - alert: DatabaseConnectionFailed
+        expr: increase(db_connection_errors_total[5m]) > 3
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "数据库连接失败告警"
+          description: "数据库5分钟内连接失败超过3次"
+          database: "{{ $labels.database }}"
+
+      - alert: TooManySlowQueries
+        expr: increase(db_slow_queries_total[5m]) > 20
+        for: 2m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "慢查询过多告警"
+          description: "数据库5分钟内慢查询超过20次"
+          database: "{{ $labels.database }}"
+
+      # ============================================
+      # 7. 告警引擎告警
+      # ============================================
+      - alert: AlertEngineFiring
+        expr: cloudflow_alerts_firing > 0
+        for: 0m
+        labels:
+          severity: info
+          category: alert
+        annotations:
+          summary: "告警触发通知"
+          description: "当前有 {{ $value }} 条告警正在触发"
