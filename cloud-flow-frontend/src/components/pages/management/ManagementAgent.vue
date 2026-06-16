@@ -17,7 +17,6 @@
         </button>
       </div>
     </div>
-
     <!-- Stats Cards -->
     <div class="grid grid-cols-4 gap-4">
       <div class="card p-4">
@@ -65,7 +64,6 @@
         </div>
       </div>
     </div>
-
     <!-- Agent List -->
     <div class="card">
       <div class="p-6 border-b border-slate-200 dark:border-dark-700 flex items-center justify-between">
@@ -78,12 +76,16 @@
             <option>异常</option>
           </select>
         </div>
-        <button class="btn-secondary">
+        <button @click="fetchAgents" class="btn-secondary">
           <RefreshCw class="w-4 h-4" />
           刷新
         </button>
       </div>
-      <div class="overflow-x-auto">
+      <div v-if="loading" class="p-8 text-center">
+        <div class="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto"></div>
+        <p class="text-slate-500 mt-4">加载中...</p>
+      </div>
+      <div v-else class="overflow-x-auto">
         <table class="w-full">
           <thead>
             <tr class="bg-slate-50 dark:bg-dark-700/50">
@@ -113,10 +115,10 @@
               <td class="px-6 py-4 text-sm text-slate-500">{{ agent.uptime }}</td>
               <td class="px-6 py-4">
                 <div class="flex items-center gap-2">
-                  <button class="text-xs text-primary-500 hover:text-primary-600">升级</button>
-                  <button class="text-xs text-amber-500 hover:text-amber-600">重启</button>
-                  <button class="text-xs text-blue-500 hover:text-blue-600">同步</button>
-                  <button class="text-xs text-red-500 hover:text-red-600">删除</button>
+                  <button @click="upgradeAgent(agent.id)" class="text-xs text-primary-500 hover:text-primary-600">升级</button>
+                  <button @click="restartAgent(agent.id)" class="text-xs text-amber-500 hover:text-amber-600">重启</button>
+                  <button @click="syncAgent(agent.id)" class="text-xs text-blue-500 hover:text-blue-600">同步</button>
+                  <button @click="deleteAgent(agent.id)" class="text-xs text-red-500 hover:text-red-600">删除</button>
                 </div>
               </td>
             </tr>
@@ -126,23 +128,77 @@
     </div>
   </div>
 </template>
-
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Upload, Plus, Server, CheckCircle, AlertCircle, AlertTriangle, RefreshCw } from 'lucide-vue-next'
+import { controlPlaneService } from '@/api'
 
+const loading = ref(false)
 const agentStats = ref({
-  total: 24,
-  online: 20,
-  offline: 2,
-  error: 2,
+  total: 0,
+  online: 0,
+  offline: 0,
+  error: 0,
 })
+const agents = ref([])
 
-const agents = ref([
-  { id: 1, name: 'agent-01', ip: '192.168.1.10', version: 'v1.2.3', status: 'online', uptime: '5天' },
-  { id: 2, name: 'agent-02', ip: '192.168.1.11', version: 'v1.2.3', status: 'online', uptime: '3天' },
-  { id: 3, name: 'agent-03', ip: '192.168.1.12', version: 'v1.1.0', status: 'online', uptime: '10天' },
-  { id: 4, name: 'agent-04', ip: '192.168.1.13', version: 'v1.2.3', status: 'offline', uptime: '-' },
-  { id: 5, name: 'agent-05', ip: '192.168.1.14', version: 'v1.2.3', status: 'error', uptime: '2天' },
-])
+const fetchAgents = async () => {
+  loading.value = true
+  try {
+    const res = await controlPlaneService.getAgents()
+    agents.value = res || []
+    agentStats.value = {
+      total: agents.value.length,
+      online: agents.value.filter(a => a.status === 'online').length,
+      offline: agents.value.filter(a => a.status === 'offline').length,
+      error: agents.value.filter(a => a.status === 'error').length,
+    }
+  } catch (e) {
+    console.error('Failed to fetch agents:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+const upgradeAgent = async (id) => {
+  try {
+    await controlPlaneService.upgradeAgent(id, 'latest')
+    fetchAgents()
+  } catch (e) {
+    console.error('Failed to upgrade agent:', e)
+  }
+}
+
+const restartAgent = async (id) => {
+  try {
+    await controlPlaneService.restartAgent(id)
+    fetchAgents()
+  } catch (e) {
+    console.error('Failed to restart agent:', e)
+  }
+}
+
+const syncAgent = async (id) => {
+  try {
+    await controlPlaneService.pushConfig(id, {})
+    fetchAgents()
+  } catch (e) {
+    console.error('Failed to sync agent:', e)
+  }
+}
+
+const deleteAgent = async (id) => {
+  if (confirm('确定要删除此Agent吗？')) {
+    try {
+      // await controlPlaneService.deleteAgent(id)
+      fetchAgents()
+    } catch (e) {
+      console.error('Failed to delete agent:', e)
+    }
+  }
+}
+
+onMounted(() => {
+  fetchAgents()
+})
 </script>
