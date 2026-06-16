@@ -63,31 +63,22 @@ const dataPlaneApi = createApiClient(API_BASE.dataPlane)
 export const authService = {
   login: (username, password) =>
     authApi.post('/login', { username, password }),
-
   verify: (token) =>
     authApi.post('/verify', { token }),
-
   refresh: (token) =>
     authApi.post('/refresh', { token }),
-
   revoke: (token) =>
     authApi.post('/revoke', { token }),
-
   getUsers: () =>
     authApi.get('/users'),
-
   createUser: (userData) =>
     authApi.post('/users/create', userData),
-
   updateUser: (userData) =>
     authApi.post('/users/update', userData),
-
   deleteUser: (username) =>
     authApi.delete('/users/delete', { data: { username } }),
-
   getRoles: () =>
     authApi.get('/roles'),
-
   checkPermission: (action, resource) =>
     authApi.post('/permissions/check', { action, resource }),
 }
@@ -96,19 +87,14 @@ export const authService = {
 export const tenantService = {
   getTenants: () =>
     tenantApi.get('/tenants'),
-
   createTenant: (tenantData) =>
     tenantApi.post('/tenants/create', tenantData),
-
   updateTenant: (tenantData) =>
     tenantApi.post('/tenants/update', tenantData),
-
   deleteTenant: (tenantId) =>
     tenantApi.post('/tenants/delete', { tenant_id: tenantId }),
-
   getProjects: () =>
     tenantApi.get('/projects'),
-
   getQuotas: () =>
     tenantApi.get('/quotas'),
 }
@@ -117,7 +103,22 @@ export const tenantService = {
 export const controlPlaneService = {
   getAgents: () =>
     controlPlaneApi.get('/agents'),
-
+  getAgentStatus: () =>
+    controlPlaneApi.get('/agents/status'),
+  getAgent: (id) =>
+    controlPlaneApi.get(`/agents/${id}`),
+  startAgent: (id) =>
+    controlPlaneApi.post(`/agents/${id}/start`),
+  stopAgent: (id) =>
+    controlPlaneApi.post(`/agents/${id}/stop`),
+  restartAgent: (id) =>
+    controlPlaneApi.post(`/agents/${id}/restart`),
+  upgradeAgent: (id, version) =>
+    controlPlaneApi.post(`/agents/${id}/upgrade`, { version }),
+  pushConfig: (id, config) =>
+    controlPlaneApi.post(`/agents/${id}/config`, config),
+  getAgentLogs: (id) =>
+    controlPlaneApi.get(`/agents/${id}/logs`),
   getEdges: () =>
     controlPlaneApi.get('/edges'),
 }
@@ -126,37 +127,26 @@ export const controlPlaneService = {
 export const queryService = {
   getOverview: () =>
     queryApi.get('/overview'),
-
   getMetrics: (params) =>
     queryApi.get('/metrics-data', { params }),
-
   getFlows: (params) =>
     queryApi.get('/flows', { params }),
-
   getTraces: (params) =>
     queryApi.get('/traces', { params }),
-
   getTopology: (params) =>
     queryApi.get('/topology', { params }),
-
   getAlerts: (params) =>
     queryApi.get('/alerts', { params }),
-
   getOTELTraces: (params) =>
     queryApi.get('/otel/traces', { params }),
-
   getOTELMetrics: (params) =>
     queryApi.get('/otel/metrics', { params }),
-
   getOTELLogs: (params) =>
     queryApi.get('/otel/logs', { params }),
-
   getOTELStats: () =>
     queryApi.get('/otel/stats'),
-
   getRCA: (params) =>
     queryApi.get('/rca', { params }),
-
   getCorrelation: (params) =>
     queryApi.get('/correlation', { params }),
 }
@@ -165,25 +155,18 @@ export const queryService = {
 export const alertService = {
   getAlerts: (params) =>
     alertApi.get('/alerts', { params }),
-
   createAlert: (alertData) =>
     alertApi.post('/alerts/create', alertData),
-
   updateAlert: (alertData) =>
     alertApi.post('/alerts/update', alertData),
-
   resolveAlert: (alertId) =>
     alertApi.post('/alerts/resolve', { alert_id: alertId }),
-
   getRules: () =>
     alertApi.get('/rules'),
-
   createRule: (ruleData) =>
     alertApi.post('/rules/create', ruleData),
-
   updateRule: (ruleData) =>
     alertApi.post('/rules/update', ruleData),
-
   deleteRule: (ruleId) =>
     alertApi.delete('/rules/delete', { data: { rule_id: ruleId } }),
 }
@@ -192,13 +175,10 @@ export const alertService = {
 export const dataPlaneService = {
   getHealth: () =>
     dataPlaneApi.get('/health'),
-
   getMetrics: () =>
     dataPlaneApi.get('/metrics'),
-
   getSamplingConfig: () =>
     dataPlaneApi.get('/sampling/config'),
-
   getSamplingStats: () =>
     dataPlaneApi.get('/sampling/stats'),
 }

@@ -150,7 +150,7 @@ const PROTOCOL_MAP = {
 };
 const appProto = (p, port) => { return (port && PROTOCOL_MAP[port]) ? PROTOCOL_MAP[port] : p; };
 
-import { TrendingUp, Activity, Server, Layers, Bell } from 'lucide-vue-next'
+import { controlPlaneService } from '@/api'
 import KPICard from '../common/KPICard.vue'
 
 use([CanvasRenderer, LineChart, PieChart, TooltipComponent, LegendComponent, GridComponent])
@@ -242,18 +242,16 @@ const fetchData = async function() {
 
   // Get probe status
   try {
-    const pr = await fetch('http://192.168.58.131:9090/api/probe/status')
-    if (pr.ok) {
-      const pd = await pr.json()
-      probeStatus.value = pd
-      systemHealthy.value = pd.status === 'running'
-      kpis.value[4] = { id: 5, title: '探测状态', value: pd.status === 'running' ? '运行中' : '已停止', unit: '', change: '', icon: Server, color: pd.status === 'running' ? 'success' : 'danger' }
-      kpis.value[5] = { id: 6, title: '数据记录', value: pd.flows_total || '0', unit: '条', change: '', icon: Bell, color: 'primary' }
-      // Parse uptime
-      if (pd.uptime) {
-        var parts = pd.uptime.split(' ')
-        if (parts.length >= 4) probeUptime.value = parts[2] + ' ' + parts[3]
-      }
+    const pr = await controlPlaneService.getAgentStatus()
+    const pd = pr.data
+    probeStatus.value = pd
+    systemHealthy.value = pd.status === 'running'
+    kpis.value[4] = { id: 5, title: '探测状态', value: pd.status === 'running' ? '运行中' : '已停止', unit: '', change: '', icon: Server, color: pd.status === 'running' ? 'success' : 'danger' }
+    kpis.value[5] = { id: 6, title: '数据记录', value: pd.flows_total || '0', unit: '条', change: '', icon: Bell, color: 'primary' }
+    // Parse uptime
+    if (pd.uptime) {
+      var parts = pd.uptime.split(' ')
+      if (parts.length >= 4) probeUptime.value = parts[2] + ' ' + parts[3]
     }
   } catch(e) { console.warn('[Dashboard] Probe fetch error:', e) }
 
