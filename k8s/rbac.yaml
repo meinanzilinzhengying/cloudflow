@@ -1,0 +1,28 @@
+# CloudFlow RBAC
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudflow-admin
+  namespace: cloudflow
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloudflow-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "namespaces", "nodes"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cloudflow-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cloudflow-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: cloudflow-admin
+  namespace: cloudflow

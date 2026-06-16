@@ -1,0 +1,7 @@
+# CloudFlow Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudflow
+  labels:
+    name: cloudflow
