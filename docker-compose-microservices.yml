@@ -365,7 +365,7 @@ services:
       - DINGTALK_WEBHOOK=${DINGTALK_WEBHOOK:-}
       
       # 下游服务
-      - AUTH_ADDR=auth-service:9006
+      - AUTH_ADDR=
       - TENANT_ADDR=tenant-service:9010
       - DATA_PLANE_ADDR=data-plane:9002
     depends_on:
