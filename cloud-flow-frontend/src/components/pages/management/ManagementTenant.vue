@@ -14,7 +14,9 @@
 
     <!-- Tenant List -->
     <div class="card">
-      <div class="grid grid-cols-3 gap-4">
+      <div v-if="loading" class="p-8 text-center text-slate-500">加载中...</div>
+      <div v-else-if="tenants.length === 0" class="p-8 text-center text-slate-500">暂无租户数据</div>
+      <div v-else class="grid grid-cols-3 gap-4">
         <div
           v-for="tenant in tenants"
           :key="tenant.id"
@@ -30,12 +32,12 @@
             </div>
             <div>
               <h3 class="font-semibold text-slate-900 dark:text-white">{{ tenant.name }}</h3>
-              <p class="text-xs text-slate-500">{{ tenant.projects.length }} 个项目</p>
+              <p class="text-xs text-slate-500">{{ tenant.projects?.length || 0 }} 个项目</p>
             </div>
           </div>
           <div class="flex items-center gap-4 text-xs text-slate-500">
-            <span>{{ tenant.agents }} Agents</span>
-            <span>{{ tenant.storage }}</span>
+            <span>{{ tenant.agents || 0 }} Agents</span>
+            <span>{{ tenant.storage || '0 B' }}</span>
           </div>
         </div>
       </div>
@@ -60,25 +62,25 @@
             <div class="grid grid-cols-2 gap-4">
               <div class="p-4 bg-slate-50 dark:bg-dark-700 rounded-xl">
                 <p class="text-xs text-slate-500 mb-1">项目数量</p>
-                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ selectedTenant.projects.length }}</p>
+                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ selectedTenant.projects?.length || 0 }}</p>
               </div>
               <div class="p-4 bg-slate-50 dark:bg-dark-700 rounded-xl">
                 <p class="text-xs text-slate-500 mb-1">Agent数量</p>
-                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ selectedTenant.agents }}</p>
+                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ selectedTenant.agents || 0 }}</p>
               </div>
               <div class="p-4 bg-slate-50 dark:bg-dark-700 rounded-xl">
                 <p class="text-xs text-slate-500 mb-1">存储占用</p>
-                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ selectedTenant.storage }}</p>
+                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ selectedTenant.storage || '0 B' }}</p>
               </div>
               <div class="p-4 bg-slate-50 dark:bg-dark-700 rounded-xl">
                 <p class="text-xs text-slate-500 mb-1">流量占用</p>
-                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ selectedTenant.traffic }}</p>
+                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ selectedTenant.traffic || '0 B' }}</p>
               </div>
             </div>
-
             <div>
               <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">项目列表</h4>
-              <div class="space-y-2">
+              <div v-if="selectedTenant.projects?.length === 0" class="text-center text-slate-500 py-4">暂无项目</div>
+              <div v-else class="space-y-2">
                 <div
                   v-for="project in selectedTenant.projects"
                   :key="project.id"
@@ -86,7 +88,7 @@
                 >
                   <div class="flex items-center justify-between">
                     <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ project.name }}</span>
-                    <span class="text-xs text-slate-500">{{ project.agents }} Agents</span>
+                    <span class="text-xs text-slate-500">{{ project.agents || 0 }} Agents</span>
                   </div>
                 </div>
               </div>
@@ -99,20 +101,32 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Plus, Building2, X } from 'lucide-vue-next'
+import { tenantService } from '@/api'
 
-const tenants = ref([
-  { id: 1, name: '阿里巴巴', projects: [{ id: 1, name: '电商平台', agents: 12 }, { id: 2, name: '物流系统', agents: 8 }], agents: 20, storage: '100 GB', traffic: '5 TB/month' },
-  { id: 2, name: '腾讯', projects: [{ id: 3, name: '社交平台', agents: 15 }], agents: 15, storage: '80 GB', traffic: '8 TB/month' },
-  { id: 3, name: '字节跳动', projects: [{ id: 4, name: '短视频', agents: 20 }, { id: 5, name: '信息流', agents: 10 }, { id: 6, name: '办公套件', agents: 5 }], agents: 35, storage: '150 GB', traffic: '15 TB/month' },
-])
-
+const tenants = ref([])
+const loading = ref(false)
 const selectedTenant = ref(null)
+
+const fetchTenants = async () => {
+  loading.value = true
+  try {
+    const res = await tenantService.getTenants()
+    tenants.value = res.data || []
+  } catch (e) {
+    console.error('Failed to fetch tenants:', e)
+    tenants.value = []
+  } finally {
+    loading.value = false
+  }
+}
 
 const selectTenant = (tenant) => {
   selectedTenant.value = tenant
 }
+
+onMounted(fetchTenants)
 </script>
 
 <style scoped>

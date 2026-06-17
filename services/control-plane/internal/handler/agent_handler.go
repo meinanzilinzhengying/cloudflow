@@ -1,220 +1,121 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
-	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
-// AgentHandler Agent管理API处理器
-type AgentHandler struct{}
+// AgentHandler 探针管理处理器
+// TODO: 后续对接真实存储和gRPC客户端
+type AgentHandler struct {
+	// agentRepo repository.AgentRepository
+	// grpcClient pb.AgentServiceClient
+}
 
-// NewAgentHandler 创建Agent处理器
+// NewAgentHandler 创建探针处理器
 func NewAgentHandler() *AgentHandler {
 	return &AgentHandler{}
 }
 
-// ListAgents 获取Agent列表
+// ListAgents 获取探针列表
 // GET /api/control-plane/agents
-func (h *AgentHandler) ListAgents(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	// 模拟数据，实际对接gRPC和数据库
-	agents := []map[string]interface{}{
-		{
-			"id":       "agent-001",
-			"name":     "web-server-01",
-			"ip":       "192.168.1.101",
-			"status":   "online",
-			"version":  "v1.0.0",
-			"uptime":   "12h30m",
-			"traffic":  "1.2GB",
-			"hostname": "web-server-01",
-			"os":       "Ubuntu 22.04",
-			"kernel":   "5.15.0-76-generic",
-		},
-		{
-			"id":       "agent-002",
-			"name":     "db-server-01",
-			"ip":       "192.168.1.102",
-			"status":   "online",
-			"version":  "v1.0.0",
-			"uptime":   "8h15m",
-			"traffic":  "512MB",
-			"hostname": "db-server-01",
-			"os":       "CentOS 8",
-			"kernel":   "5.4.0-100-generic",
-		},
-		{
-			"id":       "agent-003",
-			"name":     "app-server-01",
-			"ip":       "192.168.1.103",
-			"status":   "offline",
-			"version":  "v0.9.9",
-			"uptime":   "0h0m",
-			"traffic":  "0B",
-			"hostname": "app-server-01",
-			"os":       "Debian 11",
-			"kernel":   "5.10.0-0.bpo.9-amd64",
-		},
-	}
-
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": agents,
+func (h *AgentHandler) ListAgents(c *gin.Context) {
+	// TODO: 从数据库/etcd读取真实Agent数据
+	// TODO: 对接gRPC AgentServiceClient
+	c.JSON(http.StatusOK, gin.H{
+		"data":    []interface{}{},
+		"message": "Agent management API - implementation pending gRPC integration",
 	})
 }
 
-// GetAgentStatus 获取Agent状态统计
+// GetAgentStatus 获取探针状态统计
 // GET /api/control-plane/agents/status
-func (h *AgentHandler) GetAgentStatus(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	// 模拟数据
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"online":  2,
-		"offline": 1,
-		"total":   3,
+func (h *AgentHandler) GetAgentStatus(c *gin.Context) {
+	// TODO: 从存储读取真实状态统计
+	c.JSON(http.StatusOK, gin.H{
+		"online":  0,
+		"offline": 0,
+		"total":   0,
 	})
 }
 
-// GetAgent 获取单个Agent详情
+// GetAgent 获取探针详情
 // GET /api/control-plane/agents/:id
-func (h *AgentHandler) GetAgent(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	// 从URL路径中提取ID
-	path := r.URL.Path
-	parts := strings.Split(path, "/")
-	id := parts[len(parts)-1]
-
-	agent := map[string]interface{}{
-		"id":       id,
-		"name":     "agent-" + id,
-		"ip":       "192.168.1.100",
-		"status":   "online",
-		"version":  "v1.0.0",
-		"uptime":   "24h",
-		"traffic":  "2.5GB",
-		"hostname": "server-" + id,
-		"os":       "Ubuntu 22.04",
-		"kernel":   "5.15.0-76-generic",
-		"interfaces": []map[string]interface{}{
-			{"name": "eth0", "mac": "00:11:22:33:44:55", "rx_bytes": 1024000000, "tx_bytes": 512000000},
+func (h *AgentHandler) GetAgent(c *gin.Context) {
+	id := c.Param("id")
+	// TODO: 从存储读取真实探针详情
+	c.JSON(http.StatusOK, gin.H{
+		"data": map[string]interface{}{
+			"id": id,
 		},
-	}
-
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": agent,
+		"message": "Agent detail API - implementation pending",
 	})
 }
 
-// StartAgent 启动Agent
+// StartAgent 启动探针
 // POST /api/control-plane/agents/:id/start
-func (h *AgentHandler) StartAgent(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "agent started successfully",
-	})
+func (h *AgentHandler) StartAgent(c *gin.Context) {
+	// TODO: 通过gRPC调用Agent启动
+	c.JSON(http.StatusOK, gin.H{"message": "Start agent API - implementation pending"})
 }
 
-// StopAgent 停止Agent
+// StopAgent 停止探针
 // POST /api/control-plane/agents/:id/stop
-func (h *AgentHandler) StopAgent(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "agent stopped successfully",
-	})
+func (h *AgentHandler) StopAgent(c *gin.Context) {
+	// TODO: 通过gRPC调用Agent停止
+	c.JSON(http.StatusOK, gin.H{"message": "Stop agent API - implementation pending"})
 }
 
-// RestartAgent 重启Agent
+// RestartAgent 重启探针
 // POST /api/control-plane/agents/:id/restart
-func (h *AgentHandler) RestartAgent(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "agent restarted successfully",
-	})
+func (h *AgentHandler) RestartAgent(c *gin.Context) {
+	// TODO: 通过gRPC调用Agent重启
+	c.JSON(http.StatusOK, gin.H{"message": "Restart agent API - implementation pending"})
 }
 
-// UpgradeAgent 升级Agent
+// UpgradeAgent 升级探针
 // POST /api/control-plane/agents/:id/upgrade
-func (h *AgentHandler) UpgradeAgent(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
+func (h *AgentHandler) UpgradeAgent(c *gin.Context) {
 	var req struct {
 		Version string `json:"version"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error": "invalid request body",
-		})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "agent upgrading to " + req.Version,
-	})
+	// TODO: 通过gRPC调用Agent升级
+	c.JSON(http.StatusOK, gin.H{"message": "Upgrade agent API - implementation pending"})
 }
 
-// PushConfig 下发配置给Agent
+// PushConfig 下发配置
 // POST /api/control-plane/agents/:id/config
-func (h *AgentHandler) PushConfig(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
+func (h *AgentHandler) PushConfig(c *gin.Context) {
 	var config map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error": "invalid config",
-		})
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid config"})
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "config pushed successfully",
-	})
+	// TODO: 通过gRPC下发配置
+	c.JSON(http.StatusOK, gin.H{"message": "Push config API - implementation pending"})
 }
 
-// GetAgentLogs 获取Agent日志
+// GetAgentLogs 获取探针日志
 // GET /api/control-plane/agents/:id/logs
-func (h *AgentHandler) GetAgentLogs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	logs := []string{
-		"[INFO] 2026-06-16 10:00:00 Agent started",
-		"[INFO] 2026-06-16 10:00:01 Loading eBPF programs...",
-		"[INFO] 2026-06-16 10:00:02 eBPF program tc_bpf loaded successfully",
-		"[INFO] 2026-06-16 10:00:03 eBPF program tcp_metrics_bpf loaded successfully",
-		"[INFO] 2026-06-16 10:00:04 eBPF program http_metrics_bpf loaded successfully",
-		"[INFO] 2026-06-16 10:00:05 Connecting to control plane...",
-		"[INFO] 2026-06-16 10:00:06 Connected to control plane at 192.168.1.100:50051",
-		"[INFO] 2026-06-16 10:00:07 Heartbeat sent, latency 5ms",
-		"[INFO] 2026-06-16 10:01:00 Starting packet capture on eth0",
-		"[INFO] 2026-06-16 10:01:01 Packet capture started, processing packets...",
-	}
-
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": logs,
+func (h *AgentHandler) GetAgentLogs(c *gin.Context) {
+	// TODO: 通过gRPC获取Agent日志
+	c.JSON(http.StatusOK, gin.H{
+		"data":    []string{},
+		"message": "Agent logs API - implementation pending",
 	})
 }
 
-// ListEdges 获取Edge节点列表
+// ListEdges 获取边缘节点列表
 // GET /api/control-plane/edges
-func (h *AgentHandler) ListEdges(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	edges := []map[string]interface{}{
-		{"id": "edge-001", "name": "edge-beijing", "status": "online", "region": "beijing", "agents": 5},
-		{"id": "edge-002", "name": "edge-shanghai", "status": "online", "region": "shanghai", "agents": 3},
-		{"id": "edge-003", "name": "edge-guangzhou", "status": "offline", "region": "guangzhou", "agents": 0},
-	}
-
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": edges,
+func (h *AgentHandler) ListEdges(c *gin.Context) {
+	// TODO: 从存储读取真实边缘节点
+	c.JSON(http.StatusOK, gin.H{
+		"data":    []interface{}{},
+		"message": "Edge nodes API - implementation pending",
 	})
 }
