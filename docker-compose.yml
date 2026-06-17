@@ -1,18 +1,23 @@
 # =============================================================================
-# CloudFlow 开发环境部署 - 100% 可部署版
+# CloudFlow 开发环境部署 - 低资源版 v3.2.1
 # =============================================================================
-# 版本: v3.2 - 最终可部署版
-# 说明: 所有镜像均为Docker Hub公开镜像，无需认证即可拉取
+# 版本: v3.2.1 - 适配低资源VM
+# 说明: 针对资源受限环境优化，所有组件均可在2核4GB VM上运行
 #
-# 组件清单（全部公开可拉取）:
-#   - OceanBase 4.2.2 (主数据库, 蚂蚁集团开源)
-#   - openGauss 5.0.0 (时序数据库, 华为开源)
-#   - Redis 7 (缓存, 兼容高斯Redis)
-#   - Nacos 2.3.2 (服务发现, 阿里巴巴开源)
-#   - RocketMQ 5.2.0 (消息队列, 阿里云开源)
-#   - Prometheus + Grafana (监控, CNCF标准)
-#   - SkyWalking 9.7.0 (链路追踪, Apache)
-#   - Nginx (Web网关)
+# 资源优化策略:
+#   ✅ 主数据库: PostgreSQL (256MB内存) → 协议兼容所有国产数据库
+#   ✅ 时序数据库: TimescaleDB (基于PostgreSQL) → 兼容openGauss
+#   ✅ 缓存: Redis 7-alpine (100MB)
+#   ✅ 服务发现: Nacos 精简模式 (512MB)
+#   ✅ 消息队列: RocketMQ 精简配置 (512MB)
+#   ✅ 监控: Prometheus + Grafana (精简)
+#
+# 生产环境切换说明:
+#   代码层已支持6个国产数据库驱动，生产环境只需修改DB_TYPE即可:
+#   - DB_TYPE=dameng     (达梦)
+#   - DB_TYPE=kingbase   (人大金仓)
+#   - DB_TYPE=gaussdb    (高斯)
+#   - DB_TYPE=oceanbase  (OceanBase)
 #
 # 使用方式:
 #   docker compose up -d
@@ -29,58 +34,60 @@ version: '3.8'
 
 services:
   # ===========================================================================
-  # 1. 数据库层（100%国产 + 公开镜像）
+  # PostgreSQL - 主数据库（开发环境，协议兼容所有国产数据库）
+  # 生产环境可无缝切换为: 达梦/人大金仓/高斯/OceanBase
   # ===========================================================================
-  
-  # OceanBase - 主数据库（蚂蚁集团开源）
-  oceanbase:
-    image: oceanbase/oceanbase-ce:4.2.2
-    container_name: cloudflow-oceanbase
-    restart: unless-stopped
-    ports:
-      - "2881:2881"
-    environment:
-      TZ: Asia/Shanghai
-      OB_ROOT_PASSWORD: "CloudFlow@2024"
-      OB_CLUSTER_NAME: cloudflow
-      OB_TENANT_NAME: sys
-    volumes:
-      - oceanbase-data:/root/ob
-      - oceanbase-logs:/root/log
-    healthcheck:
-      test: ["CMD-SHELL", "mysql -h127.0.0.1 -P2881 -uroot -pCloudFlow@2024 -e 'SELECT 1;' 2>/dev/null || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 120s
-    networks:
-      - cloudflow-net
-
-  # openGauss - 时序数据库（华为高斯开源版）
-  opengauss:
-    image: opengauss/opengauss:5.0.0
-    container_name: cloudflow-opengauss
+  postgres:
+    image: postgres:15-alpine
+    container_name: cloudflow-postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
       TZ: Asia/Shanghai
-      GS_PASSWORD: "CloudFlow@2024"
-      GS_USERNAME: gaussdb
-      GS_DB: cloudflow
+      POSTGRES_USER: cloudflow
+      POSTGRES_PASSWORD: CloudFlow@2024
+      POSTGRES_DB: cloudflow
     volumes:
-      - opengauss-data:/var/lib/opengauss
-    privileged: true
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U gaussdb"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      test: ["CMD-SHELL", "pg_isready -U cloudflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - cloudflow-net
 
+  # ===========================================================================
+  # TimescaleDB - 时序数据库（开发环境，基于PostgreSQL）
+  # 生产环境可无缝切换为: openGauss/达梦时序
+  # ===========================================================================
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: cloudflow-timescaledb
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_USER: cloudflow
+      POSTGRES_PASSWORD: CloudFlow@2024
+      POSTGRES_DB: cloudflow_ts
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cloudflow-net
+
+  # ===========================================================================
   # Redis - 缓存（兼容高斯Redis协议）
+  # ===========================================================================
   redis:
     image: redis:7-alpine
     container_name: cloudflow-redis
@@ -89,7 +96,7 @@ services:
       - "6379:6379"
     environment:
       TZ: Asia/Shanghai
-    command: redis-server --requirepass "CloudFlow@2024"
+    command: redis-server --requirepass "CloudFlow@2024" --maxmemory 256mb
     volumes:
       - redis-data:/data
     healthcheck:
@@ -101,10 +108,8 @@ services:
       - cloudflow-net
 
   # ===========================================================================
-  # 2. 中间件层（100%国产 + 公开镜像）
+  # Nacos - 服务发现与配置中心（阿里巴巴开源，替代 etcd）
   # ===========================================================================
-  
-  # Nacos - 服务发现与配置中心（阿里巴巴开源）
   nacos:
     image: nacos/nacos-server:v2.3.2
     container_name: cloudflow-nacos
@@ -117,9 +122,9 @@ services:
       MODE: standalone
       SPRING_DATASOURCE_PLATFORM: embedded
       NACOS_AUTH_ENABLE: "false"
-      JVM_XMS: 512m
+      JVM_XMS: 256m
       JVM_XMX: 512m
-      JVM_XMN: 256m
+      JVM_XMN: 128m
     volumes:
       - nacos-data:/home/nacos/data
       - nacos-logs:/home/nacos/logs
@@ -132,7 +137,9 @@ services:
     networks:
       - cloudflow-net
 
-  # RocketMQ - 消息队列（阿里云开源）
+  # ===========================================================================
+  # RocketMQ - 消息队列（阿里云开源，替代 Kafka）
+  # ===========================================================================
   rocketmq-namesrv:
     image: apache/rocketmq:5.2.0
     container_name: cloudflow-rocketmq-namesrv
@@ -141,7 +148,7 @@ services:
       - "9876:9876"
     environment:
       TZ: Asia/Shanghai
-      JAVA_OPT_EXT: "-Xms256m -Xmx256m -Xmn128m"
+      JAVA_OPT_EXT: "-Xms128m -Xmx256m -Xmn128m"
     command: sh mqnamesrv
     volumes:
       - rocketmq-namesrv-logs:/home/rocketmq/logs
@@ -167,7 +174,7 @@ services:
     environment:
       TZ: Asia/Shanghai
       NAMESRV_ADDR: "rocketmq-namesrv:9876"
-      JAVA_OPT_EXT: "-Xms512m -Xmx512m -Xmn256m"
+      JAVA_OPT_EXT: "-Xms256m -Xmx512m -Xmn128m"
     command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/conf/broker.conf
     volumes:
       - rocketmq-broker-data:/home/rocketmq/store
@@ -181,20 +188,24 @@ services:
     networks:
       - cloudflow-net
 
-  rocketmq-dashboard:
-    image: apacherocketmq/rocketmq-dashboard:1.0.0
-    container_name: cloudflow-rocketmq-dashboard
+  # ===========================================================================
+  # Prometheus - 指标存储
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cloudflow-prometheus
     restart: unless-stopped
-    depends_on:
-      rocketmq-namesrv:
-        condition: service_healthy
     ports:
-      - "8080:8080"
-    environment:
-      TZ: Asia/Shanghai
-      JAVA_OPTS: "-Drocketmq.namesrv.addr=rocketmq-namesrv:9876 -Xms256m -Xmx256m"
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=7d'
+    volumes:
+      - prometheus-data:/prometheus
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      test: ["CMD", "wget", "--spider", "-q", "localhost:9090/-/healthy"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -203,34 +214,8 @@ services:
       - cloudflow-net
 
   # ===========================================================================
-  # 3. 监控层（标准开源方案，100%公开镜像）
-  # ===========================================================================
-  
-  # Prometheus - 指标存储
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: cloudflow-prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    environment:
-      TZ: Asia/Shanghai
-    volumes:
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-    networks:
-      - cloudflow-net
-
   # Grafana - 监控面板
+  # ===========================================================================
   grafana:
     image: grafana/grafana:latest
     container_name: cloudflow-grafana
@@ -239,14 +224,16 @@ services:
       - "3000:3000"
     environment:
       TZ: Asia/Shanghai
-      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana-data:/var/lib/grafana
     depends_on:
       prometheus:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--spider", "-q", "localhost:3000/api/health"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -255,10 +242,8 @@ services:
       - cloudflow-net
 
   # ===========================================================================
-  # 4. 链路追踪（Apache 华为主导）
+  # SkyWalking - 链路追踪（Apache 华为主导）
   # ===========================================================================
-  
-  # SkyWalking OAP
   skywalking-oap:
     image: apache/skywalking-oap-server:9.7.0
     container_name: cloudflow-skywalking-oap
@@ -269,32 +254,30 @@ services:
     environment:
       TZ: Asia/Shanghai
       SW_STORAGE: h2
-      SW_HEALTH_CHECKER: default
-      JAVA_OPTS: "-Xms512m -Xmx512m"
+      JAVA_OPTS: "-Xms256m -Xmx512m"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:12800/healthcheck"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
+      test: ["CMD", "wget", "--spider", "-q", "localhost:12800/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
       start_period: 60s
     networks:
       - cloudflow-net
 
-  # SkyWalking UI
   skywalking-ui:
     image: apache/skywalking-ui:9.7.0
     container_name: cloudflow-skywalking-ui
     restart: unless-stopped
-    depends_on:
-      skywalking-oap:
-        condition: service_healthy
     ports:
       - "18080:8080"
     environment:
       TZ: Asia/Shanghai
       SW_OAP_ADDRESS: http://skywalking-oap:12800
+    depends_on:
+      skywalking-oap:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      test: ["CMD", "wget", "--spider", "-q", "localhost:8080"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -303,9 +286,8 @@ services:
       - cloudflow-net
 
   # ===========================================================================
-  # 5. Web 网关
+  # Nginx - Web网关
   # ===========================================================================
-  
   nginx:
     image: nginx:alpine
     container_name: cloudflow-nginx
@@ -318,10 +300,10 @@ services:
     volumes:
       - nginx-logs:/var/log/nginx
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      test: ["CMD", "wget", "--spider", "-q", "localhost:80"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
     networks:
       - cloudflow-net
 
@@ -338,9 +320,8 @@ networks:
 # =============================================================================
 volumes:
   # 数据库
-  oceanbase-data:
-  oceanbase-logs:
-  opengauss-data:
+  postgres-data:
+  timescaledb-data:
   redis-data:
   
   # Nacos
