@@ -862,6 +862,14 @@
 </template>
 
 <script setup>
+
+// 简单通知函数（替代ElMessage）
+function notify(type, message) {
+  if (type === 'success') { alert('✅ ' + message); }
+  else if (type === 'error') { alert('❌ ' + message); }
+  else { alert(message); }
+}
+
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   Download,
@@ -1073,7 +1081,7 @@ async function fetchProbes() {
   
   // 获取 eBPF 探针状态并加入列表
   try {
-    const ebpfRes = await fetch('http://192.168.58.131:9090/api/probe/status')
+    const ebpfRes = await fetch('/api/probe/status')
     if (ebpfRes.ok) {
       const ebpfData = await ebpfRes.json()
       ebpfStatus.value = ebpfData
@@ -1242,10 +1250,10 @@ async function saveProbeEdit() {
 async function startProbe(probe) {
   if (probe && probe.type === 'eBPF') {
     try {
-      const r = await fetch('http://192.168.58.131:9090/api/probe/start', { method: 'POST' })
+      const r = await fetch('/api/probe/start', { method: 'POST' })
       const d = await r.json()
-      ElMessage.success(d.success ? 'eBPF 启动成功' : 'eBPF 启动失败')
-    } catch(e) { ElMessage.error('启动失败: ' + e.message) }
+      notify('success', d.success ? 'eBPF 启动成功' : 'eBPF 启动失败')
+    } catch(e) { notify('error', '启动失败: ' + e.message) }
     await fetchProbes()
     return
   }
@@ -1433,15 +1441,15 @@ async function startSSHInstall() {
 
 async function controlEBPF(action) {
   try {
-    const res = await fetch('http://192.168.58.131:9090/api/probe/' + action, { method: 'POST' })
+    const res = await fetch('/api/probe/' + action, { method: 'POST' })
     if (res.ok) {
       const data = await res.json()
-      ElMessage.success('eBPF ' + (action === 'start' ? '启动' : action === 'stop' ? '停止' : '重启') + '成功')
+      notify('success', 'eBPF ' + (action === 'start' ? '启动' : action === 'stop' ? '停止' : '重启') + '成功')
     } else {
-      ElMessage.error('操作失败')
+      notify('error', '操作失败')
     }
   } catch (e) {
-    ElMessage.error('操作异常: ' + e.message)
+    notify('error', '操作异常: ' + e.message)
   } finally {
     await fetchEBPFStatus()
   }
