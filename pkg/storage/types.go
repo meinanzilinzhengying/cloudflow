@@ -13,20 +13,16 @@ import (
 type DatabaseType string
 
 const (
-	DatabaseMySQL      DatabaseType = "mysql"
-	DatabaseClickHouse DatabaseType = "clickhouse"
-	DatabaseDameng     DatabaseType = "dameng"
-	DatabaseKingBase   DatabaseType = "kingbase"
-	DatabaseGaussDB    DatabaseType = "gaussdb"
-	DatabaseOceanBase  DatabaseType = "oceanbase"
+	DatabaseDameng    DatabaseType = "dameng"
+	DatabaseKingBase  DatabaseType = "kingbase"
+	DatabaseGaussDB   DatabaseType = "gaussdb"
+	DatabaseOceanBase DatabaseType = "oceanbase"
 
 	// 别名，兼容旧代码
-	DBMySQL      = DatabaseMySQL
-	DBClickHouse = DatabaseClickHouse
-	DBDameng     = DatabaseDameng
-	DBKingBase   = DatabaseKingBase
-	DBGaussDB    = DatabaseGaussDB
-	DBOceanBase  = DatabaseOceanBase
+	DBDameng    = DatabaseDameng
+	DBKingBase  = DatabaseKingBase
+	DBGaussDB   = DatabaseGaussDB
+	DBOceanBase = DatabaseOceanBase
 )
 
 // DualWriteMode 双写模式
