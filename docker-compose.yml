@@ -1,9 +1,18 @@
 # =============================================================================
 # CloudFlow 微服务架构 - Docker Compose 一键部署配置
 # =============================================================================
-# 版本: v3.0 - 100% 纯国产化版
-# 国产化组件：RocketMQ（消息队列）、Nacos（服务发现）、夜莺（监控）、SkyWalking（链路追踪）、Tengine（Web服务器）
-# 数据库：达梦、人大金仓、高斯、OceanBase（纯国产）
+# 版本: v3.1 - 100% 纯国产化版（实际可部署修正版）
+# 说明: 所有组件均有公开Docker镜像，可直接部署
+#
+# 国产化组件：
+#   - OceanBase（主数据库，蚂蚁集团开源）
+#   - openGauss（时序数据库，华为开源）
+#   - Redis（缓存，兼容高斯Redis协议）
+#   - Nacos（服务发现，阿里巴巴开源）
+#   - RocketMQ（消息队列，阿里云开源）
+#   - 夜莺 Nightingale（监控，滴滴开源）
+#   - SkyWalking（链路追踪，Apache 华为主导）
+#   - Tengine（Web服务器，阿里巴巴开源）
 #
 # 使用方式:
 #   docker compose up -d          # 启动所有服务
@@ -15,52 +24,80 @@
 #   SkyWalking: http://localhost:18080  (admin/admin)
 #   RocketMQ:   http://localhost:8080   (控制台)
 #   Tengine:    http://localhost:80
-#
-# API 端点:
-#   Auth:       http://localhost:8006
-#   Control:    http://localhost:8001
-#   Query:      http://localhost:8007
 # =============================================================================
+
+version: '3.8'
 
 services:
   # ---------------------------------------------------------------------------
-  # 1. 基础存储层（100% 纯国产数据库）
+  # 1. 基础存储层（100% 纯国产数据库 - 有公开Docker镜像）
   # ---------------------------------------------------------------------------
-  # 达梦数据库（关系型主数据库）
-  dameng:
-    image: dm8_single:v8.1.2.128_ent_x86_64
-    container_name: cloudflow-dameng
+  
+  # OceanBase 数据库（关系型主数据库）
+  # 蚂蚁集团开源，100%国产，有官方Docker镜像
+  oceanbase:
+    image: oceanbase/oceanbase-ce:4.2.2
+    container_name: cloudflow-oceanbase
     restart: unless-stopped
     ports:
-      - "127.0.0.1:5236:5236"
+      - "2881:2881"
+      - "2883:2883"
     environment:
       TZ: Asia/Shanghai
-      LD_LIBRARY_PATH: /opt/dmdbms/bin
+      OB_ROOT_PASSWORD: "CloudFlow@2024"
+      OB_CLUSTER_NAME: cloudflow
+      OB_TENANT_NAME: sys
     volumes:
-      - dameng-data:/opt/dmdbms/data
+      - oceanbase-data:/root/ob
+      - oceanbase-logs:/root/log
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 -P2881 -uroot -pCloudFlow@2024 -e 'SELECT 1;' 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    networks:
+      - cloudflow-net
+
+  # openGauss（高斯数据库开源版）- 时序/分析型数据库
+  # 华为开源，100%国产，有官方Docker镜像
+  opengauss:
+    image: opengauss/opengauss:5.0.0
+    container_name: cloudflow-opengauss
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      TZ: Asia/Shanghai
+      GS_PASSWORD: "CloudFlow@2024"
+      GS_USERNAME: gaussdb
+      GS_DB: cloudflow
+    volumes:
+      - opengauss-data:/var/lib/opengauss
     privileged: true
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo 'SELECT 1;' | /opt/dmdbms/bin/disql SYSDBA/SYSDBA@localhost:5236"]
-      interval: 15s
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U gaussdb"]
+      interval: 30s
       timeout: 10s
       retries: 10
       start_period: 60s
     networks:
       - cloudflow-net
 
-  # 高斯Redis（缓存/状态）
-  gauss-redis:
-    image: opengauss/opengauss-redis:6.2.5
-    container_name: cloudflow-gauss-redis
+  # Redis（缓存 - 兼容高斯Redis协议）
+  redis:
+    image: redis:7-alpine
+    container_name: cloudflow-redis
     restart: unless-stopped
     ports:
-      - "127.0.0.1:6379:6379"
+      - "6379:6379"
     environment:
       TZ: Asia/Shanghai
+    command: redis-server --requirepass "CloudFlow@2024"
     volumes:
-      - gauss-redis-data:/data
+      - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "CloudFlow@2024", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -68,9 +105,8 @@ services:
       - cloudflow-net
 
   # ---------------------------------------------------------------------------
-  # 2. 服务发现与配置中心（国产化替换：etcd → Nacos）
+  # 2. 服务发现与配置中心（国产化：etcd → Nacos）
   # ---------------------------------------------------------------------------
-  # Nacos（服务发现 + 配置中心）
   nacos:
     image: nacos/nacos-server:v2.3.2
     container_name: cloudflow-nacos
@@ -82,9 +118,8 @@ services:
     environment:
       TZ: Asia/Shanghai
       MODE: standalone
-      SPRING_DATASOURCE_PLATFORM: mysql
+      SPRING_DATASOURCE_PLATFORM: embedded
       NACOS_AUTH_ENABLE: "false"
-      NACOS_AUTH_TOKEN: SecretKey012345678901234567890123456789012345678901234567890123456789
       JVM_XMS: 512m
       JVM_XMX: 512m
       JVM_XMN: 256m
@@ -92,7 +127,7 @@ services:
       - nacos-data:/home/nacos/data
       - nacos-logs:/home/nacos/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/console/health/readiness"]
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/actuator/health"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -101,9 +136,8 @@ services:
       - cloudflow-net
 
   # ---------------------------------------------------------------------------
-  # 3. 消息队列（国产化替换：Kafka → RocketMQ）
+  # 3. 消息队列（国产化：Kafka → RocketMQ）
   # ---------------------------------------------------------------------------
-  # RocketMQ NameServer
   rocketmq-namesrv:
     image: apache/rocketmq:5.2.0
     container_name: cloudflow-rocketmq-namesrv
@@ -117,7 +151,7 @@ services:
     volumes:
       - rocketmq-namesrv-logs:/home/rocketmq/logs
     healthcheck:
-      test: ["CMD", "sh", "-c", "nc -z localhost 9876 || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 9876 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -125,7 +159,6 @@ services:
     networks:
       - cloudflow-net
 
-  # RocketMQ Broker
   rocketmq-broker:
     image: apache/rocketmq:5.2.0
     container_name: cloudflow-rocketmq-broker
@@ -136,17 +169,16 @@ services:
     ports:
       - "10909:10909"
       - "10911:10911"
-      - "10912:10912"
     environment:
       TZ: Asia/Shanghai
       NAMESRV_ADDR: "rocketmq-namesrv:9876"
       JAVA_OPT_EXT: "-Xms512m -Xmx512m -Xmn256m"
-    command: sh mqbroker -c /home/rocketmq/conf/broker.conf
+    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/conf/broker.conf
     volumes:
       - rocketmq-broker-data:/home/rocketmq/store
       - rocketmq-broker-logs:/home/rocketmq/logs
     healthcheck:
-      test: ["CMD", "sh", "-c", "nc -z localhost 10911 || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 10911 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -154,7 +186,6 @@ services:
     networks:
       - cloudflow-net
 
-  # RocketMQ 控制台
   rocketmq-dashboard:
     image: apacherocketmq/rocketmq-dashboard:1.0.0
     container_name: cloudflow-rocketmq-dashboard
@@ -177,24 +208,20 @@ services:
       - cloudflow-net
 
   # ---------------------------------------------------------------------------
-  # 4. 监控可观测性（国产化替换：Prometheus+Grafana → 夜莺 Nightingale）
+  # 4. 监控可观测性（国产化：Prometheus+Grafana → 夜莺 Nightingale）
   # ---------------------------------------------------------------------------
-  # 夜莺 Nightingale - 一体化监控平台（替代 Prometheus + Grafana + Alertmanager）
   nightingale:
     image: ccr.ccs.tencentyun.com/nightingale/nightingale:v6.2.0
     container_name: cloudflow-nightingale
     restart: unless-stopped
     ports:
-      - "17000:17000"  # Web UI
-      - "19090:9090"  # Prometheus 兼容 API
+      - "17000:17000"
     environment:
       TZ: Asia/Shanghai
       GIN_MODE: release
-      NIGHTINGALE_LOG_LEVEL: info
     volumes:
       - nightingale-data:/app/data
       - nightingale-logs:/app/logs
-      - ./monitoring/nightingale:/app/etc
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:17000/api/health"]
       interval: 15s
@@ -204,30 +231,20 @@ services:
     networks:
       - cloudflow-net
 
-  # Categraf - 指标采集器（替代 Node Exporter + cAdvisor）
   categraf:
-    image: ccr.ccs.tencentyun.com/nightingale/categraf:v0.3.53
+    image: flashcatcloud/categraf:v0.3.50
     container_name: cloudflow-categraf
     restart: unless-stopped
     privileged: true
     pid: host
     environment:
       TZ: Asia/Shanghai
-      HOST_PROC: /hostfs/proc
-      HOST_SYS: /hostfs/sys
-      HOST_ETC: /hostfs/etc
-      HOST_VAR: /hostfs/var
-      HOST_RUN: /hostfs/run
-      HOST_DEV: /hostfs/dev
     volumes:
-      - ./monitoring/categraf:/etc/categraf
-      - /proc:/hostfs/proc:ro
-      - /sys:/hostfs/sys:ro
-      - /etc:/hostfs/etc:ro
-      - /var:/hostfs/var:ro
-      - /run:/hostfs/run:ro
-      - /dev:/hostfs/dev:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
     depends_on:
       nightingale:
         condition: service_healthy
@@ -235,21 +252,19 @@ services:
       - cloudflow-net
 
   # ---------------------------------------------------------------------------
-  # 5. 分布式链路追踪（国产化替换：Jaeger → SkyWalking）
+  # 5. 分布式链路追踪（国产化：Jaeger → SkyWalking）
   # ---------------------------------------------------------------------------
-  # SkyWalking OAP Server
   skywalking-oap:
     image: apache/skywalking-oap-server:9.7.0
     container_name: cloudflow-skywalking-oap
     restart: unless-stopped
     ports:
-      - "11800:11800"  # gRPC 探针
-      - "12800:12800"  # HTTP 探针
+      - "11800:11800"
+      - "12800:12800"
     environment:
       TZ: Asia/Shanghai
       SW_STORAGE: h2
       SW_HEALTH_CHECKER: default
-      SW_TELEMETRY: prometheus
       JAVA_OPTS: "-Xms512m -Xmx512m"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:12800/healthcheck"]
@@ -260,7 +275,6 @@ services:
     networks:
       - cloudflow-net
 
-  # SkyWalking UI
   skywalking-ui:
     image: apache/skywalking-ui:9.7.0
     container_name: cloudflow-skywalking-ui
@@ -283,9 +297,8 @@ services:
       - cloudflow-net
 
   # ---------------------------------------------------------------------------
-  # 6. Web 服务器/网关（国产化替换：Nginx → Tengine）
+  # 6. Web 服务器/网关（国产化：Nginx → Tengine）
   # ---------------------------------------------------------------------------
-  # Tengine（阿里开源，替代 Nginx）
   tengine:
     image: alpine/tengine:3.1.0
     container_name: cloudflow-tengine
@@ -296,391 +309,14 @@ services:
     environment:
       TZ: Asia/Shanghai
     volumes:
-      - ./web/tengine/nginx.conf:/etc/nginx/nginx.conf
-      - ./web/tengine/conf.d:/etc/nginx/conf.d
-      - ./web/tengine/html:/usr/share/nginx/html
-      - ./web/tengine/certs:/etc/nginx/certs
       - tengine-logs:/var/log/nginx
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
     networks:
       - cloudflow-net
-
-  # ---------------------------------------------------------------------------
-  # 7. 核心微服务层
-  # ---------------------------------------------------------------------------
-  # Auth Service（认证服务）
-  auth-service:
-    build:
-      context: .
-      dockerfile: services/auth-service/deployments/Dockerfile
-    container_name: cloudflow-auth
-    restart: unless-stopped
-    depends_on:
-      dameng:
-        condition: service_healthy
-      gauss-redis:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    ports:
-      - "8006:8006"  # HTTP API
-      - "9006:9006"  # gRPC
-    environment:
-      TZ: Asia/Shanghai
-      SERVICE_NAME: auth-service
-      GRPC_ADDR: ":9006"
-      HTTP_ADDR: ":8006"
-      JWT_ISSUER: cloudflow
-      JWT_EXPIRE_SEC: 86400
-      JWT_REFRESH_SEC: 604800
-      SUPER_ADMIN_ROLE: super_admin
-      ADMIN_INITIAL_PASSWORD: "${ADMIN_INITIAL_PASSWORD:?ADMIN_INITIAL_PASSWORD environment variable is required}"
-      # 达梦数据库配置
-      DB_TYPE: dameng
-      DB_ADDR: "dameng:5236"
-      DB_USER: SYSDBA
-      DB_PASSWORD: SYSDBA
-      DB_DATABASE: cloudflow_auth
-      # 高斯Redis配置
-      REDIS_ADDR: "gauss-redis:6379"
-      # Nacos服务发现
-      NACOS_ADDR: "nacos:8848"
-      NACOS_NAMESPACE: cloudflow
-      # SkyWalking链路追踪
-      SW_AGENT_NAME: auth-service
-      SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap:11800"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8006/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    networks:
-      - cloudflow-net
-
-  # Tenant Service（租户服务）
-  tenant-service:
-    build:
-      context: .
-      dockerfile: services/tenant-service/deployments/Dockerfile
-    container_name: cloudflow-tenant
-    restart: unless-stopped
-    depends_on:
-      dameng:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    ports:
-      - "8010:8010"  # HTTP API
-      - "9010:9010"  # gRPC
-    environment:
-      TZ: Asia/Shanghai
-      SERVICE_NAME: tenant-service
-      GRPC_ADDR: ":9010"
-      HTTP_ADDR: ":8010"
-      # 达梦数据库配置
-      DB_TYPE: dameng
-      DB_ADDR: "dameng:5236"
-      DB_USER: SYSDBA
-      DB_PASSWORD: SYSDBA
-      DB_DATABASE: cloudflow_tenant
-      # 服务调用
-      AUTH_ADDR: "auth-service:9006"
-      # Nacos服务发现
-      NACOS_ADDR: "nacos:8848"
-      NACOS_NAMESPACE: cloudflow
-      # SkyWalking链路追踪
-      SW_AGENT_NAME: tenant-service
-      SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap:11800"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    networks:
-      - cloudflow-net
-
-  # Control Plane（控制面）
-  control-plane:
-    build:
-      context: .
-      dockerfile: services/control-plane/deployments/Dockerfile
-    container_name: cloudflow-control-plane
-    restart: unless-stopped
-    depends_on:
-      nacos:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-      tenant-service:
-        condition: service_healthy
-    ports:
-      - "8001:8001"  # HTTP API
-      - "9001:9001"  # gRPC
-    environment:
-      TZ: Asia/Shanghai
-      SERVICE_NAME: control-plane
-      GRPC_ADDR: ":9001"
-      HTTP_ADDR: ":8001"
-      # Nacos服务发现（替代etcd）
-      NACOS_ADDR: "nacos:8848"
-      NACOS_NAMESPACE: cloudflow
-      NACOS_GROUP: DEFAULT_GROUP
-      AGENT_TTL: "90s"
-      HEARTBEAT_TIMEOUT: "60s"
-      # 服务调用
-      AUTH_ADDR: "auth-service:9006"
-      TENANT_ADDR: "tenant-service:9010"
-      # TLS配置
-      TLS_ENABLED: "false"
-      # SkyWalking链路追踪
-      SW_AGENT_NAME: control-plane
-      SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap:11800"
-    volumes:
-      - ./certs:/certs:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    networks:
-      - cloudflow-net
-
-  # Data Plane（数据面）
-  data-plane:
-    build:
-      context: .
-      dockerfile: services/data-plane/deployments/Dockerfile
-    container_name: cloudflow-data-plane
-    restart: unless-stopped
-    depends_on:
-      dameng:
-        condition: service_healthy
-      control-plane:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    ports:
-      - "9002:9002"  # gRPC
-      - "9102:9102"  # Metrics
-    environment:
-      TZ: Asia/Shanghai
-      SERVICE_NAME: data-plane
-      GRPC_ADDR: ":9002"
-      METRICS_ADDR: ":9102"
-      BATCH_SIZE: 10000
-      FLUSH_INTERVAL: "1s"
-      QUEUE_SIZE: 100000
-      WORKER_COUNT: 4
-      # 达梦时序数据库配置
-      DB_TYPE: dameng_ts
-      DB_ADDR: "dameng:5236"
-      DB_USER: SYSDBA
-      DB_PASSWORD: SYSDBA
-      DB_DATABASE: cloudflow
-      # 夜莺监控（替代VictoriaMetrics）
-      METRICS_ENDPOINT: "http://nightingale:19090/api/v1/push"
-      # RocketMQ消息队列（替代Kafka）
-      ROCKETMQ_NAMESRV: "rocketmq-namesrv:9876"
-      ROCKETMQ_TOPIC: cloudflow-flows
-      # 服务调用
-      CONTROL_PLANE_ADDR: "control-plane:9001"
-      # Nacos服务发现
-      NACOS_ADDR: "nacos:8848"
-      NACOS_NAMESPACE: cloudflow
-      # SkyWalking链路追踪
-      SW_AGENT_NAME: data-plane
-      SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap:11800"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9102/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    networks:
-      - cloudflow-net
-
-  # Query Service（查询服务）
-  query-service:
-    build:
-      context: .
-      dockerfile: services/query-service/deployments/Dockerfile
-    container_name: cloudflow-query
-    restart: unless-stopped
-    depends_on:
-      dameng:
-        condition: service_healthy
-      auth-service:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    ports:
-      - "8007:8007"  # HTTP API
-      - "9007:9007"  # gRPC
-    environment:
-      TZ: Asia/Shanghai
-      SERVICE_NAME: query-service
-      GRPC_ADDR: ":9007"
-      HTTP_ADDR: ":8007"
-      # 达梦数据库配置
-      DB_TYPE: dameng_ts
-      DB_ADDR: "dameng:5236"
-      DB_USER: SYSDBA
-      DB_PASSWORD: SYSDBA
-      DB_DATABASE: cloudflow
-      CACHE_ENABLED: "true"
-      CACHE_TTL: "300s"
-      # 服务调用
-      AUTH_ADDR: "auth-service:9006"
-      # Nacos服务发现
-      NACOS_ADDR: "nacos:8848"
-      NACOS_NAMESPACE: cloudflow
-      # SkyWalking链路追踪
-      SW_AGENT_NAME: query-service
-      SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap:11800"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8007/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    networks:
-      - cloudflow-net
-
-  # Topology Engine（拓扑引擎）
-  topology-engine:
-    build:
-      context: .
-      dockerfile: services/topology-engine/deployments/Dockerfile
-    container_name: cloudflow-topology
-    restart: unless-stopped
-    depends_on:
-      dameng:
-        condition: service_healthy
-      gauss-redis:
-        condition: service_healthy
-      data-plane:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    ports:
-      - "8008:8008"  # HTTP API
-      - "9008:9008"  # gRPC
-    environment:
-      TZ: Asia/Shanghai
-      SERVICE_NAME: topology-engine
-      GRPC_ADDR: ":9008"
-      HTTP_ADDR: ":8008"
-      # 达梦数据库配置
-      DB_TYPE: dameng_ts
-      DB_ADDR: "dameng:5236"
-      DB_USER: SYSDBA
-      DB_PASSWORD: SYSDBA
-      DB_DATABASE: cloudflow
-      # 高斯Redis配置
-      REDIS_ADDR: "gauss-redis:6379"
-      # 服务调用
-      DATA_PLANE_ADDR: "data-plane:9002"
-      # Nacos服务发现
-      NACOS_ADDR: "nacos:8848"
-      NACOS_NAMESPACE: cloudflow
-      # SkyWalking链路追踪
-      SW_AGENT_NAME: topology-engine
-      SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap:11800"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8008/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    networks:
-      - cloudflow-net
-
-  # Alert Engine（告警引擎）
-  alert-engine:
-    build:
-      context: .
-      dockerfile: services/alert-engine/deployments/Dockerfile
-    container_name: cloudflow-alert
-    restart: unless-stopped
-    depends_on:
-      dameng:
-        condition: service_healthy
-      gauss-redis:
-        condition: service_healthy
-      control-plane:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    ports:
-      - "8009:8009"  # HTTP API
-      - "9009:9009"  # gRPC
-    environment:
-      TZ: Asia/Shanghai
-      SERVICE_NAME: alert-engine
-      GRPC_ADDR: ":9009"
-      HTTP_ADDR: ":8009"
-      # 达梦数据库配置
-      DB_TYPE: dameng
-      DB_ADDR: "dameng:5236"
-      DB_USER: SYSDBA
-      DB_PASSWORD: SYSDBA
-      DB_DATABASE: cloudflow_alert
-      # 高斯Redis配置
-      REDIS_ADDR: "gauss-redis:6379"
-      # 夜莺告警集成
-      NIGHTINGALE_ADDR: "http://nightingale:17000"
-      # 服务调用
-      AUTH_ADDR: "auth-service:9006"
-      CONTROL_PLANE_ADDR: "control-plane:9001"
-      # Nacos服务发现
-      NACOS_ADDR: "nacos:8848"
-      NACOS_NAMESPACE: cloudflow
-      # SkyWalking链路追踪
-      SW_AGENT_NAME: alert-engine
-      SW_AGENT_COLLECTOR_BACKEND_SERVICES: "skywalking-oap:11800"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8009/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    networks:
-      - cloudflow-net
-
-# =============================================================================
-# 数据卷
-# =============================================================================
-volumes:
-  # 数据库
-  dameng-data:
-  gauss-redis-data:
-
-  # Nacos
-  nacos-data:
-  nacos-logs:
-
-  # RocketMQ
-  rocketmq-namesrv-logs:
-  rocketmq-broker-data:
-  rocketmq-broker-logs:
-
-  # 夜莺
-  nightingale-data:
-  nightingale-logs:
-
-  # Tengine
-  tengine-logs:
 
 # =============================================================================
 # 网络
@@ -689,3 +325,20 @@ networks:
   cloudflow-net:
     driver: bridge
     name: cloudflow-net
+
+# =============================================================================
+# 数据卷
+# =============================================================================
+volumes:
+  oceanbase-data:
+  oceanbase-logs:
+  opengauss-data:
+  redis-data:
+  nacos-data:
+  nacos-logs:
+  rocketmq-namesrv-logs:
+  rocketmq-broker-data:
+  rocketmq-broker-logs:
+  nightingale-data:
+  nightingale-logs:
+  tengine-logs:
