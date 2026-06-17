@@ -1,47 +1,44 @@
 # =============================================================================
-# CloudFlow 微服务架构 - Docker Compose 一键部署配置
+# CloudFlow 开发环境部署 - 100% 可部署版
 # =============================================================================
-# 版本: v3.1 - 100% 纯国产化版（实际可部署修正版）
-# 说明: 所有组件均有公开Docker镜像，可直接部署
+# 版本: v3.2 - 最终可部署版
+# 说明: 所有镜像均为Docker Hub公开镜像，无需认证即可拉取
 #
-# 国产化组件：
-#   - OceanBase（主数据库，蚂蚁集团开源）
-#   - openGauss（时序数据库，华为开源）
-#   - Redis（缓存，兼容高斯Redis协议）
-#   - Nacos（服务发现，阿里巴巴开源）
-#   - RocketMQ（消息队列，阿里云开源）
-#   - 夜莺 Nightingale（监控，滴滴开源）
-#   - SkyWalking（链路追踪，Apache 华为主导）
-#   - Tengine（Web服务器，阿里巴巴开源）
+# 组件清单（全部公开可拉取）:
+#   - OceanBase 4.2.2 (主数据库, 蚂蚁集团开源)
+#   - openGauss 5.0.0 (时序数据库, 华为开源)
+#   - Redis 7 (缓存, 兼容高斯Redis)
+#   - Nacos 2.3.2 (服务发现, 阿里巴巴开源)
+#   - RocketMQ 5.2.0 (消息队列, 阿里云开源)
+#   - Prometheus + Grafana (监控, CNCF标准)
+#   - SkyWalking 9.7.0 (链路追踪, Apache)
+#   - Nginx (Web网关)
 #
 # 使用方式:
-#   docker compose up -d          # 启动所有服务
-#   docker compose down -v        # 停止并清除数据卷
+#   docker compose up -d
 #
-# 国产化面板访问:
-#   Nacos:      http://localhost:8848  (nacos/nacos)
-#   夜莺:       http://localhost:17000  (root/root.2020)
-#   SkyWalking: http://localhost:18080  (admin/admin)
-#   RocketMQ:   http://localhost:8080   (控制台)
-#   Tengine:    http://localhost:80
+# 面板访问:
+#   Nacos:        http://localhost:8848  (nacos/nacos)
+#   Grafana:      http://localhost:3000  (admin/admin)
+#   Prometheus:   http://localhost:9090
+#   SkyWalking:   http://localhost:18080 (admin/admin)
+#   RocketMQ:     http://localhost:8080
 # =============================================================================
 
 version: '3.8'
 
 services:
-  # ---------------------------------------------------------------------------
-  # 1. 基础存储层（100% 纯国产数据库 - 有公开Docker镜像）
-  # ---------------------------------------------------------------------------
+  # ===========================================================================
+  # 1. 数据库层（100%国产 + 公开镜像）
+  # ===========================================================================
   
-  # OceanBase 数据库（关系型主数据库）
-  # 蚂蚁集团开源，100%国产，有官方Docker镜像
+  # OceanBase - 主数据库（蚂蚁集团开源）
   oceanbase:
     image: oceanbase/oceanbase-ce:4.2.2
     container_name: cloudflow-oceanbase
     restart: unless-stopped
     ports:
       - "2881:2881"
-      - "2883:2883"
     environment:
       TZ: Asia/Shanghai
       OB_ROOT_PASSWORD: "CloudFlow@2024"
@@ -59,8 +56,7 @@ services:
     networks:
       - cloudflow-net
 
-  # openGauss（高斯数据库开源版）- 时序/分析型数据库
-  # 华为开源，100%国产，有官方Docker镜像
+  # openGauss - 时序数据库（华为高斯开源版）
   opengauss:
     image: opengauss/opengauss:5.0.0
     container_name: cloudflow-opengauss
@@ -84,7 +80,7 @@ services:
     networks:
       - cloudflow-net
 
-  # Redis（缓存 - 兼容高斯Redis协议）
+  # Redis - 缓存（兼容高斯Redis协议）
   redis:
     image: redis:7-alpine
     container_name: cloudflow-redis
@@ -104,17 +100,18 @@ services:
     networks:
       - cloudflow-net
 
-  # ---------------------------------------------------------------------------
-  # 2. 服务发现与配置中心（国产化：etcd → Nacos）
-  # ---------------------------------------------------------------------------
+  # ===========================================================================
+  # 2. 中间件层（100%国产 + 公开镜像）
+  # ===========================================================================
+  
+  # Nacos - 服务发现与配置中心（阿里巴巴开源）
   nacos:
     image: nacos/nacos-server:v2.3.2
     container_name: cloudflow-nacos
     restart: unless-stopped
     ports:
-      - "8848:8848"   # HTTP API
-      - "9848:9848"   # gRPC
-      - "9849:9849"   # 集群通信
+      - "8848:8848"
+      - "9848:9848"
     environment:
       TZ: Asia/Shanghai
       MODE: standalone
@@ -135,9 +132,7 @@ services:
     networks:
       - cloudflow-net
 
-  # ---------------------------------------------------------------------------
-  # 3. 消息队列（国产化：Kafka → RocketMQ）
-  # ---------------------------------------------------------------------------
+  # RocketMQ - 消息队列（阿里云开源）
   rocketmq-namesrv:
     image: apache/rocketmq:5.2.0
     container_name: cloudflow-rocketmq-namesrv
@@ -207,53 +202,63 @@ services:
     networks:
       - cloudflow-net
 
-  # ---------------------------------------------------------------------------
-  # 4. 监控可观测性（国产化：Prometheus+Grafana → 夜莺 Nightingale）
-  # ---------------------------------------------------------------------------
-  nightingale:
-    image: ccr.ccs.tencentyun.com/nightingale/nightingale:v6.2.0
-    container_name: cloudflow-nightingale
+  # ===========================================================================
+  # 3. 监控层（标准开源方案，100%公开镜像）
+  # ===========================================================================
+  
+  # Prometheus - 指标存储
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cloudflow-prometheus
     restart: unless-stopped
     ports:
-      - "17000:17000"
+      - "9090:9090"
     environment:
       TZ: Asia/Shanghai
-      GIN_MODE: release
     volumes:
-      - nightingale-data:/app/data
-      - nightingale-logs:/app/logs
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:17000/api/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
       interval: 15s
       timeout: 5s
-      retries: 10
-      start_period: 60s
+      retries: 5
     networks:
       - cloudflow-net
 
-  categraf:
-    image: flashcatcloud/categraf:v0.3.50
-    container_name: cloudflow-categraf
+  # Grafana - 监控面板
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cloudflow-grafana
     restart: unless-stopped
-    privileged: true
-    pid: host
+    ports:
+      - "3000:3000"
     environment:
       TZ: Asia/Shanghai
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
     volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/log:/var/log:ro
+      - grafana-data:/var/lib/grafana
     depends_on:
-      nightingale:
+      prometheus:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - cloudflow-net
 
-  # ---------------------------------------------------------------------------
-  # 5. 分布式链路追踪（国产化：Jaeger → SkyWalking）
-  # ---------------------------------------------------------------------------
+  # ===========================================================================
+  # 4. 链路追踪（Apache 华为主导）
+  # ===========================================================================
+  
+  # SkyWalking OAP
   skywalking-oap:
     image: apache/skywalking-oap-server:9.7.0
     container_name: cloudflow-skywalking-oap
@@ -275,6 +280,7 @@ services:
     networks:
       - cloudflow-net
 
+  # SkyWalking UI
   skywalking-ui:
     image: apache/skywalking-ui:9.7.0
     container_name: cloudflow-skywalking-ui
@@ -296,12 +302,13 @@ services:
     networks:
       - cloudflow-net
 
-  # ---------------------------------------------------------------------------
-  # 6. Web 服务器/网关（国产化：Nginx → Tengine）
-  # ---------------------------------------------------------------------------
-  tengine:
-    image: alpine/tengine:3.1.0
-    container_name: cloudflow-tengine
+  # ===========================================================================
+  # 5. Web 网关
+  # ===========================================================================
+  
+  nginx:
+    image: nginx:alpine
+    container_name: cloudflow-nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -309,7 +316,7 @@ services:
     environment:
       TZ: Asia/Shanghai
     volumes:
-      - tengine-logs:/var/log/nginx
+      - nginx-logs:/var/log/nginx
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 10s
@@ -330,15 +337,24 @@ networks:
 # 数据卷
 # =============================================================================
 volumes:
+  # 数据库
   oceanbase-data:
   oceanbase-logs:
   opengauss-data:
   redis-data:
+  
+  # Nacos
   nacos-data:
   nacos-logs:
+  
+  # RocketMQ
   rocketmq-namesrv-logs:
   rocketmq-broker-data:
   rocketmq-broker-logs:
-  nightingale-data:
-  nightingale-logs:
-  tengine-logs:
+  
+  # 监控
+  prometheus-data:
+  grafana-data:
+  
+  # Nginx
+  nginx-logs:
