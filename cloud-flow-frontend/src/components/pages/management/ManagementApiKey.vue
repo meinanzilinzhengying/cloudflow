@@ -10,9 +10,10 @@
         创建Key
       </button>
     </div>
-
     <div class="card">
-      <div class="overflow-x-auto">
+      <div v-if="loading" class="p-8 text-center text-slate-500">加载中...</div>
+      <div v-else-if="apiKeys.length === 0" class="p-8 text-center text-slate-500">暂无API Key</div>
+      <div v-else class="overflow-x-auto">
         <table class="w-full">
           <thead>
             <tr class="bg-slate-50 dark:bg-dark-700/50">
@@ -47,12 +48,25 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Plus } from 'lucide-vue-next'
+import { authService } from '@/api'
 
-const apiKeys = ref([
-  { id: 1, name: '监控告警', key: 'sk-abc123...', createdAt: '2024-01-01', enabled: true },
-  { id: 2, name: '数据导出', key: 'sk-def456...', createdAt: '2024-01-10', enabled: true },
-  { id: 3, name: '第三方集成', key: 'sk-ghi789...', createdAt: '2024-01-15', enabled: false },
-])
+const apiKeys = ref([])
+const loading = ref(false)
+
+const fetchApiKeys = async () => {
+  loading.value = true
+  try {
+    const res = await authService.getApiKeys()
+    apiKeys.value = res.data || []
+  } catch (e) {
+    console.error('Failed to fetch API keys:', e)
+    apiKeys.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(fetchApiKeys)
 </script>

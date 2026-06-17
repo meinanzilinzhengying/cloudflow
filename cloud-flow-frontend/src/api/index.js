@@ -81,6 +81,8 @@ export const authService = {
     authApi.get('/roles'),
   checkPermission: (action, resource) =>
     authApi.post('/permissions/check', { action, resource }),
+  getApiKeys: () =>
+    authApi.get('/api-keys'),
 }
 
 // Tenant Service APIs

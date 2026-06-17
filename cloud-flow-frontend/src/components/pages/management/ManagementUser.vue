@@ -20,6 +20,8 @@
           <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">用户列表</h3>
         </div>
         <div class="p-2">
+          <div v-if="loading" class="p-4 text-center text-slate-500">加载中...</div>
+          <div v-else-if="users.length === 0" class="p-4 text-center text-slate-500">暂无用户数据</div>
           <div
             v-for="user in users"
             :key="user.id"
@@ -48,6 +50,7 @@
           <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">角色列表</h3>
         </div>
         <div class="p-2">
+          <div v-if="roles.length === 0" class="p-4 text-center text-slate-500">暂无角色数据</div>
           <div
             v-for="role in roles"
             :key="role.id"
@@ -59,7 +62,7 @@
           >
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium text-slate-900 dark:text-white">{{ role.name }}</span>
-              <span class="text-xs text-slate-500">{{ role.permissions.length }} 权限</span>
+              <span class="text-xs text-slate-500">{{ role.permissions?.length || 0 }} 权限</span>
             </div>
           </div>
         </div>
@@ -71,6 +74,7 @@
           <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200">权限树</h3>
         </div>
         <div class="p-4 space-y-2">
+          <div v-if="permissions.length === 0" class="text-center text-slate-500">暂无权限数据</div>
           <div v-for="permission in permissions" :key="permission.id" class="space-y-1">
             <div class="flex items-center gap-2">
               <input type="checkbox" :checked="permission.checked" class="rounded" />
@@ -94,41 +98,49 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Plus, User } from 'lucide-vue-next'
+import { authService } from '@/api'
 
-const users = ref([
-  { id: 1, name: '张三', email: 'zhangsan@example.com', role: '管理员' },
-  { id: 2, name: '李四', email: 'lisi@example.com', role: '运维人员' },
-  { id: 3, name: '王五', email: 'wangwu@example.com', role: '开发人员' },
-])
-
-const roles = ref([
-  { id: 1, name: '管理员', permissions: ['dashboard', 'traffic', 'topology', 'tracing', 'alerts', 'rca', 'management'] },
-  { id: 2, name: '运维人员', permissions: ['dashboard', 'traffic', 'topology', 'alerts'] },
-  { id: 3, name: '开发人员', permissions: ['dashboard', 'tracing', 'logs'] },
-])
-
-const permissions = ref([
-  { id: 1, name: '仪表盘', checked: true, children: [] },
-  { id: 2, name: '流量分析', checked: true, children: [
-    { id: 21, name: '查看', checked: true },
-    { id: 22, name: '导出', checked: false },
-  ]},
-  { id: 3, name: '服务拓扑', checked: true, children: [
-    { id: 31, name: '查看', checked: true },
-    { id: 32, name: '编辑', checked: false },
-  ]},
-  { id: 4, name: '链路追踪', checked: true, children: [] },
-  { id: 5, name: '告警中心', checked: false, children: [] },
-  { id: 6, name: '管理中心', checked: false, children: [
-    { id: 61, name: 'Agent管理', checked: false },
-    { id: 62, name: '用户管理', checked: false },
-  ]},
-])
-
+const users = ref([])
+const roles = ref([])
+const permissions = ref([])
+const loading = ref(false)
 const selectedUser = ref(null)
 const selectedRole = ref(null)
+
+const fetchUsers = async () => {
+  loading.value = true
+  try {
+    const res = await authService.getUsers()
+    users.value = res.data || []
+  } catch (e) {
+    console.error('Failed to fetch users:', e)
+    users.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+const fetchRoles = async () => {
+  try {
+    const res = await authService.getRoles()
+    roles.value = res.data || []
+  } catch (e) {
+    console.error('Failed to fetch roles:', e)
+    roles.value = []
+  }
+}
+
+const fetchPermissions = async () => {
+  try {
+    const res = await authService.getPermissions()
+    permissions.value = res.data || []
+  } catch (e) {
+    console.error('Failed to fetch permissions:', e)
+    permissions.value = []
+  }
+}
 
 const selectUser = (user) => {
   selectedUser.value = user
@@ -137,4 +149,10 @@ const selectUser = (user) => {
 const selectRole = (role) => {
   selectedRole.value = role
 }
+
+onMounted(() => {
+  fetchUsers()
+  fetchRoles()
+  fetchPermissions()
+})
 </script>
