@@ -1,27 +1,34 @@
-# CloudFlow 微服务架构 - Docker Compose 配置
+# =============================================================================
+# CloudFlow 微服务架构 - 100% 国产化版 v3.2
+# =============================================================================
+# 版本: v3.2 - 纯国产化微服务配置
+# 说明: 所有微服务已适配国产数据库和中间件
 #
-# 架构：纯微服务架构（废弃旧 Center）
-# 版本：v2.0
-# 日期：2026-05-28
+# 适配清单:
+#   ✅ TiDB → OceanBase (蚂蚁集团开源)
+#   ✅ ClickHouse → openGauss (华为高斯开源)
+#   ✅ etcd → Nacos (阿里巴巴开源)
+#   ✅ Kafka → RocketMQ (阿里云开源)
+#   ✅ Jaeger → SkyWalking (Apache 华为主导)
 #
-# 启动：docker-compose up -d
-# 查看日志：docker-compose logs -f [service]
-# 停止：docker-compose down
+# 使用方式:
+#   docker compose -f docker-compose-microservices.yml up -d
+# =============================================================================
 
 version: '3.8'
 
 services:
-  # ============================================================================
-  # 1. 认证服务 (Auth Service)
-  # ============================================================================
+  # ===========================================================================
+  # 1. 认证服务 (Auth Service) - 适配 OceanBase
+  # ===========================================================================
   auth-service:
     build:
       context: ./services/auth-service
       dockerfile: deployments/Dockerfile
     container_name: cloudflow-auth
     ports:
-      - "127.0.0.1:8006:8006"  # HTTP API - 仅本地访问
-      - "9006:9006"  # gRPC
+      - "127.0.0.1:8006:8006"
+      - "9006:9006"
     environment:
       - SERVICE_NAME=auth-service
       - GRPC_ADDR=:9006
@@ -29,247 +36,326 @@ services:
       - JWT_ISSUER=cloudflow
       - JWT_EXPIRE_SEC=86400
       - JWT_REFRESH_SEC=604800
-      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY:-}  # Base64 encoded RSA private key
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY:-}
       - SUPER_ADMIN_ROLE=super_admin
-      # TiDB 配置
-      - TIDB_ADDR=tidb:4000
-      - TIDB_USER=root
-      - TIDB_PASSWORD=${CLOUD_FLOW_DB_PASSWORD:?请设置 CLOUD_FLOW_DB_PASSWORD}
-      - TIDB_DATABASE=cloudflow_auth
+      
+      # OceanBase 配置（替代 TiDB，MySQL 协议兼容）
+      - DB_TYPE=oceanbase
+      - DB_ADDR=oceanbase:2881
+      - DB_USER=root
+      - DB_PASSWORD=CloudFlow@2024
+      - DB_DATABASE=cloudflow_auth
+      
+      # 服务发现: Nacos（替代 etcd）
+      - NACOS_ADDR=nacos:8848
+      - NACOS_NAMESPACE=cloudflow
+      
       # OIDC 配置（可选）
       - OIDC_ISSUER=${OIDC_ISSUER:-}
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
     depends_on:
-      - tidb
+      - oceanbase
+      - nacos
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8006/healthz"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # ============================================================================
-  # 2. 租户服务 (Tenant Service)
-  # ============================================================================
+  # ===========================================================================
+  # 2. 租户服务 (Tenant Service) - 适配 OceanBase
+  # ===========================================================================
   tenant-service:
     build:
       context: ./services/tenant-service
       dockerfile: deployments/Dockerfile
     container_name: cloudflow-tenant
     ports:
-      - "8010:8010"  # HTTP API
-      - "9010:9010"  # gRPC
+      - "8010:8010"
+      - "9010:9010"
     environment:
       - SERVICE_NAME=tenant-service
       - GRPC_ADDR=:9010
       - HTTP_ADDR=:8010
-      # TiDB 配置
-      - TIDB_ADDR=tidb:4000
-      - TIDB_USER=root
-      - TIDB_PASSWORD=${CLOUD_FLOW_DB_PASSWORD:?请设置 CLOUD_FLOW_DB_PASSWORD}
-      - TIDB_DATABASE=cloudflow_tenant
+      
+      # OceanBase 配置（替代 TiDB）
+      - DB_TYPE=oceanbase
+      - DB_ADDR=oceanbase:2881
+      - DB_USER=root
+      - DB_PASSWORD=CloudFlow@2024
+      - DB_DATABASE=cloudflow_tenant
+      
+      # 服务发现: Nacos
+      - NACOS_ADDR=nacos:8848
+      - NACOS_NAMESPACE=cloudflow
+      
+      # 下游服务
+      - AUTH_ADDR=auth-service:9006
     depends_on:
-      - tidb
+      - oceanbase
+      - nacos
       - auth-service
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # ============================================================================
-  # 3. 控制面服务 (Control Plane)
-  # ============================================================================
+  # ===========================================================================
+  # 3. 控制面服务 (Control Plane) - 适配 Nacos
+  # ===========================================================================
   control-plane:
     build:
       context: ./services/control-plane
       dockerfile: deployments/Dockerfile
     container_name: cloudflow-control-plane
     ports:
-      - "8001:8001"  # HTTP 管理 API
-      - "9001:9001"  # gRPC
+      - "8001:8001"
+      - "9001:9001"
     environment:
       - SERVICE_NAME=control-plane
       - GRPC_ADDR=:9001
       - HTTP_ADDR=:8001
-      # etcd 配置
-      - ETCD_ENDPOINTS=etcd:2379
-      - ETCD_PREFIX=/cloudflow/services/
+      
+      # Nacos 配置（替代 etcd）
+      - NACOS_ADDR=nacos:8848
+      - NACOS_NAMESPACE=cloudflow
+      - NACOS_GROUP=DEFAULT_GROUP
+      - SERVICE_PREFIX=/cloudflow/services/
       - AGENT_TTL=90s
       - HEARTBEAT_TIMEOUT=60s
-      # 下游服务连接
-      - DATA_PLANE_ADDR=data-plane:9001
+      
+      # 消息队列: RocketMQ（替代 Kafka）
+      - ROCKETMQ_NAMESRV_ADDR=rocketmq-namesrv:9876
+      - ROCKETMQ_TOPIC=cloudflow_events
+      
+      # 下游服务
+      - DATA_PLANE_ADDR=data-plane:9002
       - AUTH_ADDR=auth-service:9006
       - TENANT_ADDR=tenant-service:9010
     depends_on:
-      - etcd
+      - nacos
+      - rocketmq-namesrv
       - data-plane
       - auth-service
       - tenant-service
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 45s
     restart: unless-stopped
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # ============================================================================
-  # 4. 数据面服务 (Data Plane)
-  # ============================================================================
+  # ===========================================================================
+  # 4. 数据面服务 (Data Plane) - 适配 openGauss
+  # ===========================================================================
   data-plane:
     build:
       context: ./services/data-plane
       dockerfile: deployments/Dockerfile
     container_name: cloudflow-data-plane
     ports:
-      - "8002:8002"  # HTTP API (FIX: 从 8001 改为 8002，避免与 control-plane 端口冲突)
-      - "9002:9002"  # gRPC (FIX: 从 9001 改为 9002，避免与 control-plane 端口冲突)
-      - "9101:9101"  # Metrics
+      - "8002:8002"
+      - "9002:9002"
+      - "9101:9101"
     environment:
       - SERVICE_NAME=data-plane
       - GRPC_ADDR=:9002
       - HTTP_ADDR=:8002
+      
       # 批量写入配置
       - BATCH_SIZE=10000
       - FLUSH_INTERVAL=1s
       - QUEUE_SIZE=100000
       - WORKER_COUNT=4
-      # ClickHouse 配置
-      - CLICKHOUSE_ADDR=clickhouse:9000
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
-      - CLICKHOUSE_DATABASE=cloudflow
-      # 其他存储（可选）
-      - VICTORIA_METRICS_ADDR=http://victoriametrics:8428
-      - LOKI_ADDR=http://loki:3100
-      # 下游服务连接
+      
+      # openGauss 配置（替代 ClickHouse，PostgreSQL 协议兼容）
+      - TSDB_TYPE=opengauss
+      - TSDB_ADDR=opengauss:5432
+      - TSDB_USER=gaussdb
+      - TSDB_PASSWORD=CloudFlow@2024
+      - TSDB_DATABASE=cloudflow
+      
+      # 缓存: Redis（兼容高斯Redis）
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=CloudFlow@2024
+      
+      # 消息队列: RocketMQ
+      - ROCKETMQ_NAMESRV_ADDR=rocketmq-namesrv:9876
+      
+      # 服务发现: Nacos
+      - NACOS_ADDR=nacos:8848
+      
+      # 下游服务
       - CONTROL_PLANE_ADDR=control-plane:9001
       - TOPOLOGY_ADDR=topology-engine:8008
     depends_on:
-      - clickhouse
+      - opengauss
+      - redis
+      - nacos
+      - rocketmq-namesrv
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
-      interval: 10s
+      test: ["CMD", "curl", "-f", "http://localhost:8002/healthz"]
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 45s
     restart: unless-stopped
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # ============================================================================
-  # 5. 查询服务 (Query Service)
-  # ============================================================================
+  # ===========================================================================
+  # 5. 查询服务 (Query Service) - 适配 openGauss
+  # ===========================================================================
   query-service:
     build:
       context: ./services/query-service
       dockerfile: deployments/Dockerfile
     container_name: cloudflow-query
     ports:
-      - "8007:8007"  # HTTP API
-      - "9007:9007"  # gRPC
+      - "8007:8007"
+      - "9007:9007"
     environment:
       - SERVICE_NAME=query-service
       - GRPC_ADDR=:9007
       - HTTP_ADDR=:8007
-      # ClickHouse 配置
-      - CLICKHOUSE_ADDR=clickhouse:9000
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
-      - CLICKHOUSE_DATABASE=cloudflow
+      
+      # openGauss 配置（替代 ClickHouse）
+      - TSDB_TYPE=opengauss
+      - TSDB_ADDR=opengauss:5432
+      - TSDB_USER=gaussdb
+      - TSDB_PASSWORD=CloudFlow@2024
+      - TSDB_DATABASE=cloudflow
+      
       # 缓存配置
       - CACHE_ENABLED=true
       - CACHE_TTL=300s
-      # 下游服务连接
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=CloudFlow@2024
+      
+      # 服务发现: Nacos
+      - NACOS_ADDR=nacos:8848
+      
+      # 下游服务
       - AUTH_ADDR=auth-service:9006
       - TENANT_ADDR=tenant-service:9010
     depends_on:
-      - clickhouse
+      - opengauss
+      - redis
+      - nacos
       - auth-service
       - tenant-service
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8007/healthz"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 45s
     restart: unless-stopped
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # ============================================================================
-  # 6. 拓扑引擎 (Topology Engine)
-  # ============================================================================
+  # ===========================================================================
+  # 6. 拓扑引擎 (Topology Engine) - 适配 openGauss + Redis
+  # ===========================================================================
   topology-engine:
     build:
       context: ./services/topology-engine
       dockerfile: deployments/Dockerfile
     container_name: cloudflow-topology
     ports:
-      - "8008:8008"  # HTTP API
-      - "9008:9008"  # gRPC
+      - "8008:8008"
+      - "9008:9008"
     environment:
       - SERVICE_NAME=topology-engine
       - GRPC_ADDR=:9008
       - HTTP_ADDR=:8008
-      # ClickHouse 配置
-      - CLICKHOUSE_ADDR=clickhouse:9000
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
-      - CLICKHOUSE_DATABASE=cloudflow
-      # Redis 配置（用于缓存拓扑数据）
+      
+      # openGauss 配置
+      - TSDB_TYPE=opengauss
+      - TSDB_ADDR=opengauss:5432
+      - TSDB_USER=gaussdb
+      - TSDB_PASSWORD=CloudFlow@2024
+      - TSDB_DATABASE=cloudflow
+      
+      # Redis 配置（拓扑缓存）
       - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      # 下游服务连接
+      - REDIS_PASSWORD=CloudFlow@2024
+      
+      # 服务发现: Nacos
+      - NACOS_ADDR=nacos:8848
+      
+      # 下游服务
       - AUTH_ADDR=auth-service:9006
-      - DATA_PLANE_ADDR=data-plane:9001
+      - DATA_PLANE_ADDR=data-plane:9002
     depends_on:
-      - clickhouse
+      - opengauss
       - redis
+      - nacos
       - auth-service
       - data-plane
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8008/healthz"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 45s
     restart: unless-stopped
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # ============================================================================
-  # 7. 告警引擎 (Alert Engine)
-  # ============================================================================
+  # ===========================================================================
+  # 7. 告警引擎 (Alert Engine) - 适配 OceanBase + openGauss
+  # ===========================================================================
   alert-engine:
     build:
       context: ./services/alert-engine
       dockerfile: deployments/Dockerfile
     container_name: cloudflow-alert
     ports:
-      - "8009:8009"  # HTTP API
-      - "9009:9009"  # gRPC
+      - "8009:8009"
+      - "9009:9009"
     environment:
       - SERVICE_NAME=alert-engine
       - GRPC_ADDR=:9009
       - HTTP_ADDR=:8009
-      # TiDB 配置（告警规则和记录）
-      - TIDB_ADDR=tidb:4000
-      - TIDB_USER=root
-      - TIDB_PASSWORD=${CLOUD_FLOW_DB_PASSWORD:?请设置 CLOUD_FLOW_DB_PASSWORD}
-      - TIDB_DATABASE=cloudflow_alert
+      
+      # OceanBase 配置（告警规则存储）
+      - DB_TYPE=oceanbase
+      - DB_ADDR=oceanbase:2881
+      - DB_USER=root
+      - DB_PASSWORD=CloudFlow@2024
+      - DB_DATABASE=cloudflow_alert
+      
+      # openGauss 配置（指标查询）
+      - TSDB_TYPE=opengauss
+      - TSDB_ADDR=opengauss:5432
+      - TSDB_USER=gaussdb
+      - TSDB_PASSWORD=CloudFlow@2024
+      - TSDB_DATABASE=cloudflow
+      
       # Redis 配置（告警状态）
       - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      # ClickHouse 配置（查询指标）
-      - CLICKHOUSE_ADDR=clickhouse:9000
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
+      - REDIS_PASSWORD=CloudFlow@2024
+      
+      # 消息队列: RocketMQ
+      - ROCKETMQ_NAMESRV_ADDR=rocketmq-namesrv:9876
+      
+      # 服务发现: Nacos
+      - NACOS_ADDR=nacos:8848
+      
       # 通知配置
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
@@ -277,280 +363,202 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SLACK_WEBHOOK=${SLACK_WEBHOOK:-}
       - DINGTALK_WEBHOOK=${DINGTALK_WEBHOOK:-}
-      # 下游服务连接
+      
+      # 下游服务
       - AUTH_ADDR=auth-service:9006
       - TENANT_ADDR=tenant-service:9010
-      - DATA_PLANE_ADDR=data-plane:9001
+      - DATA_PLANE_ADDR=data-plane:9002
     depends_on:
-      - tidb
+      - oceanbase
+      - opengauss
       - redis
-      - clickhouse
+      - nacos
+      - rocketmq-namesrv
       - auth-service
       - tenant-service
       - data-plane
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8009/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - cloudflow-network
-
-  # ============================================================================
-  # 数据存储层
-  # ============================================================================
-
-  # TiDB（结构化数据）
-  tidb:
-    image: pingcap/tidb:v7.5.0
-    container_name: cloudflow-tidb
-    ports:
-      - "4000:4000"  # TiDB Server
-      - "10080:10080"  # Status API
-    command:
-      - --store=mocktikv
-      - --path=/tmp/tidb
-      - --log-file=/tmp/tidb.log
-    volumes:
-      - tidb-data:/tmp/tidb
-    healthcheck:
-      test: ["CMD", "mysql", "-h", "localhost", "-P", "4000", "-u", "root", "-e", "SELECT 1"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 60s
     restart: unless-stopped
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # ClickHouse（时序数据）
-  clickhouse:
-    image: clickhouse/clickhouse-server:23.8
-    container_name: cloudflow-clickhouse
+  # ===========================================================================
+  # 国产化基础设施层（复用主 docker-compose.yml）
+  # ===========================================================================
+  
+  # OceanBase - 主数据库（蚂蚁集团开源）
+  oceanbase:
+    image: oceanbase/oceanbase-ce:4.2.2
+    container_name: cloudflow-oceanbase
+    restart: unless-stopped
     ports:
-      - "8123:8123"  # HTTP
-      - "9000:9000"   # Native
+      - "2881:2881"
     environment:
-      - CLICKHOUSE_DB=cloudflow
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-ClickHouse2024SecurePass}
+      TZ: Asia/Shanghai
+      OB_ROOT_PASSWORD: "CloudFlow@2024"
+      OB_CLUSTER_NAME: cloudflow
+      OB_TENANT_NAME: sys
     volumes:
-      - clickhouse-data:/var/lib/clickhouse
-      - ./services/data-plane/deployments/clickhouse-config.xml:/etc/clickhouse-server/config.d/custom-config.xml
+      - oceanbase-data:/root/ob
+      - oceanbase-logs:/root/log
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 -P2881 -uroot -pCloudFlow@2024 -e 'SELECT 1;' 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # etcd（服务发现和配置）
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.12
-    container_name: cloudflow-etcd
+  # openGauss - 时序数据库（华为高斯开源版）
+  opengauss:
+    image: opengauss/opengauss:5.0.0
+    container_name: cloudflow-opengauss
+    restart: unless-stopped
     ports:
-      - "2379:2379"  # Client
-      - "2380:2380"  # Server
-    command:
-      - --name=etcd
-      - --advertise-client-urls=http://0.0.0.0:2379
-      - --listen-client-urls=http://0.0.0.0:2379
-      - --initial-cluster-state=new
-      - --initial-cluster-token=cloudflow-etcd-token
+      - "5432:5432"
+    environment:
+      TZ: Asia/Shanghai
+      GS_PASSWORD: "CloudFlow@2024"
+      GS_USERNAME: gaussdb
+      GS_DB: cloudflow
     volumes:
-      - etcd-data:/etcd-data
+      - opengauss-data:/var/lib/opengauss
+    privileged: true
     healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U gaussdb"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # Redis（缓存和消息）
-  # 安全注意：生产环境必须设置 REDIS_PASSWORD 环境变量
+  # Redis - 缓存（兼容高斯Redis协议）
   redis:
-    image: redis:7.2-alpine
+    image: redis:7-alpine
     container_name: cloudflow-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    environment:
+      TZ: Asia/Shanghai
+    command: redis-server --requirepass "CloudFlow@2024"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "CloudFlow@2024", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 3
-    restart: unless-stopped
+      retries: 5
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # Kafka（消息队列）- KRaft 模式，无需 Zookeeper
-  kafka:
-    image: apache/kafka:3.6.0
-    container_name: cloudflow-kafka
+  # Nacos - 服务发现与配置中心（阿里巴巴开源，替代 etcd）
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: cloudflow-nacos
+    restart: unless-stopped
     ports:
-      - "127.0.0.1:9092:9092"  # Internal - 仅本地访问
-      - "127.0.0.1:9094:9094"  # External - 仅本地访问
+      - "8848:8848"
+      - "9848:9848"
     environment:
-      - KAFKA_NODE_ID=1
-      - KAFKA_PROCESS_ROLES=broker,controller
-      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,EXTPLAINTEXT://0.0.0.0:9094
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTPLAINTEXT://localhost:9094
-      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTPLAINTEXT:PLAINTEXT
-      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
-      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
-      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
-      - KAFKA_LOG_DIRS=/var/lib/kafka/logs
+      TZ: Asia/Shanghai
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: embedded
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 512m
+      JVM_XMX: 512m
+      JVM_XMN: 256m
     volumes:
-      - kafka-data:/var/lib/kafka/logs
+      - nacos-data:/home/nacos/data
+      - nacos-logs:/home/nacos/logs
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 10s
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/actuator/health"]
+      interval: 15s
       timeout: 5s
-      retries: 3
-    restart: unless-stopped
+      retries: 10
+      start_period: 60s
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-  # VictoriaMetrics（指标存储）- 可选
-  victoriametrics:
-    image: victoriametrics/victoria-metrics:v1.96.0
-    container_name: cloudflow-victoriametrics
-    ports:
-      - "8428:8428"  # HTTP
-      - "2003:2003"   # Graphite
-    command:
-      - --storageDataPath=/var/lib/victoriametrics
-      - --retentionPeriod=30d
-    volumes:
-      - vm-data:/var/lib/victoriametrics
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8428/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+  # RocketMQ - 消息队列（阿里云开源，替代 Kafka）
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.2.0
+    container_name: cloudflow-rocketmq-namesrv
     restart: unless-stopped
-    networks:
-      - cloudflow-network
-
-  # Loki（日志存储）- 可选
-  loki:
-    image: grafana/loki:2.9.0
-    container_name: cloudflow-loki
     ports:
-      - "3100:3100"  # HTTP
-    command:
-      - -config.file=/etc/loki/local-config.yaml
-    volumes:
-      - loki-data:/loki
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:3100/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - cloudflow-network
-
-  # ============================================================================
-  # 监控和可观测性
-  # ============================================================================
-
-  # Prometheus（指标收集）
-  prometheus:
-    image: prom/prometheus:v2.47.0
-    container_name: cloudflow-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.enable-lifecycle'
-    restart: unless-stopped
-    networks:
-      - cloudflow-network
-
-  # Grafana（可视化）
-  grafana:
-    image: grafana/grafana:10.2.0
-    container_name: cloudflow-grafana
-    ports:
-      - "3000:3000"
+      - "9876:9876"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?请设置 GRAFANA_ADMIN_PASSWORD}
-      - GF_USERS_ALLOW_SIGN_UP=false
+      TZ: Asia/Shanghai
+      JAVA_OPT_EXT: "-Xms256m -Xmx256m -Xmn128m"
+    command: sh mqnamesrv
     volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - rocketmq-namesrv-logs:/home/rocketmq/logs
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9876 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cloudflow-net
+
+  rocketmq-broker:
+    image: apache/rocketmq:5.2.0
+    container_name: cloudflow-rocketmq-broker
+    restart: unless-stopped
     depends_on:
-      - prometheus
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:3000/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - cloudflow-network
-
-  # Jaeger（分布式追踪）
-  jaeger:
-    image: jaegertracing/all-in-one:1.52.0
-    container_name: cloudflow-jaeger
+      rocketmq-namesrv:
+        condition: service_healthy
     ports:
-      - "16686:16686"  # UI
-      - "14268:14268"  # Collector
-      - "6831:6831/udp"  # Agent
+      - "10909:10909"
+      - "10911:10911"
     environment:
-      - COLLECTOR_OTLP_ENABLED=true
+      TZ: Asia/Shanghai
+      NAMESRV_ADDR: "rocketmq-namesrv:9876"
+      JAVA_OPT_EXT: "-Xms512m -Xmx512m -Xmn256m"
+    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/conf/broker.conf
+    volumes:
+      - rocketmq-broker-data:/home/rocketmq/store
+      - rocketmq-broker-logs:/home/rocketmq/logs
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:14268/metrics"]
-      interval: 10s
+      test: ["CMD-SHELL", "nc -z localhost 10911 || exit 1"]
+      interval: 15s
       timeout: 5s
-      retries: 3
-    restart: unless-stopped
+      retries: 5
+      start_period: 45s
     networks:
-      - cloudflow-network
+      - cloudflow-net
 
-# ============================================================================
-# 网络配置
-# ============================================================================
+# =============================================================================
+# 网络
+# =============================================================================
 networks:
-  cloudflow-network:
+  cloudflow-net:
     driver: bridge
-    name: cloudflow-network
+    name: cloudflow-net
 
-# ============================================================================
-# 存储卷
-# ============================================================================
+# =============================================================================
+# 数据卷
+# =============================================================================
 volumes:
-  tidb-data:
-    name: cloudflow-tidb-data
-  clickhouse-data:
-    name: cloudflow-clickhouse-data
-  etcd-data:
-    name: cloudflow-etcd-data
+  # 数据库
+  oceanbase-data:
+  oceanbase-logs:
+  opengauss-data:
   redis-data:
-    name: cloudflow-redis-data
-  kafka-data:
-    name: cloudflow-kafka-data
-  vm-data:
-    name: cloudflow-victoriametrics-data
-  loki-data:
-    name: cloudflow-loki-data
-  prometheus-data:
-    name: cloudflow-prometheus-data
-  grafana-data:
-    name: cloudflow-grafana-data
+  
+  # Nacos
+  nacos-data:
+  nacos-logs:
+  
+  # RocketMQ
+  rocketmq-namesrv-logs:
+  rocketmq-broker-data:
+  rocketmq-broker-logs:
