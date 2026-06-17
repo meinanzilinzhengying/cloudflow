@@ -1,6 +1,6 @@
 # 多阶段构建 - 边缘节点服务
 # 第一阶段：编译
-FROM golang:1.25-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
 # 安装必要工具
 RUN apk add --no-cache git sed
