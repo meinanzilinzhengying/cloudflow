@@ -71,6 +71,8 @@
 
     <!-- Alerts Timeline -->
     <div v-if="activeTab === 'events'" class="card">
+      <div v-if="loading" class="p-6 text-center text-slate-500">加载中...</div>
+      <div v-else-if="error" class="p-6 text-center text-red-500">{{ error }}</div>
       <div class="p-6 border-b border-slate-200 dark:border-dark-700">
         <h3 class="text-lg font-semibold text-slate-900 dark:text-white">告警时间线</h3>
       </div>
@@ -290,7 +292,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { queryService } from '@/api'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, PieChart } from 'echarts/charts'
@@ -324,20 +327,76 @@ const tabs = [
   { id: 'statistics', label: '告警统计' },
 ]
 
-const alertStats = ref({
-  critical: 5,
-  high: 12,
-  medium: 23,
-  low: 45,
+// 告警统计数据（基于真实数据计算）
+const alertStats = computed(() => {
+  const alertsList = alerts.value || []
+  return {
+    critical: alertsList.filter(a => a.severity === 'critical').length,
+    high: alertsList.filter(a => a.severity === 'high').length,
+    medium: alertsList.filter(a => a.severity === 'medium').length,
+    low: alertsList.filter(a => a.severity === 'low').length,
+  }
 })
 
-const alerts = ref([
-  { id: 1, title: '服务异常延迟', severity: 'critical', service: 'Order Service', description: '订单服务响应时间超过500ms，持续时间超过5分钟', time: '2分钟前', status: '触发中', duration: '5分钟', instance: 'order-svc-0', logSample: '[ERROR] timeout connecting to database' },
-  { id: 2, title: 'CPU使用率过高', severity: 'high', service: 'API Gateway', description: 'CPU使用率达到90%，超过阈值', time: '5分钟前', status: '触发中', duration: '3分钟', instance: 'api-gw-0', logSample: '[WARN] high CPU usage detected' },
-  { id: 3, title: '内存使用告警', severity: 'medium', service: 'User Service', description: '内存使用达到85%', time: '12分钟前', status: '已恢复', duration: '10分钟', instance: 'user-svc-1', logSample: '[INFO] memory usage at 85%' },
-  { id: 4, title: '网络延迟增加', severity: 'medium', service: 'Payment Service', description: '网络延迟增加至200ms', time: '18分钟前', status: '触发中', duration: '8分钟', instance: 'pay-svc-0', logSample: '[WARN] network latency increased' },
-  { id: 5, title: '连接池耗尽', severity: 'high', service: 'Order Service', description: '数据库连接池已耗尽', time: '25分钟前', status: '已恢复', duration: '15分钟', instance: 'order-svc-1', logSample: '[ERROR] connection pool exhausted' },
-])
+const alerts = ref([])
+const loading = ref(false)
+const error = ref(null)
+
+// 获取告警列表
+async function fetchAlerts() {
+  loading.value = true
+  error.value = null
+  try {
+    const res = await queryService.getAlerts({ limit: 100 })
+    if (res.data && res.data.alerts) {
+      alerts.value = (res.alerts || []).map(a => ({
+        id: a.id || a.alert_id || Math.random(),
+        title: a.title || a.name || a.rule_name || '告警事件',
+        severity: a.severity || a.level || 'medium',
+        service: a.service || a.source || a.host || '未知服务',
+        description: a.description || a.message || a.summary || '',
+        time: a.time || a.created_at || a.timestamp || '刚刚',
+        status: a.status || (a.resolved ? '已恢复' : '触发中'),
+        duration: a.duration || '-',
+        instance: a.instance || a.host || a.source_ip || '-',
+        logSample: a.log_sample || a.logSample || '',
+      }))
+    } else if (Array.isArray(res.data)) {
+      alerts.value = (res.data || []).map(a => ({...a, id: a.id || Math.random(), title: a.title || a.name || '---', severity: a.severity || 'medium'}))
+    }
+  } catch (err) {
+    error.value = err.message || '获取告警失败'
+    console.error('获取告警列表失败:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 获取告警规则（从alert统计数据派生）
+function fetchRules() {
+  // 规则从告警数据中自动统计分析
+  const severityMap = {}
+  alerts.value.forEach(a => {
+    if (a.service) {
+      if (!severityMap[a.service]) severityMap[a.service] = new Set()
+      severityMap[a.service].add(a.severity)
+    }
+  })
+  rules.value = Object.entries(severityMap).map(([service, severities]) => ({
+    id: service,
+    name: `${service} 自动规则`,
+    metric: '多指标',
+    threshold: '动态',
+    severity: [...severities].includes('critical') ? 'critical' : [...severities][0],
+    enabled: true,
+  }))
+}
+
+// 页面加载时获取数据
+onMounted(() => {
+  fetchAlerts()
+  fetchRules()
+})
 
 const rules = ref([])
 

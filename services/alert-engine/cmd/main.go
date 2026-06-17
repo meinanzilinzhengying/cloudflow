@@ -39,7 +39,7 @@ func main() {
 	}
 
 	// 从环境变量读取其他服务地址
-	if v := os.Getenv("AUTH_ADDR"); v != "" {
+	if v, ok := os.LookupEnv("AUTH_ADDR"); ok {
 		cfg.AuthAddr = v
 	}
 	if v := os.Getenv("DATA_PLANE_ADDR"); v != "" {
