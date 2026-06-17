@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/meinanzilinzhengying/cloudflow/services/shared/auth v0.0.0-00010101000000-000000000000
 	github.com/segmentio/kafka-go v0.4.51
-	go.etcd.io/etcd/client/v3 v3.6.12
+	go.etcd.io/etcd/client/v3 v3.5.13
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.62.1
 )
@@ -21,8 +21,8 @@ require (
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/meinanzilinzhengying/cloudflow/services/proto v0.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.15 // indirect
-	go.etcd.io/etcd/api/v3 v3.6.12 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.6.12 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.13 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.5.13 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
