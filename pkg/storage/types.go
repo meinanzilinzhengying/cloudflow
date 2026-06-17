@@ -14,15 +14,19 @@ type DatabaseType string
 
 const (
 	DatabaseDameng    DatabaseType = "dameng"
+	DatabaseDamengTS  DatabaseType = "dameng_ts"
 	DatabaseKingBase  DatabaseType = "kingbase"
 	DatabaseGaussDB   DatabaseType = "gaussdb"
+	DatabaseGaussRedis DatabaseType = "gauss_redis"
 	DatabaseOceanBase DatabaseType = "oceanbase"
 
 	// 别名，兼容旧代码
-	DBDameng    = DatabaseDameng
-	DBKingBase  = DatabaseKingBase
-	DBGaussDB   = DatabaseGaussDB
-	DBOceanBase = DatabaseOceanBase
+	DBDameng     = DatabaseDameng
+	DBDamengTS   = DatabaseDamengTS
+	DBKingBase   = DatabaseKingBase
+	DBGaussDB    = DatabaseGaussDB
+	DBGaussRedis = DatabaseGaussRedis
+	DBOceanBase  = DatabaseOceanBase
 )
 
 // DualWriteMode 双写模式
@@ -222,6 +226,89 @@ type Dialect interface {
 	ApplyPagination(sql string, offset, limit int) string
 	// 占位符转换
 	ConvertPlaceholder(sql string, argCount int) string
+}
+
+// ==================== SQL包装类实现 ====================
+
+// sqlResult 包装sql.Result
+type sqlResult struct {
+	res sql.Result
+}
+
+func (r *sqlResult) LastInsertId() (int64, error) {
+	return r.res.LastInsertId()
+}
+
+func (r *sqlResult) RowsAffected() (int64, error) {
+	return r.res.RowsAffected()
+}
+
+// sqlRows 包装sql.Rows
+type sqlRows struct {
+	rows *sql.Rows
+}
+
+func (r *sqlRows) Next() bool {
+	return r.rows.Next()
+}
+
+func (r *sqlRows) Scan(dest ...interface{}) error {
+	return r.rows.Scan(dest...)
+}
+
+func (r *sqlRows) Close() error {
+	return r.rows.Close()
+}
+
+func (r *sqlRows) Err() error {
+	return r.rows.Err()
+}
+
+func (r *sqlRows) Columns() ([]string, error) {
+	return r.rows.Columns()
+}
+
+// sqlRow 包装sql.Row
+type sqlRow struct {
+	row *sql.Row
+}
+
+func (r *sqlRow) Scan(dest ...interface{}) error {
+	return r.row.Scan(dest...)
+}
+
+// sqlTx 包装sql.Tx
+type sqlTx struct {
+	tx *sql.Tx
+}
+
+func (t *sqlTx) Commit() error {
+	return t.tx.Commit()
+}
+
+func (t *sqlTx) Rollback() error {
+	return t.tx.Rollback()
+}
+
+func (t *sqlTx) Exec(ctx context.Context, sql string, args ...interface{}) (Result, error) {
+	res, err := t.tx.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &sqlResult{res: res}, nil
+}
+
+func (t *sqlTx) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
+	rows, err := t.tx.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return &sqlRows{rows: rows}, nil
+}
+
+func (t *sqlTx) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
+	row := t.tx.QueryRowContext(ctx, sql, args...)
+	return &sqlRow{row: row}
 }
 
 // Driver 数据库驱动接口

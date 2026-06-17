@@ -22,13 +22,13 @@ type GaussRedisStorage struct {
 }
 
 func init() {
-	// GaussDB Redis驱动注册
+	RegisterDriver(DatabaseGaussRedis, &GaussRedisDriver{})
 }
 
 // ==================== GaussDB Redis驱动 ====================
 
 func (d *GaussRedisDriver) Type() DatabaseType {
-	return DatabaseGaussDB
+	return DatabaseGaussRedis
 }
 
 func (d *GaussRedisDriver) OpenRelational(cfg *Config) (RelationalStorage, error) {

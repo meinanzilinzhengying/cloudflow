@@ -23,13 +23,13 @@ type DamengTSStorage struct {
 type DamengTSDialect struct{}
 
 func init() {
-	// 达梦时序版使用独立的类型注册
+	RegisterDriver(DatabaseDamengTS, &DamengTSDriver{})
 }
 
 // ==================== 达梦DM8时序版驱动 ====================
 
 func (d *DamengTSDriver) Type() DatabaseType {
-	return DatabaseDameng
+	return DatabaseDamengTS
 }
 
 func (d *DamengTSDriver) OpenRelational(cfg *Config) (RelationalStorage, error) {
@@ -85,7 +85,7 @@ func (d *DamengTSDriver) GetDialect() Dialect {
 // ==================== 达梦DM8时序存储实现 ====================
 
 func (s *DamengTSStorage) Type() DatabaseType {
-	return DatabaseDameng
+	return DatabaseDamengTS
 }
 
 func (s *DamengTSStorage) InsertFlow(ctx context.Context, flow *Flow) error {
