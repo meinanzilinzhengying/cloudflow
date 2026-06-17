@@ -1,32 +1,114 @@
-# MySQL Deployment
+# =============================================================================
+# CloudFlow Kubernetes 中间件部署 - 100% 纯国产化版
+# =============================================================================
+# 版本: v3.0 - 纯国产化
+# 说明: K8s 环境下的国产化中间件部署配置
+# =============================================================================
+
+---
+# 1. 达梦数据库（关系型主数据库）
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mysql
+  name: dameng
   namespace: cloudflow
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mysql
+      app: dameng
   template:
     metadata:
       labels:
-        app: mysql
+        app: dameng
     spec:
       containers:
-      - name: mysql
-        image: mysql:8.0
+      - name: dameng
+        image: dm8_single:v8.1.2.128_ent_x86_64
         env:
-        - name: MYSQL_ROOT_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: cloudflow-secrets
-              key: MYSQL_PASSWORD
-        - name: MYSQL_DATABASE
-          value: cloudflow
+        - name: LD_LIBRARY_PATH
+          value: /opt/dmdbms/bin
+        - name: TZ
+          value: Asia/Shanghai
         ports:
-        - containerPort: 3306
+        - containerPort: 5236
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+          limits:
+            cpu: 4
+            memory: 8Gi
+        volumeMounts:
+        - name: dameng-data
+          mountPath: /opt/dmdbms/data
+        securityContext:
+          privileged: true
+        livenessProbe:
+          exec:
+            command: ["/bin/sh", "-c", "echo 'SELECT 1;' | /opt/dmdbms/bin/disql SYSDBA/SYSDBA@localhost:5236"]
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command: ["/bin/sh", "-c", "echo 'SELECT 1;' | /opt/dmdbms/bin/disql SYSDBA/SYSDBA@localhost:5236"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: dameng-data
+        persistentVolumeClaim:
+          claimName: dameng-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dameng-pvc
+  namespace: cloudflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dameng
+  namespace: cloudflow
+spec:
+  selector:
+    app: dameng
+  ports:
+  - port: 5236
+    targetPort: 5236
+  type: ClusterIP
+
+---
+# 2. 高斯Redis（缓存）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gauss-redis
+  namespace: cloudflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gauss-redis
+  template:
+    metadata:
+      labels:
+        app: gauss-redis
+    spec:
+      containers:
+      - name: gauss-redis
+        image: opengauss/opengauss-redis:6.2.5
+        env:
+        - name: TZ
+          value: Asia/Shanghai
+        ports:
+        - containerPort: 6379
         resources:
           requests:
             cpu: 500m
@@ -35,78 +117,272 @@ spec:
             cpu: 2
             memory: 4Gi
         volumeMounts:
-        - name: mysql-data
-          mountPath: /var/lib/mysql
+        - name: gauss-redis-data
+          mountPath: /data
         livenessProbe:
           exec:
-            command: ["mysqladmin", "ping", "-h", "localhost"]
-          initialDelaySeconds: 30
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 10
           periodSeconds: 10
         readinessProbe:
           exec:
-            command: ["mysqladmin", "ping", "-h", "localhost"]
+            command: ["redis-cli", "ping"]
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
-      - name: mysql-data
+      - name: gauss-redis-data
         persistentVolumeClaim:
-          claimName: mysql-pvc
+          claimName: gauss-redis-pvc
 ---
-# MySQL PVC
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mysql-pvc
+  name: gauss-redis-pvc
   namespace: cloudflow
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 50Gi
+      storage: 20Gi
 ---
-# MySQL Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: mysql
+  name: gauss-redis
   namespace: cloudflow
 spec:
   selector:
-    app: mysql
+    app: gauss-redis
   ports:
-  - port: 3306
-    targetPort: 3306
+  - port: 6379
+    targetPort: 6379
   type: ClusterIP
+
 ---
-# ClickHouse Deployment
+# 3. Nacos（服务发现与配置中心）
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: clickhouse
+  name: nacos
   namespace: cloudflow
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: clickhouse
+      app: nacos
   template:
     metadata:
       labels:
-        app: clickhouse
+        app: nacos
     spec:
       containers:
-      - name: clickhouse
-        image: clickhouse/clickhouse-server:23.8
+      - name: nacos
+        image: nacos/nacos-server:v2.3.2
         env:
-        - name: CLICKHOUSE_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: cloudflow-secrets
-              key: CLICKHOUSE_PASSWORD
+        - name: TZ
+          value: Asia/Shanghai
+        - name: MODE
+          value: standalone
+        - name: SPRING_DATASOURCE_PLATFORM
+          value: embedded
+        - name: JVM_XMS
+          value: 1g
+        - name: JVM_XMX
+          value: 1g
+        - name: JVM_XMN
+          value: 512m
         ports:
-        - containerPort: 8123
-        - containerPort: 9000
+        - containerPort: 8848
+          name: http
+        - containerPort: 9848
+          name: grpc
+        - containerPort: 9849
+          name: raft
+        resources:
+          requests:
+            cpu: 1
+            memory: 2Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+        volumeMounts:
+        - name: nacos-data
+          mountPath: /home/nacos/data
+        - name: nacos-logs
+          mountPath: /home/nacos/logs
+        livenessProbe:
+          httpGet:
+            path: /nacos/actuator/health
+            port: 8848
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /nacos/actuator/health
+            port: 8848
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: nacos-data
+        persistentVolumeClaim:
+          claimName: nacos-data-pvc
+      - name: nacos-logs
+        persistentVolumeClaim:
+          claimName: nacos-logs-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nacos-data-pvc
+  namespace: cloudflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nacos-logs-pvc
+  namespace: cloudflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nacos
+  namespace: cloudflow
+spec:
+  selector:
+    app: nacos
+  ports:
+  - name: http
+    port: 8848
+    targetPort: 8848
+  - name: grpc
+    port: 9848
+    targetPort: 9848
+  type: ClusterIP
+
+---
+# 4. RocketMQ（消息队列）- NameServer
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketmq-namesrv
+  namespace: cloudflow
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rocketmq-namesrv
+  template:
+    metadata:
+      labels:
+        app: rocketmq-namesrv
+    spec:
+      containers:
+      - name: namesrv
+        image: apache/rocketmq:5.2.0
+        command: ["sh", "mqnamesrv"]
+        env:
+        - name: TZ
+          value: Asia/Shanghai
+        - name: JAVA_OPT_EXT
+          value: "-Xms512m -Xmx512m -Xmn256m"
+        ports:
+        - containerPort: 9876
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 1
+            memory: 2Gi
+        volumeMounts:
+        - name: namesrv-logs
+          mountPath: /home/rocketmq/logs
+        livenessProbe:
+          tcpSocket:
+            port: 9876
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 9876
+          initialDelaySeconds: 15
+          periodSeconds: 5
+      volumes:
+      - name: namesrv-logs
+        persistentVolumeClaim:
+          claimName: rocketmq-namesrv-logs-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rocketmq-namesrv-logs-pvc
+  namespace: cloudflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketmq-namesrv
+  namespace: cloudflow
+spec:
+  selector:
+    app: rocketmq-namesrv
+  ports:
+  - port: 9876
+    targetPort: 9876
+  type: ClusterIP
+
+---
+# 5. RocketMQ（消息队列）- Broker
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rocketmq-broker
+  namespace: cloudflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rocketmq-broker
+  template:
+    metadata:
+      labels:
+        app: rocketmq-broker
+    spec:
+      containers:
+      - name: broker
+        image: apache/rocketmq:5.2.0
+        command: ["sh", "mqbroker", "-n", "rocketmq-namesrv:9876", "-c", "/home/rocketmq/conf/broker.conf"]
+        env:
+        - name: TZ
+          value: Asia/Shanghai
+        - name: NAMESRV_ADDR
+          value: rocketmq-namesrv:9876
+        - name: JAVA_OPT_EXT
+          value: "-Xms1g -Xmx1g -Xmn512m"
+        ports:
+        - containerPort: 10909
+          name: vip
+        - containerPort: 10911
+          name: broker
         resources:
           requests:
             cpu: 1
@@ -115,202 +391,292 @@ spec:
             cpu: 4
             memory: 8Gi
         volumeMounts:
-        - name: clickhouse-data
-          mountPath: /var/lib/clickhouse
+        - name: broker-data
+          mountPath: /home/rocketmq/store
+        - name: broker-logs
+          mountPath: /home/rocketmq/logs
         livenessProbe:
-          httpGet:
-            path: /ping
-            port: 8123
+          tcpSocket:
+            port: 10911
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          tcpSocket:
+            port: 10911
           initialDelaySeconds: 30
           periodSeconds: 10
+      volumes:
+      - name: broker-data
+        persistentVolumeClaim:
+          claimName: rocketmq-broker-data-pvc
+      - name: broker-logs
+        persistentVolumeClaim:
+          claimName: rocketmq-broker-logs-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rocketmq-broker-data-pvc
+  namespace: cloudflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rocketmq-broker-logs-pvc
+  namespace: cloudflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocketmq-broker
+  namespace: cloudflow
+spec:
+  selector:
+    app: rocketmq-broker
+  ports:
+  - name: vip
+    port: 10909
+    targetPort: 10909
+  - name: broker
+    port: 10911
+    targetPort: 10911
+  type: ClusterIP
+
+---
+# 6. 夜莺 Nightingale（一体化监控平台）
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nightingale
+  namespace: cloudflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nightingale
+  template:
+    metadata:
+      labels:
+        app: nightingale
+    spec:
+      containers:
+      - name: nightingale
+        image: ccr.ccs.tencentyun.com/nightingale/nightingale:v6.2.0
+        env:
+        - name: TZ
+          value: Asia/Shanghai
+        - name: GIN_MODE
+          value: release
+        ports:
+        - containerPort: 17000
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+          limits:
+            cpu: 4
+            memory: 8Gi
+        volumeMounts:
+        - name: nightingale-data
+          mountPath: /app/data
+        - name: nightingale-logs
+          mountPath: /app/logs
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 17000
+          initialDelaySeconds: 60
+          periodSeconds: 30
         readinessProbe:
           httpGet:
-            path: /ping
-            port: 8123
-          initialDelaySeconds: 5
-          periodSeconds: 5
-      volumes:
-      - name: clickhouse-data
-        persistentVolumeClaim:
-          claimName: clickhouse-pvc
----
-# ClickHouse PVC
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: clickhouse-pvc
-  namespace: cloudflow
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 200Gi
----
-# ClickHouse Service
-apiVersion: v1
-kind: Service
-metadata:
-  name: clickhouse
-  namespace: cloudflow
-spec:
-  selector:
-    app: clickhouse
-  ports:
-  - name: http
-    port: 8123
-    targetPort: 8123
-  - name: native
-    port: 9000
-    targetPort: 9000
-  type: ClusterIP
----
-# Redis Deployment
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: redis
-  namespace: cloudflow
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: redis
-  template:
-    metadata:
-      labels:
-        app: redis
-    spec:
-      containers:
-      - name: redis
-        image: redis:7-alpine
-        ports:
-        - containerPort: 6379
-        resources:
-          requests:
-            cpu: 100m
-            memory: 256Mi
-          limits:
-            cpu: 500m
-            memory: 1Gi
-        volumeMounts:
-        - name: redis-data
-          mountPath: /data
-        livenessProbe:
-          exec:
-            command: ["redis-cli", "ping"]
-          initialDelaySeconds: 5
-          periodSeconds: 5
-        readinessProbe:
-          exec:
-            command: ["redis-cli", "ping"]
-          initialDelaySeconds: 2
-          periodSeconds: 3
-      volumes:
-      - name: redis-data
-        persistentVolumeClaim:
-          claimName: redis-pvc
----
-# Redis PVC
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: redis-pvc
-  namespace: cloudflow
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
----
-# Redis Service
-apiVersion: v1
-kind: Service
-metadata:
-  name: redis
-  namespace: cloudflow
-spec:
-  selector:
-    app: redis
-  ports:
-  - port: 6379
-    targetPort: 6379
-  type: ClusterIP
----
-# etcd Deployment
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: etcd
-  namespace: cloudflow
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: etcd
-  template:
-    metadata:
-      labels:
-        app: etcd
-    spec:
-      containers:
-      - name: etcd
-        image: bitnami/etcd:3.5
-        env:
-        - name: ALLOW_NONE_AUTHENTICATION
-          value: "yes"
-        ports:
-        - containerPort: 2379
-        - containerPort: 2380
-        resources:
-          requests:
-            cpu: 100m
-            memory: 256Mi
-          limits:
-            cpu: 500m
-            memory: 1Gi
-        volumeMounts:
-        - name: etcd-data
-          mountPath: /bitnami/etcd
-        livenessProbe:
-          exec:
-            command: ["etcdctl", "endpoint", "health"]
-          initialDelaySeconds: 10
+            path: /api/health
+            port: 17000
+          initialDelaySeconds: 30
           periodSeconds: 10
-        readinessProbe:
-          exec:
-            command: ["etcdctl", "endpoint", "health"]
-          initialDelaySeconds: 5
-          periodSeconds: 5
       volumes:
-      - name: etcd-data
+      - name: nightingale-data
         persistentVolumeClaim:
-          claimName: etcd-pvc
+          claimName: nightingale-data-pvc
+      - name: nightingale-logs
+        persistentVolumeClaim:
+          claimName: nightingale-logs-pvc
 ---
-# etcd PVC
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: etcd-pvc
+  name: nightingale-data-pvc
   namespace: cloudflow
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 50Gi
 ---
-# etcd Service
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nightingale-logs-pvc
+  namespace: cloudflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+---
 apiVersion: v1
 kind: Service
 metadata:
-  name: etcd
+  name: nightingale
   namespace: cloudflow
 spec:
   selector:
-    app: etcd
+    app: nightingale
   ports:
-  - port: 2379
-    targetPort: 2379
+  - port: 17000
+    targetPort: 17000
+  type: ClusterIP
+
+---
+# 7. SkyWalking（分布式链路追踪）- OAP
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skywalking-oap
+  namespace: cloudflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: skywalking-oap
+  template:
+    metadata:
+      labels:
+        app: skywalking-oap
+    spec:
+      containers:
+      - name: oap
+        image: apache/skywalking-oap-server:9.7.0
+        env:
+        - name: TZ
+          value: Asia/Shanghai
+        - name: SW_STORAGE
+          value: h2
+        - name: SW_HEALTH_CHECKER
+          value: default
+        - name: JAVA_OPTS
+          value: "-Xms2g -Xmx2g"
+        ports:
+        - containerPort: 11800
+          name: grpc
+        - containerPort: 12800
+          name: http
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+          limits:
+            cpu: 4
+            memory: 8Gi
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 12800
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 12800
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: skywalking-oap
+  namespace: cloudflow
+spec:
+  selector:
+    app: skywalking-oap
+  ports:
+  - name: grpc
+    port: 11800
+    targetPort: 11800
+  - name: http
+    port: 12800
+    targetPort: 12800
+  type: ClusterIP
+
+---
+# 8. SkyWalking（分布式链路追踪）- UI
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skywalking-ui
+  namespace: cloudflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: skywalking-ui
+  template:
+    metadata:
+      labels:
+        app: skywalking-ui
+    spec:
+      containers:
+      - name: ui
+        image: apache/skywalking-ui:9.7.0
+        env:
+        - name: TZ
+          value: Asia/Shanghai
+        - name: SW_OAP_ADDRESS
+          value: http://skywalking-oap:12800
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: skywalking-ui
+  namespace: cloudflow
+spec:
+  selector:
+    app: skywalking-ui
+  ports:
+  - port: 8080
+    targetPort: 8080
   type: ClusterIP

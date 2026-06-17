@@ -1,53 +1,106 @@
+# =============================================================================
+# CloudFlow 监控部署配置 - 100% 纯国产化版
+# =============================================================================
+# 版本: v3.0 - 纯国产化
+# 说明: 一体化监控平台，所有组件均为国产化
+#
+# 使用方式:
+#   docker compose -f docker-compose-monitoring.yml up -d
+# =============================================================================
+
 version: '3.8'
 
 services:
-  # Prometheus（指标收集）
-  prometheus:
-    image: prom/prometheus:v2.54.1
-    container_name: cloudflow-prometheus
+  # ---------------------------------------------------------------------------
+  # 1. 夜莺 Nightingale（一体化监控平台）
+  # 替代: Prometheus + Grafana + Alertmanager
+  # ---------------------------------------------------------------------------
+  nightingale:
+    image: ccr.ccs.tencentyun.com/nightingale/nightingale:v6.2.0
+    container_name: cloudflow-nightingale
     restart: unless-stopped
     ports:
-      - "9091:9090"
+      - "17000:17000"
+    environment:
+      TZ: Asia/Shanghai
+      GIN_MODE: release
     volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./monitoring/prometheus/rules:/etc/prometheus/rules
-      - prometheus-data:/prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.enable-lifecycle"
-      - "--web.listen-address=:9090"
-      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
-      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - nightingale-data:/app/data
+      - nightingale-logs:/app/logs
+      - ./monitoring/nightingale:/app/etc
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      test: ["CMD", "curl", "-f", "http://localhost:17000/api/health"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 30s
     networks:
       - cloudflow-net
 
-  # Grafana（可视化）
-  grafana:
-    image: grafana/grafana:10.4.3
-    container_name: cloudflow-grafana
+  # ---------------------------------------------------------------------------
+  # 2. Categraf（指标采集器）
+  # 替代: Node Exporter + Promtail + cAdvisor
+  # ---------------------------------------------------------------------------
+  categraf:
+    image: flashcatcloud/categraf:v0.3.50
+    container_name: cloudflow-categraf
     restart: unless-stopped
-    depends_on:
-      prometheus:
-        condition: service_healthy
-    ports:
-      - "3001:3000"
+    privileged: true
+    pid: host
     environment:
       TZ: Asia/Shanghai
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: "admin"
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-piechart-panel"
     volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/categraf:/etc/categraf
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+    command:
+      - /usr/bin/categraf
+      - --configs=/etc/categraf
+    networks:
+      - cloudflow-net
+
+  # ---------------------------------------------------------------------------
+  # 3. SkyWalking（分布式链路追踪）
+  # 替代: Jaeger
+  # ---------------------------------------------------------------------------
+  skywalking-oap:
+    image: apache/skywalking-oap-server:9.7.0
+    container_name: cloudflow-skywalking-oap
+    restart: unless-stopped
+    ports:
+      - "11800:11800"  # gRPC
+      - "12800:12800"  # HTTP
+    environment:
+      TZ: Asia/Shanghai
+      SW_STORAGE: h2
+      SW_HEALTH_CHECKER: default
+      JAVA_OPTS: "-Xms1g -Xmx1g"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:12800/healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - cloudflow-net
+
+  skywalking-ui:
+    image: apache/skywalking-ui:9.7.0
+    container_name: cloudflow-skywalking-ui
+    restart: unless-stopped
+    depends_on:
+      skywalking-oap:
+        condition: service_healthy
+    ports:
+      - "18080:8080"
+    environment:
+      TZ: Asia/Shanghai
+      SW_OAP_ADDRESS: http://skywalking-oap:12800
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -55,93 +108,17 @@ services:
     networks:
       - cloudflow-net
 
-  # Jaeger（分布式追踪）
-  jaeger:
-    image: jaegertracing/all-in-one:1.52.0
-    container_name: cloudflow-jaeger
-    restart: unless-stopped
-    ports:
-      - "16686:16686"  # UI
-      - "14268:14268"  # Collector
-      - "4317:4317"    # OTLP gRPC
-      - "4318:4318"    # OTLP HTTP
-    environment:
-      TZ: Asia/Shanghai
-      COLLECTOR_OTLP_ENABLED: "true"
-      SPAN_STORAGE_TYPE: memory
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:14268/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    networks:
-      - cloudflow-net
-
-  # Loki（日志存储）
-  loki:
-    image: grafana/loki:2.9.4
-    container_name: cloudflow-loki
-    restart: unless-stopped
-    ports:
-      - "3100:3100"
-    command:
-      - -config.file=/etc/loki/local-config.yaml
-    volumes:
-      - loki-data:/loki
-      - ./monitoring/loki:/etc/loki
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    networks:
-      - cloudflow-net
-
-  # Promtail（日志采集）
-  promtail:
-    image: grafana/promtail:2.9.4
-    container_name: cloudflow-promtail
-    restart: unless-stopped
-    depends_on:
-      loki:
-        condition: service_healthy
-    volumes:
-      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml
-      - /var/log:/var/log:ro
-    command:
-      - -config.file=/etc/promtail/config.yml
-    networks:
-      - cloudflow-net
-
-  # Alertmanager（告警通知）
-  alertmanager:
-    image: prom/alertmanager:v0.27.0
-    container_name: cloudflow-alertmanager
-    restart: unless-stopped
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-      - alertmanager-data:/data
-    command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-      - "--storage.path=/data"
-      - "--web.external-url=http://localhost:9093"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    networks:
-      - cloudflow-net
-
+# =============================================================================
+# 网络
+# =============================================================================
 networks:
   cloudflow-net:
     external: true
     name: cloudflow-net
 
+# =============================================================================
+# 数据卷
+# =============================================================================
 volumes:
-  prometheus-data:
-  grafana-data:
-  loki-data:
-  alertmanager-data:
+  nightingale-data:
+  nightingale-logs:
