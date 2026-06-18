@@ -144,7 +144,7 @@ onMounted(fetchData)
     .page-title {
       font-size: 18px;
       font-weight: 600;
-      color: var(--el-text-color-primary);
+      color: #FFFFFF;
     }
   }
   .protocol-tabs {
@@ -160,7 +160,7 @@ onMounted(fetchData)
     .metric-num {
       font-size: 24px;
       font-weight: 600;
-      color: var(--el-text-color-primary);
+      color: #FFFFFF;
     }
   }
   .table-card {
@@ -169,7 +169,7 @@ onMounted(fetchData)
     .card-title {
       font-size: 16px;
       font-weight: 600;
-      color: var(--el-text-color-primary);
+      color: #FFFFFF;
       margin-bottom: 16px;
     }
   }

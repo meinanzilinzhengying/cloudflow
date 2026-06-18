@@ -115,7 +115,7 @@ const fetchEvents = () => {
 .alerts {
   .page-header {
     display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
-    .page-title { font-size: 18px; font-weight: 600; color: var(--el-text-color-primary); }
+    .page-title { font-size: 18px; font-weight: 600; color: #FFFFFF; }
     .header-actions { display: flex; gap: 12px; align-items: center; }
   }
   .table-card {

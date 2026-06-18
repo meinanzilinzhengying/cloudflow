@@ -172,7 +172,7 @@ onMounted(fetchProbes)
     .page-title {
       font-size: 18px;
       font-weight: 600;
-      color: var(--el-text-color-primary);
+      color: #FFFFFF;
     }
     .header-actions {
       display: flex;

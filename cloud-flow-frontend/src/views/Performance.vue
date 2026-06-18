@@ -126,7 +126,7 @@ onMounted(fetchData)
     .page-title {
       font-size: 18px;
       font-weight: 600;
-      color: var(--el-text-color-primary);
+      color: #FFFFFF;
     }
     .header-actions {
       display: flex;
@@ -143,7 +143,7 @@ onMounted(fetchData)
     .card-title {
       font-size: 16px;
       font-weight: 600;
-      color: var(--el-text-color-primary);
+      color: #FFFFFF;
       margin-bottom: 16px;
     }
   }
