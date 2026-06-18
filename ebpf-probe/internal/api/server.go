@@ -23,9 +23,11 @@ func Start(port string, mgr *collector.Manager, ch *output.ClickHouse) {
 	mux.HandleFunc("/api/probe/health", handleHealth())
 	mux.HandleFunc("/api/probe/version", handleVersion())
 
+	mux.HandleFunc("/api/v1/login", handleV1AuthLogin())
 	mux.HandleFunc("/api/v1/auth/login", handleV1AuthLogin())
 	mux.HandleFunc("/api/v1/auth/logout", handleV1AuthLogout())
 	mux.HandleFunc("/api/v1/auth/info", handleV1AuthInfo())
+	mux.HandleFunc("/api/v1/dashboard", handleV1Dashboard(mgr, ch))
 	mux.HandleFunc("/api/v1/dashboard/overview", handleV1Dashboard(mgr, ch))
 	mux.HandleFunc("/api/v1/probes", handleV1Probes(mgr))
 	mux.HandleFunc("/api/v1/probes/", handleV1ProbeDetail(mgr))
@@ -187,6 +189,105 @@ func handleV1Dashboard(mgr *collector.Manager, ch *output.ClickHouse) http.Handl
 			ch.QueryRow("SELECT uniq(src_ip) FROM cloudflow.ebpf_events WHERE timestamp >= today()").Scan(&monitoredHosts)
 		}
 
+		flowTrend := []map[string]interface{}{
+			{"time": "00:00", "rx": 120, "tx": 80},
+			{"time": "04:00", "rx": 150, "tx": 100},
+			{"time": "08:00", "rx": 280, "tx": 180},
+			{"time": "12:00", "rx": 350, "tx": 220},
+			{"time": "16:00", "rx": 420, "tx": 260},
+			{"time": "20:00", "rx": 380, "tx": 240},
+			{"time": "23:59", "rx": 290, "tx": 190},
+		}
+		protocolDist := []map[string]interface{}{
+			{"name": "HTTP", "value": 45},
+			{"name": "DNS", "value": 25},
+			{"name": "MySQL", "value": 15},
+			{"name": "Redis", "value": 8},
+			{"name": "Other", "value": 7},
+		}
+		topHosts := []map[string]interface{}{
+			{"ip": "192.168.1.100", "bytes": 2048000, "percent": "32%"},
+			{"ip": "192.168.1.101", "bytes": 1536000, "percent": "24%"},
+			{"ip": "10.0.0.50", "bytes": 1024000, "percent": "16%"},
+		}
+		recentAlerts := []map[string]interface{}{
+			{"time": "10:23:15", "level": "high", "message": "检测到可疑端口扫描 (192.168.1.55)"},
+			{"time": "09:45:02", "level": "medium", "message": "DNS请求量突增 (+500%)"},
+			{"time": "08:12:33", "level": "low", "message": "MySQL慢查询 (2.5s)"},
+		}
+
+		if ch != nil {
+			rows, err := ch.Query("SELECT toHour(timestamp) as h, sum(bytes) as total FROM cloudflow.ebpf_events WHERE timestamp >= today() GROUP BY h ORDER BY h")
+			if err == nil && rows != nil {
+				flowTrend = []map[string]interface{}{}
+				for rows.Next() {
+					var h int
+					var total uint64
+					rows.Scan(&h, &total)
+					flowTrend = append(flowTrend, map[string]interface{}{
+						"time": fmt.Sprintf("%02d:00", h),
+						"rx":   total / 2,
+						"tx":   total / 2,
+					})
+				}
+				rows.Close()
+			}
+
+			rows2, err := ch.Query("SELECT protocol, count() as cnt FROM cloudflow.ebpf_events WHERE timestamp >= today() GROUP BY protocol ORDER BY cnt DESC LIMIT 5")
+			if err == nil && rows2 != nil {
+				protocolDist = []map[string]interface{}{}
+				for rows2.Next() {
+					var proto string
+					var cnt uint64
+					rows2.Scan(&proto, &cnt)
+					protocolDist = append(protocolDist, map[string]interface{}{
+						"name":  proto,
+						"value": cnt,
+					})
+				}
+				rows2.Close()
+			}
+
+			rows3, err := ch.Query("SELECT src_ip, sum(bytes) as total FROM cloudflow.ebpf_events WHERE timestamp >= today() GROUP BY src_ip ORDER BY total DESC LIMIT 5")
+			if err == nil && rows3 != nil {
+				topHosts = []map[string]interface{}{}
+				var totalBytes uint64
+				for rows3.Next() {
+					var ip string
+					var b uint64
+					rows3.Scan(&ip, &b)
+					totalBytes += b
+					topHosts = append(topHosts, map[string]interface{}{
+						"ip":     ip,
+						"bytes":  b,
+						"percent": "0%",
+					})
+				}
+				rows3.Close()
+				for i := range topHosts {
+					if totalBytes > 0 {
+						pct := float64(topHosts[i]["bytes"].(uint64)) / float64(totalBytes) * 100
+						topHosts[i]["percent"] = fmt.Sprintf("%.0f%%", pct)
+					}
+				}
+			}
+
+			rows4, err := ch.Query("SELECT toString(timestamp), event_type, details FROM cloudflow.ebpf_events WHERE category = 'security' ORDER BY timestamp DESC LIMIT 5")
+			if err == nil && rows4 != nil {
+				recentAlerts = []map[string]interface{}{}
+				for rows4.Next() {
+					var ts, etype, details string
+					rows4.Scan(&ts, &etype, &details)
+					recentAlerts = append(recentAlerts, map[string]interface{}{
+						"time":    ts,
+						"level":   "high",
+						"message": fmt.Sprintf("%s: %s", etype, details),
+					})
+				}
+				rows4.Close()
+			}
+		}
+
 		jsonResponse(w, http.StatusOK, APIResponse{Code: 0, Message: "success", Data: map[string]interface{}{
 			"probeOnline":    1,
 			"probeTotal":     1,
@@ -196,32 +297,10 @@ func handleV1Dashboard(mgr *collector.Manager, ch *output.ClickHouse) http.Handl
 			"alertTrend":     "-2",
 			"monitoredHosts": monitoredHosts,
 			"hostTrend":      "0",
-			"flowTrend": []map[string]interface{}{
-				{"time": "00:00", "rx": 120, "tx": 80},
-				{"time": "04:00", "rx": 150, "tx": 100},
-				{"time": "08:00", "rx": 280, "tx": 180},
-				{"time": "12:00", "rx": 350, "tx": 220},
-				{"time": "16:00", "rx": 420, "tx": 260},
-				{"time": "20:00", "rx": 380, "tx": 240},
-				{"time": "23:59", "rx": 290, "tx": 190},
-			},
-			"protocolDist": []map[string]interface{}{
-				{"name": "HTTP", "value": 45},
-				{"name": "DNS", "value": 25},
-				{"name": "MySQL", "value": 15},
-				{"name": "Redis", "value": 8},
-				{"name": "Other", "value": 7},
-			},
-			"topHosts": []map[string]interface{}{
-				{"ip": "192.168.1.100", "bytes": 2048000, "percent": "32%"},
-				{"ip": "192.168.1.101", "bytes": 1536000, "percent": "24%"},
-				{"ip": "10.0.0.50", "bytes": 1024000, "percent": "16%"},
-			},
-			"recentAlerts": []map[string]interface{}{
-				{"time": "10:23:15", "level": "high", "message": "检测到可疑端口扫描 (192.168.1.55)"},
-				{"time": "09:45:02", "level": "medium", "message": "DNS请求量突增 (+500%)"},
-				{"time": "08:12:33", "level": "low", "message": "MySQL慢查询 (2.5s)"},
-			},
+			"flowTrend":      flowTrend,
+			"protocolDist":   protocolDist,
+			"topHosts":       topHosts,
+			"recentAlerts":   recentAlerts,
 		}})
 	}
 }
