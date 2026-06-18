@@ -32,7 +32,7 @@ type Event struct {
 }
 
 func NewClickHouse(addr, user, password, database string) (*ClickHouse, error) {
-	dsn := fmt.Sprintf("http://%s:8123?username=%s&password=%s&database=%s", addr, user, password, database)
+	dsn := fmt.Sprintf("clickhouse://%s:9000?username=%s&password=%s&database=%s", addr, user, password, database)
 	db, err := sql.Open("clickhouse", dsn)
 	if err != nil { return nil, err }
 	if err := db.Ping(); err != nil { return nil, err }
