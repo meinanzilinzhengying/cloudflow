@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service"
@@ -16,21 +17,48 @@ func main() {
 	flag.StringVar(&cfg.HttpAddr, "http-addr", cfg.HttpAddr, "HTTP listen address")
 	flag.Parse()
 
-	// 从环境变量读取 ClickHouse 配置
+	// 从环境变量读取 ClickHouse/TSDB 配置（兼容两套命名）
 	if addr := os.Getenv("CLICKHOUSE_ADDR"); addr != "" {
-		cfg.ClickHouseAddr = addr
+		cfg.TimeSeriesDBHost = addr
+	}
+	if addr := os.Getenv("TSDB_ADDR"); addr != "" {
+		cfg.TimeSeriesDBHost = addr
 	}
 	if user := os.Getenv("CLICKHOUSE_USER"); user != "" {
-		cfg.ClickHouseUser = user
+		cfg.TimeSeriesDBUser = user
+	}
+	if user := os.Getenv("TSDB_USER"); user != "" {
+		cfg.TimeSeriesDBUser = user
 	}
 	if password := os.Getenv("CLICKHOUSE_PASSWORD"); password != "" {
-		cfg.ClickHousePassword = password
+		cfg.TimeSeriesDBPassword = password
+	}
+	if password := os.Getenv("TSDB_PASSWORD"); password != "" {
+		cfg.TimeSeriesDBPassword = password
 	}
 	if db := os.Getenv("CLICKHOUSE_DATABASE"); db != "" {
-		cfg.ClickHouseDatabase = db
+		cfg.TimeSeriesDBDatabase = db
+	}
+	if db := os.Getenv("TSDB_DATABASE"); db != "" {
+		cfg.TimeSeriesDBDatabase = db
+	}
+	if port := os.Getenv("CLICKHOUSE_PORT"); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			cfg.TimeSeriesDBPort = p
+		}
+	}
+	if port := os.Getenv("TSDB_PORT"); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			cfg.TimeSeriesDBPort = p
+		}
+	}
+	if tsdbType := os.Getenv("TSDB_TYPE"); tsdbType != "" {
+		if tsdbType == "clickhouse" {
+			cfg.TimeSeriesDBType = 0 // DatabaseClickHouse
+		}
 	}
 
-	// P0-2 修复: 从环境变量读取 TLS 配置
+	// P0-2 TLS 配置
 	if v := os.Getenv("TLS_ENABLED"); v == "true" {
 		cfg.TLSEnabled = true
 	}

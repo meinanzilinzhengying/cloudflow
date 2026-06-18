@@ -7,7 +7,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/meinanzilinzhengying/cloudflow/pkg v0.0.0
 	github.com/meinanzilinzhengying/cloudflow/proto v0.0.0
-	github.com/prometheus/client_golang v1.21.1
+	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.1
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/viper v1.21.0
@@ -56,7 +56,6 @@ require (
 
 replace golang.org/x/sys => golang.org/x/sys v0.18.0
 
-replace github.com/prometheus/common => github.com/prometheus/common v0.48.0
 
 replace golang.org/x/net => golang.org/x/net v0.24.0
 

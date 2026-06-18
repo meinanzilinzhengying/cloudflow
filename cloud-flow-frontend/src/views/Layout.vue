@@ -33,9 +33,21 @@
           <el-icon><Timer /></el-icon>
           <span>系统性能</span>
         </el-menu-item>
-        <el-menu-item index="/security">
-          <el-icon><Warning /></el-icon>
-          <span>安全审计</span>
+        <el-menu-item index="/logs">
+          <el-icon><Document /></el-icon>
+          <span>日志查询</span>
+        </el-menu-item>
+        <el-menu-item index="/topology">
+          <el-icon><MapLocation /></el-icon>
+          <span>网络拓扑</span>
+        </el-menu-item>
+        <el-menu-item index="/alerts">
+          <el-icon><Bell /></el-icon>
+          <span>告警中心</span>
+        </el-menu-item>
+        <el-menu-item index="/settings">
+          <el-icon><Setting /></el-icon>
+          <span>系统设置</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -71,7 +83,8 @@
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import {
-  Connection, Monitor, Cpu, Share, DataAnalysis, Timer, Warning,
+  Connection, Monitor, Cpu, Share, DataAnalysis, Timer,
+  Document, MapLocation, Bell, Setting,
   Fold, User, ArrowDown
 } from '@element-plus/icons-vue'
 

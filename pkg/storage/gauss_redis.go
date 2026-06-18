@@ -31,6 +31,23 @@ func (d *GaussRedisDriver) Type() DatabaseType {
 	return DatabaseGaussRedis
 }
 
+// GaussRedisDialect GaussRedis方言（KV存储无需SQL转换）
+type GaussRedisDialect struct{}
+
+func (d *GaussRedisDialect) ConvertCreateTable(sql string) string { return sql }
+func (d *GaussRedisDialect) ConvertCreateIndex(sql string) string { return sql }
+func (d *GaussRedisDialect) ConvertSelect(sql string) string    { return sql }
+func (d *GaussRedisDialect) ConvertInsert(sql string) string    { return sql }
+func (d *GaussRedisDialect) ConvertUpdate(sql string) string    { return sql }
+func (d *GaussRedisDialect) ConvertDelete(sql string) string    { return sql }
+func (d *GaussRedisDialect) MapFunction(funcName string, args ...string) string { return funcName }
+func (d *GaussRedisDialect) ApplyPagination(sql string, offset, limit int) string { return sql }
+func (d *GaussRedisDialect) ConvertPlaceholder(sql string, argCount int) string { return sql }
+
+func (d *GaussRedisDriver) GetDialect() Dialect {
+	return &GaussRedisDialect{}
+}
+
 func (d *GaussRedisDriver) OpenRelational(cfg *Config) (RelationalStorage, error) {
 	return nil, fmt.Errorf("gauss redis does not support relational storage")
 }

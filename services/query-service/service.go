@@ -274,6 +274,7 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/traces", s.tracesHandler)
 	mux.HandleFunc("/topology", s.topologyHandler)
 	mux.HandleFunc("/alerts", s.alertsHandler)
+	mux.HandleFunc("/metrics-data", s.metricsDataHandler)
 	mux.HandleFunc("/otel/traces", s.otelTracesHandler)
 	mux.HandleFunc("/otel/metrics", s.otelMetricsHandler)
 	mux.HandleFunc("/otel/logs", s.otelLogsHandler)
@@ -1043,6 +1044,53 @@ func (s *Service) alertsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
 		"alerts": []interface{}{},
 		"total":  0,
+	})
+}
+
+
+func (s *Service) metricsDataHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if s.tsDB == nil {
+		writeJSON(w, map[string]interface{}{
+			"records": []map[string]interface{}{},
+			"total":   0,
+			"took_ms": 0,
+		})
+		return
+	}
+	query := "SELECT timestamp, probe_id, cpu_percent, memory_percent, disk_percent, net_rx_bytes, net_tx_bytes, disk_read_bytes, disk_write_bytes FROM cloudflow.host_metrics ORDER BY timestamp DESC LIMIT 100"
+	rows, err := s.tsDB.Query(ctx, query)
+	if err != nil {
+		writeJSON(w, map[string]interface{}{
+			"records": []map[string]interface{}{},
+			"total":   0,
+			"took_ms": 0,
+			"error":   err.Error(),
+		})
+		return
+	}
+	defer rows.Close()
+	records := []map[string]interface{}{}
+	columns, _ := rows.Columns()
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+		if err := rows.Scan(valuePtrs...); err != nil {
+			continue
+		}
+		record := make(map[string]interface{})
+		for i, col := range columns {
+			record[col] = values[i]
+		}
+		records = append(records, record)
+	}
+	writeJSON(w, map[string]interface{}{
+		"records": records,
+		"total":   len(records),
+		"took_ms": 0,
 	})
 }
 

@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/meinanzilinzhengying/cloudflow/services/proto v0.0.0
-	github.com/prometheus/client_golang v1.21.1
+	github.com/prometheus/client_golang v1.19.0
 	github.com/shirou/gopsutil/v3 v3.24.5
 	go.etcd.io/etcd/client/v3 v3.5.13
 	google.golang.org/grpc v1.62.1
@@ -28,5 +28,3 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 )
 
-replace github.com/prometheus/common => github.com/prometheus/common v0.48.0
-replace golang.org/x/sys => golang.org/x/sys v0.18.0

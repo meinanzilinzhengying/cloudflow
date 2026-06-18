@@ -39,9 +39,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
-	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
+	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
 	"google.golang.org/grpc/status"
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
@@ -257,8 +256,6 @@ func (s *Service) Start() error {
 	
 	// Agent 管理 API (11个接口)
 	mux.HandleFunc("/api/control-plane/agents", s.listAgentsHandler)
-	mux.HandleFunc("/api/control-plane/agents/status", s.getAgentStatusHandler)
-	mux.HandleFunc("/api/control-plane/agents/", s.agentDetailHandler)
 	mux.HandleFunc("/api/control-plane/edges", s.listEdgesHandler)
 	protected := s.authMiddleware(mux)
 
@@ -567,6 +564,9 @@ func (s *Service) getGRPCDialOptions() ([]grpc.DialOption, error) {
 // authMiddleware 认证中间件
 func (s *Service) authMiddleware(next http.Handler) *http.ServeMux {
 	protectedMux := http.NewServeMux()
+
+	// 先注册原始 mux 的路由（让 /api/control-plane/* 等路由生效）
+	protectedMux.Handle("/", next)
 
 	protectedMux.HandleFunc("/healthz", s.healthzHandler)
 	protectedMux.HandleFunc("/api/stats", s.statsHandler)
@@ -1591,213 +1591,3 @@ func (s *Service) collectDetailedMetrics() (map[string]interface{}, error) {
 	return metrics, nil
 }
 
-// ============================================================================
-// Agent 管理 API Handlers
-// ============================================================================
-
-// listAgentsHandler GET /api/control-plane/agents
-func (s *Service) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	
-	// 收集所有 Agent
-	var agents []map[string]interface{}
-	s.agents.Range(func(key, value interface{}) bool {
-		if agent, ok := value.(*svcproto.AgentInfo); ok {
-			agents = append(agents, map[string]interface{}{
-				"id":       agent.Id,
-				"name":     agent.Hostname,
-				"ip":       agent.Ip,
-				"status":   agent.Status,
-				"version":  agent.Version,
-				"uptime":   agent.Uptime,
-				"traffic":  agent.TrafficBytes,
-				"last_seen": agent.LastHeartbeat,
-			})
-		}
-		return true
-	})
-	
-	// 如果没有agent，返回模拟数据
-	if len(agents) == 0 {
-		agents = []map[string]interface{}{
-			{"id": "agent-001", "name": "web-server-01", "ip": "192.168.1.101", "status": "online", "version": "v1.0.0", "uptime": "12h30m", "traffic": "1.2GB"},
-			{"id": "agent-002", "name": "db-server-01", "ip": "192.168.1.102", "status": "online", "version": "v1.0.0", "uptime": "8h15m", "traffic": "512MB"},
-			{"id": "agent-003", "name": "app-server-01", "ip": "192.168.1.103", "status": "offline", "version": "v0.9.9", "uptime": "0h0m", "traffic": "0B"},
-		}
-	}
-	
-	json.NewEncoder(w).Encode(map[string]interface{}{"data": agents})
-}
-
-// getAgentStatusHandler GET /api/control-plane/agents/status
-func (s *Service) getAgentStatusHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	
-	online := 0
-	offline := 0
-	s.agents.Range(func(key, value interface{}) bool {
-		if agent, ok := value.(*svcproto.AgentInfo); ok {
-			if agent.Status == "online" {
-				online++
-			} else {
-				offline++
-			}
-		}
-		return true
-	})
-	
-	// 如果没有agent，返回模拟数据
-	if online == 0 && offline == 0 {
-		online = 2
-		offline = 1
-	}
-	
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"online":  online,
-		"offline": offline,
-		"total":   online + offline,
-	})
-}
-
-// agentDetailHandler 处理所有 /api/control-plane/agents/:id/* 路由
-func (s *Service) agentDetailHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	
-	path := r.URL.Path
-	parts := strings.Split(strings.TrimPrefix(path, "/api/control-plane/agents/"), "/")
-	if len(parts) == 0 {
-		http.Error(w, "invalid path", http.StatusBadRequest)
-		return
-	}
-	
-	agentID := parts[0]
-	action := ""
-	if len(parts) > 1 {
-		action = parts[1]
-	}
-	
-	// GET /api/control-plane/agents/:id
-	if r.Method == http.MethodGet && action == "" {
-		s.getAgentDetail(w, r, agentID)
-		return
-	}
-	
-	// POST /api/control-plane/agents/:id/start
-	if r.Method == http.MethodPost && action == "start" {
-		s.startAgent(w, r, agentID)
-		return
-	}
-	
-	// POST /api/control-plane/agents/:id/stop
-	if r.Method == http.MethodPost && action == "stop" {
-		s.stopAgent(w, r, agentID)
-		return
-	}
-	
-	// POST /api/control-plane/agents/:id/restart
-	if r.Method == http.MethodPost && action == "restart" {
-		s.restartAgent(w, r, agentID)
-		return
-	}
-	
-	// POST /api/control-plane/agents/:id/upgrade
-	if r.Method == http.MethodPost && action == "upgrade" {
-		s.upgradeAgent(w, r, agentID)
-		return
-	}
-	
-	// POST /api/control-plane/agents/:id/config
-	if r.Method == http.MethodPost && action == "config" {
-		s.pushConfig(w, r, agentID)
-		return
-	}
-	
-	// GET /api/control-plane/agents/:id/logs
-	if r.Method == http.MethodGet && action == "logs" {
-		s.getAgentLogs(w, r, agentID)
-		return
-	}
-	
-	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-}
-
-// getAgentDetail GET /api/control-plane/agents/:id
-func (s *Service) getAgentDetail(w http.ResponseWriter, r *http.Request, agentID string) {
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": map[string]interface{}{
-			"id": agentID,
-			"name": "agent-" + agentID,
-			"ip": "192.168.1.100",
-			"status": "online",
-			"version": "v1.0.0",
-		},
-	})
-}
-
-// startAgent POST /api/control-plane/agents/:id/start
-func (s *Service) startAgent(w http.ResponseWriter, r *http.Request, agentID string) {
-	json.NewEncoder(w).Encode(map[string]interface{}{"message": "agent started successfully"})
-}
-
-// stopAgent POST /api/control-plane/agents/:id/stop
-func (s *Service) stopAgent(w http.ResponseWriter, r *http.Request, agentID string) {
-	json.NewEncoder(w).Encode(map[string]interface{}{"message": "agent stopped successfully"})
-}
-
-// restartAgent POST /api/control-plane/agents/:id/restart
-func (s *Service) restartAgent(w http.ResponseWriter, r *http.Request, agentID string) {
-	json.NewEncoder(w).Encode(map[string]interface{}{"message": "agent restarted successfully"})
-}
-
-// upgradeAgent POST /api/control-plane/agents/:id/upgrade
-func (s *Service) upgradeAgent(w http.ResponseWriter, r *http.Request, agentID string) {
-	var req struct {
-		Version string `json:"version"`
-	}
-	json.NewDecoder(r.Body).Decode(&req)
-	json.NewEncoder(w).Encode(map[string]interface{}{"message": "agent upgrading to " + req.Version})
-}
-
-// pushConfig POST /api/control-plane/agents/:id/config
-func (s *Service) pushConfig(w http.ResponseWriter, r *http.Request, agentID string) {
-	var config map[string]interface{}
-	json.NewDecoder(r.Body).Decode(&config)
-	json.NewEncoder(w).Encode(map[string]interface{}{"message": "config pushed successfully"})
-}
-
-// getAgentLogs GET /api/control-plane/agents/:id/logs
-func (s *Service) getAgentLogs(w http.ResponseWriter, r *http.Request, agentID string) {
-	logs := []string{
-		"[INFO] Agent started",
-		"[INFO] eBPF program loaded",
-		"[INFO] Connected to control plane",
-		"[INFO] Heartbeat sent",
-	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"data": logs})
-}
-
-// listEdgesHandler GET /api/control-plane/edges
-func (s *Service) listEdgesHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	
-	var edges []map[string]interface{}
-	s.edges.Range(func(key, value interface{}) bool {
-		if edge, ok := value.(*svcproto.EdgeInfo); ok {
-			edges = append(edges, map[string]interface{}{
-				"id":     edge.Id,
-				"name":   edge.Hostname,
-				"status": edge.Status,
-			})
-		}
-		return true
-	})
-	
-	// 如果没有edge，返回模拟数据
-	if len(edges) == 0 {
-		edges = []map[string]interface{}{
-			{"id": "edge-001", "name": "edge-beijing", "status": "online"},
-		}
-	}
-	
-	json.NewEncoder(w).Encode(map[string]interface{}{"data": edges})
-}
