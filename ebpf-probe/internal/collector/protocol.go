@@ -18,7 +18,7 @@ import (
 )
 
 type ProtocolCollector struct {
-	output   *output.ClickHouse
+	output   output.Writer
 	probeID  string
 	iface    string
 	running  bool
@@ -62,7 +62,7 @@ type DNSRecord struct {
 	QueryType string
 }
 
-func NewProtocolCollector(out *output.ClickHouse, probeID, iface string) *ProtocolCollector {
+func NewProtocolCollector(out output.Writer, probeID, iface string) *ProtocolCollector {
 	return &ProtocolCollector{
 		output:   out, probeID: probeID, iface: iface, stopCh: make(chan struct{}),
 		flows:    make(map[string]*FlowRecord),

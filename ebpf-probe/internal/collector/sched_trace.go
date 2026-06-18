@@ -22,7 +22,7 @@ import (
 var schedTraceBpfO []byte
 
 type SchedTraceCollector struct {
-	output     *output.ClickHouse
+	output     output.Writer
 	probeID    string
 	running    bool
 	stopCh     chan struct{}
@@ -32,7 +32,7 @@ type SchedTraceCollector struct {
 	analyzer   *perf.SchedAnalyzer
 }
 
-func NewSchedTraceCollector(out *output.ClickHouse, probeID string) *SchedTraceCollector {
+func NewSchedTraceCollector(out output.Writer, probeID string) *SchedTraceCollector {
 	return &SchedTraceCollector{
 		output:   out,
 		probeID:  probeID,

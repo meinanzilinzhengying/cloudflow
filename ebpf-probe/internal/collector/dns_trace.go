@@ -15,14 +15,13 @@ import (
 
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
-	"github.com/meinanzilinzhengying/ebpf-probe/pkg/protocol"
 )
 
 //go:embed dns_trace.bpf.o
 var dnsTraceBpfO []byte
 
 type DNSTraceCollector struct {
-	output    *output.ClickHouse
+	output    output.Writer
 	probeID   string
 	running   bool
 	stopCh    chan struct{}
@@ -31,7 +30,7 @@ type DNSTraceCollector struct {
 	reader    *ringbuf.Reader
 }
 
-func NewDNSTraceCollector(out *output.ClickHouse, probeID string) *DNSTraceCollector {
+func NewDNSTraceCollector(out output.Writer, probeID string) *DNSTraceCollector {
 	return &DNSTraceCollector{output: out, probeID: probeID, stopCh: make(chan struct{})}
 }
 
@@ -101,15 +100,15 @@ func (d *DNSTraceCollector) handleEvent(data []byte) {
 	_ = pid
 
 	payload := data[72:328]
-	rec := protocol.ParseDNS(payload, ipToString(srcIP), ipToString(dstIP), srcPort, dstPort)
-	if rec == nil { return }
-	rec.ProbeID = d.probeID
 	now := time.Now()
+
+	// 直接上报原始payload，不做协议解析（协议解析在Edge层完成）
 	_ = d.output.WriteEvent(&output.Event{
-		Timestamp: now, ProbeID: d.probeID, Category: "protocol", EventType: "dns",
-		SrcIP: rec.SrcIP, DstIP: rec.DstIP, SrcPort: rec.SrcPort, DstPort: rec.DstPort,
-		Protocol: "DNS", Details: rec.QueryName,
-		Tags: fmt.Sprintf("type=%s,nx=%v,susp=%v,tunnel=%v", rec.QueryType, rec.IsNXDOMAIN, rec.IsSuspicious, rec.IsTunnel),
+		Timestamp: now, ProbeID: d.probeID, Category: "protocol", EventType: "dns_raw",
+		SrcIP: ipToString(srcIP), DstIP: ipToString(dstIP), SrcPort: srcPort, DstPort: dstPort,
+		Protocol: "DNS", Bytes: uint64(len(payload)),
+		Details: string(payload), // 原始payload，由Edge解析
+		Tags: fmt.Sprintf("etype=%d", etype),
 	})
 }
 

@@ -15,14 +15,13 @@ import (
 
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
-	"github.com/meinanzilinzhengying/ebpf-probe/pkg/protocol"
 )
 
 //go:embed db_trace.bpf.o
 var dbTraceBpfO []byte
 
 type DBTraceCollector struct {
-	output    *output.ClickHouse
+	output    output.Writer
 	probeID   string
 	running   bool
 	stopCh    chan struct{}
@@ -31,7 +30,7 @@ type DBTraceCollector struct {
 	reader    *ringbuf.Reader
 }
 
-func NewDBTraceCollector(out *output.ClickHouse, probeID string) *DBTraceCollector {
+func NewDBTraceCollector(out output.Writer, probeID string) *DBTraceCollector {
 	return &DBTraceCollector{output: out, probeID: probeID, stopCh: make(chan struct{})}
 }
 
@@ -99,19 +98,13 @@ func (d *DBTraceCollector) handleEvent(data []byte) {
 	payload := data[72:328]
 	now := time.Now()
 
-	var rec *protocol.DBRecord
-	if etype == 10 { // MySQL
-		rec = protocol.ParseMySQL(payload, ipToString(srcIP), ipToString(dstIP), srcPort, dstPort, 0)
-	} else if etype == 11 { // Redis
-		rec = protocol.ParseRedis(payload, ipToString(srcIP), ipToString(dstIP), srcPort, dstPort, 0)
-	}
-	if rec == nil { return }
-	rec.ProbeID = d.probeID
+	// 直接上报原始payload，不做协议解析（协议解析在Edge层完成）
 	_ = d.output.WriteEvent(&output.Event{
-		Timestamp: now, ProbeID: d.probeID, Category: "protocol", EventType: "db",
-		SrcIP: rec.SrcIP, DstIP: rec.DstIP, SrcPort: rec.SrcPort, DstPort: rec.DstPort,
-		Protocol: rec.DBType, Details: rec.Query,
-		Tags: fmt.Sprintf("slow=%v", rec.IsSlow),
+		Timestamp: now, ProbeID: d.probeID, Category: "protocol", EventType: "db_raw",
+		SrcIP: ipToString(srcIP), DstIP: ipToString(dstIP), SrcPort: srcPort, DstPort: dstPort,
+		Protocol: "DB", Bytes: uint64(len(payload)),
+		Details: string(payload), // 原始payload，由Edge解析
+		Tags: fmt.Sprintf("etype=%d", etype),
 	})
 }
 

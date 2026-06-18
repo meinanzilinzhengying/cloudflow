@@ -22,7 +22,7 @@ import (
 var blockTraceBpfO []byte
 
 type BlockTraceCollector struct {
-	output    *output.ClickHouse
+	output    output.Writer
 	probeID   string
 	running   bool
 	stopCh    chan struct{}
@@ -32,7 +32,7 @@ type BlockTraceCollector struct {
 	analyzer  *perf.BlockIOAnalyzer
 }
 
-func NewBlockTraceCollector(out *output.ClickHouse, probeID string) *BlockTraceCollector {
+func NewBlockTraceCollector(out output.Writer, probeID string) *BlockTraceCollector {
 	return &BlockTraceCollector{
 		output:   out,
 		probeID:  probeID,

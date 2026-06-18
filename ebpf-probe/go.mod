@@ -1,4 +1,4 @@
-module github.com/meinanzilinzhengying/cloudflow/ebpf-probe
+module github.com/meinanzilinzhengying/ebpf-probe
 
 go 1.24.1
 

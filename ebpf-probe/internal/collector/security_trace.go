@@ -22,7 +22,7 @@ import (
 var securityTraceBpfO []byte
 
 type SecurityTraceCollector struct {
-	output    *output.ClickHouse
+	output    output.Writer
 	probeID   string
 	running   bool
 	stopCh    chan struct{}
@@ -31,7 +31,7 @@ type SecurityTraceCollector struct {
 	reader    *ringbuf.Reader
 }
 
-func NewSecurityTraceCollector(out *output.ClickHouse, probeID string) *SecurityTraceCollector {
+func NewSecurityTraceCollector(out output.Writer, probeID string) *SecurityTraceCollector {
 	return &SecurityTraceCollector{output: out, probeID: probeID, stopCh: make(chan struct{})}
 }
 

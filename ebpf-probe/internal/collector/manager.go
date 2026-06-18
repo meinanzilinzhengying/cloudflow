@@ -57,7 +57,7 @@ func DefaultConfig() CollectorConfig {
 }
 
 type Manager struct {
-	output     *output.ClickHouse
+	output     output.Writer
 	probeID    string
 	ifaceName  string
 	config     CollectorConfig
@@ -65,7 +65,7 @@ type Manager struct {
 	mu         sync.RWMutex
 }
 
-func NewManager(out *output.ClickHouse, probeID, iface string, cfg CollectorConfig) *Manager {
+func NewManager(out output.Writer, probeID, iface string, cfg CollectorConfig) *Manager {
 	return &Manager{output: out, probeID: probeID, ifaceName: iface, config: cfg}
 }
 
@@ -310,13 +310,13 @@ func (m *Manager) CollectorNames() []string {
 
 // HostMetricsCollector 用户态主机指标
 type HostMetricsCollector struct {
-	output  *output.ClickHouse
+	output  output.Writer
 	probeID string
 	running bool
 	stopCh  chan struct{}
 }
 
-func NewHostMetricsCollector(out *output.ClickHouse, probeID string) *HostMetricsCollector {
+func NewHostMetricsCollector(out output.Writer, probeID string) *HostMetricsCollector {
 	return &HostMetricsCollector{output: out, probeID: probeID, stopCh: make(chan struct{})}
 }
 

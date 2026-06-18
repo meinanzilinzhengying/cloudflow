@@ -79,10 +79,20 @@ func (c *ClickHouse) WriteEvent(e *Event) error {
 }
 
 func (c *ClickHouse) WriteBatch(events []*Event) error {
-	for _, e := range events {
-		if err := c.WriteEvent(e); err != nil { return err }
+	if len(events) == 0 {
+		return nil
 	}
-	return nil
+	query := "INSERT INTO cloudflow.ebpf_events (timestamp, probe_id, category, event_type, src_ip, dst_ip, src_port, dst_port, protocol, bytes, packets, latency_ms, service, details, tags) VALUES "
+	args := make([]interface{}, 0, len(events)*15)
+	for i := 0; i < len(events); i++ {
+		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),"
+	}
+	query = query[:len(query)-1]
+	for _, e := range events {
+		args = append(args, e.Timestamp, e.ProbeID, e.Category, e.EventType, e.SrcIP, e.DstIP, e.SrcPort, e.DstPort, e.Protocol, e.Bytes, e.Packets, e.LatencyMs, e.Service, e.Details, e.Tags)
+	}
+	_, err := c.db.Exec(query, args...)
+	return err
 }
 
 func (c *ClickHouse) WriteMetrics(probeID string, cpu, mem, disk float64, netRx, netTx, diskRead, diskWrite uint64) error {
@@ -123,3 +133,11 @@ func (c *ClickHouse) WriteSyscallEvent(ts time.Time, probeID string, pid uint32,
 
 func (c *ClickHouse) Close() error { return c.db.Close() }
 func (c *ClickHouse) Flush() { log.Printf("[OUTPUT] ClickHouse flushed") }
+
+func (c *ClickHouse) QueryRow(query string, args ...interface{}) *sql.Row {
+	return c.db.QueryRow(query, args...)
+}
+
+func (c *ClickHouse) Query(query string, args ...interface{}) (*sql.Rows, error) {
+	return c.db.Query(query, args...)
+}

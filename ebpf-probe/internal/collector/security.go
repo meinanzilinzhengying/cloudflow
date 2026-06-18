@@ -24,7 +24,7 @@ var fileOpenBpfO []byte
 var tcpConnectBpfO []byte
 
 type SecurityCollector struct {
-	output      *output.ClickHouse
+	output      output.Writer
 	probeID     string
 	running     bool
 	stopCh      chan struct{}
@@ -36,7 +36,7 @@ type SecurityCollector struct {
 	tcpReader   *ringbuf.Reader
 }
 
-func NewSecurityCollector(out *output.ClickHouse, probeID string) *SecurityCollector {
+func NewSecurityCollector(out output.Writer, probeID string) *SecurityCollector {
 	return &SecurityCollector{output: out, probeID: probeID, stopCh: make(chan struct{})}
 }
 
