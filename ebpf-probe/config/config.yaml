@@ -1,0 +1,25 @@
+probe_id: node-probe
+interface: eth0
+clickhouse_addr: 127.0.0.1
+clickhouse_user: default
+clickhouse_password: ""
+clickhouse_database: cloudflow
+api_port: "9090"
+collect_all: true
+
+# 采集器开关
+collectors:
+  network: true
+  performance: true
+  protocol: true
+  security: true
+  host_metrics: true
+
+# 过滤规则
+filters:
+  # 忽略本地回环
+  ignore_loopback: true
+  # 忽略的端口
+  ignore_ports: []
+  # 忽略的 IP
+  ignore_ips: []
