@@ -5,8 +5,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/collector"
-	ebpfprobe "github.com/meinanzilinzhengying/cloudflow/ebpf-probe"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/collector"
+	ebpfprobe "github.com/meinanzilinzhengying/ebpf-probe"
 )
 
 func Start(port string, mgr *collector.Manager) {

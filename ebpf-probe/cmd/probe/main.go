@@ -8,12 +8,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	ebpfprobe "github.com/meinanzilinzhengying/cloudflow/ebpf-probe"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/api"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/collector"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/kernel"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/output"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/pkg/platform"
+	ebpfprobe "github.com/meinanzilinzhengying/ebpf-probe"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/api"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/collector"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
+	"github.com/meinanzilinzhengying/ebpf-probe/pkg/platform"
 )
 
 var (

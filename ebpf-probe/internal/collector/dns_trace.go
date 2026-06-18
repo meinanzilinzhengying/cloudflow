@@ -13,9 +13,9 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/kernel"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/output"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/pkg/protocol"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
+	"github.com/meinanzilinzhengying/ebpf-probe/pkg/protocol"
 )
 
 //go:embed dns_trace.bpf.o

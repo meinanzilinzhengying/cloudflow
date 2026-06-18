@@ -15,8 +15,8 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
 
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/kernel"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/output"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
 )
 
 //go:embed network_flow.bpf.o

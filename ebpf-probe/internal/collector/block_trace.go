@@ -13,9 +13,9 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/kernel"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/output"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/pkg/perf"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
+	"github.com/meinanzilinzhengying/ebpf-probe/pkg/perf"
 )
 
 //go:embed block_trace.bpf.o

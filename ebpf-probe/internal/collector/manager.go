@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/kernel"
-	"github.com/meinanzilinzhengying/cloudflow/ebpf-probe/internal/output"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
+	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
 )
 
 type Collector interface {
