@@ -5,166 +5,203 @@
       <div class="header-actions">
         <TimePicker v-model="timeRange" @change="fetchData" />
         <el-input v-model="filterText" placeholder="按IP/端口/协议筛选" size="small" clearable style="width: 220px" />
+        <el-button type="primary" size="small" @click="fetchData">刷新</el-button>
       </div>
     </div>
+
+    <!-- 流量趋势 -->
     <el-card class="chart-card" :body-style="{ padding: '20px' }">
-      <div class="card-title">流量趋势</div>
-      <v-chart :option="flowTrendOption" autoresize style="height: 320px" />
+      <div class="card-title">
+        流量趋势
+        <el-tag size="small" type="info" style="margin-left:8px">{{ trends.length }} 个时间点</el-tag>
+      </div>
+      <v-chart :option="flowTrendOption" autoresize style="height: 300px" />
     </el-card>
+
+    <!-- 通信矩阵 + 拓扑 -->
     <el-row :gutter="24" class="matrix-row">
       <el-col :span="12">
         <el-card class="chart-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">通信矩阵</div>
-          <v-chart :option="matrixOption" autoresize style="height: 300px" />
+          <div class="card-title">协议流量分布</div>
+          <v-chart :option="protocolBarOption" autoresize style="height: 280px" />
         </el-card>
       </el-col>
       <el-col :span="12">
         <el-card class="chart-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">网络拓扑</div>
-          <v-chart :option="topologyOption" autoresize style="height: 300px" />
+          <div class="card-title">实时 PPS (包/秒)</div>
+          <v-chart :option="ppsOption" autoresize style="height: 280px" />
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- 流日志表 -->
     <el-card class="table-card" :body-style="{ padding: '20px' }">
-      <div class="card-title">流日志</div>
-      <el-table :data="filteredFlows" size="small" style="width: 100%" max-height="400">
-        <el-table-column prop="timestamp" label="时间" width="160" />
-        <el-table-column prop="srcIp" label="源IP" />
-        <el-table-column prop="dstIp" label="目的IP" />
-        <el-table-column prop="srcPort" label="源端口" width="80" />
-        <el-table-column prop="dstPort" label="目的端口" width="80" />
-        <el-table-column prop="protocol" label="协议" width="80" />
-        <el-table-column prop="bytes" label="字节数" :formatter="(row: any) => formatBytes(row.bytes)" />
-        <el-table-column prop="packets" label="包数" />
-        <el-table-column prop="rtt" label="RTT(ms)" width="90" />
+      <div class="card-title">
+        流日志
+        <el-tag size="small" type="success" style="margin-left:8px">{{ filteredFlows.length }} 条</el-tag>
+      </div>
+      <el-table :data="pagedFlows" size="small" style="width: 100%" max-height="400">
+        <el-table-column label="时间" width="155">
+          <template #default="{ row }">{{ row.time || row.timestamp }}</template>
+        </el-table-column>
+        <el-table-column label="源IP" width="130">
+          <template #default="{ row }">{{ row.src || row.srcIp }}</template>
+        </el-table-column>
+        <el-table-column label="目的IP" width="130">
+          <template #default="{ row }">{{ row.dst || row.dstIp }}</template>
+        </el-table-column>
+        <el-table-column label="源端口" width="80">
+          <template #default="{ row }">{{ row.sport || row.srcPort }}</template>
+        </el-table-column>
+        <el-table-column label="目的端口" width="80">
+          <template #default="{ row }">{{ row.dport || row.dstPort }}</template>
+        </el-table-column>
+        <el-table-column prop="protocol" label="协议" width="80">
+          <template #default="{ row }">
+            <el-tag size="small" :type="protoColor(row.protocol)">{{ row.protocol || 'TCP' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="字节数" width="100">
+          <template #default="{ row }">{{ formatBytes(row.bytes || 0) }}</template>
+        </el-table-column>
+        <el-table-column prop="packets" label="包数" width="70" />
+        <el-table-column prop="status" label="状态" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="row.status" size="small" type="success">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
       </el-table>
-      <el-pagination class="pagination" background layout="total, prev, pager, next" :total="filteredFlows.length" :page-size="20" />
+      <el-pagination
+        class="pagination"
+        background layout="total, prev, pager, next"
+        :total="filteredFlows.length"
+        :page-size="pageSize"
+        v-model:current-page="currentPage"
+      />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import TimePicker from '@/components/TimePicker.vue'
-import { getNetworkFlows } from '@/api/network'
-import type { FlowRecord } from '@/api/network'
+import { getNetworkFlows, getNetworkTrends } from '@/api/network'
+import type { FlowRecord, NetworkTrend } from '@/api/network'
 import { formatBytes } from '@/utils/format'
 
 const timeRange = ref('1h')
 const filterText = ref('')
 const flows = ref<FlowRecord[]>([])
+const trends = ref<NetworkTrend[]>([])
+const currentPage = ref(1)
+const pageSize = 20
+
+const protoColor = (proto: string) => {
+  const map: Record<string, string> = { HTTP: 'primary', TCP: 'success', UDP: 'warning', DNS: 'info' }
+  return map[proto] || ''
+}
 
 const filteredFlows = computed(() => {
   if (!filterText.value) return flows.value
   const f = filterText.value.toLowerCase()
-  return flows.value.filter(r =>
-    r.srcIp.toLowerCase().includes(f) || r.dstIp.toLowerCase().includes(f) ||
-    r.protocol.toLowerCase().includes(f) || String(r.srcPort).includes(f) || String(r.dstPort).includes(f)
-  )
+  return flows.value.filter(r => {
+    const src = (r.src || r.srcIp || '').toLowerCase()
+    const dst = (r.dst || r.dstIp || '').toLowerCase()
+    const proto = (r.protocol || '').toLowerCase()
+    const sp = String(r.sport || r.srcPort || '')
+    const dp = String(r.dport || r.dstPort || '')
+    return src.includes(f) || dst.includes(f) || proto.includes(f) || sp.includes(f) || dp.includes(f)
+  })
+})
+
+const pagedFlows = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return filteredFlows.value.slice(start, start + pageSize)
+})
+
+// 协议统计
+const protocolStats = computed(() => {
+  const map: Record<string, number> = {}
+  flows.value.forEach(f => {
+    const p = f.protocol || 'TCP'
+    map[p] = (map[p] || 0) + (f.bytes || 0)
+  })
+  return Object.entries(map)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value]) => ({ name, value }))
 })
 
 const flowTrendOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  dataZoom: [{ type: 'inside' }, { type: 'slider' }],
-  xAxis: { type: 'category', data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'] },
+  tooltip: {
+    trigger: 'axis',
+    formatter: (p: any[]) => p.map(i => `${i.seriesName}: ${formatBytes(i.value)}`).join('<br>')
+  },
+  legend: { data: ['上行流量', '下行流量'], right: 0 },
+  dataZoom: [{ type: 'inside' }, { type: 'slider', height: 20 }],
+  grid: { left: '3%', right: '4%', bottom: '60px', containLabel: true },
+  xAxis: { type: 'category', data: trends.value.map(t => t.time), boundaryGap: false },
   yAxis: { type: 'value', axisLabel: { formatter: (v: number) => formatBytes(v) } },
   series: [
-    { name: '流量', type: 'line', areaStyle: { opacity: 0.3 }, data: [1200000, 1800000, 3500000, 4200000, 3100000, 2500000], smooth: true }
+    { name: '上行流量', type: 'line', areaStyle: { opacity: 0.3 }, data: trends.value.map(t => t.tx || 0), smooth: true, lineStyle: { color: '#409EFF' } },
+    { name: '下行流量', type: 'line', areaStyle: { opacity: 0.3 }, data: trends.value.map(t => t.rx || 0), smooth: true, lineStyle: { color: '#67C23A' } }
   ]
 }))
 
-const matrixOption = computed(() => ({
-  tooltip: { position: 'top' },
-  grid: { height: '70%', top: '10%' },
-  xAxis: { type: 'category', data: ['Web', 'DB', 'Cache', 'MQ', 'API'], splitArea: { show: true } },
-  yAxis: { type: 'category', data: ['Web', 'DB', 'Cache', 'MQ', 'API'], splitArea: { show: true } },
-  visualMap: { min: 0, max: 1000, calculable: true, orient: 'horizontal', left: 'center', bottom: '0%', inRange: { color: ['#e0f7fa', '#165DFF'] } },
+const protocolBarOption = computed(() => ({
+  tooltip: { trigger: 'axis', formatter: (p: any[]) => `${p[0].name}: ${formatBytes(p[0].value)}` },
+  xAxis: { type: 'category', data: protocolStats.value.map(p => p.name) },
+  yAxis: { type: 'value', axisLabel: { formatter: (v: number) => formatBytes(v) } },
   series: [{
-    type: 'heatmap', data: [
-      [0,0,0], [1,0,200], [2,0,50], [3,0,100], [4,0,300],
-      [0,1,200], [1,1,0], [2,1,80], [3,1,150], [4,1,100],
-      [0,2,50], [1,2,80], [2,2,0], [3,2,20], [4,2,60],
-      [0,3,100], [1,3,150], [2,3,20], [3,3,0], [4,3,80],
-      [0,4,300], [1,4,100], [2,4,60], [3,4,80], [4,4,0],
-    ]
+    type: 'bar',
+    data: protocolStats.value.map(p => p.value),
+    itemStyle: { borderRadius: [4, 4, 0, 0], color: '#409EFF' }
   }]
 }))
 
-const topologyOption = computed(() => ({
-  tooltip: {},
+const ppsOption = computed(() => ({
+  tooltip: { trigger: 'axis' },
+  xAxis: { type: 'category', data: trends.value.map(t => t.time), boundaryGap: false },
+  yAxis: { type: 'value', name: 'pps' },
   series: [{
-    type: 'graph', layout: 'force', symbolSize: 50, roam: true,
-    label: { show: true },
-    edgeSymbol: ['circle', 'arrow'], edgeSymbolSize: [4, 10],
-    data: [
-      { name: 'Gateway', category: 0 }, { name: 'LB', category: 1 },
-      { name: 'Web-1', category: 2 }, { name: 'Web-2', category: 2 },
-      { name: 'DB-1', category: 3 }, { name: 'Cache', category: 3 },
-    ],
-    links: [
-      { source: 'Gateway', target: 'LB' }, { source: 'LB', target: 'Web-1' },
-      { source: 'LB', target: 'Web-2' }, { source: 'Web-1', target: 'DB-1' },
-      { source: 'Web-2', target: 'DB-1' }, { source: 'Web-1', target: 'Cache' },
-    ],
-    categories: [{ name: '网关' }, { name: '负载均衡' }, { name: 'Web' }, { name: '数据' }],
-    force: { repulsion: 1000, edgeLength: 120 }
+    name: 'PPS', type: 'line',
+    data: trends.value.map(t => t.pps || 0),
+    smooth: true, areaStyle: { opacity: 0.2 },
+    lineStyle: { color: '#E6A23C' }, itemStyle: { color: '#E6A23C' }
   }]
 }))
 
 const fetchData = async () => {
   try {
-    const res = await getNetworkFlows({ range: timeRange.value })
-    if (res.code === 0) flows.value = res.data.flows
-    else {
-      flows.value = [
-        { timestamp: '2026-06-18 14:00:00', srcIp: '192.168.1.101', dstIp: '192.168.1.102', srcPort: 443, dstPort: 54328, protocol: 'TCP', bytes: 15240, packets: 12, rtt: 0.8 },
-        { timestamp: '2026-06-18 14:00:01', srcIp: '192.168.1.103', dstIp: '192.168.1.104', srcPort: 3306, dstPort: 49212, protocol: 'TCP', bytes: 8192, packets: 8, rtt: 1.2 },
-        { timestamp: '2026-06-18 14:00:02', srcIp: '192.168.1.101', dstIp: '192.168.1.105', srcPort: 53, dstPort: 49152, protocol: 'UDP', bytes: 256, packets: 1, rtt: 0.3 },
-      ]
-    }
-  } catch (e) { /* ignore */ }
+    const [flowRes, trendRes] = await Promise.all([
+      getNetworkFlows({ range: timeRange.value }),
+      getNetworkTrends()
+    ])
+    if (flowRes.code === 0 && Array.isArray(flowRes.data)) flows.value = flowRes.data
+    if (trendRes.code === 0 && Array.isArray(trendRes.data)) trends.value = trendRes.data
+  } catch (e) { console.error('Network fetch error:', e) }
 }
 
-onMounted(fetchData)
+let timer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { fetchData(); timer = setInterval(fetchData, 30000) })
+onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <style scoped lang="scss">
 .network {
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    .page-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--el-text-color-primary);
-    }
-    .header-actions {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+    .page-title { font-size: 18px; font-weight: 600; color: var(--el-text-color-primary); }
+    .header-actions { display: flex; gap: 12px; align-items: center; }
   }
   .chart-card {
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    margin-bottom: 24px;
-    .card-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--el-text-color-primary);
-      margin-bottom: 16px;
-    }
+    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 24px;
+    .card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 16px; display: flex; align-items: center; }
   }
-  .matrix-row { margin-bottom: 0; }
+  .matrix-row { margin-bottom: 24px; }
   .table-card {
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    .pagination {
-      margin-top: 16px;
-      justify-content: flex-end;
-    }
+    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    .card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; display: flex; align-items: center; }
+    .pagination { margin-top: 16px; justify-content: flex-end; }
   }
 }
 </style>

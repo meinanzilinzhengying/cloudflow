@@ -1,186 +1,121 @@
 <template>
   <div class="dashboard">
+    <!-- 顶部统计卡 -->
     <el-row :gutter="16" class="metric-row">
       <el-col :span="4">
         <el-card class="stat-card" :body-style="{ padding: '16px' }">
           <div class="stat-title">探针总数</div>
           <div class="stat-value">{{ overview.probeTotal }}</div>
+          <div class="stat-sub">在线 {{ overview.probeOnline }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card" :body-style="{ padding: '16px' }">
           <div class="stat-title">在线探针</div>
-          <div class="stat-value">{{ overview.probeOnline }}</div>
+          <div class="stat-value green">{{ overview.probeOnline }}</div>
+          <div class="stat-sub">共 {{ overview.probeTotal }} 个</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card" :body-style="{ padding: '16px' }">
           <div class="stat-title">今日流量</div>
-          <div class="stat-value">{{ overview.todayTraffic }}</div>
+          <div class="stat-value">{{ computedTodayTraffic }}</div>
+          <div class="stat-sub trend">{{ overview.trafficTrend }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card" :body-style="{ padding: '16px' }">
           <div class="stat-title">活跃告警</div>
-          <div class="stat-value">{{ overview.activeAlerts }}</div>
+          <div class="stat-value" :class="overview.activeAlerts > 0 ? 'red' : 'green'">{{ overview.activeAlerts }}</div>
+          <div class="stat-sub">{{ overview.alertTrend }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card" :body-style="{ padding: '16px' }">
           <div class="stat-title">监控主机</div>
           <div class="stat-value">{{ overview.monitoredHosts }}</div>
+          <div class="stat-sub">{{ overview.hostTrend }}</div>
         </el-card>
       </el-col>
       <el-col :span="4">
         <el-card class="stat-card" :body-style="{ padding: '16px' }">
-          <div class="stat-title">活跃连接</div>
-          <div class="stat-value">{{ overview.activeConnections }}</div>
+          <div class="stat-title">协议类型</div>
+          <div class="stat-value">{{ protocolCount }}</div>
+          <div class="stat-sub">已识别协议</div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-row :gutter="16" class="status-row">
-      <el-col :span="8">
-        <el-card class="status-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">探针状态</div>
-          <div class="status-grid">
-            <div v-for="(probe, idx) in probeStatusList" :key="idx"
-                 class="status-block"
-                 :class="probe.status"
-                 :title="probe.name"
-            ></div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card class="status-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">主机状态</div>
-          <div class="status-grid">
-            <div v-for="(host, idx) in hostStatusList" :key="idx"
-                 class="status-block"
-                 :class="host.status"
-                 :title="host.name"
-            ></div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card class="status-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">服务状态</div>
-          <div class="status-grid">
-            <div v-for="(svc, idx) in serviceStatusList" :key="idx"
-                 class="status-block"
-                 :class="svc.status"
-                 :title="svc.name"
-            ></div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-row :gutter="16" class="bottom-row">
-      <el-col :span="6">
-        <el-card class="alert-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">主机告警</div>
-          <el-table :data="hostAlerts" size="small" style="width:100%" :show-header="false">
-            <el-table-column prop="name" label="主机" />
-            <el-table-column prop="count" label="告警数" width="60">
-              <template #default="{ row }">
-                <el-tag :type="row.count > 5 ? 'danger' : 'warning'" size="small">{{ row.count }}</el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="alert-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">服务告警</div>
-          <el-table :data="serviceAlerts" size="small" style="width:100%" :show-header="false">
-            <el-table-column prop="name" label="服务" />
-            <el-table-column prop="count" label="告警数" width="60">
-              <template #default="{ row }">
-                <el-tag :type="row.count > 5 ? 'danger' : 'warning'" size="small">{{ row.count }}</el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="top-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">Top 5 HTTP 延迟</div>
-          <div v-for="(item, idx) in topHttpLatency" :key="idx" class="top-bar-item">
-            <span class="top-name">{{ item.name }}</span>
-            <el-progress :percentage="item.percent" :stroke-width="12" :color="'#409EFF'" :show-text="false" />
-            <span class="top-value">{{ item.value }} ms</span>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="top-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">Top 5 TCP 延迟</div>
-          <div v-for="(item, idx) in topTcpLatency" :key="idx" class="top-bar-item">
-            <span class="top-name">{{ item.name }}</span>
-            <el-progress :percentage="item.percent" :stroke-width="12" :color="'#409EFF'" :show-text="false" />
-            <span class="top-value">{{ item.value }} ms</span>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-row :gutter="16" class="bottom-row">
-      <el-col :span="6">
-        <el-card class="top-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">Top 5 CPU 主机</div>
-          <div v-for="(item, idx) in topCpu" :key="idx" class="top-bar-item">
-            <span class="top-name">{{ item.name }}</span>
-            <el-progress :percentage="item.percent" :stroke-width="12" :color="'#E6A23C'" :show-text="false" />
-            <span class="top-value">{{ item.value }}%</span>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="top-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">Top 5 内存 主机</div>
-          <div v-for="(item, idx) in topMemory" :key="idx" class="top-bar-item">
-            <span class="top-name">{{ item.name }}</span>
-            <el-progress :percentage="item.percent" :stroke-width="12" :color="'#67C23A'" :show-text="false" />
-            <span class="top-value">{{ item.value }}%</span>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="top-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">Top TCP 连接数</div>
-          <div v-for="(item, idx) in topConnections" :key="idx" class="top-bar-item">
-            <span class="top-name">{{ item.name }}</span>
-            <el-progress :percentage="item.percent" :stroke-width="12" :color="'#409EFF'" :show-text="false" />
-            <span class="top-value">{{ item.value }} 个</span>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="top-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">Top 5 流量主机</div>
-          <div v-for="(item, idx) in topTraffic" :key="idx" class="top-bar-item">
-            <span class="top-name">{{ item.name }}</span>
-            <el-progress :percentage="item.percent" :stroke-width="12" :color="'#409EFF'" :show-text="false" />
-            <span class="top-value">{{ item.value }}</span>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
+    <!-- 流量趋势 + 协议分布 -->
     <el-row :gutter="16" class="chart-row">
-      <el-col :span="14">
+      <el-col :span="15">
         <el-card class="chart-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">流量趋势 (24小时)</div>
-          <v-chart :option="flowOption" autoresize style="height: 280px" />
+          <div class="card-title">
+            流量趋势
+            <el-tag size="small" type="success" style="margin-left:8px">实时</el-tag>
+          </div>
+          <v-chart :option="flowOption" autoresize style="height: 260px" />
         </el-card>
       </el-col>
-      <el-col :span="10">
+      <el-col :span="9">
         <el-card class="chart-card" :body-style="{ padding: '20px' }">
           <div class="card-title">协议分布</div>
-          <v-chart :option="protocolOption" autoresize style="height: 280px" />
+          <v-chart :option="protocolOption" autoresize style="height: 260px" />
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- Top 排行 + 告警 -->
+    <el-row :gutter="16" class="bottom-row">
+      <el-col :span="6">
+        <el-card class="top-card" :body-style="{ padding: '20px' }">
+          <div class="card-title">Top CPU 主机</div>
+          <div v-if="topCpu.length > 0">
+            <div v-for="(item, idx) in topCpu" :key="idx" class="top-bar-item">
+              <span class="top-name">{{ item.name }}</span>
+              <el-progress :percentage="item.percent" :stroke-width="10" :color="cpuColor(item.percent)" :show-text="false" />
+              <span class="top-value">{{ item.value.toFixed(1) }}%</span>
+            </div>
+          </div>
+          <el-empty v-else description="暂无数据" :image-size="40" />
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card class="top-card" :body-style="{ padding: '20px' }">
+          <div class="card-title">Top 内存主机</div>
+          <div v-if="topMemory.length > 0">
+            <div v-for="(item, idx) in topMemory" :key="idx" class="top-bar-item">
+              <span class="top-name">{{ item.name }}</span>
+              <el-progress :percentage="item.percent" :stroke-width="10" :color="'#67C23A'" :show-text="false" />
+              <span class="top-value">{{ item.value.toFixed(1) }}%</span>
+            </div>
+          </div>
+          <el-empty v-else description="暂无数据" :image-size="40" />
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card class="top-card" :body-style="{ padding: '20px' }">
+          <div class="card-title">Top 流量主机</div>
+          <div v-if="(overview.topHosts || []).length > 0">
+            <div v-for="(item, idx) in overview.topHosts.slice(0,5)" :key="idx" class="top-bar-item">
+              <span class="top-name">{{ item.ip }}</span>
+              <el-progress :percentage="Number(item.percent) || 0" :stroke-width="10" :color="'#409EFF'" :show-text="false" />
+              <span class="top-value">{{ formatBytes(item.bytes) }}</span>
+            </div>
+          </div>
+          <el-empty v-else description="暂无数据" :image-size="40" />
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card class="top-card" :body-style="{ padding: '20px' }">
+          <div class="card-title">最近告警</div>
+          <div v-if="(overview.recentAlerts || []).length > 0">
+            <div v-for="(item, idx) in overview.recentAlerts.slice(0,5)" :key="idx" class="alert-item">
+              <el-tag :type="item.level === 'high' ? 'danger' : item.level === 'medium' ? 'warning' : 'info'" size="small">{{ item.level }}</el-tag>
+              <span class="alert-msg">{{ item.message }}</span>
+            </div>
+          </div>
+          <el-empty v-else description="暂无告警" :image-size="40" />
         </el-card>
       </el-col>
     </el-row>
@@ -188,155 +123,140 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { getOverview } from '@/api/dashboard'
 import type { DashboardOverview } from '@/api/dashboard'
 import { formatBytes } from '@/utils/format'
+import { getPerformanceCpu, getPerformanceMemory } from '@/api/performance'
 
-const overview = reactive<DashboardOverview & { activeConnections: number }>({
-  probeOnline: 12, probeTotal: 15, todayTraffic: '1.2TB', trafficTrend: '+15%',
-  activeAlerts: 3, alertTrend: '-1', monitoredHosts: 42, hostTrend: '+5',
-  flowTrend: [], protocolDist: [], topHosts: [], recentAlerts: [],
-  activeConnections: 104
+const overview = reactive<DashboardOverview>({
+  probeOnline: 0, probeTotal: 0, todayTraffic: '', trafficTrend: '',
+  activeAlerts: 0, alertTrend: '', monitoredHosts: 0, hostTrend: '',
+  flowTrend: [], protocolDist: [], topHosts: [], recentAlerts: []
 })
 
+const topCpu = ref<{ name: string; value: number; percent: number }[]>([])
+const topMemory = ref<{ name: string; value: number; percent: number }[]>([])
 
-const fetchData = async () => {
-  try {
-    const res = await getOverview()
-    if (res.code === 0) Object.assign(overview, res.data)
-  } catch (e) {}
-}
+const cpuColor = (pct: number) => pct > 80 ? '#F56C6C' : pct > 50 ? '#E6A23C' : '#67C23A'
 
-const probeStatusList = ref([
-  { name: 'node-01', status: 'healthy' }, { name: 'node-02', status: 'healthy' },
-  { name: 'node-03', status: 'warning' }, { name: 'node-04', status: 'offline' },
-  { name: 'node-05', status: 'healthy' }, { name: 'node-06', status: 'healthy' },
-  { name: 'node-07', status: 'healthy' }, { name: 'node-08', status: 'warning' },
-])
-const hostStatusList = ref([
-  { name: '192.168.1.101', status: 'healthy' }, { name: '192.168.1.102', status: 'healthy' },
-  { name: '192.168.1.103', status: 'healthy' }, { name: '192.168.1.104', status: 'offline' },
-  { name: '192.168.1.105', status: 'healthy' }, { name: '192.168.1.106', status: 'warning' },
-  { name: '192.168.1.107', status: 'healthy' }, { name: '192.168.1.108', status: 'healthy' },
-])
-const serviceStatusList = ref([
-  { name: 'nginx', status: 'healthy' }, { name: 'mysql', status: 'healthy' },
-  { name: 'redis', status: 'healthy' }, { name: 'api-gateway', status: 'warning' },
-  { name: 'kafka', status: 'healthy' }, { name: 'elasticsearch', status: 'healthy' },
-  { name: 'prometheus', status: 'healthy' }, { name: 'grafana', status: 'offline' },
-])
-const hostAlerts = ref([
-  { name: 'node-01', count: 2 }, { name: 'node-03', count: 5 }, { name: 'node-04', count: 1 },
-])
-const serviceAlerts = ref([
-  { name: 'api-gateway', count: 3 }, { name: 'mysql', count: 1 }, { name: 'redis', count: 1 },
-])
-const topHttpLatency = ref([
-  { name: 'loadgenerator', value: 39.92, percent: 100 },
-  { name: 'nginxsvc-v1', value: 19.79, percent: 50 },
-  { name: 'productpage', value: 15.44, percent: 39 },
-  { name: 'reviews-v3', value: 3.96, percent: 10 },
-  { name: 'reviews-v2', value: 3.55, percent: 9 },
-])
-const topTcpLatency = ref([
-  { name: 'loadgenerator', value: 4.62, percent: 100 },
-  { name: 'nginxsvc-v1', value: 4.19, percent: 91 },
-  { name: 'reviews-v2', value: 2.86, percent: 62 },
-  { name: 'productpage', value: 2.86, percent: 62 },
-  { name: 'reviews-v3', value: 2.66, percent: 58 },
-])
-const topCpu = ref([
-  { name: 'node-03', value: 78, percent: 78 },
-  { name: 'node-01', value: 35, percent: 35 },
-  { name: 'node-02', value: 28, percent: 28 },
-  { name: 'node-05', value: 22, percent: 22 },
-  { name: 'node-06', value: 15, percent: 15 },
-])
-const topMemory = ref([
-  { name: 'node-03', value: 65, percent: 65 },
-  { name: 'node-01', value: 42, percent: 42 },
-  { name: 'node-02', value: 38, percent: 38 },
-  { name: 'node-05', value: 30, percent: 30 },
-  { name: 'node-06', value: 25, percent: 25 },
-])
-const topConnections = ref([
-  { name: 'node-01', value: 104, percent: 100 },
-  { name: 'node-02', value: 77, percent: 74 },
-  { name: 'node-05', value: 56, percent: 54 },
-  { name: 'node-03', value: 43, percent: 41 },
-  { name: 'node-06', value: 32, percent: 31 },
-])
-const topTraffic = ref([
-  { name: '192.168.1.101', value: '2.3GB', percent: 100 },
-  { name: '192.168.1.102', value: '1.8GB', percent: 78 },
-  { name: '192.168.1.105', value: '1.2GB', percent: 52 },
-  { name: '192.168.1.103', value: '0.9GB', percent: 39 },
-  { name: '192.168.1.106', value: '0.6GB', percent: 26 },
-])
+const computedTodayTraffic = computed(() => {
+  if (overview.todayTraffic) return overview.todayTraffic
+  if (!overview.flowTrend || !overview.flowTrend.length) return '0 B'
+  const total = overview.flowTrend.reduce((s: number, i: any) => s + (i.rx || 0) + (i.tx || 0), 0)
+  return formatBytes(total)
+})
+
+const protocolCount = computed(() => {
+  if (!overview.protocolDist) return 0
+  return overview.protocolDist.filter((p: any) => p.name && p.name !== '').length
+})
 
 const flowOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  legend: { data: ['上行', '下行'] },
-  xAxis: { type: 'category', data: overview.flowTrend.map((i: any) => i.time) },
+  tooltip: {
+    trigger: 'axis',
+    formatter: (params: any[]) => params.map((p: any) => `${p.seriesName}: ${formatBytes(p.value)}`).join('<br>')
+  },
+  legend: { data: ['上行', '下行'], right: 0 },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { type: 'category', data: (overview.flowTrend || []).map((i: any) => i.time), boundaryGap: false },
   yAxis: { type: 'value', axisLabel: { formatter: (v: number) => formatBytes(v) } },
   series: [
-    { name: '上行', type: 'line', areaStyle: { opacity: 0.3 }, data: overview.flowTrend.map((i: any) => i.tx), smooth: true },
-    { name: '下行', type: 'line', areaStyle: { opacity: 0.3 }, data: overview.flowTrend.map((i: any) => i.rx), smooth: true }
+    {
+      name: '上行', type: 'line', areaStyle: { opacity: 0.25, color: '#409EFF' },
+      data: (overview.flowTrend || []).map((i: any) => i.tx || 0), smooth: true,
+      lineStyle: { color: '#409EFF' }, itemStyle: { color: '#409EFF' }
+    },
+    {
+      name: '下行', type: 'line', areaStyle: { opacity: 0.25, color: '#67C23A' },
+      data: (overview.flowTrend || []).map((i: any) => i.rx || 0), smooth: true,
+      lineStyle: { color: '#67C23A' }, itemStyle: { color: '#67C23A' }
+    }
   ]
 }))
 
 const protocolOption = computed(() => ({
-  tooltip: { trigger: 'item' },
-  legend: { bottom: 0 },
+  tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+  legend: { bottom: 0, type: 'scroll' },
   series: [{
-    type: 'pie', radius: ['40%', '70%'], avoidLabelOverlap: false,
+    type: 'pie', radius: ['35%', '65%'], avoidLabelOverlap: false,
     itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-    label: { show: true, formatter: '{b}: {d}%' },
-    data: overview.protocolDist
+    label: { show: true, formatter: '{b}: {d}%', fontSize: 11 },
+    data: (overview.protocolDist || [])
+      .filter((p: any) => p.name !== '' && p.value > 0)
+      .map((p: any) => ({ name: p.name || 'Other', value: p.value }))
   }]
 }))
 
-onMounted(() => { fetchData() })
+const fetchData = async () => {
+  try {
+    const res = await getOverview()
+    if (res.code === 0 && res.data) {
+      Object.assign(overview, res.data)
+    }
+  } catch (e) { console.error('Dashboard fetch error:', e) }
+
+  try {
+    const cpuRes = await getPerformanceCpu()
+    if (cpuRes.code === 0 && Array.isArray(cpuRes.data) && cpuRes.data.length > 0) {
+      const latest = cpuRes.data[cpuRes.data.length - 1] as any
+      const usage = Number(latest.usage) || 0
+      topCpu.value = [{ name: 'vm2 (192.168.58.131)', value: usage, percent: Math.min(100, usage) }]
+    }
+  } catch (e) {}
+
+  try {
+    const memRes = await getPerformanceMemory()
+    if (memRes.code === 0 && memRes.data) {
+      const data = memRes.data as any
+      const total = data.total || 1
+      const used = total - (data.free || 0)
+      const pct = Math.min(100, Math.max(0, (used / total) * 100))
+      topMemory.value = [{ name: 'vm2 (192.168.58.131)', value: pct, percent: pct }]
+    }
+  } catch (e) {}
+}
+
+let timer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  fetchData()
+  timer = setInterval(fetchData, 30000)
+})
+onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <style scoped lang="scss">
 .dashboard {
   .metric-row { margin-bottom: 16px; }
   .stat-card {
-    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    text-align: center;
-    .stat-title { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 8px; }
-    .stat-value { font-size: 22px; font-weight: 600; color: var(--el-text-color-primary); }
-  }
-  .status-row { margin-bottom: 16px; }
-  .status-card {
-    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    .card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; }
-    .status-grid { display: flex; flex-wrap: wrap; gap: 6px; }
-    .status-block {
-      width: 28px; height: 28px; border-radius: 4px; cursor: pointer; transition: transform 0.2s;
-      &:hover { transform: scale(1.1); }
-      &.healthy { background: #67C23A; }
-      &.warning { background: #E6A23C; }
-      &.offline { background: #F56C6C; }
+    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); text-align: center;
+    .stat-title { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 6px; }
+    .stat-value {
+      font-size: 24px; font-weight: 700; color: var(--el-text-color-primary);
+      &.green { color: #67C23A; }
+      &.red { color: #F56C6C; }
     }
-  }
-  .bottom-row { margin-bottom: 16px; }
-  .alert-card, .top-card {
-    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    .card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; }
-    .top-bar-item {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
-      .top-name { width: 100px; font-size: 12px; color: var(--el-text-color-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .top-value { width: 70px; font-size: 12px; color: var(--el-text-color-secondary); text-align: right; }
-      :deep(.el-progress) { flex: 1; }
-    }
+    .stat-sub { font-size: 11px; color: var(--el-text-color-placeholder); margin-top: 4px; }
   }
   .chart-row { margin-bottom: 16px; }
   .chart-card {
     border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    .card-title { font-size: 16px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 16px; }
+    .card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; display: flex; align-items: center; }
+  }
+  .bottom-row { margin-bottom: 16px; }
+  .top-card {
+    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); min-height: 200px;
+    .card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; }
+    .top-bar-item {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+      .top-name { width: 120px; font-size: 12px; color: var(--el-text-color-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .top-value { width: 55px; font-size: 12px; color: var(--el-text-color-secondary); text-align: right; flex-shrink: 0; }
+      :deep(.el-progress) { flex: 1; }
+    }
+    .alert-item {
+      display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px;
+      .alert-msg { font-size: 12px; color: var(--el-text-color-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    }
   }
 }
 </style>

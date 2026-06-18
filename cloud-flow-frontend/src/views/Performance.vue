@@ -3,46 +3,52 @@
     <div class="page-header">
       <h2 class="page-title">系统性能</h2>
       <div class="header-actions">
-        <el-select v-model="selectedHost" placeholder="选择主机" size="small" style="width: 160px">
-          <el-option label="node-01 (192.168.1.101)" value="node-01" />
-          <el-option label="node-02 (192.168.1.102)" value="node-02" />
-        </el-select>
+        <el-tag type="success" size="small">vm2 (192.168.58.131)</el-tag>
         <TimePicker v-model="timeRange" @change="fetchData" />
       </div>
     </div>
+
+    <!-- CPU 使用率趋势 -->
     <el-row :gutter="24" class="chart-row">
       <el-col :span="12">
         <el-card class="chart-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">CPU 调度延迟</div>
-          <v-chart :option="cpuOption" autoresize style="height: 280px" />
+          <div class="card-title">CPU 使用率趋势</div>
+          <v-chart :option="cpuOption" autoresize style="height: 260px" />
         </el-card>
       </el-col>
       <el-col :span="12">
         <el-card class="chart-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">内存分配大小分布</div>
-          <v-chart :option="memOption" autoresize style="height: 280px" />
+          <div class="card-title">内存使用趋势 (MB)</div>
+          <v-chart :option="memOption" autoresize style="height: 260px" />
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- 当前内存状态 + 进程表 -->
     <el-row :gutter="24" class="chart-row">
-      <el-col :span="12">
+      <el-col :span="8">
         <el-card class="chart-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">块设备 IO 时延</div>
-          <v-chart :option="blockOption" autoresize style="height: 280px" />
+          <div class="card-title">内存使用详情</div>
+          <v-chart :option="memPieOption" autoresize style="height: 260px" />
         </el-card>
       </el-col>
-      <el-col :span="12">
+      <el-col :span="16">
         <el-card class="chart-card" :body-style="{ padding: '20px' }">
-          <div class="card-title">进程资源排行 TOP 10</div>
-          <el-table :data="topProcesses" size="small" style="width: 100%" max-height="280">
-            <el-table-column prop="comm" label="进程名" />
+          <div class="card-title">进程列表 (Top {{ processes.length }})</div>
+          <el-table :data="processes" size="small" style="width: 100%" max-height="260">
+            <el-table-column prop="name" label="进程名" />
             <el-table-column prop="pid" label="PID" width="80" />
-            <el-table-column prop="cpu" label="CPU%" width="80">
+            <el-table-column prop="status" label="状态" width="90">
               <template #default="{ row }">
-                <el-progress :percentage="row.cpu" :stroke-width="6" :show-text="false" />
+                <el-tag :type="row.status === 'execve' ? 'success' : row.status === 'exit' ? 'info' : 'warning'" size="small">{{ row.status }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="mem" label="内存" width="100" :formatter="(row: any) => formatBytes(row.mem)" />
+            <el-table-column prop="cpu" label="CPU%" width="80">
+              <template #default="{ row }">
+                <el-progress :percentage="row.cpu" :stroke-width="6" :show-text="false" :color="row.cpu > 80 ? '#F56C6C' : '#409EFF'" />
+              </template>
+            </el-table-column>
+            <el-table-column prop="threads" label="线程数" width="70" />
           </el-table>
         </el-card>
       </el-col>
@@ -51,101 +57,91 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import TimePicker from '@/components/TimePicker.vue'
-import { getPerformance } from '@/api/performance'
-import { formatBytes } from '@/utils/format'
+import { getPerformanceCpu, getPerformanceMemory, getPerformanceProcess } from '@/api/performance'
+import type { CpuDataPoint, MemoryData, ProcessRecord } from '@/api/performance'
 
-const selectedHost = ref('node-01')
 const timeRange = ref('1h')
-
-const topProcesses = ref([
-  { comm: 'nginx', pid: 1234, cpu: 35, mem: 104857600 },
-  { comm: 'mysqld', pid: 2345, cpu: 28, mem: 209715200 },
-  { comm: 'redis-server', pid: 3456, cpu: 15, mem: 52428800 },
-  { comm: 'cloudflow-ebpf', pid: 4567, cpu: 12, mem: 94371840 },
-  { comm: 'python3', pid: 5678, cpu: 8, mem: 67108864 },
-  { comm: 'java', pid: 6789, cpu: 6, mem: 536870912 },
-  { comm: 'kubelet', pid: 7890, cpu: 5, mem: 83886080 },
-  { comm: 'dockerd', pid: 8901, cpu: 4, mem: 125829120 },
-  { comm: 'sshd', pid: 9012, cpu: 2, mem: 16777216 },
-  { comm: 'systemd', pid: 1, cpu: 1, mem: 25165824 },
-])
+const cpuData = ref<CpuDataPoint[]>([])
+const memData = ref<MemoryData>({ total: 0, free: 0, buffers: 0, cache: 0, trend: [] })
+const processes = ref<ProcessRecord[]>([])
 
 const cpuOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  legend: { data: ['P50', 'P95', 'P99'] },
-  xAxis: { type: 'category', data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'] },
-  yAxis: { type: 'value', name: 'μs' },
+  tooltip: { trigger: 'axis', formatter: (p: any[]) => p.map(i => `${i.seriesName}: ${i.value.toFixed(2)}%`).join('<br>') },
+  legend: { data: ['总使用率', 'User', 'System', 'IOWait'], right: 0, textStyle: { fontSize: 11 } },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { type: 'category', data: cpuData.value.map(i => i.time), boundaryGap: false },
+  yAxis: { type: 'value', name: '%', max: 100 },
   series: [
-    { name: 'P50', type: 'line', data: [50, 55, 60, 58, 62, 55], smooth: true },
-    { name: 'P95', type: 'line', data: [120, 130, 150, 140, 160, 135], smooth: true },
-    { name: 'P99', type: 'line', data: [300, 320, 380, 360, 400, 340], smooth: true },
+    { name: '总使用率', type: 'line', data: cpuData.value.map(i => Number(i.usage.toFixed(2))), smooth: true, lineStyle: { color: '#409EFF' }, areaStyle: { opacity: 0.2 } },
+    { name: 'User', type: 'line', data: cpuData.value.map(i => Number(i.user.toFixed(2))), smooth: true, lineStyle: { color: '#67C23A' } },
+    { name: 'System', type: 'line', data: cpuData.value.map(i => Number(i.system.toFixed(2))), smooth: true, lineStyle: { color: '#E6A23C' } },
+    { name: 'IOWait', type: 'line', data: cpuData.value.map(i => Number(i.iowait.toFixed(2))), smooth: true, lineStyle: { color: '#F56C6C' } },
   ]
 }))
 
 const memOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  xAxis: { type: 'category', data: ['<64B', '64-256B', '256-1K', '1K-4K', '4K-16K', '16K-64K', '>64K'] },
-  yAxis: { type: 'value' },
-  series: [{
-    type: 'bar', data: [5000, 3200, 1800, 900, 400, 150, 60],
-    itemStyle: { borderRadius: [4, 4, 0, 0], color: '#165DFF' }
-  }]
+  tooltip: { trigger: 'axis', formatter: (p: any[]) => p.map(i => `${i.seriesName}: ${i.value.toFixed(0)} MB`).join('<br>') },
+  legend: { data: ['已使用', '空闲'], right: 0 },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { type: 'category', data: (memData.value.trend || []).map(i => i.time), boundaryGap: false },
+  yAxis: { type: 'value', name: 'MB' },
+  series: [
+    { name: '已使用', type: 'line', data: (memData.value.trend || []).map(i => Number(i.used.toFixed(0))), smooth: true, areaStyle: { opacity: 0.3, color: '#E6A23C' }, lineStyle: { color: '#E6A23C' } },
+    { name: '空闲', type: 'line', data: (memData.value.trend || []).map(i => Number(i.free.toFixed(0))), smooth: true, areaStyle: { opacity: 0.3, color: '#67C23A' }, lineStyle: { color: '#67C23A' } },
+  ]
 }))
 
-const blockOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  xAxis: { type: 'category', data: ['<1ms', '1-5ms', '5-10ms', '10-50ms', '50-100ms', '>100ms'] },
-  yAxis: { type: 'value' },
-  series: [{
-    type: 'bar', data: [8000, 3500, 1200, 300, 50, 10],
-    itemStyle: { borderRadius: [4, 4, 0, 0], color: '#00B42A' }
-  }]
-}))
+const memPieOption = computed(() => {
+  const used = memData.value.total - memData.value.free - (memData.value.buffers || 0) - (memData.value.cache || 0)
+  return {
+    tooltip: { trigger: 'item', formatter: '{b}: {c} MB ({d}%)' },
+    legend: { bottom: 0 },
+    series: [{
+      type: 'pie', radius: ['40%', '68%'],
+      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+      label: { show: true, formatter: '{b}\n{d}%' },
+      data: [
+        { name: '已使用', value: Math.max(0, Math.round(used)) },
+        { name: 'Buffer/Cache', value: Math.round((memData.value.buffers || 0) + (memData.value.cache || 0)) },
+        { name: '空闲', value: Math.round(memData.value.free || 0) },
+      ].filter(i => i.value > 0)
+    }]
+  }
+})
 
 const fetchData = async () => {
   try {
-    const res = await getPerformance(selectedHost.value, { range: timeRange.value })
-    if (res.code === 0) {
-      topProcesses.value = res.data.topProcesses
-    }
-  } catch (e) { /* ignore */ }
+    const cpuRes = await getPerformanceCpu()
+    if (cpuRes.code === 0 && Array.isArray(cpuRes.data)) cpuData.value = cpuRes.data
+  } catch (e) {}
+  try {
+    const memRes = await getPerformanceMemory()
+    if (memRes.code === 0 && memRes.data) memData.value = memRes.data
+  } catch (e) {}
+  try {
+    const procRes = await getPerformanceProcess()
+    if (procRes.code === 0 && Array.isArray(procRes.data)) processes.value = procRes.data.slice(0, 20)
+  } catch (e) {}
 }
 
-onMounted(fetchData)
+let timer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { fetchData(); timer = setInterval(fetchData, 30000) })
+onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <style scoped lang="scss">
 .performance {
   .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    .page-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--el-text-color-primary);
-    }
-    .header-actions {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+    .page-title { font-size: 18px; font-weight: 600; color: var(--el-text-color-primary); }
+    .header-actions { display: flex; gap: 12px; align-items: center; }
   }
-  .chart-row {
-    margin-bottom: 24px;
-  }
+  .chart-row { margin-bottom: 24px; }
   .chart-card {
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    .card-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--el-text-color-primary);
-      margin-bottom: 16px;
-    }
+    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    .card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 16px; }
   }
 }
 </style>
