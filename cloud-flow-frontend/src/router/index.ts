@@ -1,19 +1,17 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
-import { useUserStore } from '@/stores/user'
-import Network from '@/views/Network.vue'
+import { createRouter, createWebHashHistory } from "vue-router"
 
 const routes = [
-  { path: '/login', name: 'Login', component: () => import('@/views/Login.vue'), meta: { public: true } },
-  { path: '/', name: 'Layout', component: () => import('@/views/Layout.vue'), redirect: '/dashboard', children: [
-    { path: '/dashboard', name: 'Dashboard', component: () => import('@/views/Dashboard.vue') },
-    { path: '/probes', name: 'Probes', component: () => import('@/views/Probes.vue') },
-    { path: '/network', name: 'Network', component: Network },
-    { path: '/protocol', name: 'Protocol', component: () => import('@/views/Protocol.vue') },
-    { path: '/performance', name: 'Performance', component: () => import('@/views/Performance.vue') },
-    { path: '/logs', name: 'Logs', component: () => import('@/views/Logs.vue') },
-    { path: '/topology', name: 'Topology', component: () => import('@/views/Topology.vue') },
-    { path: '/alerts', name: 'Alerts', component: () => import('@/views/Alerts.vue') },
-    { path: '/settings', name: 'Settings', component: () => import('@/views/Settings.vue') },
+  { path: "/login", name: "Login", component: () => import("@/views/Login.vue"), meta: { public: true } },
+  { path: "/", name: "Layout", component: () => import("@/views/Layout.vue"), redirect: "/dashboard", children: [
+    { path: "/dashboard", name: "Dashboard", component: () => import("@/views/Dashboard.vue") },
+    { path: "/probes", name: "Probes", component: () => import("@/views/Probes.vue") },
+    { path: "/network", name: "Network", component: () => import("@/views/Network.vue") },
+    { path: "/protocol", name: "Protocol", component: () => import("@/views/Protocol.vue") },
+    { path: "/performance", name: "Performance", component: () => import("@/views/Performance.vue") },
+    { path: "/logs", name: "Logs", component: () => import("@/views/Logs.vue") },
+    { path: "/topology", name: "Topology", component: () => import("@/views/Topology.vue") },
+    { path: "/alerts", name: "Alerts", component: () => import("@/views/Alerts.vue") },
+    { path: "/settings", name: "Settings", component: () => import("@/views/Settings.vue") },
   ]},
 ]
 
@@ -22,13 +20,8 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, _from, next) => {
-  const userStore = useUserStore()
-  if (!to.meta.public && !userStore.token) {
-    next('/login')
-  } else {
-    next()
-  }
+router.beforeEach((_to, _from, next) => {
+  next()
 })
 
 export default router
