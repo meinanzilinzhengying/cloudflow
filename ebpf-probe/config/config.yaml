@@ -5,21 +5,28 @@ clickhouse_user: default
 clickhouse_password: ""
 clickhouse_database: cloudflow
 api_port: "9090"
-collect_all: true
 
 # 采集器开关
 collectors:
-  network: true
-  performance: true
-  protocol: true
-  security: true
+  # P0 核心采集器（默认开启）
+  network_flow: true
+  process_exec: true
+  file_open: true
+  tcp_connect: true
   host_metrics: true
+  # P1 扩展采集器（默认关闭）
+  syscall: false
+  http_trace: false
+  dns_trace: false
+  db_trace: false
+  # P2 高级采集器（默认关闭）
+  sched_trace: false
+  mem_trace: false
+  block_trace: false
+  security_trace: false
 
 # 过滤规则
 filters:
-  # 忽略本地回环
   ignore_loopback: true
-  # 忽略的端口
   ignore_ports: []
-  # 忽略的 IP
   ignore_ips: []

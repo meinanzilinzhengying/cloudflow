@@ -18,6 +18,13 @@ bpf:
 	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/file_open.bpf.c -o bpf/file_open.bpf.o -I bpf
 	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/tcp_connect.bpf.c -o bpf/tcp_connect.bpf.o -I bpf
 	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/syscall.bpf.c -o bpf/syscall.bpf.o -I bpf
+	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/http_trace.bpf.c -o bpf/http_trace.bpf.o -I bpf
+	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/dns_trace.bpf.c -o bpf/dns_trace.bpf.o -I bpf
+	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/db_trace.bpf.c -o bpf/db_trace.bpf.o -I bpf
+	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/sched_trace.bpf.c -o bpf/sched_trace.bpf.o -I bpf
+	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/mem_trace.bpf.c -o bpf/mem_trace.bpf.o -I bpf
+	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/block_trace.bpf.c -o bpf/block_trace.bpf.o -I bpf
+	clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -c bpf/security_trace.bpf.c -o bpf/security_trace.bpf.o -I bpf
 	cp bpf/*.o internal/collector/
 
 # Step 2: Build Go binary

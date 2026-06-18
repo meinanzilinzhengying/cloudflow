@@ -24,7 +24,6 @@ var (
 	clickHouseDB       = envOrDefault("CLICKHOUSE_DATABASE", "cloudflow")
 	apiPort            = envOrDefault("API_PORT", "9090")
 	ifaceName          = envOrDefault("INTERFACE", "ens33")
-	collectAll         = envOrDefault("COLLECT_ALL", "true") == "true"
 )
 
 func envOrDefault(key, def string) string {
@@ -56,7 +55,10 @@ func main() {
 	defer out.Close()
 	log.Printf("[OK] ClickHouse 输出就绪")
 
-	mgr := collector.NewManager(out, probeID, ifaceName, collectAll)
+	// 使用默认配置（所有扩展功能默认关闭）
+	cfg := collector.DefaultConfig()
+
+	mgr := collector.NewManager(out, probeID, ifaceName, cfg)
 	if err := mgr.Init(kernelCap); err != nil {
 		log.Fatalf("[FATAL] 采集器初始化失败: %v", err)
 	}

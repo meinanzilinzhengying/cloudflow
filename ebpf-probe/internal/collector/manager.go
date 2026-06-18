@@ -19,36 +19,98 @@ type Collector interface {
 	Status() map[string]interface{}
 }
 
+// CollectorConfig 采集器配置
+type CollectorConfig struct {
+	NetworkFlow   bool `yaml:"network_flow"`
+	ProcessExec   bool `yaml:"process_exec"`
+	FileOpen      bool `yaml:"file_open"`
+	TCPCConnect   bool `yaml:"tcp_connect"`
+	Syscall       bool `yaml:"syscall"`
+	HTTPTrace     bool `yaml:"http_trace"`
+	DNSTrace      bool `yaml:"dns_trace"`
+	DBTrace       bool `yaml:"db_trace"`
+	SchedTrace    bool `yaml:"sched_trace"`
+	MemTrace      bool `yaml:"mem_trace"`
+	BlockTrace    bool `yaml:"block_trace"`
+	SecurityTrace bool `yaml:"security_trace"`
+	HostMetrics   bool `yaml:"host_metrics"`
+}
+
+func DefaultConfig() CollectorConfig {
+	return CollectorConfig{
+		NetworkFlow: true,
+		ProcessExec: true,
+		FileOpen:    true,
+		TCPCConnect: true,
+		Syscall:     false,
+		HTTPTrace:   false,
+		DNSTrace:    false,
+		DBTrace:     false,
+		SchedTrace:  false,
+		MemTrace:    false,
+		BlockTrace:  false,
+		SecurityTrace: false,
+		HostMetrics: true,
+	}
+}
+
 type Manager struct {
 	output     *output.ClickHouse
 	probeID    string
 	ifaceName  string
-	collectAll bool
+	config     CollectorConfig
 	collectors []Collector
 	mu         sync.RWMutex
 }
 
-func NewManager(out *output.ClickHouse, probeID, iface string, all bool) *Manager {
-	return &Manager{output: out, probeID: probeID, ifaceName: iface, collectAll: all}
+func NewManager(out *output.ClickHouse, probeID, iface string, cfg CollectorConfig) *Manager {
+	return &Manager{output: out, probeID: probeID, ifaceName: iface, config: cfg}
 }
 
 func (m *Manager) Init(cap kernel.Capabilities) error {
-	if cap.HasBPFTC || cap.HasBPFXDP {
+	// P0 核心采集器
+	if m.config.NetworkFlow && (cap.HasBPFTC || cap.HasBPFXDP) {
 		m.collectors = append(m.collectors, NewNetworkCollector(m.output, m.probeID, m.ifaceName))
 	}
-	if cap.HasBPFKprobe || cap.HasBPFTracepoint {
+	if m.config.ProcessExec && (cap.HasBPFKprobe || cap.HasBPFTracepoint) {
 		m.collectors = append(m.collectors, NewPerformanceCollector(m.output, m.probeID))
 	}
-	m.collectors = append(m.collectors, NewProtocolCollector(m.output, m.probeID, m.ifaceName))
-	if cap.HasBPFLSM || cap.HasBPFKprobe {
+	if m.config.TCPCConnect && cap.HasBPFKprobe {
 		m.collectors = append(m.collectors, NewSecurityCollector(m.output, m.probeID))
 	}
-	m.collectors = append(m.collectors, NewHostMetricsCollector(m.output, m.probeID))
+	m.collectors = append(m.collectors, NewProtocolCollector(m.output, m.probeID, m.ifaceName))
+
+	// P1 扩展采集器
+	if m.config.HTTPTrace && cap.HasBPFKprobe {
+		m.collectors = append(m.collectors, NewHTTPTraceCollector(m.output, m.probeID))
+	}
+	if m.config.DNSTrace && cap.HasBPFKprobe {
+		m.collectors = append(m.collectors, NewDNSTraceCollector(m.output, m.probeID))
+	}
+	if m.config.DBTrace && cap.HasBPFKprobe {
+		m.collectors = append(m.collectors, NewDBTraceCollector(m.output, m.probeID))
+	}
+	if m.config.SchedTrace && cap.HasBPFTracepoint {
+		m.collectors = append(m.collectors, NewSchedTraceCollector(m.output, m.probeID))
+	}
+	if m.config.MemTrace && cap.HasBPFKprobe {
+		m.collectors = append(m.collectors, NewMemTraceCollector(m.output, m.probeID))
+	}
+	if m.config.BlockTrace && cap.HasBPFTracepoint {
+		m.collectors = append(m.collectors, NewBlockTraceCollector(m.output, m.probeID))
+	}
+	if m.config.SecurityTrace && cap.HasBPFKprobe {
+		m.collectors = append(m.collectors, NewSecurityTraceCollector(m.output, m.probeID))
+	}
+
+	// 主机指标（始终可用）
+	if m.config.HostMetrics {
+		m.collectors = append(m.collectors, NewHostMetricsCollector(m.output, m.probeID))
+	}
 
 	for _, c := range m.collectors {
 		if err := c.Init(cap); err != nil {
 			log.Printf("[COLLECTOR] %s 初始化失败: %v", c.Name(), err)
-			if m.collectAll { return err }
 		} else {
 			log.Printf("[COLLECTOR] %s 已就绪", c.Name())
 		}
@@ -87,6 +149,7 @@ func (m *Manager) CollectorNames() []string {
 	return names
 }
 
+// HostMetricsCollector 用户态主机指标
 type HostMetricsCollector struct {
 	output  *output.ClickHouse
 	probeID string
