@@ -23,7 +23,7 @@ import (
 var networkFlowBpfO []byte
 
 type NetworkCollector struct {
-	output   *output.ClickHouse
+	output   output.Writer
 	probeID  string
 	iface    string
 	running  bool
@@ -32,7 +32,7 @@ type NetworkCollector struct {
 	reader   *ringbuf.Reader
 }
 
-func NewNetworkCollector(out *output.ClickHouse, probeID, iface string) *NetworkCollector {
+func NewNetworkCollector(out output.Writer, probeID, iface string) *NetworkCollector {
 	return &NetworkCollector{output: out, probeID: probeID, iface: iface, stopCh: make(chan struct{})}
 }
 

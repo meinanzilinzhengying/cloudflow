@@ -15,14 +15,13 @@ import (
 
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
-	"github.com/meinanzilinzhengying/ebpf-probe/pkg/protocol"
 )
 
 //go:embed http_trace.bpf.o
 var httpTraceBpfO []byte
 
 type HTTPTraceCollector struct {
-	output    *output.ClickHouse
+	output    output.Writer
 	probeID   string
 	running   bool
 	stopCh    chan struct{}
@@ -31,7 +30,7 @@ type HTTPTraceCollector struct {
 	reader    *ringbuf.Reader
 }
 
-func NewHTTPTraceCollector(out *output.ClickHouse, probeID string) *HTTPTraceCollector {
+func NewHTTPTraceCollector(out output.Writer, probeID string) *HTTPTraceCollector {
 	return &HTTPTraceCollector{output: out, probeID: probeID, stopCh: make(chan struct{})}
 }
 
@@ -103,17 +102,17 @@ func (h *HTTPTraceCollector) handleEvent(data []byte) {
 	payload := string(bytes.Trim(data[72:328], "\x00"))
 	_ = pid
 	_ = pktBytes
+	_ = direction
 
-	rec := protocol.ParseHTTP([]byte(payload), ipToString(srcIP), ipToString(dstIP), srcPort, dstPort, direction)
-	if rec == nil { return }
-	rec.ProbeID = h.probeID
 	now := time.Now()
+
+	// 直接上报原始payload，不做协议解析（协议解析在Edge层完成）
 	_ = h.output.WriteEvent(&output.Event{
-		Timestamp: now, ProbeID: h.probeID, Category: "protocol", EventType: "http",
-		SrcIP: rec.SrcIP, DstIP: rec.DstIP, SrcPort: rec.SrcPort, DstPort: rec.DstPort,
-		Protocol: "HTTP", Bytes: rec.Bytes, LatencyMs: rec.LatencyMs,
-		Service: rec.Host, Details: rec.Method + " " + rec.URL,
-		Tags: fmt.Sprintf("status=%d,error=%v,slow=%v", rec.StatusCode, rec.IsError, rec.IsSlow),
+		Timestamp: now, ProbeID: h.probeID, Category: "protocol", EventType: "http_raw",
+		SrcIP: ipToString(srcIP), DstIP: ipToString(dstIP), SrcPort: srcPort, DstPort: dstPort,
+		Protocol: "HTTP", Bytes: uint64(len(payload)),
+		Details: payload, // 原始payload，由Edge解析
+		Tags: fmt.Sprintf("etype=%d", etype),
 	})
 }
 

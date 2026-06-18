@@ -21,7 +21,7 @@ import (
 var processExecBpfO []byte
 
 type PerformanceCollector struct {
-	output   *output.ClickHouse
+	output   output.Writer
 	probeID  string
 	running  bool
 	stopCh   chan struct{}
@@ -30,7 +30,7 @@ type PerformanceCollector struct {
 	reader   *ringbuf.Reader
 }
 
-func NewPerformanceCollector(out *output.ClickHouse, probeID string) *PerformanceCollector {
+func NewPerformanceCollector(out output.Writer, probeID string) *PerformanceCollector {
 	return &PerformanceCollector{output: out, probeID: probeID, stopCh: make(chan struct{})}
 }
 

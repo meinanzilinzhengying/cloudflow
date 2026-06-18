@@ -22,7 +22,7 @@ import (
 var memTraceBpfO []byte
 
 type MemTraceCollector struct {
-	output    *output.ClickHouse
+	output    output.Writer
 	probeID   string
 	running   bool
 	stopCh    chan struct{}
@@ -32,7 +32,7 @@ type MemTraceCollector struct {
 	detector  *perf.MemLeakDetector
 }
 
-func NewMemTraceCollector(out *output.ClickHouse, probeID string) *MemTraceCollector {
+func NewMemTraceCollector(out output.Writer, probeID string) *MemTraceCollector {
 	return &MemTraceCollector{
 		output:   out,
 		probeID:  probeID,

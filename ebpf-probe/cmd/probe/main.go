@@ -18,6 +18,7 @@ import (
 
 var (
 	probeID            = envOrDefault("PROBE_ID", platform.Hostname())
+	edgeAddr           = envOrDefault("EDGE_ADDR", "192.168.58.130:9102")
 	clickHouseAddr     = envOrDefault("CLICKHOUSE_ADDR", "192.168.58.130")
 	clickHouseUser     = envOrDefault("CLICKHOUSE_USER", "default")
 	clickHousePassword = envOrDefault("CLICKHOUSE_PASSWORD", "")
@@ -41,6 +42,7 @@ func main() {
 	fmt.Printf("  platform:   %s\n", platform.Detect())
 	fmt.Printf("  kernel:     %s\n", kernel.Version())
 	fmt.Printf("  btf:        %v\n", kernel.HasBTF())
+	fmt.Printf("  edge:       %s\n", edgeAddr)
 	fmt.Printf("  clickhouse: %s\n", clickHouseAddr)
 	fmt.Printf("  api_port:   %s\n", apiPort)
 	fmt.Println("═══════════════════════════════════════════")
@@ -48,12 +50,21 @@ func main() {
 	kernelCap := kernel.DetectCapabilities()
 	log.Printf("[KERNEL] 可用钩子: %+v", kernelCap.AvailableHooks)
 
-	out, err := output.NewClickHouse(clickHouseAddr, clickHouseUser, clickHousePassword, clickHouseDB)
+	// EdgeClient 用于输出
+	out, err := output.NewEdgeClient(edgeAddr)
 	if err != nil {
-		log.Fatalf("[FATAL] ClickHouse 连接失败: %v", err)
+		log.Fatalf("[FATAL] EdgeClient 初始化失败: %v", err)
 	}
 	defer out.Close()
-	log.Printf("[OK] ClickHouse 输出就绪")
+	log.Printf("[OK] Edge 输出就绪")
+
+	// ClickHouse 用于 API 查询
+	ch, err := output.NewClickHouse(clickHouseAddr, clickHouseUser, clickHousePassword, clickHouseDB)
+	if err != nil {
+		log.Fatalf("[FATAL] ClickHouse 查询客户端初始化失败: %v", err)
+	}
+	defer ch.Close()
+	log.Printf("[OK] ClickHouse 查询就绪")
 
 	// 使用默认配置（所有扩展功能默认关闭）
 	cfg := collector.DefaultConfig()
@@ -70,7 +81,7 @@ func main() {
 	}
 	log.Printf("[OK] 所有采集器已启动")
 
-	go api.Start(apiPort, mgr)
+	go api.Start(apiPort, mgr, ch)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
