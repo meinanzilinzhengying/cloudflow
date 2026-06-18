@@ -201,3 +201,20 @@ body {
     }
   }
 }
+
+/* 通用页面标题 */
+.page-header .page-title {
+  color: #FFFFFF !important;
+}
+
+.chart-card .card-title,
+.table-card .card-title,
+.panel .panel-title {
+  color: #FFFFFF !important;
+}
+
+/* echarts 深色主题 */
+.v-chart {
+  background-color: transparent !important;
+}
+
