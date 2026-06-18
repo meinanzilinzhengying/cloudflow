@@ -1,26 +1,26 @@
 {
-  "name": "cloudflow-frontend",
-  "version": "1.0.0",
-  "description": "CloudFlow Enterprise Cloud-Native Observability Platform",
+  "name": "cloudflow-web",
+  "version": "3.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "vite --host 0.0.0.0 --port 8080",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 8080"
   },
   "dependencies": {
-    "vue": "^3.4.21",
-    "axios": "^1.6.7",
-    "echarts": "^5.5.0",
-    "vue-echarts": "^6.6.9",
-    "dayjs": "^1.11.10",
-    "lucide-vue-next": "^1.0.0"
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0",
+    "pinia": "^2.1.0",
+    "element-plus": "^2.7.0",
+    "axios": "^1.7.0",
+    "echarts": "^5.4.0",
+    "vue-echarts": "^6.6.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.4",
-    "vite": "^5.0.0",
-    "tailwindcss": "^3.4.1",
-    "postcss": "^8.4.35",
-    "autoprefixer": "^10.4.17"
+    "@vitejs/plugin-vue": "^5.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "vue-tsc": "^2.0.0",
+    "sass": "^1.77.0"
   }
 }

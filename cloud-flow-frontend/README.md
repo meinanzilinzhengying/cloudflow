@@ -1,204 +1,138 @@
-# CloudFlow 前端
+# CloudFlow Web - eBPF 网络可观测平台前端
 
-CloudFlow 云原生网络流量分析平台前端
+> Vue 3 + TypeScript + Vite + Element Plus + ECharts
+
+---
+
+## 快速开始
+
+```bash
+# 安装依赖
+npm install
+
+# 开发模式（端口8080，代理到后端9090）
+npm run dev
+
+# 生产构建
+npm run build
+
+# 预览构建产物
+npm run preview
+```
+
+---
 
 ## 技术栈
 
-- Vue 3.4.21
-- Vite 5.2.8
-- TailwindCSS 3.4.3
-- ECharts 5.5.0
-- Axios 1.6.8
-- Element Plus
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| Vue 3 | ^3.4 | 核心框架 |
+| TypeScript | ^5.4 | 类型安全 |
+| Vite | ^5.2 | 构建工具 |
+| Element Plus | ^2.7 | UI 组件库 |
+| Pinia | ^2.1 | 状态管理 |
+| Vue Router | ^4.2 | 路由 |
+| Axios | ^1.7 | HTTP 请求 |
+| ECharts | ^5.4 | 数据可视化 |
+| vue-echarts | ^6.6 | ECharts Vue 封装 |
 
-## 开发环境
+---
 
-```bash
-# 安装依赖
-npm install
+## 页面清单
 
-# 启动开发服务器
-npm run dev
-```
+| 页面 | 路由 | 说明 |
+|------|------|------|
+| 登录 | `/login` | 深蓝渐变背景，品牌展示 + 表单 |
+| 总览仪表盘 | `/dashboard` | 4指标卡片 + 流量趋势 + 协议分布 + TOP主机 + 告警 |
+| 探针管理 | `/probes` | 探针表格 + 详情弹窗(5Tab) |
+| 网络流量 | `/network` | 流量趋势 + 通信矩阵 + 拓扑 + 流日志 |
+| L7协议 | `/protocol` | HTTP/DNS Tab + 指标卡片 + 日志表格 |
+| 系统性能 | `/performance` | CPU/内存/IO/进程 2×2网格 |
+| 安全审计 | `/security` | 事件时间线 + 详情面板 |
 
-## 生产环境部署
+---
 
-```bash
-# 安装依赖
-npm install
-
-# 构建生产版本
-npm run build
-
-# 部署到nginx
-cp -r dist/* /usr/share/nginx/html/
-```
-
-## Nginx 反向代理配置
-
-```nginx
-server {
-    listen 80;
-    server_name cloudflow.example.com;
-    root /usr/share/nginx/html;
-    index index.html;
-
-    # 前端静态资源
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API 反向代理
-    location /api/ {
-        proxy_pass http://cloud-flow-center:8080/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # WebSocket 支持
-    location /ws/ {
-        proxy_pass http://cloud-flow-center:8080/ws/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-    }
-}
-```
-
-## 环境变量配置
-
-复制 `.env.example` 为 `.env` 并根据实际环境修改：
-
-```bash
-cp .env.example .env
-```
-
-主要配置项：
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| VITE_API_BASE_URL | API 基础路径 | /api |
-| VITE_APP_TITLE | 应用标题 | CloudFlow |
-| VITE_APP_VERSION | 应用版本 | 1.0.0 |
-| VITE_PROMETHEUS_URL | Prometheus 地址 | http://prometheus:9090 |
-| VITE_GRAFANA_URL | Grafana 地址 | http://grafana:3000 |
-
-## 项目结构
+## 目录结构
 
 ```
-cloud-flow-frontend/
+cloudflow-web/
 ├── src/
-│   ├── api/              # API 接口封装
-│   │   ├── index.js      # 服务导出
-│   │   └── request.js    # Axios 封装
-│   ├── components/       # 组件
-│   │   ├── common/       # 通用组件
-│   │   └── pages/        # 页面组件
-│   ├── router/           # 路由
-│   ├── store/            # 状态管理
-│   ├── utils/            # 工具函数
+│   ├── api/          # API 接口封装
+│   ├── components/   # 公共组件
+│   ├── views/        # 页面组件
+│   ├── router/       # 路由配置
+│   ├── stores/       # Pinia 状态
+│   ├── utils/        # 工具函数
+│   ├── styles/       # 全局样式
 │   ├── App.vue
-│   └── main.js
-├── public/               # 静态资源
-├── .env                  # 环境变量
-├── .env.example          # 环境变量示例
+│   └── main.ts
+├── index.html
 ├── package.json
-├── vite.config.js
+├── vite.config.ts
+├── tsconfig.json
 └── README.md
 ```
 
-## 主要功能页面
+---
 
-1. **Dashboard** - 运营驾驶舱
-   - 流量总览
-   - 探针状态
-   - 告警统计
-   - 系统健康度
+## 部署
 
-2. **Traffic** - 流量分析
-   - 流量概览
-   - 会话分析
-   - TopN 排行
-   - 流量地图
-   - 流量回放
+### 独立部署（Nginx）
 
-3. **Topology** - 网络拓扑
-   - 服务拓扑
-   - Pod 拓扑
-   - 进程拓扑
-   - 命名空间拓扑
-   - 拓扑对比
-
-4. **Tracing** - 链路追踪
-   - 链路概览
-   - 慢请求分析
-   - 错误分析
-   - 调用链详情
-
-5. **Metrics** - 指标监控
-   - 主机指标
-   - 容器指标
-   - 服务指标
-   - 自定义指标
-
-6. **Logs** - 日志分析
-   - 日志搜索
-   - 日志聚合
-   - 日志关联
-
-7. **Alerts** - 告警中心
-   - 告警事件
-   - 告警规则
-   - 通知配置
-   - 告警统计
-
-8. **RCA** - 根因分析
-   - 异常分析
-   - 关联分析
-   - 时间线
-
-9. **Management** - 管理页面
-   - 探针管理
-   - 用户管理
-   - 租户管理
-   - API Key 管理
-   - 系统设置
-
-## API 服务列表
-
-- `authService` - 认证服务
-- `tenantService` - 租户服务
-- `controlPlaneService` - 控制平面服务
-- `queryService` - 查询服务
-- `alertService` - 告警服务
-- `dataPlaneService` - 数据平面服务
-
-## 常见问题
-
-### 1. API 请求跨域问题
-
-开发环境可在 `vite.config.js` 中配置代理：
-
-```javascript
-export default defineConfig({
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
-    },
-  },
-})
+```bash
+npm run build
+# 将 dist/ 目录复制到 nginx 的 html 目录
+cp -r dist/* /usr/share/nginx/html/
 ```
 
-### 2. 探针状态不更新
+### 嵌入 Go 后端（go:embed）
 
-检查控制平面 API 是否正常运行，确认 `/api/control-plane/agents/status` 接口可访问。
+```go
+//go:embed dist
+var webFS embed.FS
 
-### 3. 图表数据不显示
+func serveWeb() {
+    sub, _ := fs.Sub(webFS, "dist")
+    http.Handle("/", http.FileServer(http.FS(sub)))
+    http.ListenAndServe(":8080", nil)
+}
+```
 
-检查查询服务 API 是否正常，确认 `/api/query/flows` 接口返回数据格式正确。
+---
+
+## 后端 API 对接
+
+所有接口前缀 `/api/v1`，代理到 `http://localhost:9090`（开发模式）。
+
+核心接口：
+- `POST /api/v1/auth/login` - 登录
+- `GET /api/v1/probes` - 探针列表
+- `GET /api/v1/dashboard/overview` - 仪表盘数据
+- `GET /api/v1/network/flows` - 网络流
+- `GET /api/v1/protocol/http` - HTTP 日志
+- `GET /api/v1/protocol/dns` - DNS 日志
+- `GET /api/v1/performance/:host` - 性能数据
+- `GET /api/v1/security/events` - 安全事件
+
+---
+
+## 设计规范
+
+- 主色: `#165DFF`
+- 成功: `#00B42A`, 警告: `#FF7D00`, 危险: `#F53F3F`
+- 卡片圆角: `8px`, 阴影: `0 2px 8px rgba(0,0,0,0.08)`
+- 页面边距: `20px 24px`
+- 字体: 标题 `18px 600`, 卡片标题 `16px 600`, 正文 `14px 400`
+
+---
+
+## 响应式适配
+
+- 1920×1080: 完整布局
+- 1366×768: 表格横向滚动，图表自适应
+
+---
+
+## 许可证
+
+MIT © 2025 CloudFlow Team
