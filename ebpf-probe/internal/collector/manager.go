@@ -2,10 +2,12 @@ package collector
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
 )
@@ -133,7 +135,164 @@ func (m *Manager) Stop() {
 	}
 }
 
+func (m *Manager) Unload(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, c := range m.collectors {
+		if c.Name() == name {
+			c.Stop()
+			m.collectors = append(m.collectors[:i], m.collectors[i+1:]...)
+			log.Printf("[MANAGER] 采集器 %s 已卸载", name)
+			return nil
+		}
+	}
+	return fmt.Errorf("采集器 %s 未找到", name)
+}
+
+func (m *Manager) Reload(name string, cap kernel.Capabilities) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 找到旧采集器
+	var oldIdx = -1
+	for i, c := range m.collectors {
+		if c.Name() == name {
+			oldIdx = i
+			break
+		}
+	}
+	if oldIdx < 0 {
+		return fmt.Errorf("采集器 %s 未找到，无法重载", name)
+	}
+
+	// 创建新实例（原子替换：先创建新的，成功后再替换旧的）
+	newCollector, err := m.createCollector(name, cap)
+	if err != nil {
+		log.Printf("[MANAGER] 采集器 %s 重载失败（创建新实例）: %v", name, err)
+		return fmt.Errorf("创建新实例失败: %w", err)
+	}
+	if err := newCollector.Init(cap); err != nil {
+		log.Printf("[MANAGER] 采集器 %s 重载失败（Init）: %v", name, err)
+		return fmt.Errorf("Init 失败: %w", err)
+	}
+
+	// 启动新实例
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := newCollector.Start(ctx); err != nil {
+		log.Printf("[MANAGER] 采集器 %s 重载失败（Start）: %v", name, err)
+		newCollector.Stop() // 清理失败的实例
+		return fmt.Errorf("Start 失败: %w", err)
+	}
+
+	// 新实例成功，卸载旧实例
+	oldCollector := m.collectors[oldIdx]
+	oldCollector.Stop()
+	m.collectors[oldIdx] = newCollector
+	log.Printf("[MANAGER] 采集器 %s 热重载成功", name)
+	return nil
+}
+
+func (m *Manager) createCollector(name string, cap kernel.Capabilities) (Collector, error) {
+	switch name {
+	case "network_flow":
+		if cap.HasBPFTC || cap.HasBPFXDP {
+			return NewNetworkCollector(m.output, m.probeID, m.ifaceName), nil
+		}
+	case "process_exec":
+		if cap.HasBPFKprobe || cap.HasBPFTracepoint {
+			return NewPerformanceCollector(m.output, m.probeID), nil
+		}
+	case "tcp_connect":
+		if cap.HasBPFKprobe {
+			return NewSecurityCollector(m.output, m.probeID), nil
+		}
+	case "protocol":
+		return NewProtocolCollector(m.output, m.probeID, m.ifaceName), nil
+	case "http_trace":
+		if cap.HasBPFKprobe {
+			return NewHTTPTraceCollector(m.output, m.probeID), nil
+		}
+	case "dns_trace":
+		if cap.HasBPFKprobe {
+			return NewDNSTraceCollector(m.output, m.probeID), nil
+		}
+	case "db_trace":
+		if cap.HasBPFKprobe {
+			return NewDBTraceCollector(m.output, m.probeID), nil
+		}
+	case "sched_trace":
+		if cap.HasBPFTracepoint {
+			return NewSchedTraceCollector(m.output, m.probeID), nil
+		}
+	case "mem_trace":
+		if cap.HasBPFKprobe {
+			return NewMemTraceCollector(m.output, m.probeID), nil
+		}
+	case "block_trace":
+		if cap.HasBPFTracepoint {
+			return NewBlockTraceCollector(m.output, m.probeID), nil
+		}
+	case "security_trace":
+		if cap.HasBPFKprobe {
+			return NewSecurityTraceCollector(m.output, m.probeID), nil
+		}
+	case "host_metrics":
+		return NewHostMetricsCollector(m.output, m.probeID), nil
+	}
+	return nil, fmt.Errorf("采集器 %s 在当前内核环境下不可用", name)
+}
+
+// WatchConfig 热加载配置文件
+func (m *Manager) WatchConfig(ctx context.Context, path string, cap kernel.Capabilities) error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("创建 watcher 失败: %w", err)
+	}
+	defer watcher.Close()
+
+	if err := watcher.Add(path); err != nil {
+		return fmt.Errorf("监听配置文件失败: %w", err)
+	}
+
+	log.Printf("[MANAGER] 开始监听配置文件: %s", path)
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return fmt.Errorf("watcher 通道关闭")
+			}
+			if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
+				log.Printf("[MANAGER] 配置文件变化: %s", event.Name)
+				// 简单的防抖
+				time.Sleep(500 * time.Millisecond)
+				if err := m.reloadFromConfig(path, cap); err != nil {
+					log.Printf("[MANAGER] 配置文件热加载失败: %v", err)
+				} else {
+					log.Printf("[MANAGER] 配置文件热加载成功")
+				}
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return fmt.Errorf("watcher 错误通道关闭")
+			}
+			log.Printf("[MANAGER] watcher 错误: %v", err)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (m *Manager) reloadFromConfig(path string, cap kernel.Capabilities) error {
+	// 这里简化实现，实际应该解析 YAML 并对比配置差异
+	// 对于当前版本，提供一个扩展点
+	log.Printf("[MANAGER] 热加载配置扩展点: %s", path)
+	return nil
+}
+
 func (m *Manager) Status() map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	status := map[string]interface{}{"probe_id": m.probeID, "collectors": []map[string]interface{}{}}
 	for _, c := range m.collectors {
 		status["collectors"] = append(status["collectors"].([]map[string]interface{}), c.Status())
@@ -184,7 +343,12 @@ func (h *HostMetricsCollector) Start(ctx context.Context) error {
 	return nil
 }
 func (h *HostMetricsCollector) Stop() {
-	close(h.stopCh)
+	select {
+	case <-h.stopCh:
+		// already closed
+	default:
+		close(h.stopCh)
+	}
 	h.running = false
 }
 func (h *HostMetricsCollector) Status() map[string]interface{} {

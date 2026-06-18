@@ -5,6 +5,7 @@ go 1.24.1
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/cilium/ebpf v0.17.3
+	github.com/fsnotify/fsnotify v1.10.1
 )
 
 require (
