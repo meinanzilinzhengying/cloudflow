@@ -2,7 +2,6 @@ package authservice
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -87,7 +86,7 @@ func DefaultConfig() *Config {
 		JWTExpireSec:        86400,   // 24h
 		JWTRefreshSec:       604800,  // 7d
 		SuperAdminRole:      "super_admin",
-		RelationalDBType:    storage.DBMySQL,
+		RelationalDBType:    storage.DatabaseOceanBase,
 		RelationalDBHost:    "mysql",
 		RelationalDBPort:    3306,
 		RelationalDBUser:    "root",
@@ -317,13 +316,13 @@ func (s *Service) initUserTable() error {
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 	`
 
-	if _, err := s.db.Exec(createTableSQL); err != nil {
+	if _, err := s.db.Exec(context.Background(), createTableSQL); err != nil {
 		return fmt.Errorf("create users table: %w", err)
 	}
 
 	// 检查是否存在默认管理员用户
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM users WHERE role = 'admin'").Scan(&count)
+	err := s.db.QueryRow(context.Background(), "SELECT COUNT(*) FROM users WHERE role = 'admin'").Scan(&count)
 	if err != nil {
 		return fmt.Errorf("check admin user: %w", err)
 	}
@@ -339,7 +338,7 @@ func (s *Service) initUserTable() error {
 			return fmt.Errorf("generate password hash: %w", err)
 		}
 
-		_, err = s.db.Exec(
+		_, err = s.db.Exec(context.Background(), 
 			"INSERT INTO users (user_id, username, password, tenant_id, role) VALUES (?, ?, ?, ?, ?)",
 			"admin-001",
 			"admin",
@@ -359,7 +358,7 @@ func (s *Service) initUserTable() error {
 
 // loadUsersToCache 从 TiDB 加载用户到内存缓存
 func (s *Service) loadUsersToCache() error {
-	rows, err := s.db.Query("SELECT user_id, username, password, tenant_id, role FROM users")
+	rows, err := s.db.Query(context.Background(), "SELECT user_id, username, password, tenant_id, role FROM users")
 	if err != nil {
 		return fmt.Errorf("query users: %w", err)
 	}
@@ -720,7 +719,7 @@ func (s *Service) findUserFromDB(username string) (*UserInfo, error) {
 
 	// 缓存未命中，从 TiDB 查询
 	var user UserInfo
-	err := s.db.QueryRow(
+	err := s.db.QueryRow(context.Background(), 
 		"SELECT user_id, username, password, tenant_id, role FROM users WHERE username = ?",
 		username,
 	).Scan(&user.UserID, &user.Username, &user.Password, &user.TenantID, &user.Role)
@@ -747,7 +746,7 @@ func (s *Service) CreateUser(username, password, role, tenantID string) error {
 
 	userID := fmt.Sprintf("user-%d", time.Now().UnixNano())
 
-	_, err = s.db.Exec(
+	_, err = s.db.Exec(context.Background(), 
 		"INSERT INTO users (user_id, username, password, tenant_id, role) VALUES (?, ?, ?, ?, ?)",
 		userID, username, string(hashedPassword), tenantID, role,
 	)
@@ -775,7 +774,7 @@ func (s *Service) UpdateUser(username, password, role string) error {
 		if err != nil {
 			return fmt.Errorf("hash password: %w", err)
 		}
-		_, err = s.db.Exec(
+		_, err = s.db.Exec(context.Background(), 
 			"UPDATE users SET password = ?, role = ? WHERE username = ?",
 			string(hashedPassword), role, username,
 		)
@@ -783,7 +782,7 @@ func (s *Service) UpdateUser(username, password, role string) error {
 			return fmt.Errorf("update user: %w", err)
 		}
 	} else {
-		_, err := s.db.Exec(
+		_, err := s.db.Exec(context.Background(), 
 			"UPDATE users SET role = ? WHERE username = ?",
 			role, username,
 		)
@@ -800,7 +799,7 @@ func (s *Service) UpdateUser(username, password, role string) error {
 
 // DeleteUser 删除用户
 func (s *Service) DeleteUser(username string) error {
-	_, err := s.db.Exec("DELETE FROM users WHERE username = ?", username)
+	_, err := s.db.Exec(context.Background(), "DELETE FROM users WHERE username = ?", username)
 	if err != nil {
 		return fmt.Errorf("delete user: %w", err)
 	}
@@ -813,7 +812,7 @@ func (s *Service) DeleteUser(username string) error {
 
 // ListUsers 列出用户
 func (s *Service) ListUsers() ([]*UserInfo, error) {
-	rows, err := s.db.Query("SELECT user_id, username, tenant_id, role FROM users")
+	rows, err := s.db.Query(context.Background(), "SELECT user_id, username, tenant_id, role FROM users")
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
 	}
