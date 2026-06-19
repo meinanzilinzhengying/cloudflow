@@ -18,7 +18,8 @@ const (
 	DatabaseKingBase  DatabaseType = "kingbase"
 	DatabaseGaussDB   DatabaseType = "gaussdb"
 	DatabaseGaussRedis DatabaseType = "gauss_redis"
-	DatabaseOceanBase DatabaseType = "oceanbase"
+	DatabaseOceanBase  DatabaseType = "oceanbase"
+	DatabaseClickHouse DatabaseType = "clickhouse"
 
 	// 别名，兼容旧代码
 	DBDameng     = DatabaseDameng
@@ -27,6 +28,7 @@ const (
 	DBGaussDB    = DatabaseGaussDB
 	DBGaussRedis = DatabaseGaussRedis
 	DBOceanBase  = DatabaseOceanBase
+	DBClickHouse = DatabaseClickHouse
 )
 
 // DualWriteMode 双写模式

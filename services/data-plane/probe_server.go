@@ -21,11 +21,11 @@ func RegisterProbeService(s *grpc.Server, svc *Service) {
 	edge.RegisterProbeServiceServer(s, &probeGRPC{svc: svc})
 }
 
-func resolveTimestamp(ms int64) time.Time {
-	if ms == 0 { return time.Now() }
-	if ms > 1e15 { return time.Unix(0, ms) }
-	if ms > 1e11 { return time.UnixMilli(ms) }
-	return time.Unix(ms, 0)
+func resolveTimestampNs(ms int64) uint64 {
+	if ms == 0 { return uint64(time.Now().UnixNano()) }
+	if ms > 1e15 { return uint64(ms) }
+	if ms > 1e11 { return uint64(ms * 1e6) }
+	return uint64(ms * 1e9)
 }
 
 func extractMetricValue(m *edge.MetricData) float64 {
@@ -86,7 +86,7 @@ func (g *probeGRPC) SendMetrics(ctx context.Context, batch *edge.MetricsBatch) (
 	if err != nil { return nil, fmt.Errorf("prepare metrics: %w", err) }
 	defer metricsStmt.Close()
 	for _, m := range batch.Metrics {
-		ts := resolveTimestamp(m.Timestamp)
+		ts := resolveTimestampNs(m.Timestamp)
 		if _, err := metricsStmt.ExecContext(ctx, ts, m.ProbeId, extractMetricName(m), extractMetricValue(m), buildLabels(m)); err != nil {
 			return nil, fmt.Errorf("insert metric: %w", err)
 		}
@@ -96,7 +96,7 @@ func (g *probeGRPC) SendMetrics(ctx context.Context, batch *edge.MetricsBatch) (
 
 	// 写入 cloudflow.flows (独立连接，transaction 不支持 Exec)
 	for _, m := range batch.Metrics {
-		ts := resolveTimestamp(m.Timestamp)
+		ts := resolveTimestampNs(m.Timestamp)
 		proto := string(m.Protocol)
 		dstIP := m.DstIp
 		if dstIP == "" { dstIP = extractMetricName(m) }
@@ -131,12 +131,13 @@ func (g *probeGRPC) GetConfig(ctx context.Context, req *edge.GetConfigRequest) (
 		HasUpdate:  true,
 		ServerTime: time.Now().Unix(),
 		Config: &edge.CollectionConfig{
-			Enabled:        true,
-			SamplingRate:   100,
-			FlushInterval:  1000,
-			BatchSize:      100,
-			QueueSize:      10000,
-			HeartbeatInterval: 10,
+			EnableTCPMetrics:    true,
+			EnableHTTPMetrics:   true,
+			SampleRate: 1.0,
+			
+			
+			
+			
 		},
 	}, nil
 }

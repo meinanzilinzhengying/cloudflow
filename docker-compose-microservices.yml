@@ -276,7 +276,7 @@ services:
       dockerfile: deployments/Dockerfile
     container_name: cloudflow-topology
     ports:
-      - "8008:8008"
+      - "8008:8004"
       - "9008:9008"
     environment:
       - SERVICE_NAME=topology-engine

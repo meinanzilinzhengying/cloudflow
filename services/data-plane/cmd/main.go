@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
-	"github.com/meinanzilinzhengying/cloudflow/services/data-plane"
+	dataplane "github.com/meinanzilinzhengying/cloudflow/services/data-plane"
 )
 
 func main() {
@@ -16,21 +17,26 @@ func main() {
 	flag.StringVar(&cfg.MetricsAddr, "metrics-addr", cfg.MetricsAddr, "Metrics HTTP listen address")
 	flag.Parse()
 
-	// 从环境变量读取配置
 	if addr := os.Getenv("CLICKHOUSE_ADDR"); addr != "" {
-		cfg.ClickHouseAddr = addr
+		cfg.TimeSeriesDBHost = addr
+	}
+	if port := os.Getenv("CLICKHOUSE_PORT"); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			cfg.TimeSeriesDBPort = p
+		}
+	} else {
+		cfg.TimeSeriesDBPort = 8123
 	}
 	if user := os.Getenv("CLICKHOUSE_USER"); user != "" {
-		cfg.ClickHouseUser = user
+		cfg.TimeSeriesDBUser = user
 	}
 	if password := os.Getenv("CLICKHOUSE_PASSWORD"); password != "" {
-		cfg.ClickHousePassword = password
+		cfg.TimeSeriesDBPassword = password
 	}
 	if db := os.Getenv("CLICKHOUSE_DATABASE"); db != "" {
-		cfg.ClickHouseDatabase = db
+		cfg.TimeSeriesDBDatabase = db
 	}
 
-	// P0-2 修复: 从环境变量读取 TLS 配置
 	if v := os.Getenv("TLS_ENABLED"); v == "true" {
 		cfg.TLSEnabled = true
 	}

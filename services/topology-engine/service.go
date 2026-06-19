@@ -93,11 +93,11 @@ type Config struct {
 }
 
 func DefaultConfig() *Config {
-	return &Config{
+	cfg := &Config{
 		ServiceName:      "topology-engine",
 		Version:          "1.0.0",
 		GrpcAddr:         ":9004",
-		HttpAddr:         ":8004",
+		HttpAddr:         ":8008",
 		ClickHouseAddr:   "clickhouse:8123",
 		ClickHouseDB:     "cloudflow",
 		ClickHouseUser:   "default",
@@ -114,6 +114,14 @@ func DefaultConfig() *Config {
 		TLSEnabled:       false,
 		TLSInsecureSkip:  false,
 	}
+	// 从环境变量读取配置
+	if v := os.Getenv("HTTP_ADDR"); v != "" {
+		cfg.HttpAddr = v
+	}
+	if v := os.Getenv("GRPC_ADDR"); v != "" {
+		cfg.GrpcAddr = v
+	}
+	return cfg
 }
 
 // Service Topology Engine 主服务
