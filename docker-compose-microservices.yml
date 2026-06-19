@@ -162,56 +162,22 @@ services:
   # 4. 数据面服务 (Data Plane) - 适配 openGauss
   # ===========================================================================
   data-plane:
-    build:
-      context: ./services/data-plane
-      dockerfile: deployments/Dockerfile
+    image: cloudflow-data-plane:latest
     container_name: cloudflow-data-plane
     ports:
-      - "8002:8002"
       - "9002:9002"
-      - "9101:9101"
+      - "9102:9102"
     environment:
       - SERVICE_NAME=data-plane
       - GRPC_ADDR=:9002
-      - HTTP_ADDR=:8002
-      
-      # 批量写入配置
-      - BATCH_SIZE=10000
-      - FLUSH_INTERVAL=1s
-      - QUEUE_SIZE=100000
-      - WORKER_COUNT=4
-      
-      # openGauss 配置（替代 ClickHouse，PostgreSQL 协议兼容）
-      - TSDB_TYPE=opengauss
-      - TSDB_ADDR=opengauss:5432
-      - TSDB_USER=gaussdb
-      - TSDB_PASSWORD=CloudFlow@2024
-      - TSDB_DATABASE=cloudflow
-      
-      # 缓存: Redis（兼容高斯Redis）
-      - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=CloudFlow@2024
-      
-      # 消息队列: RocketMQ
-      - ROCKETMQ_NAMESRV_ADDR=rocketmq-namesrv:9876
-      
-      # 服务发现: Nacos
-      - NACOS_ADDR=nacos:8848
-      
-      # 下游服务
-      - CONTROL_PLANE_ADDR=control-plane:9001
-      - TOPOLOGY_ADDR=topology-engine:8008
-    depends_on:
-      - opengauss
-      - redis
-      - nacos
-      - rocketmq-namesrv
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 45s
+      - METRICS_ADDR=:9102
+      - CLICKHOUSE_ADDR=clickhouse
+      - CLICKHOUSE_PORT=9000
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=
+      - CLICKHOUSE_DATABASE=cloudflow
+      - CONTROL_PLANE_ADDR=control-plane:8001
+      - TLS_ENABLED=false
     restart: unless-stopped
     networks:
       - cloudflow-net
