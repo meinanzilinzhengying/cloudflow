@@ -242,3 +242,39 @@ body {
     color: #FFFFFF !important;
   }
 }
+
+/* el-tabs--border-card 深色主题 */
+.el-tabs--border-card {
+  background-color: rgba(10, 186, 255, 0.08) !important;
+  border: 1px solid rgba(10, 186, 255, 0.3) !important;
+  .el-tabs__header {
+    background-color: rgba(10, 186, 255, 0.15) !important;
+    border-bottom: 1px solid rgba(10, 186, 255, 0.3) !important;
+    .el-tabs__item {
+      color: rgba(255, 255, 255, 0.6) !important;
+      border: 1px solid rgba(10, 186, 255, 0.2) !important;
+      &.is-active {
+        color: #00CCFF !important;
+        background-color: rgba(10, 186, 255, 0.2) !important;
+        border-bottom-color: transparent !important;
+      }
+      &:hover {
+        color: #00CCFF !important;
+      }
+    }
+  }
+  .el-tabs__content {
+    background-color: transparent !important;
+  }
+}
+
+/* el-card 在深色背景下的强制覆盖 */
+.el-card {
+  background-color: rgba(10, 186, 255, 0.08) !important;
+  border: 1px solid rgba(10, 186, 255, 0.3) !important;
+  color: #FFFFFF !important;
+  .el-card__body {
+    background-color: transparent !important;
+    color: #FFFFFF !important;
+  }
+}
