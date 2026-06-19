@@ -78,7 +78,7 @@ func DefaultConfig() *Config {
 		Version:              "1.0.0",
 		GrpcAddr:             ":9009",
 		HttpAddr:             ":8009",
-		RelationalDBType:     storage.DBTypeMySQL,
+		RelationalDBType:     storage.DatabaseOceanBase,
 		RelationalDBHost:     "mysql",
 		RelationalDBPort:     3306,
 		RelationalDBUser:     "root",
@@ -203,10 +203,10 @@ func (s *Service) initDatabase() error {
 		Database:     s.config.RelationalDBDatabase,
 		MaxOpenConns: 50,
 		MaxIdleConns: 10,
-		MaxLifetime:  5 * time.Minute,
+		MaxLifetime: 300,
 	}
 
-	db, err := storage.OpenRelational(cfg)
+	db, err := storage.OpenRelational(&cfg)
 	if err != nil {
 		return fmt.Errorf("database open failed: %w", err)
 	}
@@ -238,7 +238,7 @@ func (s *Service) initDatabase() error {
 
 // loadActiveAlerts 从数据库加载活动告警
 func (s *Service) loadActiveAlerts() error {
-	rows, err := s.db.Query(
+	rows, err := s.db.Query(context.Background(), 
 		"SELECT alert_id, rule_id, tenant_id, starts_at FROM alerts WHERE status = 'firing'",
 	)
 	if err != nil {
@@ -287,7 +287,7 @@ func (s *Service) initTables() error {
 		INDEX idx_enabled (enabled)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	if _, err := s.db.Exec(createRuleTable); err != nil {
+	if _, err := s.db.Exec(context.Background(), createRuleTable); err != nil {
 		return fmt.Errorf("create alert_rules table: %w", err)
 	}
 
@@ -314,7 +314,7 @@ func (s *Service) initTables() error {
 		INDEX idx_starts_at (starts_at)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	if _, err := s.db.Exec(createAlertTable); err != nil {
+	if _, err := s.db.Exec(context.Background(), createAlertTable); err != nil {
 		return fmt.Errorf("create alerts table: %w", err)
 	}
 
@@ -338,7 +338,7 @@ func (s *Service) initTables() error {
 		INDEX idx_status (status)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	if _, err := s.db.Exec(createNotificationTable); err != nil {
+	if _, err := s.db.Exec(context.Background(), createNotificationTable); err != nil {
 		return fmt.Errorf("create alert_notifications table: %w", err)
 	}
 
@@ -458,7 +458,7 @@ func (s *Service) runPeriodicEvaluation() {
 
 // evaluateAllRules 评估所有启用的规则
 func (s *Service) evaluateAllRules() {
-	rows, err := s.db.Query(
+	rows, err := s.db.Query(context.Background(), 
 		"SELECT rule_id, tenant_id, name, display_name, severity, expression, enabled, notify_interval FROM alert_rules WHERE enabled = true",
 	)
 	if err != nil {
@@ -529,7 +529,7 @@ func (s *Service) evaluateAllRules() {
 					"severity":  rule.severity,
 				})
 
-				_, err := s.db.Exec(
+				_, err := s.db.Exec(context.Background(), 
 					"INSERT INTO alerts (alert_id, rule_id, tenant_id, severity, title, message, status, annotations, labels) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					alertID, rule.ruleID, rule.tenantID, rule.severity, alertTitle, alertMessage, "firing", string(annotations), string(labels),
 				)
@@ -551,7 +551,7 @@ func (s *Service) evaluateAllRules() {
 			// 检查是否需要恢复告警
 			if v, exists := s.activeAlerts.Load(key); exists {
 				active := v.(*activeAlert)
-				_, err := s.db.Exec(
+				_, err := s.db.Exec(context.Background(), 
 					"UPDATE alerts SET status = 'resolved', ends_at = ? WHERE alert_id = ?",
 					time.Now(), active.alertID,
 				)
@@ -625,7 +625,7 @@ func (s *Service) evaluateRule(expression string, metrics map[string]float64) (b
 // createNotification 创建告警通知
 func (s *Service) createNotification(tenantID, ruleID, alertID, title, message string) {
 	notificationID := fmt.Sprintf("notif-%d", time.Now().UnixNano())
-	_, err := s.db.Exec(
+	_, err := s.db.Exec(context.Background(), 
 		"INSERT INTO alert_notifications (notification_id, alert_id, rule_id, tenant_id, channel_type, status, message) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		notificationID, alertID, ruleID, tenantID, "console", "sent", fmt.Sprintf("[%s] %s", title, message),
 	)
@@ -670,7 +670,7 @@ func (s *Service) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequ
 func (s *Service) CreateRule(ctx context.Context, req *svcproto.CreateAlertRuleRequest) (*svcproto.CreateAlertRuleResponse, error) {
 	ruleID := fmt.Sprintf("rule-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(
+	_, err := s.db.Exec(context.Background(), 
 		"INSERT INTO alert_rules (rule_id, tenant_id, project_id, name, display_name, description, severity, expression, enabled, notify_channels, notify_interval) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		ruleID,
 		req.TenantId,
@@ -698,7 +698,7 @@ func (s *Service) CreateRule(ctx context.Context, req *svcproto.CreateAlertRuleR
 func (s *Service) GetRule(ctx context.Context, req *svcproto.GetAlertRuleRequest) (*svcproto.GetAlertRuleResponse, error) {
 	var rule svcproto.AlertRule
 	var tenantId string
-	err := s.db.QueryRow(
+	err := s.db.QueryRow(context.Background(), 
 		"SELECT rule_id, tenant_id, project_id, name, display_name, description, severity, expression, enabled, notify_channels, notify_interval, created_at, updated_at FROM alert_rules WHERE rule_id = ?",
 		req.RuleId,
 	).Scan(
@@ -738,7 +738,7 @@ func (s *Service) UpdateRule(ctx context.Context, req *svcproto.UpdateAlertRuleR
 		return &svcproto.UpdateAlertRuleResponse{Success: false, Message: err.Error()}, nil
 	}
 
-	result, err := s.db.Exec(
+	result, err := s.db.Exec(context.Background(), 
 		"UPDATE alert_rules SET display_name = ?, description = ?, severity = ?, expression = ?, enabled = ?, notify_channels = ?, notify_interval = ? WHERE rule_id = ?",
 		req.DisplayName,
 		req.Description,
@@ -768,19 +768,19 @@ func (s *Service) DeleteRule(ctx context.Context, req *svcproto.DeleteAlertRuleR
 		return &svcproto.DeleteAlertRuleResponse{Success: false, Message: err.Error()}, nil
 	}
 
-	_, err = tx.Exec("DELETE FROM alert_notifications WHERE rule_id = ?", req.RuleId)
+	_, err = tx.Exec(context.Background(), "DELETE FROM alert_notifications WHERE rule_id = ?", req.RuleId)
 	if err != nil {
 		tx.Rollback()
 		return &svcproto.DeleteAlertRuleResponse{Success: false, Message: err.Error()}, nil
 	}
 
-	_, err = tx.Exec("DELETE FROM alerts WHERE rule_id = ?", req.RuleId)
+	_, err = tx.Exec(context.Background(), "DELETE FROM alerts WHERE rule_id = ?", req.RuleId)
 	if err != nil {
 		tx.Rollback()
 		return &svcproto.DeleteAlertRuleResponse{Success: false, Message: err.Error()}, nil
 	}
 
-	_, err = tx.Exec("DELETE FROM alert_rules WHERE rule_id = ?", req.RuleId)
+	_, err = tx.Exec(context.Background(), "DELETE FROM alert_rules WHERE rule_id = ?", req.RuleId)
 	if err != nil {
 		tx.Rollback()
 		return &svcproto.DeleteAlertRuleResponse{Success: false, Message: err.Error()}, nil
@@ -804,7 +804,7 @@ func (s *Service) DeleteRule(ctx context.Context, req *svcproto.DeleteAlertRuleR
 
 // ListRules 列出告警规则
 func (s *Service) ListRules(ctx context.Context, req *svcproto.ListAlertRulesRequest) (*svcproto.ListAlertRulesResponse, error) {
-	rows, err := s.db.Query(
+	rows, err := s.db.Query(context.Background(), 
 		"SELECT rule_id, tenant_id, project_id, name, display_name, description, severity, enabled, created_at FROM alert_rules WHERE tenant_id = ?",
 		req.TenantId,
 	)
@@ -839,7 +839,7 @@ func (s *Service) ListRules(ctx context.Context, req *svcproto.ListAlertRulesReq
 func (s *Service) CreateAlert(ctx context.Context, req *svcproto.CreateAlertRequest) (*svcproto.CreateAlertResponse, error) {
 	alertID := fmt.Sprintf("alert-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(
+	_, err := s.db.Exec(context.Background(), 
 		"INSERT INTO alerts (alert_id, rule_id, tenant_id, project_id, severity, title, message, status, annotations, labels) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		alertID,
 		req.RuleId,
@@ -865,7 +865,7 @@ func (s *Service) CreateAlert(ctx context.Context, req *svcproto.CreateAlertRequ
 // GetAlert 获取告警信息
 func (s *Service) GetAlert(ctx context.Context, req *svcproto.GetAlertRequest) (*svcproto.GetAlertResponse, error) {
 	var alert svcproto.Alert
-	err := s.db.QueryRow(
+	err := s.db.QueryRow(context.Background(), 
 		"SELECT alert_id, rule_id, tenant_id, project_id, severity, title, message, status, starts_at, ends_at, annotations, labels, created_at, updated_at FROM alerts WHERE alert_id = ?",
 		req.AlertId,
 	).Scan(
@@ -896,7 +896,7 @@ func (s *Service) GetAlert(ctx context.Context, req *svcproto.GetAlertRequest) (
 
 // UpdateAlert 更新告警状态
 func (s *Service) UpdateAlert(ctx context.Context, req *svcproto.UpdateAlertRequest) (*svcproto.UpdateAlertResponse, error) {
-	result, err := s.db.Exec(
+	result, err := s.db.Exec(context.Background(), 
 		"UPDATE alerts SET status = ?, ends_at = ? WHERE alert_id = ?",
 		req.Status,
 		req.EndsAt,
@@ -923,17 +923,17 @@ func (s *Service) UpdateAlert(ctx context.Context, req *svcproto.UpdateAlertRequ
 
 // ListAlerts 列出告警
 func (s *Service) ListAlerts(ctx context.Context, req *svcproto.ListAlertsRequest) (*svcproto.ListAlertsResponse, error) {
-	var rows *sql.Rows
+	var rows storage.Rows
 	var err error
 
 	if req.Status != "" {
-		rows, err = s.db.Query(
+		rows, err = s.db.Query(context.Background(), 
 			"SELECT alert_id, rule_id, tenant_id, project_id, severity, title, message, status, starts_at, annotations FROM alerts WHERE tenant_id = ? AND status = ? ORDER BY starts_at DESC",
 			req.TenantId,
 			req.Status,
 		)
 	} else {
-		rows, err = s.db.Query(
+		rows, err = s.db.Query(context.Background(), 
 			"SELECT alert_id, rule_id, tenant_id, project_id, severity, title, message, status, starts_at, annotations FROM alerts WHERE tenant_id = ? ORDER BY starts_at DESC",
 			req.TenantId,
 		)
@@ -971,7 +971,7 @@ func (s *Service) ListAlerts(ctx context.Context, req *svcproto.ListAlertsReques
 func (s *Service) CreateNotification(ctx context.Context, req *svcproto.CreateNotificationRequest) (*svcproto.CreateNotificationResponse, error) {
 	notificationID := fmt.Sprintf("notif-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(
+	_, err := s.db.Exec(context.Background(), 
 		"INSERT INTO alert_notifications (notification_id, alert_id, rule_id, tenant_id, channel_type, channel_config, status, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		notificationID,
 		req.AlertId,
@@ -991,7 +991,7 @@ func (s *Service) CreateNotification(ctx context.Context, req *svcproto.CreateNo
 
 // UpdateNotification 更新通知状态
 func (s *Service) UpdateNotification(ctx context.Context, req *svcproto.UpdateNotificationRequest) (*svcproto.UpdateNotificationResponse, error) {
-	result, err := s.db.Exec(
+	result, err := s.db.Exec(context.Background(), 
 		"UPDATE alert_notifications SET status = ?, error_message = ?, attempts = ?, next_attempt_at = ? WHERE notification_id = ?",
 		req.Status,
 		req.ErrorMessage,
@@ -1009,7 +1009,7 @@ func (s *Service) UpdateNotification(ctx context.Context, req *svcproto.UpdateNo
 
 // ListNotifications 列出通知记录
 func (s *Service) ListNotifications(ctx context.Context, req *svcproto.ListNotificationsRequest) (*svcproto.ListNotificationsResponse, error) {
-	rows, err := s.db.Query(
+	rows, err := s.db.Query(context.Background(), 
 		"SELECT notification_id, alert_id, rule_id, tenant_id, channel_type, status, attempts, created_at FROM alert_notifications WHERE alert_id = ? ORDER BY created_at DESC",
 		req.AlertId,
 	)
@@ -1051,7 +1051,7 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 	var firedAlerts []*svcproto.Alert
 
 	// 获取该租户的所有启用规则
-	rows, err := s.db.Query(
+	rows, err := s.db.Query(context.Background(), 
 		"SELECT rule_id, tenant_id, name, display_name, severity, expression, project_id FROM alert_rules WHERE tenant_id = ? AND enabled = true",
 		req.TenantId,
 	)
@@ -1092,7 +1092,7 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 				}
 				labelsJSON, _ := json.Marshal(alertLabels)
 
-				_, err := s.db.Exec(
+				_, err := s.db.Exec(context.Background(), 
 					"INSERT INTO alerts (alert_id, rule_id, tenant_id, project_id, severity, title, message, status, annotations, labels) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					alertID, ruleID, tenantID, projectID, severity, alertTitle, alertMessage, "firing", string(annotations), string(labelsJSON),
 				)
@@ -1127,7 +1127,7 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 			// 检查是否需要恢复告警
 			if v, exists := s.activeAlerts.Load(key); exists {
 				active := v.(*activeAlert)
-				_, err := s.db.Exec(
+				_, err := s.db.Exec(context.Background(), 
 					"UPDATE alerts SET status = 'resolved', ends_at = ? WHERE alert_id = ?",
 					time.Now(), active.alertID,
 				)

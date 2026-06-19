@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/meinanzilinzhengying/cloudflow/services/alert-engine"
 )
 
@@ -24,18 +26,23 @@ func main() {
 		cfg.HttpAddr = v
 	}
 
-	// 从环境变量读取 TiDB 配置
-	if v := os.Getenv("TIDB_ADDR"); v != "" {
-		cfg.TiDBAddr = v
+	// 从环境变量读取关系型数据库配置
+	if v := os.Getenv("RELATIONAL_DB_HOST"); v != "" {
+		cfg.RelationalDBHost = v
 	}
-	if v := os.Getenv("TIDB_USER"); v != "" {
-		cfg.TiDBUser = v
+	if v := os.Getenv("RELATIONAL_DB_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			cfg.RelationalDBPort = p
+		}
 	}
-	if v := os.Getenv("TIDB_PASSWORD"); v != "" {
-		cfg.TiDBPassword = v
+	if v := os.Getenv("RELATIONAL_DB_USER"); v != "" {
+		cfg.RelationalDBUser = v
 	}
-	if v := os.Getenv("TIDB_DATABASE"); v != "" {
-		cfg.TiDBDatabase = v
+	if v := os.Getenv("RELATIONAL_DB_PASSWORD"); v != "" {
+		cfg.RelationalDBPassword = v
+	}
+	if v := os.Getenv("RELATIONAL_DB_DATABASE"); v != "" {
+		cfg.RelationalDBDatabase = v
 	}
 
 	// 从环境变量读取其他服务地址

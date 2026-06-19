@@ -39,9 +39,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
-	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
+	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	github.com/meinanzilinzhengying/cloudflow/pkg/metrics
 
 	"github.com/meinanzilinzhengying/cloudflow/pkg/flow"
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
