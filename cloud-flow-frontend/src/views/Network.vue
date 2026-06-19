@@ -68,11 +68,11 @@ const filteredFlows = computed(() => {
 const flowTrendOption = ref({
   backgroundColor: 'transparent',
   tooltip: { trigger: 'axis', backgroundColor: 'rgba(5, 56, 90, 0.9)', borderColor: '#0ABAFF', textStyle: { color: '#fff' } },
-  dataZoom: [{ type: 'inside' }, { type: 'slider', backgroundColor: 'rgba(10,186,255,0.1)', fillerColor: 'rgba(0,204,255,0.2)', borderColor: 'transparent', textStyle: { color: '#fff' } }],
+  dataZoom: [{ type: 'inside' }, { type: 'slider' }],
   xAxis: { type: 'category', data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'], axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { show: true, lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
   yAxis: { type: 'value', axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff', formatter: (v: number) => formatBytes(v) }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
   series: [
-    { name: '流量', type: 'line', areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(0,204,255,0.4)' }, { offset: 1, color: 'rgba(0,204,255,0.05)' }] } }, itemStyle: { color: '#00CCFF' }, data: [1200000, 1800000, 3500000, 4200000, 3100000, 2500000], smooth: true }
+    { name: '流量', type: 'line', areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(0,204,255,0.4)' }, { offset: 1, color: 'rgba(0,204,255,0.05)' }] } }, data: [1200000, 1800000, 3500000, 4200000, 3100000, 2500000], smooth: true, itemStyle: { color: '#00CCFF' }, lineStyle: { color: '#00CCFF', width: 2 } }
   ]
 })
 
@@ -80,9 +80,9 @@ const matrixOption = ref({
   backgroundColor: 'transparent',
   tooltip: { position: 'top', backgroundColor: 'rgba(5, 56, 90, 0.9)', borderColor: '#0ABAFF', textStyle: { color: '#fff' } },
   grid: { height: '70%', top: '10%' },
-  xAxis: { type: 'category', data: ['Web', 'DB', 'Cache', 'MQ', 'API'], splitArea: { show: true, areaStyle: { color: ['rgba(10,186,255,0.05)', 'rgba(10,186,255,0.1)'] } }, axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' } },
-  yAxis: { type: 'category', data: ['Web', 'DB', 'Cache', 'MQ', 'API'], splitArea: { show: true, areaStyle: { color: ['rgba(10,186,255,0.05)', 'rgba(10,186,255,0.1)'] } }, axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' } },
-  visualMap: { min: 0, max: 1000, calculable: true, orient: 'horizontal', left: 'center', bottom: '0%', textStyle: { color: '#fff' }, inRange: { color: ['rgba(0,204,255,0.05)', '#0ABAFF', '#00CCFF'] } },
+  xAxis: { type: 'category', data: ['Web', 'DB', 'Cache', 'MQ', 'API'], axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitArea: { show: true, areaStyle: { color: ['rgba(10,186,255,0.02)', 'rgba(10,186,255,0.05)'] } } },
+  yAxis: { type: 'category', data: ['Web', 'DB', 'Cache', 'MQ', 'API'], axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitArea: { show: true, areaStyle: { color: ['rgba(10,186,255,0.02)', 'rgba(10,186,255,0.05)'] } } },
+  visualMap: { min: 0, max: 1000, calculable: true, orient: 'horizontal', left: 'center', bottom: '0%', textStyle: { color: '#fff' }, inRange: { color: ['#0A1A3A', '#0ABAFF', '#00CCFF', '#6BEDB7'] } },
   series: [{
     type: 'heatmap', data: [
       [0,0,0], [1,0,200], [2,0,50], [3,0,100], [4,0,300],
@@ -97,31 +97,11 @@ const matrixOption = ref({
 const topologyOption = ref({
   backgroundColor: 'transparent',
   tooltip: { backgroundColor: 'rgba(5, 56, 90, 0.9)', borderColor: '#0ABAFF', textStyle: { color: '#fff' } },
+  xAxis: { type: 'category', data: ['Gateway', 'LB', 'Web-1', 'Web-2', 'DB-1', 'Cache'], axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' } },
+  yAxis: { type: 'value', axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
   series: [{
-    type: 'graph', layout: 'force', roam: true,
-    label: { show: true, fontSize: 10, color: '#fff' },
-    lineStyle: { color: 'rgba(0,204,255,0.5)', width: 1 },
-    force: { repulsion: 200, edgeLength: 120 },
-    data: [
-      { name: 'Gateway', symbolSize: 45, itemStyle: { color: '#00CCFF' } },
-      { name: 'LB', symbolSize: 35, itemStyle: { color: '#0ABAFF' } },
-      { name: 'Web-1', symbolSize: 25, itemStyle: { color: '#6BEDB7' } },
-      { name: 'Web-2', symbolSize: 25, itemStyle: { color: '#6BEDB7' } },
-      { name: 'DB-1', symbolSize: 30, itemStyle: { color: '#FF745A' } },
-      { name: 'Cache', symbolSize: 20, itemStyle: { color: '#6BEDB7' } },
-      { name: 'MQ', symbolSize: 20, itemStyle: { color: '#6BEDB7' } },
-      { name: 'API', symbolSize: 25, itemStyle: { color: '#6BEDB7' } },
-    ],
-    links: [
-      { source: 'Gateway', target: 'LB', lineStyle: { color: 'rgba(0,204,255,0.5)' } },
-      { source: 'LB', target: 'Web-1' },
-      { source: 'LB', target: 'Web-2' },
-      { source: 'Web-1', target: 'API' },
-      { source: 'Web-2', target: 'API' },
-      { source: 'API', target: 'DB-1' },
-      { source: 'API', target: 'Cache' },
-      { source: 'API', target: 'MQ' },
-    ]
+    type: 'bar', data: [10, 8, 6, 6, 4, 3],
+    itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#00CCFF' }, { offset: 1, color: '#0ABAFF' }] } }
   }]
 })
 

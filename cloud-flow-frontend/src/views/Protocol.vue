@@ -154,7 +154,7 @@ onMounted(fetchData)
     margin-bottom: 16px;
     .metric-label {
       font-size: 12px;
-      color: var(--el-text-color-secondary);
+      color: rgba(255, 255, 255, 0.6);
       margin-bottom: 4px;
     }
     .metric-num {

@@ -117,13 +117,14 @@ const filteredProbes = computed(() => {
 })
 
 const resourceOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  legend: { data: ['CPU', '内存'] },
-  xAxis: { type: 'category', data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'] },
-  yAxis: { type: 'value' },
+  backgroundColor: 'transparent',
+  tooltip: { trigger: 'axis', backgroundColor: 'rgba(5, 56, 90, 0.9)', borderColor: '#0ABAFF', textStyle: { color: '#fff' } },
+  legend: { data: ['CPU', '内存'], textStyle: { color: '#fff' } },
+  xAxis: { type: 'category', data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'], axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
+  yAxis: { type: 'value', axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
   series: [
-    { name: 'CPU', type: 'line', data: [10, 15, 35, 45, 30, 20], smooth: true },
-    { name: '内存', type: 'line', data: [20, 22, 30, 40, 35, 28], smooth: true }
+    { name: 'CPU', type: 'line', data: [10, 15, 35, 45, 30, 20], smooth: true, itemStyle: { color: '#00CCFF' }, lineStyle: { color: '#00CCFF' } },
+    { name: '内存', type: 'line', data: [20, 22, 30, 40, 35, 28], smooth: true, itemStyle: { color: '#6BEDB7' }, lineStyle: { color: '#6BEDB7' } }
   ]
 }))
 

@@ -153,12 +153,12 @@ const handleLogin = async () => {
         .brand-subtitle {
           font-size: 20px;
           font-weight: 600;
-          color: var(--el-text-color-primary);
+          color: #FFFFFF;
           margin-top: 8px;
         }
         .brand-desc {
           font-size: 14px;
-          color: var(--el-text-color-secondary);
+          color: rgba(255, 255, 255, 0.6);
           margin-top: 8px;
         }
       }
@@ -186,7 +186,7 @@ const handleLogin = async () => {
         .login-title {
           font-size: 24px;
           font-weight: 600;
-          color: var(--el-text-color-primary);
+          color: #FFFFFF;
           margin-bottom: 24px;
           text-align: center;
         }

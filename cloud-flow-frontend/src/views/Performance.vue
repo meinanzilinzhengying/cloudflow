@@ -73,34 +73,37 @@ const topProcesses = ref([
 ])
 
 const cpuOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  legend: { data: ['P50', 'P95', 'P99'] },
-  xAxis: { type: 'category', data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'] },
-  yAxis: { type: 'value', name: 'μs' },
+  backgroundColor: 'transparent',
+  tooltip: { trigger: 'axis', backgroundColor: 'rgba(5, 56, 90, 0.9)', borderColor: '#0ABAFF', textStyle: { color: '#fff' } },
+  legend: { data: ['P50', 'P95', 'P99'], textStyle: { color: '#fff' } },
+  xAxis: { type: 'category', data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'], axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
+  yAxis: { type: 'value', name: 'μs', nameTextStyle: { color: '#fff' }, axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
   series: [
-    { name: 'P50', type: 'line', data: [50, 55, 60, 58, 62, 55], smooth: true },
-    { name: 'P95', type: 'line', data: [120, 130, 150, 140, 160, 135], smooth: true },
-    { name: 'P99', type: 'line', data: [300, 320, 380, 360, 400, 340], smooth: true },
+    { name: 'P50', type: 'line', data: [50, 55, 60, 58, 62, 55], smooth: true, itemStyle: { color: '#00CCFF' }, lineStyle: { color: '#00CCFF' } },
+    { name: 'P95', type: 'line', data: [120, 130, 150, 140, 160, 135], smooth: true, itemStyle: { color: '#0ABAFF' }, lineStyle: { color: '#0ABAFF' } },
+    { name: 'P99', type: 'line', data: [300, 320, 380, 360, 400, 340], smooth: true, itemStyle: { color: '#6BEDB7' }, lineStyle: { color: '#6BEDB7' } },
   ]
 }))
 
 const memOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  xAxis: { type: 'category', data: ['<64B', '64-256B', '256-1K', '1K-4K', '4K-16K', '16K-64K', '>64K'] },
-  yAxis: { type: 'value' },
+  backgroundColor: 'transparent',
+  tooltip: { trigger: 'axis', backgroundColor: 'rgba(5, 56, 90, 0.9)', borderColor: '#0ABAFF', textStyle: { color: '#fff' } },
+  xAxis: { type: 'category', data: ['<64B', '64-256B', '256-1K', '1K-4K', '4K-16K', '16K-64K', '>64K'], axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
+  yAxis: { type: 'value', axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
   series: [{
     type: 'bar', data: [5000, 3200, 1800, 900, 400, 150, 60],
-    itemStyle: { borderRadius: [4, 4, 0, 0], color: '#165DFF' }
+    itemStyle: { borderRadius: [4, 4, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#00CCFF' }, { offset: 1, color: '#0ABAFF' }] } }
   }]
 }))
 
 const blockOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  xAxis: { type: 'category', data: ['<1ms', '1-5ms', '5-10ms', '10-50ms', '50-100ms', '>100ms'] },
-  yAxis: { type: 'value' },
+  backgroundColor: 'transparent',
+  tooltip: { trigger: 'axis', backgroundColor: 'rgba(5, 56, 90, 0.9)', borderColor: '#0ABAFF', textStyle: { color: '#fff' } },
+  xAxis: { type: 'category', data: ['<1ms', '1-5ms', '5-10ms', '10-50ms', '50-100ms', '>100ms'], axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
+  yAxis: { type: 'value', axisLine: { lineStyle: { color: 'rgba(255,255,255,0.3)' } }, axisLabel: { color: '#fff' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
   series: [{
     type: 'bar', data: [8000, 3500, 1200, 300, 50, 10],
-    itemStyle: { borderRadius: [4, 4, 0, 0], color: '#00B42A' }
+    itemStyle: { borderRadius: [4, 4, 0, 0], color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#6BEDB7' }, { offset: 1, color: '#00CCFF' }] } }
   }]
 }))
 

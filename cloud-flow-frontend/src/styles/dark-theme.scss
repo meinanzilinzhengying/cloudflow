@@ -218,3 +218,27 @@ body {
   background-color: transparent !important;
 }
 
+
+/* el-descriptions 深色主题 */
+.el-descriptions {
+  --el-descriptions-item-bordered-label-background: rgba(10, 186, 255, 0.15) !important;
+  --el-descriptions-body-fill: rgba(10, 186, 255, 0.05) !important;
+  .el-descriptions__body {
+    background-color: transparent !important;
+    .el-descriptions__table {
+      background-color: transparent !important;
+    }
+    .el-descriptions__label {
+      background-color: rgba(10, 186, 255, 0.15) !important;
+      color: #00CCFF !important;
+      border: 1px solid rgba(10, 186, 255, 0.2) !important;
+    }
+    .el-descriptions__content {
+      color: #FFFFFF !important;
+      border: 1px solid rgba(10, 186, 255, 0.2) !important;
+    }
+  }
+  .el-descriptions__title {
+    color: #FFFFFF !important;
+  }
+}

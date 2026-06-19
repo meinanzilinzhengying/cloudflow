@@ -1,121 +1,79 @@
 <template>
-  <el-container class="layout">
-    <el-aside width="200px" class="sidebar">
+  <div class="app-layout">
+    <!-- 左侧导航栏 -->
+    <aside class="sidebar" :style="{ width: sidebarWidth + 'px' }">
       <div class="logo">
         <el-icon size="28" color="#00CCFF"><Connection /></el-icon>
         <span class="logo-text">CloudFlow</span>
       </div>
-      <el-menu
-        :default-active="$route.path"
-        router
-        class="el-menu-vertical"
-        background-color="transparent"
-        text-color="#A4A8AE"
-        active-text-color="#00CCFF"
-      >
-        <el-menu-item index="/dashboard">
-          <el-icon><Monitor /></el-icon>
-          <span>态势概览</span>
-        </el-menu-item>
-        <el-sub-menu index="/monitor">
-          <template #title>
-            <el-icon><Odometer /></el-icon>
-            <span>运行监控</span>
-          </template>
-          <el-menu-item index="/alerts">监控与异常告警</el-menu-item>
-          <el-menu-item index="/alert-config">告警配置</el-menu-item>
-        </el-sub-menu>
-        <el-menu-item index="/performance">
-          <el-icon><Timer /></el-icon>
-          <span>资源指标分析</span>
-        </el-menu-item>
-        <el-menu-item index="/logs">
-          <el-icon><Document /></el-icon>
-          <span>流量回溯与日志</span>
-        </el-menu-item>
-        <el-sub-menu index="/probes">
-          <template #title>
-            <el-icon><Cpu /></el-icon>
-            <span>探针管理与采集</span>
-          </template>
-          <el-menu-item index="/probes">探针管理与采集</el-menu-item>
-          <el-menu-item index="/probe-cluster">探针集群管理</el-menu-item>
-          <el-menu-item index="/probe-version">探针版本管理</el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="/system">
-          <template #title>
-            <el-icon><Setting /></el-icon>
-            <span>系统管理</span>
-          </template>
-          <el-menu-item index="/settings">系统状态</el-menu-item>
-          <el-menu-item index="/users">用户管理</el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="/trace">
-          <template #title>
-            <el-icon><MapLocation /></el-icon>
-            <span>跟踪分析</span>
-          </template>
-          <el-menu-item index="/trace-path">访问路径跟踪</el-menu-item>
-          <el-menu-item index="/trace-e2e">端到端跟踪</el-menu-item>
-          <el-menu-item index="/trace-dubbo">Dubbo跟踪</el-menu-item>
-          <el-menu-item index="/trace-dns">DNS跟踪</el-menu-item>
-          <el-menu-item index="/trace-connectivity">节点间连通性跟踪</el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="/topology">
-          <template #title>
-            <el-icon><Share /></el-icon>
-            <span>网络拓扑</span>
-          </template>
-          <el-menu-item index="/topology">业务拓扑</el-menu-item>
-          <el-menu-item index="/topology-container">容器拓扑</el-menu-item>
-          <el-menu-item index="/topology-ip">IP 拓扑</el-menu-item>
-        </el-sub-menu>
-      </el-menu>
-    </el-aside>
-    <el-container>
-      <el-header class="header">
-        <div class="header-left">
-          <span class="page-title">云流量检测态势概览</span>
-          <span class="page-subtitle">云内流量检测与分析工具</span>
+      <nav class="nav-menu">
+        <div
+          v-for="item in menuItems"
+          :key="item.path"
+          class="nav-item"
+          :class="{ active: isActive(item.path), expanded: item.expanded }"
+          @click="handleMenuClick(item)"
+        >
+          <div class="nav-item-main">
+            <el-icon :size="16" class="nav-icon"><component :is="item.icon" /></el-icon>
+            <span class="nav-text">{{ item.name }}</span>
+            <el-icon v-if="item.children" size="12" class="nav-arrow" :class="{ rotated: item.expanded }"><ArrowRight /></el-icon>
+          </div>
+          <div v-if="item.children && item.expanded" class="nav-sub">
+            <div
+              v-for="sub in item.children"
+              :key="sub.path"
+              class="nav-sub-item"
+              :class="{ active: isActive(sub.path) }"
+              @click.stop="navigate(sub.path)"
+            >
+              {{ sub.name }}
+            </div>
+          </div>
         </div>
-        <div class="header-center">
+      </nav>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content" :style="{ marginLeft: sidebarWidth + 'px' }">
+      <!-- 顶部标题栏 -->
+      <header class="top-header" :style="headerBgStyle">
+        <div class="header-left">
           <span class="date-text">{{ currentDate }}</span>
         </div>
-        <div class="header-right">
-          <span class="user-role">系统管理员</span>
-          <span class="user-name">admin</span>
-          <el-dropdown>
-            <span class="user-info">
-              <el-icon><User /></el-icon>
-              <el-icon><ArrowDown /></el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="handleLogout">退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+        <div class="header-center">
+          <span class="page-title">云流量检测态势概览</span>
         </div>
-      </el-header>
-      <el-main class="main">
+        <div class="header-right">
+          <el-icon size="20" class="header-icon"><Bell /></el-icon>
+          <div class="user-avatar">A</div>
+          <div class="user-info">
+            <span class="user-role">系统管理员</span>
+            <span class="user-name">admin</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- 路由内容 -->
+      <div class="content-area">
         <router-view />
-      </el-main>
-    </el-container>
-  </el-container>
+      </div>
+    </main>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/user'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import {
-  Connection, Monitor, Cpu, Share, Odometer, Timer,
-  Document, MapLocation, Setting,
-  User, ArrowDown
+  Connection, Monitor, Odometer, Timer, Document,
+  Cpu, Setting, MapLocation, Share, ArrowRight, Bell
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
-const userStore = useUserStore()
+const route = useRoute()
+const sidebarWidth = 200
+
 const currentDate = ref('')
 
 const updateDate = () => {
@@ -133,26 +91,86 @@ onMounted(() => {
   setInterval(updateDate, 60000)
 })
 
-const handleLogout = () => {
-  userStore.logout()
-  router.push('/login')
+interface MenuItem {
+  name: string
+  path: string
+  icon: any
+  children?: { name: string; path: string }[]
+  expanded?: boolean
 }
+
+const menuItems = ref<MenuItem[]>([
+  { name: '态势概览', path: '/dashboard', icon: Monitor },
+  { name: '网络拓扑', path: '/topology', icon: Share, children: [
+    { name: '业务拓扑', path: '/topology' },
+    { name: '容器拓扑', path: '/topology-container' },
+    { name: 'IP 拓扑', path: '/topology-ip' },
+  ]},
+  { name: '运行监控', path: '/monitor', icon: Odometer, children: [
+    { name: '监控与异常告警', path: '/alerts' },
+    { name: '告警配置', path: '/alert-config' },
+  ]},
+  { name: '跟踪分析', path: '/trace', icon: MapLocation, children: [
+    { name: '访问路径跟踪', path: '/trace-path' },
+    { name: '端到端跟踪', path: '/trace-e2e' },
+    { name: 'Dubbo跟踪', path: '/trace-dubbo' },
+    { name: 'DNS跟踪', path: '/trace-dns' },
+    { name: '节点间连通性跟踪', path: '/trace-connectivity' },
+  ]},
+  { name: '资源指标分析', path: '/performance', icon: Timer },
+  { name: '流量回溯与日志', path: '/logs', icon: Document },
+  { name: '探针管理与采集', path: '/probes', icon: Cpu, children: [
+    { name: '探针集群管理', path: '/probe-cluster' },
+    { name: '探针管理与采集', path: '/probes' },
+    { name: '探针版本管理', path: '/probe-version' },
+  ]},
+  { name: '系统管理', path: '/system', icon: Setting, children: [
+    { name: '系统状态', path: '/settings' },
+    { name: '用户管理', path: '/users' },
+  ]},
+])
+
+const isActive = (path: string) => route.path === path || route.path.startsWith(path + '/')
+
+const handleMenuClick = (item: any) => {
+  if (item.children) {
+    item.expanded = !item.expanded
+  } else {
+    navigate(item.path)
+  }
+}
+
+const navigate = (path: string) => {
+  router.push(path)
+}
+
+const headerBgStyle = computed(() => {
+  return {
+    background: 'linear-gradient(90deg, rgba(20, 40, 80, 0.95) 0%, rgba(30, 80, 100, 0.9) 50%, rgba(20, 40, 80, 0.95) 100%)',
+  }
+})
 </script>
 
 <style scoped lang="scss">
-.layout {
-  height: 100vh;
-  background: #05385A;
+.app-layout {
+  min-height: 100vh;
+  display: flex;
   .sidebar {
-    background: #001529;
-    border-right: 1px solid rgba(10, 186, 255, 0.2);
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    background: rgba(38, 36, 68, 1);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
     .logo {
       height: 61px;
       display: flex;
       align-items: center;
       padding: 0 20px;
       gap: 12px;
-      border-bottom: 1px solid rgba(10, 186, 255, 0.2);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       .logo-text {
         font-size: 20px;
         font-weight: 600;
@@ -160,91 +178,132 @@ const handleLogout = () => {
         font-family: '微软雅黑', sans-serif;
       }
     }
-    .el-menu-vertical {
-      border-right: none;
-      background: transparent;
-      :deep(.el-menu-item) {
-        color: #A4A8AE;
-        &:hover {
-          background: rgba(10, 186, 255, 0.1);
-          color: #00CCFF;
+    .nav-menu {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+      .nav-item {
+        cursor: pointer;
+        .nav-item-main {
+          display: flex;
+          align-items: center;
+          padding: 0 16px;
+          height: 40px;
+          gap: 12px;
+          color: rgba(255, 255, 255, 0.996);
+          font-size: 14px;
+          font-family: '微软雅黑', sans-serif;
+          transition: all 0.2s;
+          .nav-icon {
+            flex-shrink: 0;
+          }
+          .nav-text {
+            flex: 1;
+          }
+          .nav-arrow {
+            transition: transform 0.2s;
+            &.rotated {
+              transform: rotate(90deg);
+            }
+          }
         }
-        &.is-active {
-          background: rgba(10, 186, 255, 0.15);
-          color: #00CCFF;
-          border-right: 3px solid #00CCFF;
+        &:hover .nav-item-main {
+          background: rgba(255, 255, 255, 0.05);
         }
-      }
-      :deep(.el-sub-menu__title) {
-        color: #A4A8AE;
-        &:hover {
-          background: rgba(10, 186, 255, 0.1);
-          color: #00CCFF;
+        &.active > .nav-item-main {
+          background: rgba(24, 135, 238, 1);
+          color: #FFFFFF;
+        }
+        .nav-sub {
+          .nav-sub-item {
+            padding: 0 16px 0 48px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            font-family: '微软雅黑', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            &:hover {
+              background: rgba(255, 255, 255, 0.05);
+              color: #FFFFFF;
+            }
+            &.active {
+              background: rgba(14, 154, 141, 1);
+              color: #FFFFFF;
+            }
+          }
         }
       }
     }
   }
-  .header {
-    height: 61px;
-    background: rgba(0, 160, 150, 0.925);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 24px;
-    border-bottom: 1px solid rgba(10, 186, 255, 0.3);
-    .header-left {
+  .main-content {
+    flex: 1;
+    min-height: 100vh;
+    .top-header {
+      height: 66px;
       display: flex;
       align-items: center;
-      gap: 16px;
-      .page-title {
-        font-size: 20px;
-        font-weight: 400;
-        color: #FFFFFF;
-        font-family: '微软雅黑', sans-serif;
-        text-shadow: 0 0 10px rgba(7, 213, 192, 1);
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid rgba(10, 186, 255, 0.2);
+      .header-left {
+        .date-text {
+          font-size: 16px;
+          color: #FFFFFF;
+          font-family: 'Arial', sans-serif;
+        }
       }
-      .page-subtitle {
-        font-size: 32px;
-        font-weight: 400;
-        color: #FFFFFF;
-        font-family: '微软雅黑', sans-serif;
+      .header-center {
+        .page-title {
+          font-size: 28px;
+          font-weight: 400;
+          color: #FFFFFF;
+          font-family: '微软雅黑', sans-serif;
+        }
       }
-    }
-    .header-center {
-      .date-text {
-        font-size: 16px;
-        color: #FFFFFF;
-        font-family: 'Arial', sans-serif;
-      }
-    }
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      .user-role {
-        font-size: 14px;
-        color: #FFFFFF;
-        font-family: '微软雅黑', sans-serif;
-      }
-      .user-name {
-        font-size: 14px;
-        color: #FFFFFF;
-        font-family: 'Arial', sans-serif;
-      }
-      .user-info {
+      .header-right {
         display: flex;
         align-items: center;
-        gap: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        color: #FFFFFF;
+        gap: 16px;
+        .header-icon {
+          color: #FFFFFF;
+          cursor: pointer;
+        }
+        .user-avatar {
+          width: 27px;
+          height: 27px;
+          border-radius: 50%;
+          background: rgba(10, 186, 255, 0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #FFFFFF;
+          font-size: 12px;
+        }
+        .user-info {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          .user-role {
+            font-size: 14px;
+            color: #FFFFFF;
+            font-family: '微软雅黑', sans-serif;
+          }
+          .user-name {
+            font-size: 12px;
+            color: #A4A8AE;
+            font-family: 'Arial', sans-serif;
+          }
+        }
       }
     }
-  }
-  .main {
-    padding: 20px 24px;
-    background: #05385A;
-    overflow-y: auto;
+    .content-area {
+      min-height: calc(100vh - 66px);
+      background: #05385A;
+      padding: 0;
+    }
   }
 }
 </style>

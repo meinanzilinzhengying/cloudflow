@@ -1,19 +1,17 @@
 <template>
-  <div class="topology">
+  <div class="topology-page">
     <div class="page-header">
-      <h2 class="page-title">网络拓扑</h2>
+      <h2 class="page-title">业务拓扑</h2>
       <div class="header-actions">
-        <el-select v-model="viewMode" placeholder="视图" size="small" style="width: 120px">
+        <el-select v-model="viewMode" placeholder="视图" size="small" class="dark-select">
           <el-option label="服务拓扑" value="service" />
           <el-option label="主机拓扑" value="host" />
           <el-option label="Pod 拓扑" value="pod" />
         </el-select>
-        <el-button type="primary" size="small" @click="refresh">刷新</el-button>
+        <el-button type="primary" size="small" class="dark-btn" @click="refresh">刷新</el-button>
       </div>
     </div>
-    <el-card class="chart-card" :body-style="{ padding: '20px' }">
-      <div ref="topologyRef" style="height: 600px"></div>
-    </el-card>
+    <div class="topology-chart" ref="topologyRef"></div>
   </div>
 </template>
 
@@ -28,30 +26,39 @@ const refresh = () => {
   if (!topologyRef.value) return
   const chart = echarts.init(topologyRef.value)
   chart.setOption({
-    tooltip: {},
+    backgroundColor: 'transparent',
+    tooltip: {
+      backgroundColor: 'rgba(5, 56, 90, 0.9)',
+      borderColor: '#0ABAFF',
+      textStyle: { color: '#fff' }
+    },
     series: [{
       type: 'graph', layout: 'force', roam: true,
-      label: { show: true },
-      force: { repulsion: 200, edgeLength: 100 },
+      label: {
+        show: true,
+        color: '#fff',
+        fontSize: 12
+      },
+      force: { repulsion: 300, edgeLength: [80, 200] },
       data: [
-        { name: 'Gateway', symbolSize: 50, itemStyle: { color: '#165DFF' } },
-        { name: 'LB', symbolSize: 40, itemStyle: { color: '#165DFF' } },
-        { name: 'Web-1', symbolSize: 30, itemStyle: { color: '#67C23A' } },
-        { name: 'Web-2', symbolSize: 30, itemStyle: { color: '#67C23A' } },
-        { name: 'DB-1', symbolSize: 35, itemStyle: { color: '#E6A23C' } },
-        { name: 'Cache', symbolSize: 25, itemStyle: { color: '#67C23A' } },
-        { name: 'MQ', symbolSize: 25, itemStyle: { color: '#67C23A' } },
-        { name: 'API', symbolSize: 30, itemStyle: { color: '#67C23A' } },
+        { name: 'Gateway', symbolSize: 60, itemStyle: { color: '#00CCFF' }, label: { color: '#fff' } },
+        { name: 'LB', symbolSize: 50, itemStyle: { color: '#0ABAFF' }, label: { color: '#fff' } },
+        { name: 'Web-1', symbolSize: 40, itemStyle: { color: '#6BEDB7' }, label: { color: '#fff' } },
+        { name: 'Web-2', symbolSize: 40, itemStyle: { color: '#6BEDB7' }, label: { color: '#fff' } },
+        { name: 'DB-1', symbolSize: 45, itemStyle: { color: '#FF745A' }, label: { color: '#fff' } },
+        { name: 'Cache', symbolSize: 35, itemStyle: { color: '#FFC328' }, label: { color: '#fff' } },
+        { name: 'MQ', symbolSize: 35, itemStyle: { color: '#6BEDB7' }, label: { color: '#fff' } },
+        { name: 'API', symbolSize: 40, itemStyle: { color: '#00CCFF' }, label: { color: '#fff' } },
       ],
       links: [
-        { source: 'Gateway', target: 'LB' },
-        { source: 'LB', target: 'Web-1' },
-        { source: 'LB', target: 'Web-2' },
-        { source: 'Web-1', target: 'API' },
-        { source: 'Web-2', target: 'API' },
-        { source: 'API', target: 'DB-1' },
-        { source: 'API', target: 'Cache' },
-        { source: 'API', target: 'MQ' },
+        { source: 'Gateway', target: 'LB', lineStyle: { color: 'rgba(0, 204, 255, 0.6)', width: 2 } },
+        { source: 'LB', target: 'Web-1', lineStyle: { color: 'rgba(0, 204, 255, 0.6)', width: 2 } },
+        { source: 'LB', target: 'Web-2', lineStyle: { color: 'rgba(0, 204, 255, 0.6)', width: 2 } },
+        { source: 'Web-1', target: 'API', lineStyle: { color: 'rgba(0, 204, 255, 0.6)', width: 2 } },
+        { source: 'Web-2', target: 'API', lineStyle: { color: 'rgba(0, 204, 255, 0.6)', width: 2 } },
+        { source: 'API', target: 'DB-1', lineStyle: { color: 'rgba(0, 204, 255, 0.6)', width: 2 } },
+        { source: 'API', target: 'Cache', lineStyle: { color: 'rgba(0, 204, 255, 0.6)', width: 2 } },
+        { source: 'API', target: 'MQ', lineStyle: { color: 'rgba(0, 204, 255, 0.6)', width: 2 } },
       ]
     }]
   })
@@ -62,14 +69,30 @@ onMounted(refresh)
 </script>
 
 <style scoped lang="scss">
-.topology {
+.topology-page {
+  min-height: 100vh;
+  padding: 20px 24px;
   .page-header {
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
-    .page-title { font-size: 18px; font-weight: 600; color: #FFFFFF; }
-    .header-actions { display: flex; gap: 12px; align-items: center; }
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    .page-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #FFFFFF;
+    }
+    .header-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
   }
-  .chart-card {
-    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  .topology-chart {
+    height: 600px;
+    background: rgba(10, 186, 255, 0.08);
+    border: 1px solid rgba(10, 186, 255, 0.3);
+    border-radius: 8px;
   }
 }
 </style>
