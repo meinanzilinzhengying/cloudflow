@@ -14,6 +14,7 @@ package alertengine
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -21,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -67,6 +69,13 @@ type Config struct {
 	TLSClientAuth   bool
 	TLSInsecureSkip bool
 
+	// ClickHouse 配置
+	ClickHouseHost     string
+	ClickHousePort     int
+	ClickHouseUser     string
+	ClickHousePassword string
+	ClickHouseDatabase string
+
 	// MockMetricsEnabled 是否使用模拟指标数据（仅用于开发测试）
 	// 生产环境应设置为 false，使用真实数据源 (VM + ClickHouse)
 	MockMetricsEnabled bool
@@ -85,6 +94,11 @@ func DefaultConfig() *Config {
 		RelationalDBPassword: "",
 		RelationalDBDatabase: "cloudflow_alert",
 		AuthAddr:             "auth-service:9003",
+		ClickHouseHost:     "clickhouse",
+		ClickHousePort:     9000,
+		ClickHouseUser:     "default",
+		ClickHousePassword: "",
+		ClickHouseDatabase: "cloudflow",
 		EvalInterval:         15 * time.Second,
 		MaxRules:             10000,
 		TLSEnabled:           false,
@@ -124,6 +138,9 @@ type Service struct {
 
 	// P0-2 修复: TLS 凭证
 	grpcCreds credentials.TransportCredentials
+
+	// ClickHouse 连接（实时指标查询）
+	clickHouseDB *sql.DB
 
 	startTime time.Time
 }
@@ -180,6 +197,11 @@ func New(config *Config) (*Service, error) {
 		}
 	}
 
+	// 初始化 ClickHouse 连接
+	if err := s.initClickHouse(); err != nil {
+		return nil, fmt.Errorf("clickhouse init failed: %w", err)
+	}
+
 	// 初始化 gRPC 服务器
 	var grpcOptions []grpc.ServerOption
 	if s.grpcCreds != nil {
@@ -233,6 +255,52 @@ func (s *Service) initDatabase() error {
 
 	fmt.Printf("Alert Engine database connected: %s:%d/%s (type=%s)\n",
 		s.config.RelationalDBHost, s.config.RelationalDBPort, s.config.RelationalDBDatabase, s.config.RelationalDBType)
+	return nil
+}
+
+// initClickHouse 初始化 ClickHouse 连接
+func (s *Service) initClickHouse() error {
+	if s.config.ClickHouseHost == "" {
+		return nil // ClickHouse 未配置，跳过
+	}
+
+	database := s.config.ClickHouseDatabase
+	if database == "" {
+		database = "cloudflow"
+	}
+
+	port := s.config.ClickHousePort
+	if port == 0 {
+		port = 9000
+	}
+
+	var dsn string
+	if s.config.ClickHouseUser != "" && s.config.ClickHousePassword != "" {
+		dsn = fmt.Sprintf("clickhouse://%s:%s@%s:%d/%s",
+			s.config.ClickHouseUser, s.config.ClickHousePassword,
+			s.config.ClickHouseHost, port, database)
+	} else if s.config.ClickHouseUser != "" {
+		dsn = fmt.Sprintf("clickhouse://%s@%s:%d/%s",
+			s.config.ClickHouseUser, s.config.ClickHouseHost, port, database)
+	} else {
+		dsn = fmt.Sprintf("clickhouse://%s:%d/%s", s.config.ClickHouseHost, port, database)
+	}
+
+	db, err := sql.Open("clickhouse", dsn)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		return err
+	}
+
+	s.clickHouseDB = db
+	fmt.Printf("Alert Engine ClickHouse connected: %s/%s\n", s.config.ClickHouseHost, database)
+
 	return nil
 }
 
@@ -579,7 +647,33 @@ func (s *Service) getLatestMetrics(tenantID string) map[string]float64 {
 		}
 	}
 
-	return map[string]float64{}
+	result := make(map[string]float64)
+	if s.clickHouseDB == nil {
+		return result
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 查询各分类表最近1分钟的指标统计
+	queries := map[string]string{
+		"event_count":       "SELECT count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp/1000000000) >= toUnixTimestamp(now() - toIntervalMinute(1))",
+		"network_events":    "SELECT count() FROM cloudflow.network_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE",
+		"security_events":   "SELECT count() FROM cloudflow.security_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE",
+		"process_events":    "SELECT count() FROM cloudflow.process_events WHERE timestamp >= now() - INTERVAL 1 MINUTE",
+		"file_events":       "SELECT count() FROM cloudflow.file_events WHERE timestamp >= now() - INTERVAL 1 MINUTE",
+		"host_cpu":          "SELECT avg(cpu_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE",
+		"host_mem":          "SELECT avg(memory_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE",
+	}
+
+	for metric, query := range queries {
+		var val sql.NullFloat64
+		if err := s.clickHouseDB.QueryRowContext(ctx, query).Scan(&val); err == nil && val.Valid {
+			result[metric] = val.Float64
+		}
+	}
+
+	return result
 }
 
 // evaluateRule 评估告警规则表达式

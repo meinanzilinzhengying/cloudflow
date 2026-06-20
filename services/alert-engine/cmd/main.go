@@ -77,6 +77,25 @@ func main() {
 	}
 
 	// 生产环境指标数据源配置
+	// 从环境变量读取 ClickHouse 配置
+	if v := os.Getenv("CLICKHOUSE_ADDR"); v != "" {
+		cfg.ClickHouseHost = v
+	}
+	if v := os.Getenv("CLICKHOUSE_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			cfg.ClickHousePort = p
+		}
+	}
+	if v := os.Getenv("CLICKHOUSE_USER"); v != "" {
+		cfg.ClickHouseUser = v
+	}
+	if v := os.Getenv("CLICKHOUSE_PASSWORD"); v != "" {
+		cfg.ClickHousePassword = v
+	}
+	if v := os.Getenv("CLICKHOUSE_DATABASE"); v != "" {
+		cfg.ClickHouseDatabase = v
+	}
+
 	// MockMetricsEnabled: true 使用模拟数据（仅开发测试），false 使用真实数据源 (VM + ClickHouse)
 	if v := os.Getenv("MOCK_METRICS_ENABLED"); v == "true" {
 		cfg.MockMetricsEnabled = true
