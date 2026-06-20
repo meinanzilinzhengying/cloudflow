@@ -51,22 +51,51 @@ func (e *EdgeClient) WriteBatch(events []*Event) error {
 }
 
 func (e *EdgeClient) WriteMetrics(probeID string, cpu, mem, disk float64, netRx, netTx, diskRead, diskWrite uint64) error {
-	ev := &Event{Timestamp: time.Now(), ProbeID: probeID, Category: "metrics", EventType: "host_metrics"}
+	details, _ := json.Marshal(map[string]interface{}{
+		"cpu_percent":      cpu,
+		"memory_percent":   mem,
+		"disk_percent":     disk,
+		"net_rx_bytes":     netRx,
+		"net_tx_bytes":     netTx,
+		"disk_read_bytes":  diskRead,
+		"disk_write_bytes": diskWrite,
+	})
+	ev := &Event{Timestamp: time.Now(), ProbeID: probeID, Category: "metrics", EventType: "host_metrics", Details: string(details)}
 	return e.WriteEvent(ev)
 }
 
 func (e *EdgeClient) WriteProcessEvent(ts time.Time, probeID string, pid, ppid uint32, comm, exe, args, eventType string) error {
-	ev := &Event{Timestamp: ts, ProbeID: probeID, Category: "process", EventType: eventType, Details: comm}
+	details, _ := json.Marshal(map[string]interface{}{
+		"pid":  pid,
+		"ppid": ppid,
+		"comm": comm,
+		"exe":  exe,
+		"args": args,
+	})
+	ev := &Event{Timestamp: ts, ProbeID: probeID, Category: "process", EventType: eventType, Details: string(details)}
 	return e.WriteEvent(ev)
 }
 
 func (e *EdgeClient) WriteFileEvent(ts time.Time, probeID string, pid uint32, comm, filename, operation string, result int32) error {
-	ev := &Event{Timestamp: ts, ProbeID: probeID, Category: "file", EventType: operation, Details: filename}
+	details, _ := json.Marshal(map[string]interface{}{
+		"pid":      pid,
+		"comm":     comm,
+		"filename": filename,
+		"result":   result,
+	})
+	ev := &Event{Timestamp: ts, ProbeID: probeID, Category: "file", EventType: operation, Details: string(details)}
 	return e.WriteEvent(ev)
 }
 
 func (e *EdgeClient) WriteSyscallEvent(ts time.Time, probeID string, pid uint32, comm string, syscallNr, latencyNs, count uint64) error {
-	ev := &Event{Timestamp: ts, ProbeID: probeID, Category: "syscall", EventType: "syscall", Details: comm}
+	details, _ := json.Marshal(map[string]interface{}{
+		"pid":        pid,
+		"comm":       comm,
+		"syscall_nr": syscallNr,
+		"latency_ns": latencyNs,
+		"count":      count,
+	})
+	ev := &Event{Timestamp: ts, ProbeID: probeID, Category: "syscall", EventType: "syscall", Details: string(details)}
 	return e.WriteEvent(ev)
 }
 

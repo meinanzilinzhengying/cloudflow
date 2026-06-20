@@ -657,18 +657,18 @@ func (s *Service) getLatestMetrics(tenantID string) map[string]float64 {
 
 	// 查询各分类表最近1分钟的指标统计
 	queries := map[string]string{
-		"event_count":       "SELECT count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp/1000000000) >= toUnixTimestamp(now() - toIntervalMinute(1))",
-		"network_events":    "SELECT count() FROM cloudflow.network_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE",
-		"security_events":   "SELECT count() FROM cloudflow.security_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE",
-		"process_events":    "SELECT count() FROM cloudflow.process_events WHERE timestamp >= now() - INTERVAL 1 MINUTE",
-		"file_events":       "SELECT count() FROM cloudflow.file_events WHERE timestamp >= now() - INTERVAL 1 MINUTE",
-		"host_cpu":          "SELECT avg(cpu_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE",
-		"host_mem":          "SELECT avg(memory_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE",
+		"event_count":       "SELECT count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp/1000000000) >= toUnixTimestamp(now() - toIntervalMinute(1)) AND tenant_id = ?",
+		"network_events":    "SELECT count() FROM cloudflow.network_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"security_events":   "SELECT count() FROM cloudflow.security_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"process_events":    "SELECT count() FROM cloudflow.process_events WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"file_events":       "SELECT count() FROM cloudflow.file_events WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"host_cpu":          "SELECT avg(cpu_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"host_mem":          "SELECT avg(memory_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
 	}
 
 	for metric, query := range queries {
 		var val sql.NullFloat64
-		if err := s.clickHouseDB.QueryRowContext(ctx, query).Scan(&val); err == nil && val.Valid {
+		if err := s.clickHouseDB.QueryRowContext(ctx, query, tenantID).Scan(&val); err == nil && val.Valid {
 			result[metric] = val.Float64
 		}
 	}

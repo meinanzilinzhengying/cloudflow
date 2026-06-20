@@ -18,7 +18,7 @@ import (
 
 var (
 	probeID            = envOrDefault("PROBE_ID", platform.Hostname())
-	edgeAddr           = envOrDefault("EDGE_ADDR", "192.168.58.130:9102")
+	edgeAddr           = envOrDefault("EDGE_ADDR", "192.168.58.130:9104")
 	clickHouseAddr     = envOrDefault("CLICKHOUSE_ADDR", "192.168.58.130")
 	clickHouseUser     = envOrDefault("CLICKHOUSE_USER", "default")
 	clickHousePassword = envOrDefault("CLICKHOUSE_PASSWORD", "")

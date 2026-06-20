@@ -412,6 +412,28 @@ class DataIngestService:
 class IngestHandler(BaseHTTPRequestHandler):
     service = None
 
+    def do_GET(self):
+        if self.path == "/health":
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"status":"healthy"}')
+        elif self.path == "/metrics":
+            if PROMETHEUS_AVAILABLE:
+                from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+                self.send_response(200)
+                self.send_header("Content-Type", CONTENT_TYPE_LATEST)
+                self.end_headers()
+                self.wfile.write(generate_latest(registry))
+            else:
+                self.send_response(503)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+            self.wfile.write(b'{"error":"prometheus metrics not available"}')
+        else:
+            self.send_response(404)
+            self.end_headers()
+
     def do_POST(self):
         if self.path == "/api/v1/ingest":
             content_length = int(self.headers.get('Content-Length', 0))
