@@ -148,7 +148,12 @@ func (s *SecurityCollector) handleEvent(data []byte) {
 	etype := binary.LittleEndian.Uint32(data[8:12])
 	pid := binary.LittleEndian.Uint32(data[12:16])
 	comm := string(bytes.Trim(data[72:88], "\x00"))
-	dataStr := string(bytes.Trim(data[88:344], "\x00"))
+	rawData := data[88:344]
+	nullIdx := bytes.IndexByte(rawData, 0)
+	if nullIdx >= 0 {
+		rawData = rawData[:nullIdx]
+	}
+	dataStr := string(rawData)
 	now := time.Now()
 
 	switch etype {

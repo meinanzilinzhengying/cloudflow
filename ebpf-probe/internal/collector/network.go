@@ -156,7 +156,7 @@ func (n *NetworkCollector) handleEvent(data []byte) {
 
 func ipToString(ip uint32) string {
 	b := make([]byte, 4)
-	binary.LittleEndian.PutUint32(b, ip)
+	binary.BigEndian.PutUint32(b, ip)
 	return net.IP(b).String()
 }
 

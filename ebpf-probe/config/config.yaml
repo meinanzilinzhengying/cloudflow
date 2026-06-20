@@ -15,7 +15,7 @@ collectors:
   tcp_connect: true
   host_metrics: true
   # P1 扩展采集器（默认关闭）
-  syscall: false
+  syscall: true
   http_trace: false
   dns_trace: false
   db_trace: false

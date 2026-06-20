@@ -44,7 +44,7 @@ func DefaultConfig() CollectorConfig {
 		ProcessExec: true,
 		FileOpen:    true,
 		TCPCConnect: true,
-		Syscall:     false,
+		Syscall:     true,
 		HTTPTrace:   false,
 		DNSTrace:    false,
 		DBTrace:     false,
@@ -79,6 +79,9 @@ func (m *Manager) Init(cap kernel.Capabilities) error {
 	}
 	if m.config.TCPCConnect && cap.HasBPFKprobe {
 		m.collectors = append(m.collectors, NewSecurityCollector(m.output, m.probeID))
+	}
+	if m.config.Syscall && cap.HasBPFTracepoint {
+		m.collectors = append(m.collectors, NewSyscallCollector(m.output, m.probeID))
 	}
 	m.collectors = append(m.collectors, NewProtocolCollector(m.output, m.probeID, m.ifaceName))
 
@@ -206,6 +209,10 @@ func (m *Manager) createCollector(name string, cap kernel.Capabilities) (Collect
 	case "tcp_connect":
 		if cap.HasBPFKprobe {
 			return NewSecurityCollector(m.output, m.probeID), nil
+		}
+	case "syscall":
+		if cap.HasBPFTracepoint {
+			return NewSyscallCollector(m.output, m.probeID), nil
 		}
 	case "protocol":
 		return NewProtocolCollector(m.output, m.probeID, m.ifaceName), nil

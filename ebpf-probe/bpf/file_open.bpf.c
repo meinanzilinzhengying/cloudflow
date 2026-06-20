@@ -27,6 +27,9 @@ int BPF_KPROBE(trace_do_filp_open, int dfd, struct filename *name) {
     e->ppid = 0;
     bpf_get_current_comm(&e->comm, sizeof(e->comm));
 
+    // 清零 data 字段，避免 ringbuf 残留数据污染
+    __builtin_memset(e->data, 0, sizeof(e->data));
+
     const char *fname = BPF_CORE_READ(name, name);
     bpf_probe_read_kernel_str(e->data, sizeof(e->data), fname);
 
@@ -45,12 +48,15 @@ int BPF_KPROBE(trace_vfs_write, struct file *file) {
     e->pid = bpf_get_current_pid_tgid() >> 32;
     bpf_get_current_comm(&e->comm, sizeof(e->comm));
 
+    // 清零 data 字段
+    __builtin_memset(e->data, 0, sizeof(e->data));
+
     e->data[0] = 'W';
     e->data[1] = 'R';
     e->data[2] = 'I';
     e->data[3] = 'T';
     e->data[4] = 'E';
-    e->data[5] = '\0';
+    e->data[5] = 0;
 
     bpf_ringbuf_submit(e, 0);
     return 0;
