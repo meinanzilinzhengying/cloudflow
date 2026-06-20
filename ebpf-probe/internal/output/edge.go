@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"math/rand"
 	"time"
 )
 
@@ -17,11 +18,31 @@ type EdgeClient struct {
 	stopCh chan struct{}
 }
 
+// 按类别采样率：在探针端直接过滤，减少网络传输和Redis压力
+var categorySampling = map[string]float64{
+	"file_events":    0.01,  // 1%
+	"network_events": 0.10,  // 10%
+	"process_events": 0.10,  // 10%
+	"security_events": 1.00, // 100%
+	"syscall":         0.001, // 0.1% - syscall量极大，极低采样
+}
+
+func shouldSample(category string) bool {
+	rate, ok := categorySampling[category]
+	if !ok {
+		rate = 1.0
+	}
+	if rate >= 1.0 {
+		return true
+	}
+	return rand.Float64() < rate
+}
+
 func NewEdgeClient(addr string) (*EdgeClient, error) {
 	e := &EdgeClient{
 		addr:   addr,
-		batch:  make([]*Event, 0, 100),
-		ticker: time.NewTicker(1 * time.Second),
+		batch:  make([]*Event, 0, 2000),
+		ticker: time.NewTicker(5 * time.Second),
 		stopCh: make(chan struct{}),
 	}
 	go e.flushLoop()
@@ -29,9 +50,12 @@ func NewEdgeClient(addr string) (*EdgeClient, error) {
 }
 
 func (e *EdgeClient) WriteEvent(ev *Event) error {
+	if !shouldSample(ev.Category) {
+		return nil
+	}
 	e.mu.Lock()
 	e.batch = append(e.batch, ev)
-	shouldFlush := len(e.batch) >= 100
+	shouldFlush := len(e.batch) >= 2000
 	e.mu.Unlock()
 	if shouldFlush {
 		e.flush()
@@ -40,9 +64,18 @@ func (e *EdgeClient) WriteEvent(ev *Event) error {
 }
 
 func (e *EdgeClient) WriteBatch(events []*Event) error {
+	filtered := make([]*Event, 0, len(events))
+	for _, ev := range events {
+		if shouldSample(ev.Category) {
+			filtered = append(filtered, ev)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
 	e.mu.Lock()
-	e.batch = append(e.batch, events...)
-	shouldFlush := len(e.batch) >= 100
+	e.batch = append(e.batch, filtered...)
+	shouldFlush := len(e.batch) >= 2000
 	e.mu.Unlock()
 	if shouldFlush {
 		e.flush()
