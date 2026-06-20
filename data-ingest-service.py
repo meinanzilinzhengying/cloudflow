@@ -222,9 +222,9 @@ class DataIngestService:
         return False
 
     def ingest(self, events):
-        """将事件推入 Redis 队列，支持过滤和采样"""
+        """将事件推入 Redis 队列，支持过滤和采样。返回 True 表示成功，False 表示失败。"""
         if not events:
-            return
+            return True
 
         filtered = []
         for ev in events:
@@ -257,12 +257,12 @@ class DataIngestService:
             ).inc()
 
         if not filtered:
-            return
+            return True
 
         # 降级策略：Redis 不可用时写入本地备份文件
         if self.redis_client is None:
             self._backup_to_local(filtered)
-            return
+            return False
 
         try:
             pipeline = self.redis_client.pipeline()
@@ -270,9 +270,11 @@ class DataIngestService:
                 pipeline.rpush("cloudflow:events", json.dumps(ev))
             pipeline.execute()
             logger.info(f"Queued {len(filtered)} events to Redis")
+            return True
         except Exception as e:
             logger.error(f"Redis push failed, falling back to local backup: {e}")
             self._backup_to_local(filtered)
+            return False
 
     def _backup_to_local(self, events):
         """本地文件备份（降级策略）"""
@@ -322,8 +324,24 @@ class DataIngestService:
         except Exception as e:
             logger.error(f"Backup cleanup failed: {e}")
 
+    def _cleanup_disk(self):
+        """如果磁盘使用率超过 85%，清理 ClickHouse 旧数据"""
+        try:
+            import shutil
+            usage = shutil.disk_usage("/")
+            percent = usage.used / usage.total * 100
+            if percent > 85:
+                logger.warning(f"Disk usage {percent:.1f}% > 85%, cleaning old ClickHouse data")
+                # 删除 7 天前的数据
+                self.ch_client.execute("ALTER TABLE cloudflow.ebpf_events DELETE WHERE timestamp < now() - INTERVAL 7 DAY")
+                # 执行 OPTIMIZE
+                self.ch_client.execute("OPTIMIZE TABLE cloudflow.ebpf_events FINAL")
+        except Exception as e:
+            logger.error(f"Disk cleanup failed: {e}")
+
     def _flush_loop(self):
         while not self._stop.wait(timeout=FLUSH_INTERVAL):
+            self._cleanup_disk()
             self._flush()
 
     def _metrics_loop(self):
@@ -423,9 +441,20 @@ class DataIngestService:
                         tenant_id=ev.get("tenant_id", "default"),
                         status="failure"
                     ).inc()
-                # 写入失败回退到本地备份
-                logger.error(f"ClickHouse flush failed after {CLICKHOUSE_RETRY_MAX} retries, backing up locally")
-                self._backup_to_local(events)
+                # 写入失败，先尝试放回 Redis 队列，失败再回退到本地备份
+                logger.error(f"ClickHouse flush failed after {CLICKHOUSE_RETRY_MAX} retries, trying to push back to Redis")
+                try:
+                    if self.redis_client is not None:
+                        pipe = self.redis_client.pipeline()
+                        for ev in events:
+                            pipe.lpush("cloudflow:events", json.dumps(ev))
+                        pipe.execute()
+                        logger.info(f"Pushed {len(events)} events back to Redis queue")
+                    else:
+                        raise Exception("Redis not available")
+                except Exception as redis_err:
+                    logger.error(f"Redis push back failed, falling back to local backup: {redis_err}")
+                    self._backup_to_local(events)
         except Exception as e:
             logger.error(f"Flush failed: {e}")
 
@@ -463,11 +492,17 @@ class IngestHandler(BaseHTTPRequestHandler):
                 events = json.loads(body)
                 if not isinstance(events, list):
                     events = [events]
-                self.service.ingest(events)
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(b'{"status":"ok"}')
+                ok = self.service.ingest(events)
+                if ok:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(b'{"status":"ok"}')
+                else:
+                    self.send_response(503)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "error", "message": "redis_unavailable"}).encode())
             except Exception as e:
                 self.send_response(400)
                 self.send_header('Content-Type', 'application/json')
