@@ -101,7 +101,7 @@ func (s *Service) analysisEventsHandler(w http.ResponseWriter, r *http.Request) 
 	if s.clickHouseDB == nil { http.Error(w, "not ready", 503); return }
 	type Trend struct { Timestamp string `json:"timestamp"`; Count uint64 `json:"count"` }
 	var trends []Trend
-	rows, err := s.clickHouseDB.QueryContext(r.Context(), "SELECT toStartOfMinute(fromUnixTimestamp(timestamp/1000000000)) as ts, count() FROM cloudflow.ebpf_events WHERE timestamp >= toUnixTimestamp(now() - toIntervalMinute(30)) * 1000000000 GROUP BY ts ORDER BY ts")
+	rows, err := s.clickHouseDB.QueryContext(r.Context(), "SELECT toStartOfMinute(fromUnixTimestamp(intDiv(timestamp, 1000000000))) as ts, count() FROM cloudflow.ebpf_events WHERE timestamp >= toUnixTimestamp(now() - toIntervalMinute(30)) * 1000000000 GROUP BY ts ORDER BY ts")
 	if err != nil { http.Error(w, err.Error(), 500); return }
 	defer rows.Close()
 	for rows.Next() {

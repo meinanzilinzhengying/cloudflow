@@ -336,7 +336,7 @@ func (s *Service) Start() error {
 	// P0-3 修复: 应用认证中间件
 	var handler http.Handler = mux
 	if s.auth != nil {
-		handler = s.auth.Middleware("/health", "/metrics", "/api/system-metrics", "/api/v1/analysis")(handler)
+		handler = s.auth.Middleware("/health", "/metrics", "/api/system-metrics", "/api/v1/analysis", "/api/v1/analysis/events", "/api/v1/analysis/top")(handler)
 	}
 	handler = tenant.HTTPMiddleware(handler)
 
