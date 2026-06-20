@@ -124,13 +124,31 @@ func (e *EdgeClient) flush() {
 	data, _ := json.Marshal(events)
 	resp, err := http.Post("http://"+e.addr+"/api/v1/ingest", "application/json", bytes.NewReader(data))
 	if err != nil {
-		log.Printf("[EDGE] flush failed: %v", err)
+		log.Printf("[EDGE] flush failed: %v, retrying later", err)
+		// 将事件放回 batch，下次 flush 重试
+		e.mu.Lock()
+		e.batch = append(events, e.batch...)
+		if len(e.batch) > 10000 {
+			log.Printf("[EDGE] retry queue exceeded 10000, dropping %d events", len(e.batch)-10000)
+			e.batch = e.batch[:10000]
+		}
+		e.mu.Unlock()
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("[EDGE] flush status: %d", resp.StatusCode)
+		log.Printf("[EDGE] flush status: %d, retrying later", resp.StatusCode)
+		// 将事件放回 batch，下次 flush 重试
+		e.mu.Lock()
+		e.batch = append(events, e.batch...)
+		if len(e.batch) > 10000 {
+			log.Printf("[EDGE] retry queue exceeded 10000, dropping %d events", len(e.batch)-10000)
+			e.batch = e.batch[:10000]
+		}
+		e.mu.Unlock()
+		return
 	}
+	log.Printf("[EDGE] flushed %d events", len(events))
 }
 
 func (e *EdgeClient) Close() error {

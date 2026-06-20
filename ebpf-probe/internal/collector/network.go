@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
@@ -117,7 +116,7 @@ func (n *NetworkCollector) handleEvent(data []byte) {
 	if len(data) < 48 {
 		return
 	}
-	_ = binary.LittleEndian.Uint64(data[0:8]) // timestampNs
+	timestampNs := binary.LittleEndian.Uint64(data[0:8])
 	etype := binary.LittleEndian.Uint32(data[8:12])
 	pid := binary.LittleEndian.Uint32(data[12:16])
 	ppid := binary.LittleEndian.Uint32(data[16:20])
@@ -128,8 +127,6 @@ func (n *NetworkCollector) handleEvent(data []byte) {
 	protocol := data[32]
 	pktBytes := binary.LittleEndian.Uint64(data[40:48])
 	packets := binary.LittleEndian.Uint64(data[48:56])
-	// latency := binary.LittleEndian.Uint64(data[56:64])
-	// count := binary.LittleEndian.Uint64(data[64:72])
 	comm := string(bytes.Trim(data[72:88], "\x00"))
 	_ = comm
 	_ = etype
@@ -145,13 +142,15 @@ func (n *NetworkCollector) handleEvent(data []byte) {
 	case 1:
 		proto = "ICMP-BPF"
 	}
-	now := time.Now()
-	_ = n.output.WriteEvent(&output.Event{
+	now := ebpfTimeToWallTime(timestampNs)
+	if err := n.output.WriteEvent(&output.Event{
 		Timestamp: now, ProbeID: n.probeID + "-bpf", Category: "network", EventType: "flow",
 		SrcIP: ipToString(srcIP), DstIP: ipToString(dstIP),
 		SrcPort: srcPort, DstPort: dstPort, Protocol: proto,
 		Bytes: pktBytes, Packets: packets,
-	})
+	}); err != nil {
+		log.Printf("[NETWORK] WriteEvent failed: %v", err)
+	}
 }
 
 func ipToString(ip uint32) string {

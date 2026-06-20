@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -145,6 +144,7 @@ func (s *SecurityCollector) handleEvent(data []byte) {
 	if len(data) < 48 {
 		return
 	}
+	timestampNs := binary.LittleEndian.Uint64(data[0:8])
 	etype := binary.LittleEndian.Uint32(data[8:12])
 	pid := binary.LittleEndian.Uint32(data[12:16])
 	comm := string(bytes.Trim(data[72:88], "\x00"))
@@ -154,16 +154,18 @@ func (s *SecurityCollector) handleEvent(data []byte) {
 		rawData = rawData[:nullIdx]
 	}
 	dataStr := string(rawData)
-	now := time.Now()
+	now := ebpfTimeToWallTime(timestampNs)
 
 	switch etype {
 	case 6: // EVENT_TYPE_FILE_OPEN
-		_ = s.output.WriteFileEvent(now, s.probeID, pid, comm, dataStr, "open", 0)
+		if err := s.output.WriteFileEvent(now, s.probeID, pid, comm, dataStr, "open", 0); err != nil { log.Printf("[SEC] WriteFileEvent failed: %v", err) }
 	case 7: // EVENT_TYPE_TCP_CONNECT
-		_ = s.output.WriteEvent(&output.Event{
+		if err := s.output.WriteEvent(&output.Event{
 			Timestamp: now, ProbeID: s.probeID, Category: "security", EventType: "connect",
 			Details: fmt.Sprintf("pid=%d comm=%s", pid, comm),
-		})
+		}); err != nil {
+			log.Printf("[SEC] WriteEvent failed: %v", err)
+		}
 	}
 }
 

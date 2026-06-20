@@ -12,7 +12,7 @@ char __license[] SEC("license") = "GPL";
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 256 * 1024);
+    __uint(max_entries, 4 * 1024 * 1024);
 } rb SEC(".maps");
 
 SEC("tp/sched/sched_process_exec")

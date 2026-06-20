@@ -115,9 +115,9 @@ func (p *PerformanceCollector) handleEvent(data []byte) {
 	now := time.Now()
 	switch etype {
 	case 4: // EVENT_TYPE_EXEC
-		_ = p.output.WriteProcessEvent(now, p.probeID, pid, ppid, comm, "", argData, "execve")
+		if err := p.output.WriteProcessEvent(now, p.probeID, pid, ppid, comm, "", argData, "execve"); err != nil { log.Printf("[PERF] WriteProcessEvent failed: %v", err) }
 	case 5: // EVENT_TYPE_EXIT
-		_ = p.output.WriteProcessEvent(now, p.probeID, pid, ppid, comm, "", "", "exit")
+		if err := p.output.WriteProcessEvent(now, p.probeID, pid, ppid, comm, "", "", "exit"); err != nil { log.Printf("[PERF] WriteProcessEvent failed: %v", err) }
 	}
 }
 
