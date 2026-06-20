@@ -1,3 +1,6 @@
+// Package dataplane
+// NOTE: Ingest logic has been moved to analysis.go. This file is kept for
+// backward compatibility but ingest endpoints are no longer registered.
 package dataplane
 
 import (

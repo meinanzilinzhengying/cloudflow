@@ -195,6 +195,9 @@ type Service struct {
 	// P0-2 修复: TLS 凭证
 	grpcCreds credentials.TransportCredentials
 
+	// 分析引擎
+	analysisEngine *AnalysisEngine
+
 	// P0-3 修复: 认证中间件
 	auth *auth.Authenticator
 }
@@ -326,14 +329,14 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/api/system-metrics", s.systemMetricsHandler)
 	mux.HandleFunc("/api/sampling/config", s.samplingConfigHandler)
 	mux.HandleFunc("/api/sampling/stats", s.samplingStatsHandler)
-	mux.HandleFunc("/api/v1/ingest", s.ingestHandler)
-	mux.HandleFunc("/api/ingest/metrics", s.ingestMetricsHandler)  // P0-06 新增: 接收指标
-	mux.HandleFunc("/api/ingest/logs", s.ingestLogsHandler)      // P0-06 新增: 接收日志
+	mux.HandleFunc("/api/v1/analysis", s.analysisHandler)
+	mux.HandleFunc("/api/v1/analysis/events", s.analysisEventsHandler)
+	mux.HandleFunc("/api/v1/analysis/top", s.analysisTopHandler)
 
 	// P0-3 修复: 应用认证中间件
 	var handler http.Handler = mux
 	if s.auth != nil {
-		handler = s.auth.Middleware("/health", "/metrics", "/api/system-metrics", "/api/v1/ingest")(handler)
+		handler = s.auth.Middleware("/health", "/metrics", "/api/system-metrics", "/api/v1/analysis")(handler)
 	}
 	handler = tenant.HTTPMiddleware(handler)
 
@@ -361,6 +364,8 @@ func (s *Service) Start() error {
 	// P0-06 新增: 启动 Log worker
 	go s.logWorker()
 
+	s.analysisEngine = NewAnalysisEngine(s.clickHouseDB)
+	s.analysisEngine.Start(context.Background())
 	s.running.Store(true)
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_SERVING)
 
@@ -372,6 +377,7 @@ func (s *Service) Start() error {
 // Stop 停止服务
 func (s *Service) Stop() {
 	s.running.Store(false)
+	s.analysisEngine.Stop()
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_NOT_SERVING)
 
 	// P1-04 修复: 使用优雅关闭等待请求完成
@@ -971,98 +977,6 @@ func (s *Service) samplingConfigHandler(w http.ResponseWriter, r *http.Request) 
 func (s *Service) samplingStatsHandler(w http.ResponseWriter, r *http.Request) {
 	stats := s.GetSamplingStats()
 	writeJSON(w, stats)
-}
-
-// ingestMetricsHandler P0-06 新增: 接收指标数据
-func (s *Service) ingestMetricsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// P0-3 修复: 获取租户信息
-	tc, _ := tenant.FromContext(r.Context())
-		tenantID := ""
-		if tc != nil {
-			tenantID = tc.TenantID
-		}
-	if tenantID == "" {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-		return
-	}
-
-	var metrics []map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&metrics); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	count := 0
-	for _, m := range metrics {
-		// P0-3 修复: 添加租户信息
-		m["tenant_id"] = tenantID
-		select {
-		case s.metricQueue <- m:
-			count++
-		default:
-			// 队列满，丢弃
-		}
-	}
-
-	s.statsMu.Lock()
-	s.stats.MetricsIngested += uint64(count)
-	s.statsMu.Unlock()
-
-	writeJSON(w, map[string]interface{}{
-		"accepted": count,
-		"total":    len(metrics),
-	})
-}
-
-// ingestLogsHandler P0-06 新增: 接收日志数据
-func (s *Service) ingestLogsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// P0-3 修复: 获取租户信息
-	tc, _ := tenant.FromContext(r.Context())
-		tenantID := ""
-		if tc != nil {
-			tenantID = tc.TenantID
-		}
-	if tenantID == "" {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-		return
-	}
-
-	var logs []map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&logs); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	count := 0
-	for _, l := range logs {
-		// P0-3 修复: 添加租户信息
-		l["tenant_id"] = tenantID
-		select {
-		case s.logQueue <- l:
-			count++
-		default:
-			// 队列满，丢弃
-		}
-	}
-
-	s.statsMu.Lock()
-	s.stats.LogsIngested += uint64(count)
-	s.statsMu.Unlock()
-
-	writeJSON(w, map[string]interface{}{
-		"accepted": count,
-		"total":    len(logs),
-	})
 }
 
 // ============================================================================
