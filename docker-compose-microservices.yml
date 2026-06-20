@@ -259,7 +259,7 @@ services:
       - auth-service
       - data-plane
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8008/healthz"]
+      test: ["CMD", "curl", "-f", "http://localhost:8004/healthz"]
       interval: 15s
       timeout: 5s
       retries: 5

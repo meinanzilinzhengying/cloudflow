@@ -80,8 +80,12 @@ CLICKHOUSE_RETRY_MAX = int(os.getenv("CLICKHOUSE_RETRY_MAX", "3"))
 CLICKHOUSE_RETRY_DELAY = float(os.getenv("CLICKHOUSE_RETRY_DELAY", "1.0"))
 
 # 日志
+import sys
+handler = logging.StreamHandler(sys.stdout)
+handler.flush = lambda: sys.stdout.flush()
 logging.basicConfig(
     level=logging.INFO,
+    handlers=[handler],
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 logger = logging.getLogger(__name__)

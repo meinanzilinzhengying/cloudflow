@@ -41,7 +41,7 @@ COPY --from=builder /build/topology-engine .
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8008/healthz || exit 1
+    CMD curl -f http://localhost:8004/healthz || exit 1
 
 EXPOSE 8008
 ENTRYPOINT ["./topology-engine"]
