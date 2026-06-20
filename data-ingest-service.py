@@ -82,12 +82,12 @@ CLICKHOUSE_RETRY_DELAY = float(os.getenv("CLICKHOUSE_RETRY_DELAY", "1.0"))
 # 日志
 import sys
 handler = logging.StreamHandler(sys.stdout)
-handler.flush = lambda: sys.stdout.flush()
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[handler],
-    format='%(asctime)s [%(levelname)s] %(message)s'
-)
+handler.setLevel(logging.INFO)
+handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+if not root_logger.handlers:
+    root_logger.addHandler(handler)
 logger = logging.getLogger(__name__)
 
 # Prometheus 指标
