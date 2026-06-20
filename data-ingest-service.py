@@ -64,11 +64,20 @@ CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "default")
 CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
 HTTP_PORT = int(os.getenv("HTTP_PORT", "9104"))
 METRICS_PORT = int(os.getenv("METRICS_PORT", "9105"))
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "1000"))
-FLUSH_INTERVAL = int(os.getenv("FLUSH_INTERVAL", "5"))
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "10000"))
+FLUSH_INTERVAL = int(os.getenv("FLUSH_INTERVAL", "2"))
 
 # 数据过滤与采样配置
 SAMPLING_RATE = float(os.getenv("SAMPLING_RATE", "1.0"))  # 1.0 = 100%, 0.1 = 10%
+
+# 按类别差异化采样率：高频噪音事件降低采样，安全/异常事件全量保留
+CATEGORY_SAMPLING = {
+    "file_events": float(os.getenv("SAMPLING_FILE", "0.01")),      # 1% — 文件操作是噪音大户
+    "network_events": float(os.getenv("SAMPLING_NETWORK", "0.10")), # 10% — 网络事件量中等
+    "process_events": float(os.getenv("SAMPLING_PROCESS", "0.10")), # 10% — 进程事件量中等
+    "security_events": float(os.getenv("SAMPLING_SECURITY", "1.00")), # 100% — 安全事件必须全量
+}
+
 FILTER_CATEGORIES = os.getenv("FILTER_CATEGORIES", "").split(",")
 FILTER_CATEGORIES = [c.strip() for c in FILTER_CATEGORIES if c.strip()]
 MAX_EVENT_BYTES = int(os.getenv("MAX_EVENT_BYTES", "1048576"))  # 1MB per event
@@ -231,8 +240,9 @@ class DataIngestService:
                 EVENTS_DROPPED_TOTAL.labels(reason="category_filter").inc()
                 continue
 
-            # 采样
-            if SAMPLING_RATE < 1.0 and random.random() > SAMPLING_RATE:
+            # 按类别差异化采样
+            rate = CATEGORY_SAMPLING.get(category, SAMPLING_RATE)
+            if rate < 1.0 and random.random() > rate:
                 EVENTS_DROPPED_TOTAL.labels(reason="sampling").inc()
                 continue
 
@@ -336,12 +346,19 @@ class DataIngestService:
                 return
 
         try:
+            # 批量从 Redis 中取出，使用 lrange+ltrim 避免 5000 次 lpop 网络往返
+            pipe = self.redis_client.pipeline()
+            pipe.lrange("cloudflow:events", 0, BATCH_SIZE - 1)
+            pipe.ltrim("cloudflow:events", BATCH_SIZE, -1)
+            raw_list, _ = pipe.execute()
+
             events = []
-            for _ in range(BATCH_SIZE):
-                event_json = self.redis_client.lpop("cloudflow:events")
-                if event_json is None:
-                    break
-                events.append(json.loads(event_json))
+            for event_json in raw_list:
+                try:
+                    events.append(json.loads(event_json))
+                except json.JSONDecodeError:
+                    EVENTS_DROPPED_TOTAL.labels(reason="json_decode").inc()
+                    continue
 
             if not events:
                 return
