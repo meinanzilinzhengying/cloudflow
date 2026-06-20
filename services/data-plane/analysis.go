@@ -61,26 +61,26 @@ func (ae *AnalysisEngine) GetResult() *AnalysisResult {
 
 func (ae *AnalysisEngine) runAnalysis(ctx context.Context) {
 	if ae.chDB == nil { return }
-	result := &AnalysisResult{Timestamp: time.Now(), EventTypes: make(map[string]uint64), Categories: make(map[string]uint64), Probes: make(map[string]uint64), TimeWindow: "last_5m"}
+	result := &AnalysisResult{Timestamp: time.Now(), EventTypes: make(map[string]uint64), Categories: make(map[string]uint64), Probes: make(map[string]uint64), TimeWindow: "last_24h"}
 	var totalEvents sql.NullInt64
-	if err := ae.chDB.QueryRowContext(ctx, "SELECT count() FROM cloudflow.ebpf_events WHERE timestamp >= toUnixTimestamp(now() - toIntervalMinute(5)) * 1000000000").Scan(&totalEvents); err == nil && totalEvents.Valid {
+	if err := ae.chDB.QueryRowContext(ctx, "SELECT count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp / 1000000000) >= toUnixTimestamp(now() - toIntervalHour(24))").Scan(&totalEvents); err == nil && totalEvents.Valid {
 		result.TotalEvents = uint64(totalEvents.Int64)
 	}
-	if rows, err := ae.chDB.QueryContext(ctx, "SELECT event_type, count() FROM cloudflow.ebpf_events WHERE timestamp >= toUnixTimestamp(now() - toIntervalMinute(5)) * 1000000000 GROUP BY event_type"); err == nil {
+	if rows, err := ae.chDB.QueryContext(ctx, "SELECT event_type, count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp / 1000000000) >= toUnixTimestamp(now() - toIntervalHour(24)) GROUP BY event_type"); err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var et string; var c sql.NullInt64
 			if rows.Scan(&et, &c) == nil && c.Valid { result.EventTypes[et] = uint64(c.Int64) }
 		}
 	}
-	if rows, err := ae.chDB.QueryContext(ctx, "SELECT category, count() FROM cloudflow.ebpf_events WHERE timestamp >= toUnixTimestamp(now() - toIntervalMinute(5)) * 1000000000 GROUP BY category"); err == nil {
+	if rows, err := ae.chDB.QueryContext(ctx, "SELECT category, count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp / 1000000000) >= toUnixTimestamp(now() - toIntervalHour(24)) GROUP BY category"); err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var cat string; var c sql.NullInt64
 			if rows.Scan(&cat, &c) == nil && c.Valid { result.Categories[cat] = uint64(c.Int64) }
 		}
 	}
-	if rows, err := ae.chDB.QueryContext(ctx, "SELECT probe_id, count() FROM cloudflow.ebpf_events WHERE timestamp >= toUnixTimestamp(now() - toIntervalMinute(5)) * 1000000000 GROUP BY probe_id"); err == nil {
+	if rows, err := ae.chDB.QueryContext(ctx, "SELECT probe_id, count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp / 1000000000) >= toUnixTimestamp(now() - toIntervalHour(24)) GROUP BY probe_id"); err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var pid string; var c sql.NullInt64
@@ -101,7 +101,7 @@ func (s *Service) analysisEventsHandler(w http.ResponseWriter, r *http.Request) 
 	if s.clickHouseDB == nil { http.Error(w, "not ready", 503); return }
 	type Trend struct { Timestamp string `json:"timestamp"`; Count uint64 `json:"count"` }
 	var trends []Trend
-	rows, err := s.clickHouseDB.QueryContext(r.Context(), "SELECT toStartOfMinute(fromUnixTimestamp(intDiv(timestamp, 1000000000))) as ts, count() FROM cloudflow.ebpf_events WHERE timestamp >= toUnixTimestamp(now() - toIntervalMinute(30)) * 1000000000 GROUP BY ts ORDER BY ts")
+	rows, err := s.clickHouseDB.QueryContext(r.Context(), "SELECT toStartOfMinute(fromUnixTimestamp(intDiv(timestamp, 1000000000))) as ts, count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp / 1000000000) >= toUnixTimestamp(now() - toIntervalHour(24)) GROUP BY ts ORDER BY ts")
 	if err != nil { http.Error(w, err.Error(), 500); return }
 	defer rows.Close()
 	for rows.Next() {
@@ -118,7 +118,7 @@ func (s *Service) analysisTopHandler(w http.ResponseWriter, r *http.Request) {
 	if cat == "" { cat = "process" }
 	type Item struct { Name string `json:"name"`; Count uint64 `json:"count"` }
 	var items []Item
-	q := fmt.Sprintf("SELECT details, count() FROM cloudflow.ebpf_events WHERE timestamp >= toUnixTimestamp(now() - toIntervalMinute(5)) * 1000000000 AND category = '%s' GROUP BY details ORDER BY count() DESC LIMIT 20", cat)
+	q := fmt.Sprintf("SELECT details, count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp / 1000000000) >= toUnixTimestamp(now() - toIntervalHour(24)) AND category = '%s' GROUP BY details ORDER BY count() DESC LIMIT 20", cat)
 	rows, err := s.clickHouseDB.QueryContext(r.Context(), q)
 	if err != nil { http.Error(w, err.Error(), 500); return }
 	defer rows.Close()
