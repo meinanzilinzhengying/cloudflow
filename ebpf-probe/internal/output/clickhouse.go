@@ -14,21 +14,21 @@ type ClickHouse struct {
 }
 
 type Event struct {
-	Timestamp time.Time
-	ProbeID   string
-	Category  string
-	EventType string
-	SrcIP     string
-	DstIP     string
-	SrcPort   uint16
-	DstPort   uint16
-	Protocol  string
-	Bytes     uint64
-	Packets   uint64
-	LatencyMs float64
-	Service   string
-	Details   string
-	Tags      string
+	Timestamp time.Time `json:"timestamp"`  
+	ProbeID   string `json:"probe_id"`  
+	Category  string `json:"category"`  
+	EventType string `json:"event_type"`  
+	SrcIP     string `json:"src_ip"`  
+	DstIP     string `json:"dst_ip"`  
+	SrcPort   uint16 `json:"src_port"`  
+	DstPort   uint16 `json:"dst_port"`  
+	Protocol  string `json:"protocol"`  
+	Bytes     uint64 `json:"bytes"`  
+	Packets   uint64 `json:"packets"`  
+	LatencyMs float64 `json:"latency_ms"`  
+	Service   string `json:"service"`  
+	Details   string `json:"details"`  
+	Tags      string `json:"tags"`  
 }
 
 func NewClickHouse(addr, user, password, database string) (*ClickHouse, error) {
