@@ -30,6 +30,7 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/security"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/audit"
 	"github.com/meinanzilinzhengying/cloudflow/services/auth-service/internal/blacklist"
 	"github.com/go-redis/redis/v8"
 )
@@ -158,6 +159,8 @@ type Service struct {
 	rateLimiter *ratelimit.Middleware
 	connLimiter *ratelimit.ConnectionLimiter
 
+	auditor *audit.Auditor
+
 	startTime time.Time
 }
 
@@ -244,6 +247,9 @@ func New(config *Config) (*Service, error) {
 		tokenBlacklist = auth.NewInMemoryBlacklist(time.Duration(config.JWTExpireSec) * time.Second)
 	}
 
+	// P2-05: 初始化审计日志
+	auditor := audit.NewAuditor(audit.DefaultConfig())
+
 	// 初始化安全管理器
 	secConfig := security.DefaultSecurityConfig()
 	secManager := security.NewSecurityManager(secConfig)
@@ -268,6 +274,7 @@ func New(config *Config) (*Service, error) {
 		authenticator: authenticator,
 		cacheTTL:      5 * time.Minute,
 		securityManager: secManager,
+		auditor:       auditor,
 		startTime:     time.Now(),
 		health:        health.NewServer(),
 	}
@@ -574,6 +581,12 @@ func (s *Service) Authenticate(ctx context.Context, req *svcproto.AuthenticateRe
 		if s.securityManager != nil {
 			s.securityManager.Lockout().RecordFailedAttempt(user.UserID)
 		}
+		// P2-05: 记录登录失败审计
+		if s.auditor != nil {
+			s.auditor.Log(audit.NewEvent(audit.ActionLogin, audit.ActorUser, req.Username).
+				WithResource(audit.ResourceToken, "").
+				WithStatus(audit.StatusFailure, "invalid credentials"))
+		}
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
@@ -599,6 +612,13 @@ func (s *Service) Authenticate(ctx context.Context, req *svcproto.AuthenticateRe
 	)
 	if err != nil {
 		return nil, fmt.Errorf("token generation failed: %w", err)
+	}
+
+	// P2-05: 记录登录成功审计
+	if s.auditor != nil {
+		s.auditor.Log(audit.NewEvent(audit.ActionLogin, audit.ActorUser, req.Username).
+			WithResource(audit.ResourceToken, "").
+			WithStatus(audit.StatusSuccess, ""))
 	}
 
 	return &svcproto.AuthenticateResponse{
@@ -767,6 +787,13 @@ func (s *Service) RevokeToken(ctx context.Context, req *svcproto.RevokeTokenRequ
 		}
 	}
 
+	// P2-05: 记录 token 撤销成功审计
+	if s.auditor != nil {
+		s.auditor.Log(audit.NewEvent(audit.ActionTokenRevoke, audit.ActorUser, claims.Subject).
+			WithResource(audit.ResourceToken, claims.GetJTI()).
+			WithStatus(audit.StatusSuccess, ""))
+	}
+
 	return &svcproto.RevokeTokenResponse{Success: true}, nil
 }
 
@@ -838,6 +865,13 @@ func (s *Service) CreateUser(username, password, role, tenantID string) error {
 		userID, username, string(hashedPassword), tenantID, role,
 	)
 	if err != nil {
+		// P2-05: 记录用户创建失败审计
+		if s.auditor != nil {
+			s.auditor.Log(audit.NewEvent(audit.ActionUserCreate, audit.ActorSystem, "").
+				WithTenant(tenantID).
+				WithResource(audit.ResourceUser, username).
+				WithStatus(audit.StatusFailure, err.Error()))
+		}
 		return fmt.Errorf("insert user: %w", err)
 	}
 
@@ -850,6 +884,14 @@ func (s *Service) CreateUser(username, password, role, tenantID string) error {
 		Role:     role,
 	}
 	s.usersCache.Store(username, user)
+
+	// P2-05: 记录用户创建成功审计
+	if s.auditor != nil {
+		s.auditor.Log(audit.NewEvent(audit.ActionUserCreate, audit.ActorSystem, userID).
+			WithTenant(tenantID).
+			WithResource(audit.ResourceUser, username).
+			WithStatus(audit.StatusSuccess, ""))
+	}
 
 	return nil
 }
@@ -881,6 +923,13 @@ func (s *Service) UpdateUser(username, password, role string) error {
 	// 清除缓存，强制下次从 DB 读取
 	s.usersCache.Delete(username)
 
+	// P2-05: 记录用户更新成功审计
+	if s.auditor != nil {
+		s.auditor.Log(audit.NewEvent(audit.ActionUserUpdate, audit.ActorSystem, username).
+			WithResource(audit.ResourceUser, username).
+			WithStatus(audit.StatusSuccess, ""))
+	}
+
 	return nil
 }
 
@@ -888,11 +937,24 @@ func (s *Service) UpdateUser(username, password, role string) error {
 func (s *Service) DeleteUser(username string) error {
 	_, err := s.db.Exec(context.Background(), "DELETE FROM users WHERE username = ?", username)
 	if err != nil {
+		// P2-05: 记录用户删除失败审计
+		if s.auditor != nil {
+			s.auditor.Log(audit.NewEvent(audit.ActionUserDelete, audit.ActorSystem, username).
+				WithResource(audit.ResourceUser, username).
+				WithStatus(audit.StatusFailure, err.Error()))
+		}
 		return fmt.Errorf("delete user: %w", err)
 	}
 
 	// 清除缓存
 	s.usersCache.Delete(username)
+
+	// P2-05: 记录用户删除成功审计
+	if s.auditor != nil {
+		s.auditor.Log(audit.NewEvent(audit.ActionUserDelete, audit.ActorSystem, username).
+			WithResource(audit.ResourceUser, username).
+			WithStatus(audit.StatusSuccess, ""))
+	}
 
 	return nil
 }
