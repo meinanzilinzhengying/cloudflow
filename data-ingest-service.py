@@ -476,6 +476,47 @@ class DataIngestService:
             logger.error(f"Flush failed: {e}")
 
 
+
+# ============================================================================
+# Rate limiting (DDoS protection)
+# ============================================================================
+from collections import defaultdict
+
+class RateLimiter:
+    def __init__(self, max_requests=100, window_seconds=60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.lock = threading.RLock()
+        self.requests = defaultdict(list)
+
+    def allow(self, client_ip):
+        now = time.time()
+        with self.lock:
+            self.requests[client_ip] = [
+                t for t in self.requests[client_ip]
+                if now - t < self.window_seconds
+            ]
+            if len(self.requests[client_ip]) >= self.max_requests:
+                return False
+            self.requests[client_ip].append(now)
+            return True
+
+    def get_remaining(self, client_ip):
+        now = time.time()
+        with self.lock:
+            self.requests[client_ip] = [
+                t for t in self.requests[client_ip]
+                if now - t < self.window_seconds
+            ]
+            return max(0, self.max_requests - len(self.requests[client_ip]))
+
+IP_RATE_LIMITER = RateLimiter(
+    max_requests=int(os.getenv("RATE_LIMIT_IP_MAX", "100")),
+    window_seconds=int(os.getenv("RATE_LIMIT_IP_WINDOW", "60"))
+)
+MAX_CONCURRENT_CONNECTIONS = int(os.getenv("MAX_CONCURRENT_CONNECTIONS", "1000"))
+_connection_semaphore = threading.Semaphore(MAX_CONCURRENT_CONNECTIONS)
+
 class IngestHandler(BaseHTTPRequestHandler):
     service = None
 
@@ -502,6 +543,28 @@ class IngestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        client_ip = self.client_address[0]
+        if not _connection_semaphore.acquire(blocking=False):
+            self.send_response(503)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "server_overloaded", "message": "too many concurrent connections"}).encode())
+            return
+        try:
+            self._handle_post()
+        finally:
+            _connection_semaphore.release()
+
+    def _handle_post(self):
+        client_ip = self.client_address[0]
+        if not IP_RATE_LIMITER.allow(client_ip):
+            self.send_response(429)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Retry-After', '60')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "rate_limit_exceeded", "message": "rate limit exceeded for IP " + client_ip, "retry_after": 60}).encode())
+            return
+
         if self.path == "/api/v1/ingest":
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)

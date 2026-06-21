@@ -29,6 +29,7 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/security"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
 )
 
 // ============================================================================
@@ -150,6 +151,10 @@ type Service struct {
 
 	// 安全管理
 	securityManager *security.SecurityManager
+
+	// 限流中间件 (DDoS 防护)
+	rateLimiter *ratelimit.Middleware
+	connLimiter *ratelimit.ConnectionLimiter
 
 	startTime time.Time
 }
@@ -414,9 +419,31 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/users/update", s.updateUserHandler)
 	mux.HandleFunc("/users/delete", s.deleteUserHandler)
 
+	// P2-02: 添加多层限流中间件
+	var handler http.Handler = mux
+	// 1. 全局连接数限制（防连接耗尽）
+	s.connLimiter = ratelimit.NewConnectionLimiter(1000)
+	handler = s.connLimiter.Handler(handler)
+	// 2. 速率限制（全局 + IP + 用户 + 认证路径）
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{
+		GlobalQPS:      5000,
+		GlobalBurst:    8000,
+		IPQPS:          50,
+		IPBurst:        80,
+		UserQPS:        100,
+		UserBurst:      150,
+		AuthQPS:        3,     // 认证接口严格限流：3/s
+		AuthBurst:      5,
+		PenaltySeconds: 300,   // 超限惩罚 5 分钟
+		StatusCode:     http.StatusTooManyRequests,
+	})
+	handler = s.rateLimiter.Handler(handler)
+	// 3. 租户中间件
+	handler = tenant.HTTPMiddleware(handler)
+
 	s.httpServer = &http.Server{
 		Addr:    s.config.HttpAddr,
-		Handler: tenant.HTTPMiddleware(mux),
+		Handler: handler,
 	}
 	go func() { s.httpServer.ListenAndServe() }()
 

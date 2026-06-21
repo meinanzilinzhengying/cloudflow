@@ -260,13 +260,14 @@ func TestQueryFlows_NoFilters(t *testing.T) {
 			assert.Contains(t, sql, "FROM ebpf_events")
 			assert.Contains(t, sql, "ORDER BY timestamp DESC")
 			assert.Contains(t, sql, "LIMIT 1000")
-			assert.Empty(t, args)
+			assert.Len(t, args, 1)
+			assert.Equal(t, "test-tenant", args[0])
 			return newMockRows([]string{"src_ip", "dst_ip", "timestamp"}, nil), nil
 		},
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	resp, err := s.QueryFlows(context.Background(), req)
 
 	require.NoError(t, err)
@@ -279,8 +280,9 @@ func TestQueryFlows_SrcIPFilter(t *testing.T) {
 	mockDB := &mockTimeSeriesStorage{
 		queryFunc: func(ctx context.Context, sql string, args ...interface{}) (storage.Rows, error) {
 			assert.Contains(t, sql, "src_ip = ?")
-			assert.Len(t, args, 1)
-			assert.Equal(t, "10.0.0.1", args[0])
+			assert.Len(t, args, 2)
+			assert.Equal(t, "test-tenant", args[0])
+			assert.Equal(t, "10.0.0.1", args[1])
 			return newMockRows([]string{"src_ip", "dst_ip", "timestamp"}, [][]interface{}{
 				{"10.0.0.1", "10.0.0.2", uint64(1700000000000000000)},
 			}), nil
@@ -288,7 +290,7 @@ func TestQueryFlows_SrcIPFilter(t *testing.T) {
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{SrcIp: "10.0.0.1"}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant", SrcIp: "10.0.0.1"}
 	resp, err := s.QueryFlows(context.Background(), req)
 
 	require.NoError(t, err)
@@ -301,8 +303,9 @@ func TestQueryFlows_DstIPFilter(t *testing.T) {
 	mockDB := &mockTimeSeriesStorage{
 		queryFunc: func(ctx context.Context, sql string, args ...interface{}) (storage.Rows, error) {
 			assert.Contains(t, sql, "dst_ip = ?")
-			assert.Len(t, args, 1)
-			assert.Equal(t, "192.168.1.1", args[0])
+			assert.Len(t, args, 2)
+			assert.Equal(t, "test-tenant", args[0])
+			assert.Equal(t, "192.168.1.1", args[1])
 			return newMockRows([]string{"src_ip", "dst_ip", "timestamp"}, [][]interface{}{
 				{"10.0.0.1", "192.168.1.1", uint64(1700000000000000000)},
 			}), nil
@@ -310,7 +313,7 @@ func TestQueryFlows_DstIPFilter(t *testing.T) {
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{DstIp: "192.168.1.1"}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant", DstIp: "192.168.1.1"}
 	resp, err := s.QueryFlows(context.Background(), req)
 
 	require.NoError(t, err)
@@ -323,9 +326,10 @@ func TestQueryFlows_TimeRange(t *testing.T) {
 		queryFunc: func(ctx context.Context, sql string, args ...interface{}) (storage.Rows, error) {
 			assert.Contains(t, sql, "timestamp >= ?")
 			assert.Contains(t, sql, "timestamp <= ?")
-			assert.Len(t, args, 2)
-			assert.Equal(t, int64(1700000000000000000), args[0])
-			assert.Equal(t, int64(1700003600000000000), args[1])
+			assert.Len(t, args, 3)
+			assert.Equal(t, "default", args[0])
+			assert.Equal(t, int64(1700000000000000000), args[1])
+			assert.Equal(t, int64(1700003600000000000), args[2])
 			return newMockRows([]string{"timestamp"}, nil), nil
 		},
 	}
@@ -366,7 +370,7 @@ func TestQueryFlows_DatabaseError(t *testing.T) {
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	_, err := s.QueryFlows(context.Background(), req)
 
 	require.Error(t, err)
@@ -376,7 +380,7 @@ func TestQueryFlows_DatabaseError(t *testing.T) {
 
 func TestQueryFlows_NoDBConnection(t *testing.T) {
 	s := newTestService(nil)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	resp, err := s.QueryFlows(context.Background(), req)
 
 	require.NoError(t, err)
@@ -435,7 +439,7 @@ func TestQueryMetrics_DatabaseError(t *testing.T) {
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	_, err := s.QueryMetrics(context.Background(), req)
 
 	require.Error(t, err)
@@ -445,7 +449,7 @@ func TestQueryMetrics_DatabaseError(t *testing.T) {
 
 func TestQueryMetrics_NoDBConnection(t *testing.T) {
 	s := newTestService(nil)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	resp, err := s.QueryMetrics(context.Background(), req)
 
 	require.NoError(t, err)
@@ -516,7 +520,7 @@ func TestQueryDashboard_ErrorRateCalculation(t *testing.T) {
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	resp, err := s.QueryDashboard(context.Background(), req)
 
 	require.NoError(t, err)
@@ -543,7 +547,7 @@ func TestQueryDashboard_LatencyP95(t *testing.T) {
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	resp, err := s.QueryDashboard(context.Background(), req)
 
 	require.NoError(t, err)
@@ -556,7 +560,7 @@ func TestQueryDashboard_LatencyP95(t *testing.T) {
 
 func TestQueryDashboard_NoDBConnection(t *testing.T) {
 	s := newTestService(nil)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	resp, err := s.QueryDashboard(context.Background(), req)
 
 	require.NoError(t, err)
@@ -756,7 +760,7 @@ func TestQueryTraces_EmptyResults(t *testing.T) {
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	resp, err := s.QueryTraces(context.Background(), req)
 
 	require.NoError(t, err)
@@ -772,7 +776,7 @@ func TestQueryTraces_DatabaseError(t *testing.T) {
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	_, err := s.QueryTraces(context.Background(), req)
 
 	require.Error(t, err)
@@ -782,7 +786,7 @@ func TestQueryTraces_DatabaseError(t *testing.T) {
 
 func TestQueryTraces_NoDBConnection(t *testing.T) {
 	s := newTestService(nil)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	resp, err := s.QueryTraces(context.Background(), req)
 
 	require.NoError(t, err)
@@ -950,7 +954,7 @@ func TestQueryDashboard_SkipsErrors(t *testing.T) {
 	}
 
 	s := newTestService(mockDB)
-	req := &svcproto.QueryFlowRequest{}
+	req := &svcproto.QueryFlowRequest{TenantId: "test-tenant"}
 	resp, err := s.QueryDashboard(context.Background(), req)
 
 	require.NoError(t, err)

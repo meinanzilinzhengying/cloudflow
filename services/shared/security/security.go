@@ -337,14 +337,16 @@ func (l *TokenRateLimiter) Allow(userID string) (bool, error) {
 		return true, nil
 	}
 
-	limiter, ok := l.users.Load(userID)
+	val, ok := l.users.Load(userID)
 	if !ok {
-		// 这里我们需要使用速率限制器，但是为了简化，我们假设一个简单的实现
-		// 实际项目中建议使用 golang.org/x/time/rate
-		return true, nil
+		limiter := NewSimpleRateLimiter(
+			l.config.TokenRateLimitPerSecond,
+			l.config.TokenRateLimitBurst,
+		)
+		val, _ = l.users.LoadOrStore(userID, limiter)
 	}
 
-	return limiter.(*SimpleRateLimiter).Allow(), nil
+	return val.(*SimpleRateLimiter).Allow(), nil
 }
 
 // SimpleRateLimiter 简单的速率限制器
@@ -375,17 +377,79 @@ func (l *APIRateLimiter) Allow(userID string) bool {
 		return true
 	}
 
-	limiter, ok := l.users.Load(userID)
+	val, ok := l.users.Load(userID)
 	if !ok {
-		return true
+		limiter := NewSimpleRateLimiter(
+			l.config.APIRateLimitPerSecond,
+			l.config.APIRateLimitBurst,
+		)
+		val, _ = l.users.LoadOrStore(userID, limiter)
 	}
 
-	return limiter.(*SimpleRateLimiter).Allow()
+	return val.(*SimpleRateLimiter).Allow()
 }
 
-// Allow 简单的速率限制检查
+// NewSimpleRateLimiter 创建令牌桶限流器
+func NewSimpleRateLimiter(ratePerSecond float64, burst int) *SimpleRateLimiter {
+	now := time.Now()
+	return &SimpleRateLimiter{
+		tokens: burst,
+		max:    burst,
+		last:   now,
+		rate:   time.Duration(float64(time.Second) / ratePerSecond),
+	}
+}
+
+// Allow 检查是否允许请求（令牌桶算法）
 func (l *SimpleRateLimiter) Allow() bool {
-	return true // 简化实现
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(l.last)
+	l.last = now
+
+	if l.rate > 0 {
+		newTokens := int(elapsed / l.rate)
+		if newTokens > 0 {
+			l.tokens += newTokens
+			if l.tokens > l.max {
+				l.tokens = l.max
+			}
+		}
+	}
+
+	if l.tokens > 0 {
+		l.tokens--
+		return true
+	}
+	return false
+}
+
+// AllowN 检查是否允许 N 个请求
+func (l *SimpleRateLimiter) AllowN(n int) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(l.last)
+	l.last = now
+
+	if l.rate > 0 {
+		newTokens := int(elapsed / l.rate)
+		if newTokens > 0 {
+			l.tokens += newTokens
+			if l.tokens > l.max {
+				l.tokens = l.max
+			}
+		}
+	}
+
+	if l.tokens >= n {
+		l.tokens -= n
+		return true
+	}
+	return false
 }
 
 // ==================== 密钥轮换 ====================
