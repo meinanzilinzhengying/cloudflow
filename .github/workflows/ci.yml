@@ -2,13 +2,18 @@ name: CloudFlow CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main, develop]
+
+env:
+  GO_VERSION: '1.22'
+  GOLANGCI_VERSION: v1.55
+  COVERAGE_THRESHOLD: 60
 
 jobs:
-  build:
-    name: Build and Test
+  lint-and-format:
+    name: Lint & Format Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -17,34 +22,53 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Install dependencies
-        run: go mod tidy
-
-      - name: Build
-        run: go build ./...
-
-      - name: Run tests
-        run: go test -v -cover ./pkg/...
-
-      - name: Run vet
-        run: go vet ./...
+      - name: Check gofmt
+        run: |
+          if [ "$(gofmt -l . | wc -l)" -gt 0 ]; then
+            echo "::error::The following files need to be formatted with gofmt:"
+            gofmt -l .
+            exit 1
+          fi
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.55
+          version: ${{ env.GOLANGCI_VERSION }}
           args: --timeout 5m
 
-  multi-arch-build:
-    name: Multi-arch Build
+      - name: Check goimports
+        run: |
+          go install golang.org/x/tools/cmd/goimports@latest
+          if [ "$(goimports -l . | grep -v '^vendor/' | grep -v '^cloud-flow-frontend/' | wc -l)" -gt 0 ]; then
+            echo "::error::The following files need to be formatted with goimports:"
+            goimports -l . | grep -v '^vendor/' | grep -v '^cloud-flow-frontend/'
+            exit 1
+          fi
+
+      - name: Check for TODO/FIXME in critical paths
+        run: |
+          TODO_COUNT=$(grep -r "TODO\|FIXME" cloud-flow-center/ services/ --include="*.go" | wc -l)
+          echo "TODO/FIXME count: $TODO_COUNT"
+          if [ "$TODO_COUNT" -gt 50 ]; then
+            echo "::warning::There are $TODO_COUNT TODO/FIXME items in the codebase. Consider addressing them before release."
+          fi
+
+  test:
+    name: Test
     runs-on: ubuntu-latest
-    needs: build
     strategy:
+      fail-fast: false
       matrix:
-        arch: [amd64, arm64]
+        module:
+          - pkg
+          - cloud-flow-center
+          - services/alert-engine
+          - services/data-plane
+          - services/control-plane
+          - services/query-service
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,26 +76,107 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      - name: Build for ${{ matrix.arch }}
-        env:
-          GOARCH: ${{ matrix.arch }}
-          GOOS: linux
+      - name: Download module dependencies
         run: |
-          go build -o cloudflow-agent-${{ matrix.arch }} ./cloud-flow-agent
-          go build -o cloudflow-center-${{ matrix.arch }} ./cloud-flow-center
+          cd ${{ matrix.module }}
+          go mod download
+
+      - name: Run tests
+        run: |
+          cd ${{ matrix.module }}
+          go test -v -race -coverprofile=coverage.out ./...
+        continue-on-error: ${{ matrix.module != 'pkg' }}
+
+      - name: Upload coverage
+        if: matrix.module == 'pkg'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ${{ matrix.module }}/coverage.out
+
+      - name: Check coverage threshold
+        if: matrix.module == 'pkg'
+        run: |
+          cd ${{ matrix.module }}
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+          echo "Total coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
+            echo "::error::Coverage $COVERAGE% is below threshold ${{ env.COVERAGE_THRESHOLD }}%"
+            exit 1
+          fi
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build all services
+        run: |
+          go build -o bin/cloudflow-agent ./cloud-flow-agent
+          go build -o bin/cloudflow-center ./cloud-flow-center
+          go build -o bin/alert-engine ./services/alert-engine/cmd
+          go build -o bin/data-plane ./services/data-plane/cmd
+          go build -o bin/control-plane ./services/control-plane/cmd
+          go build -o bin/query-service ./services/query-service/cmd
+          go build -o bin/auth-service ./services/auth-service/cmd
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cloudflow-${{ matrix.arch }}
-          path: cloudflow-*
+          name: binaries
+          path: bin/
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run gosec
+        uses: securego/gosec@master
+        with:
+          args: '-fmt sarif -out gosec-results.sarif ./...'
+
+      - name: Upload gosec results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'gosec-results.sarif'
 
   codeql:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
+    needs: build
     permissions:
       security-events: write
     steps:

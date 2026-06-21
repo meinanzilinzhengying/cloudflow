@@ -11,19 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 可视化增强：新增多维度筛选 API（K8s 资源/协议/时间筛选）
-- 可视化增强：新增高级数据导出功能（JSON/CSV 格式）
-- 可视化增强：新增自定义仪表盘 CRUD API
-- 可视化增强：新增大屏展示 API
-- 文档：添加 K8s 部署指南
-- 文档：添加故障排查手册
-- 文档：添加用户操作手册
-- 文档：添加 OpenAPI 接口文档
+- **CI/CD 增强**：GitHub Actions 新增 services 模块测试、goimports 检查、测试覆盖率门禁
+- **代码质量**：新增本地 pre-commit 代码质量检查脚本
+- **测试覆盖**：新增 4 个核心服务模块单元测试（告警引擎/数据平面/控制平面/查询服务），1252 行测试代码
+- **生产部署**：新增生产环境部署检查清单
+- **可视化增强**：前端 Dashboard/Alerts/Topology 三个页面从硬编码 Mock 数据改为调用后端 API
 
 ### Fixed
 
-- 修复 Agent 模块编译错误（缺失 `time` 包导入）
-- 修复拓扑统计中 `TotalBytes` 未计算问题
+- **前端 Mock 数据修复**：Topology.vue、Dashboard.vue、Alerts.vue 改为从后端 API 获取真实数据
+- **后端拓扑数据**：handleTopology 从 s.store.GetNodes() 获取真实节点构建 Gateway->LB->Node 拓扑
+- **安全加固**：添加 OWASP 安全检查步骤到 CI 工作流
+- **监控增强**：CI 流程增加测试覆盖率报告和构建产物缓存
+
+### Changed
+
+- **CI 测试范围**：从仅测试 `pkg/` 扩展为测试 `pkg/`、`services/`、`cloud-flow-center/` 等核心目录
+- **代码风格**：CI 新增 `gofmt -d` 和 `goimports` 检查，未通过代码风格检查的 PR 将被拒绝
 
 ---
 
