@@ -1,0 +1,232 @@
+groups:
+  - name: cloudflow_business_alerts
+    interval: 30s
+    rules:
+      # ============================================================
+      # 一、租户配额告警
+      # ============================================================
+
+      # 租户配额使用率 > 85% (警告)
+      - alert: TenantQuotaHighUsage
+        expr: cloudflow_tenant_quota_usage_ratio > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "租户 {{ $labels.tenant_id }} 配额使用率过高"
+          description: "配额类型 {{ $labels.quota_type }} 使用率达到 {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.cloudflow.io/runbooks/tenant-quota"
+
+      # 租户配额使用率 > 95% (严重)
+      - alert: TenantQuotaCriticalUsage
+        expr: cloudflow_tenant_quota_usage_ratio > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "租户 {{ $labels.tenant_id }} 配额使用率接近上限"
+          description: "配额类型 {{ $labels.quota_type }} 使用率达到 {{ $value | humanizePercentage }}，即将超限"
+
+      # ============================================================
+      # 二、业务流程失败率告警
+      # ============================================================
+
+      # 业务操作失败率 > 5% (警告)
+      - alert: BusinessOperationHighFailureRate
+        expr: |
+          (
+            sum by(operation) (rate(cloudflow_business_operation_total{status="failure"}[5m]))
+            /
+            sum by(operation) (rate(cloudflow_business_operation_total[5m]))
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "业务操作 {{ $labels.operation }} 失败率过高"
+          description: "近 5 分钟失败率 {{ $value | humanizePercentage }}"
+
+      # 业务操作失败率 > 20% (严重)
+      - alert: BusinessOperationCriticalFailureRate
+        expr: |
+          (
+            sum by(operation) (rate(cloudflow_business_operation_total{status="failure"}[5m]))
+            /
+            sum by(operation) (rate(cloudflow_business_operation_total[5m]))
+          ) > 0.2
+        for: 1m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "业务操作 {{ $labels.operation }} 失败率严重超标"
+          description: "近 5 分钟失败率 {{ $value | humanizePercentage }}"
+
+      # 数据摄入连续失败
+      - alert: FlowIngestFailureBurst
+        expr: |
+          sum by(tenant_id) (rate(cloudflow_business_pipeline_stage_total{pipeline="flow_ingest", status="failure"}[5m])) > 10
+        for: 1m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "租户 {{ $labels.tenant_id }} 数据摄入大量失败"
+          description: "近 5 分钟失败次数 > 10/s"
+
+      # ============================================================
+      # 三、业务延迟告警
+      # ============================================================
+
+      # 数据摄入 P95 延迟 > 1s
+      - alert: FlowIngestHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le) (
+              rate(cloudflow_business_operation_duration_seconds{operation="flow_ingest", stage="total"}[5m])
+            )
+          ) > 1
+        for: 3m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "数据摄入 P95 延迟超过 1 秒"
+
+      # 数据摄入 P95 延迟 > 5s (严重)
+      - alert: FlowIngestCriticalLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le) (
+              rate(cloudflow_business_operation_duration_seconds{operation="flow_ingest", stage="total"}[5m])
+            )
+          ) > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "数据摄入 P95 延迟超过 5 秒"
+
+      # 查询执行 P95 延迟 > 2s
+      - alert: QueryExecuteHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le) (
+              rate(cloudflow_business_operation_duration_seconds{operation="query_execute", stage="total"}[5m])
+            )
+          ) > 2
+        for: 3m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "查询执行 P95 延迟超过 2 秒"
+
+      # 告警评估 P95 延迟 > 10s
+      - alert: AlertEvaluateHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by(le) (
+              rate(cloudflow_business_operation_duration_seconds{operation="alert_evaluate", stage="total"}[5m])
+            )
+          ) > 10
+        for: 3m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "告警评估 P95 延迟超过 10 秒"
+
+      # 业务阶段延迟突增
+      - alert: PipelineStageLatencySpike
+        expr: |
+          (
+            sum by(pipeline, stage) (rate(cloudflow_business_pipeline_stage_latency_seconds_sum[5m]))
+            /
+            sum by(pipeline, stage) (rate(cloudflow_business_pipeline_stage_latency_seconds_count[5m]))
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "业务流程 {{ $labels.pipeline }}/{{ $labels.stage }} 延迟突增"
+
+      # ============================================================
+      # 四、用户行为异常告警
+      # ============================================================
+
+      # 登录失败率过高
+      - alert: UserLoginHighFailureRate
+        expr: |
+          (
+            sum by(tenant_id) (rate(cloudflow_user_login_total{action="login", status="failure"}[5m]))
+            /
+            sum by(tenant_id) (rate(cloudflow_user_login_total{action="login"}[5m]))
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "租户 {{ $labels.tenant_id }} 登录失败率过高"
+          description: "近 5 分钟登录失败率 {{ $value | humanizePercentage }}"
+
+      # 活跃用户突降（可能是服务不可用）
+      - alert: TenantActiveUsersDrop
+        expr: |
+          (
+            avg_over_time(cloudflow_tenant_active_users[1h])
+            -
+            cloudflow_tenant_active_users
+          ) / avg_over_time(cloudflow_tenant_active_users[1h]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "租户 {{ $labels.tenant_id }} 活跃用户数大幅下降"
+
+      # ============================================================
+      # 五、租户资源告警
+      # ============================================================
+
+      # 租户数据摄入速率异常突增
+      - alert: TenantDataIngestRateSpike
+        expr: |
+          (
+            rate(cloudflow_tenant_data_ingest_rate_bytes[5m])
+            >
+            2 * avg_over_time(cloudflow_tenant_data_ingest_rate_bytes[1h])
+          )
+        for: 3m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "租户 {{ $labels.tenant_id }} 数据摄入速率突增"
+
+      # 租户告警数量过多
+      - alert: TenantAlertCountHigh
+        expr: sum by(tenant_id) (cloudflow_tenant_alert_count) > 100
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "租户 {{ $labels.tenant_id }} 活跃告警数量过多"
+          description: "当前活跃告警 {{ $value }} 条"
+
+      # 严重告警未处理
+      - alert: TenantCriticalAlertsUnacknowledged
+        expr: cloudflow_tenant_alert_count{severity="critical"} > 0
+        for: 15m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "租户 {{ $labels.tenant_id }} 有未处理的严重告警"
