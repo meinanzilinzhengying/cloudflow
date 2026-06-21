@@ -23,6 +23,7 @@ type Consumer struct {
 	topics        []string
 	storage       storage.StorageEngine
 	logger        *logger.Logger
+	dedup         DedupChecker // P2-03: 消息去重器
 	consumerGroup sarama.ConsumerGroup
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -35,6 +36,7 @@ type Consumer struct {
 type ConsumerGroupHandler struct {
 	storage storage.StorageEngine
 	logger  *logger.Logger
+	dedup   DedupChecker // P2-03: 消息去重器
 	ready   chan bool
 }
 
@@ -53,6 +55,29 @@ func New(brokers []string, groupID string, topics []string, store storage.Storag
 		topics:  topics,
 		storage: store,
 		logger:  log,
+		dedup:   &NoOpDedup{}, // P2-03: 默认空实现，不做去重
+	}, nil
+}
+
+// NewWithDedup 创建带消息去重的 Kafka 消费者
+func NewWithDedup(brokers []string, groupID string, topics []string, store storage.StorageEngine, log *logger.Logger, dedup DedupChecker) (*Consumer, error) {
+	if len(brokers) == 0 {
+		return nil, fmt.Errorf("Kafka brokers 不能为空")
+	}
+	if len(topics) == 0 {
+		return nil, fmt.Errorf("Kafka topics 不能为空")
+	}
+	if dedup == nil {
+		dedup = &NoOpDedup{}
+	}
+
+	return &Consumer{
+		brokers: brokers,
+		groupID: groupID,
+		topics:  topics,
+		storage: store,
+		logger:  log,
+		dedup:   dedup,
 	}, nil
 }
 
@@ -82,6 +107,7 @@ func (c *Consumer) Start() error {
 	handler := &ConsumerGroupHandler{
 		storage: c.storage,
 		logger:  c.logger,
+		dedup:   c.dedup, // P2-03: 传递去重器
 		ready:   make(chan bool),
 	}
 
@@ -120,6 +146,14 @@ func (c *Consumer) Stop() {
 		c.consumerGroup.Close()
 	}
 	c.wg.Wait()
+
+	// P2-03: 关闭去重器
+	if c.dedup != nil {
+		if err := c.dedup.Close(); err != nil {
+			c.logger.Warnf("关闭去重器失败: %v", err)
+		}
+	}
+
 	c.logger.Info("Kafka 消费者已停止")
 }
 
@@ -142,6 +176,19 @@ func (h *ConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			if message == nil {
 				return nil
 			}
+
+			// P2-03: 消息去重检查
+			isDup, err := h.dedup.IsDuplicate(message.Topic, message.Partition, message.Offset)
+			if err != nil {
+				h.logger.Warnf("去重检查失败 (topic=%s, partition=%d, offset=%d): %v, 继续处理",
+					message.Topic, message.Partition, message.Offset, err)
+			} else if isDup {
+				h.logger.Infof("跳过重复消息 (topic=%s, partition=%d, offset=%d)",
+					message.Topic, message.Partition, message.Offset)
+				session.MarkMessage(message, "")
+				continue
+			}
+
 			if err := h.processMessage(message); err != nil {
 				h.logger.Errorf("处理 Kafka 消息失败 (topic=%s, partition=%d, offset=%d): %v",
 					message.Topic, message.Partition, message.Offset, err)
