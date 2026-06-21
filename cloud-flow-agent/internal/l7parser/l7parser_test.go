@@ -1,12 +1,13 @@
 // Package l7parser L7 协议解析引擎测试
 
-package l7parser
+package l7parser_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	"github.com/meinanzilinzhengying/cloudflow/agent/internal/l7parser"
 	"github.com/meinanzilinzhengying/cloudflow/agent/internal/l7parser/parsers"
 )
 
@@ -20,28 +21,28 @@ func TestHTTP1Parser(t *testing.T) {
 	tests := []struct {
 		name     string
 		data     []byte
-		wantType ParserType
-		wantDir  PacketDirection
+		wantType l7parser.ParserType
+		wantDir  l7parser.PacketDirection
 		wantPath string
 	}{
 		{
 			name:     "GET request",
 			data:     []byte("GET /api/users HTTP/1.1\r\nHost: example.com\r\n\r\n"),
-			wantType: ParserTypeHTTP1,
+			wantType: l7parser.ParserTypeHTTP1,
 			wantDir:  DirRequest,
 			wantPath: "/api/users",
 		},
 		{
 			name:     "POST request",
 			data:     []byte("POST /api/users HTTP/1.1\r\nHost: example.com\r\nContent-Length: 13\r\n\r\n{\"name\":\"test\"}"),
-			wantType: ParserTypeHTTP1,
+			wantType: l7parser.ParserTypeHTTP1,
 			wantDir:  DirRequest,
 			wantPath: "/api/users",
 		},
 		{
 			name:     "HTTP response",
 			data:     []byte("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}"),
-			wantType: ParserTypeHTTP1,
+			wantType: l7parser.ParserTypeHTTP1,
 			wantDir:  DirResponse,
 		},
 	}
@@ -58,8 +59,8 @@ func TestHTTP1Parser(t *testing.T) {
 			if result == nil {
 				t.Fatal("Expected result, got nil")
 			}
-			if result.ParserType != tt.wantType {
-				t.Errorf("ParserType = %v, want %v", result.ParserType, tt.wantType)
+			if result.l7parser.ParserType != tt.wantType {
+				t.Errorf("l7parser.ParserType = %v, want %v", result.l7parser.ParserType, tt.wantType)
 			}
 			if result.Direction != tt.wantDir {
 				t.Errorf("Direction = %v, want %v", result.Direction, tt.wantDir)
@@ -150,8 +151,8 @@ func TestHTTP2Parser(t *testing.T) {
 		if result == nil {
 			t.Fatal("Expected result, got nil")
 		}
-		if result.ParserType != ParserTypeHTTP2 {
-			t.Errorf("ParserType = %v, want %v", result.ParserType, ParserTypeHTTP2)
+		if result.l7parser.ParserType != l7parser.ParserTypeHTTP2 {
+			t.Errorf("l7parser.ParserType = %v, want %v", result.l7parser.ParserType, l7parser.ParserTypeHTTP2)
 		}
 	})
 }
@@ -453,35 +454,35 @@ func TestProtocolDetection(t *testing.T) {
 		name      string
 		data      []byte
 		dstPort   uint16
-		wantType  ParserType
+		wantType  l7parser.ParserType
 		minScore  float64
 	}{
 		{
 			name:      "HTTP/1.1 GET",
 			data:      []byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n"),
 			dstPort:   80,
-			wantType:  ParserTypeHTTP1,
+			wantType:  l7parser.ParserTypeHTTP1,
 			minScore:  0.9,
 		},
 		{
 			name:      "HTTP/2 Magic",
 			data:      []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"),
 			dstPort:   443,
-			wantType:  ParserTypeHTTP2,
+			wantType:  l7parser.ParserTypeHTTP2,
 			minScore:  0.99,
 		},
 		{
 			name:      "Redis GET",
 			data:      []byte("*2\r\n$3\r\nGET\r\n$3\r\nkey\r\n"),
 			dstPort:   6379,
-			wantType:  ParserTypeRedis,
+			wantType:  l7parser.ParserTypeRedis,
 			minScore:  0.9,
 		},
 		{
 			name:      "MySQL Query",
 			data:      []byte{0x14, 0x00, 0x00, 0x00, 0x03, 0x53, 0x45, 0x4c, 0x45, 0x43, 0x54, 0x20, 0x31},
 			dstPort:   3306,
-			wantType:  ParserTypeMySQL,
+			wantType:  l7parser.ParserTypeMySQL,
 			minScore:  0.8,
 		},
 	}
@@ -505,14 +506,14 @@ func TestProtocolDetection(t *testing.T) {
 
 func TestEngine(t *testing.T) {
 	// 初始化解析器
-	InitWithParsers([]ParserType{
-		ParserTypeHTTP1,
-		ParserTypeHTTP2,
-		ParserTypeGRPC,
-		ParserTypeRedis,
-		ParserTypeMySQL,
-		ParserTypeKafka,
-		ParserTypeDNS,
+	l7parser.InitWithParsers([]l7parser.ParserType{
+		l7parser.ParserTypeHTTP1,
+		l7parser.ParserTypeHTTP2,
+		l7parser.ParserTypeGRPC,
+		l7parser.ParserTypeRedis,
+		l7parser.ParserTypeMySQL,
+		l7parser.ParserTypeKafka,
+		l7parser.ParserTypeDNS,
 	})
 
 	config := DefaultConfig()
@@ -544,7 +545,7 @@ func TestEngine(t *testing.T) {
 				t.Errorf("Parse error: %v", err)
 			}
 			if result != nil {
-				t.Logf("Parsed: type=%v, path=%s", result.ParserType, result.Path)
+				t.Logf("Parsed: type=%v, path=%s", result.l7parser.ParserType, result.Path)
 			}
 			done <- true
 		}
@@ -620,7 +621,7 @@ func BenchmarkProtocolDetection(b *testing.B) {
 }
 
 func BenchmarkEngineSubmit(b *testing.B) {
-	InitWithParsers([]ParserType{ParserTypeHTTP1})
+	l7parser.InitWithParsers([]l7parser.ParserType{l7parser.ParserTypeHTTP1})
 
 	config := DefaultConfig()
 	config.WorkerNum = 4
