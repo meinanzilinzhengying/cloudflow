@@ -1,0 +1,277 @@
+# CloudFlow SLI/SLO Prometheus 告警规则
+# P22: 定义可用性、延迟、错误预算等 SLO 告警
+#
+# 安装说明:
+# 1. 将本文件复制到 Prometheus rules 目录（如 /etc/prometheus/rules/）
+# 2. 在 prometheus.yml 中配置 rule_files:
+#    rule_files:
+#      - /etc/prometheus/rules/cloudflow-slo.yml
+# 3. 重启 Prometheus 或发送 SIGHUP 重载配置
+#
+# 阈值说明:
+# - 紧急 (critical): SLO 即将被突破，需立即处理
+# - 警告 (warning): SLO 有偏离趋势，需关注
+# - 信息 (info): 监控信息，不触发告警
+
+groups:
+  # ========================================================
+  # Edge 服务 SLO 告警
+  # ========================================================
+  - name: cloudflow-edge-slo
+    interval: 30s
+    rules:
+      # SLO-EDGE-001: Edge 可用性 ≥ 99.9%
+      # 计算方式: 1 - (forward_errors / forward_total)
+      # 触发条件: 过去1小时错误率 > 0.1% (即 1 - 99.9%)
+      - alert: EdgeAvailabilitySLOBurn
+        expr: |
+          (
+            sum(rate(cloud_flow_edge_forward_errors_total[1h]))
+            /
+            sum(rate(cloud_flow_edge_forward_total[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          slo_id: SLO-EDGE-001
+          slo_name: edge-availability
+          team: sre
+        annotations:
+          summary: "Edge 可用性低于 SLO 目标 (99.9%)"
+          description: |
+            过去1小时 Edge 转发错误率 {{ $value | humanizePercentage }}，
+            超过 SLO 阈值 0.1% (对应可用性 99.9%)。
+            当前月度错误预算可能快速消耗。
+          runbook_url: "https://wiki.example.com/runbooks/edge-availability"
+          dashboard: "https://grafana.example.com/d/edge-slo"
+
+      # SLO-EDGE-002: Edge P99 转发延迟 ≤ 500ms
+      # 计算方式: histogram_quantile(0.99, forward_duration)
+      - alert: EdgeLatencyP99SLOBurn
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(cloud_flow_edge_forward_duration_seconds_bucket[5m])) by (le)
+          ) > 0.5
+        for: 3m
+        labels:
+          severity: warning
+          slo_id: SLO-EDGE-002
+          slo_name: edge-latency-p99
+          team: sre
+        annotations:
+          summary: "Edge P99 转发延迟超过 500ms"
+          description: |
+            P99 转发延迟 {{ $value }}s，超过 SLO 目标 500ms。
+            建议检查: 1) 网络质量 2) gRPC 连接池 3) 批量大小配置
+          runbook_url: "https://wiki.example.com/runbooks/edge-latency"
+
+      # SLO-EDGE-003: Edge 缓冲区丢弃率 ≤ 0.1%
+      - alert: EdgeBufferDropRateHigh
+        expr: |
+          (
+            rate(cloud_flow_edge_data_dropped_total[1h])
+            /
+            (
+              rate(cloud_flow_edge_data_dropped_total[1h]) +
+              rate(cloud_flow_edge_forward_total[1h])
+            )
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: warning
+          slo_id: SLO-EDGE-003
+          slo_name: edge-buffer-drop
+          team: sre
+        annotations:
+          summary: "Edge 缓冲区丢弃率超过 SLO (0.1%)"
+          description: |
+            丢弃率 {{ $value | humanizePercentage }}，超过 SLO 0.1%。
+            可能原因: 1) 网络中断 2) 缓冲区溢出 3) 内存不足
+
+      # SLO-EDGE-004: Edge 内存使用率 ≤ 80%
+      # 假设内存限制为 512MB (P0-16 默认值)
+      - alert: EdgeMemoryUsageHigh
+        expr: |
+          cloud_flow_edge_memory_heap_alloc_bytes / (512 * 1024 * 1024) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          slo_id: SLO-EDGE-004
+          slo_name: edge-memory-usage
+          team: sre
+        annotations:
+          summary: "Edge 内存使用率超过 80%"
+          description: |
+            内存使用率 {{ $value | humanizePercentage }}，超过 SLO 80%。
+            建议: 1) 降低 batch_size 2) 缩短 flush_interval 3) 检查内存泄漏
+
+      # Edge 错误预算快速消耗告警
+      # 当错误预算消耗速率 > 2x 正常速率时触发
+      - alert: EdgeErrorBudgetBurnRateHigh
+        expr: |
+          (
+            sum(rate(cloud_flow_edge_forward_errors_total[1h]))
+            /
+            sum(rate(cloud_flow_edge_forward_total[1h]))
+          ) > 0.002
+        for: 10m
+        labels:
+          severity: critical
+          slo_id: SLO-EDGE-001
+          slo_name: edge-error-budget
+          team: sre
+        annotations:
+          summary: "Edge 错误预算快速消耗"
+          description: |
+            错误率 {{ $value | humanizePercentage }}，是 SLO 阈值的 2 倍以上。
+            按此速率，月度错误预算将在 {{ (0.001 / $value) * 30 | humanizeDuration }} 内耗尽。
+
+  # ========================================================
+  # Agent 探针 SLO 告警
+  # ========================================================
+  - name: cloudflow-agent-slo
+    interval: 30s
+    rules:
+      # SLO-AGENT-001: Agent 可用性 ≥ 99.5%
+      - alert: AgentAvailabilitySLOBurn
+        expr: |
+          (
+            sum(rate(cloud_flow_agent_send_errors_total[1h]))
+            /
+            sum(rate(cloud_flow_agent_send_total[1h]))
+          ) > 0.005
+        for: 10m
+        labels:
+          severity: warning
+          slo_id: SLO-AGENT-001
+          slo_name: agent-availability
+          team: sre
+        annotations:
+          summary: "Agent 可用性低于 SLO 目标 (99.5%)"
+          description: |
+            过去1小时发送错误率 {{ $value | humanizePercentage }}，
+            超过 SLO 阈值 0.5%。
+
+      # SLO-AGENT-002: Agent 心跳成功率 ≥ 99.5%
+      - alert: AgentHeartbeatFailureRateHigh
+        expr: |
+          rate(cloud_flow_agent_heartbeat_errors_total[1h])
+          /
+          rate(cloud_flow_agent_heartbeat_total[1h]) > 0.005
+        for: 5m
+        labels:
+          severity: warning
+          slo_id: SLO-AGENT-002
+          slo_name: agent-heartbeat-success
+          team: sre
+        annotations:
+          summary: "Agent 心跳失败率超过 SLO (0.5%)"
+          description: |
+            心跳失败率 {{ $value | humanizePercentage }}，超过 SLO 0.5%。
+            可能原因: 1) Edge 不可达 2) 网络不稳定 3) 证书过期
+
+      # SLO-AGENT-003: Agent 数据丢失率 ≤ 0.01%
+      - alert: AgentDataLossRateHigh
+        expr: |
+          (
+            rate(cloud_flow_agent_data_dropped_total[1h])
+            /
+            (
+              rate(cloud_flow_agent_data_dropped_total[1h]) +
+              rate(cloud_flow_agent_send_total[1h])
+            )
+          ) > 0.0001
+        for: 5m
+        labels:
+          severity: warning
+          slo_id: SLO-AGENT-003
+          slo_name: agent-data-loss
+          team: sre
+        annotations:
+          summary: "Agent 数据丢失率超过 SLO (0.01%)"
+          description: |
+            数据丢失率 {{ $value | humanizePercentage }}，超过 SLO 0.01%。
+            可能原因: 1) 缓冲区溢出 2) 网络中断 3) 磁盘空间不足
+
+      # Agent 采集延迟告警
+      - alert: AgentCollectLatencyHigh
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(cloud_flow_agent_collect_duration_seconds_bucket[5m])) by (le)
+          ) > 5
+        for: 5m
+        labels:
+          severity: info
+          slo_id: SLO-AGENT-002
+          slo_name: agent-collect-latency
+          team: sre
+        annotations:
+          summary: "Agent 采集延迟偏高"
+          description: |
+            P99 采集延迟 {{ $value }}s，建议检查系统负载。
+
+  # ========================================================
+  # 错误预算管理告警
+  # ========================================================
+  - name: cloudflow-error-budget
+    interval: 5m
+    rules:
+      # 错误预算消耗警告（25%）
+      - alert: ErrorBudgetCaution
+        expr: |
+          cloud_flow_slo_error_budget_remaining_ratio < 0.75
+        for: 1m
+        labels:
+          severity: warning
+          alert_type: error_budget
+          team: sre
+        annotations:
+          summary: "错误预算消耗超过 25%"
+          description: |
+            SLO {{ $labels.slo_name }} 错误预算已消耗 {{ (1 - $value) | humanizePercentage }}。
+            建议加强监控并准备应急预案。
+
+      # 错误预算严重警告（50%）
+      - alert: ErrorBudgetWarning
+        expr: |
+          cloud_flow_slo_error_budget_remaining_ratio < 0.5
+        for: 1m
+        labels:
+          severity: critical
+          alert_type: error_budget
+          team: sre
+        annotations:
+          summary: "错误预算消耗超过 50%"
+          description: |
+            SLO {{ $labels.slo_name }} 错误预算已消耗 {{ (1 - $value) | humanizePercentage }}。
+            启动 RCA 分析，限制非紧急变更。
+
+      # 错误预算耗尽（75%）
+      - alert: ErrorBudgetCritical
+        expr: |
+          cloud_flow_slo_error_budget_remaining_ratio < 0.25
+        for: 1m
+        labels:
+          severity: critical
+          alert_type: error_budget
+          team: sre
+        annotations:
+          summary: "错误预算即将耗尽 (< 25%)"
+          description: |
+            SLO {{ $labels.slo_name }} 错误预算仅剩 {{ $value | humanizePercentage }}。
+            冻结所有非紧急变更，全员 On-Call。
+
+      # 错误预算超标（100%）
+      - alert: ErrorBudgetExceeded
+        expr: |
+          cloud_flow_slo_error_budget_remaining_ratio <= 0
+        for: 1m
+        labels:
+          severity: critical
+          alert_type: error_budget
+          team: sre
+        annotations:
+          summary: "错误预算已耗尽"
+          description: |
+            SLO {{ $labels.slo_name }} 错误预算已完全耗尽。
+            启动事故复盘，制定改进计划。
