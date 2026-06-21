@@ -170,6 +170,9 @@ services:
       - CLICKHOUSE_DATABASE=cloudflow
       - CONTROL_PLANE_ADDR=control-plane:8001
       - TLS_ENABLED=false
+    depends_on:
+      clickhouse:
+        condition: service_started
     restart: unless-stopped
     networks:
       - cloudflow-net
