@@ -53,7 +53,8 @@ services:
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
     depends_on:
-      - nacos
+      nacos:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8006/healthz"]
       interval: 15s
@@ -92,8 +93,10 @@ services:
       # 下游服务
       - AUTH_ADDR=auth-service:9006
     depends_on:
-      - nacos
-      - auth-service
+      nacos:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
       interval: 15s
@@ -136,10 +139,14 @@ services:
       - AUTH_ADDR=auth-service:9006
       - TENANT_ADDR=tenant-service:9010
     depends_on:
-      - nacos
-      - data-plane
-      - auth-service
-      - tenant-service
+      nacos:
+        condition: service_healthy
+      data-plane:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      tenant-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
       interval: 15s
@@ -173,6 +180,12 @@ services:
     depends_on:
       clickhouse:
         condition: service_started
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:9102/healthz]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     networks:
       - cloudflow-net
@@ -211,10 +224,14 @@ services:
       - AUTH_ADDR=auth-service:9006
       - TENANT_ADDR=tenant-service:9010
     depends_on:
-      - redis
-      - nacos
-      - auth-service
-      - tenant-service
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      tenant-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8007/healthz"]
       interval: 15s
@@ -257,10 +274,14 @@ services:
       - AUTH_ADDR=auth-service:9006
       - DATA_PLANE_ADDR=data-plane:9002
     depends_on:
-      - redis
-      - nacos
-      - auth-service
-      - data-plane
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      data-plane:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/healthz"]
       interval: 15s
@@ -319,11 +340,16 @@ services:
       - TENANT_ADDR=tenant-service:9010
       - DATA_PLANE_ADDR=data-plane:9002
     depends_on:
-      - redis
-      - nacos
-      - auth-service
-      - tenant-service
-      - data-plane
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      tenant-service:
+        condition: service_healthy
+      data-plane:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8009/healthz"]
       interval: 15s
