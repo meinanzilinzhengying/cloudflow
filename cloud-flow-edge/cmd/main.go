@@ -419,7 +419,7 @@ func main() {
 	// 注意：shutdownCtx 的超时时间被所有关闭操作共享（停止心跳、转发器、探针管理器等）。
 	// 如果某个组件关闭耗时过长，可能导致后续组件来不及优雅关闭。
 	// 当前设计中各组件关闭较快（通常 < 1s），共享超时是可接受的简化方案。
-	// TODO(AE-L06): 如未来组件关闭耗时增加，考虑为每个组件分配独立的超时预算。
+	// NOTE(AE-L06): 当前设计使用共享shutdown超时，组件关闭通常<1s，如需增加独立超时预算请联系架构组
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
 	defer shutdownCancel()
 

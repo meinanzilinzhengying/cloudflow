@@ -32,17 +32,81 @@ func (tc *TraditionalCollector) Stop() {
 	close(tc.stopCh)
 }
 
-// Collect 采集网络流量数据
+// Collect 采集网络流量数据（基于 /proc/net/dev 实现基础统计）
 func (tc *TraditionalCollector) Collect() []*edge.MetricData {
-	// TODO: 实现传统采集逻辑
-	// 可以通过以下方式：
-	// 1. 使用 pcap 库
-	// 2. 使用 netlink
-	// 3. 解析 /proc/net/dev
-	// 4. 解析 iptables 统计
+	var metrics []*edge.MetricData
 	
-	// 暂时返回空结果
-	return nil
+	data, err := readProcNetDev()
+	if err != nil {
+		log.Printf([TraditionalCollector] 读取 /proc/net/dev 失败: %v, err)
+		return metrics
+	}
+	
+	now := time.Now().UnixMilli()
+	for _, line := range strings.Split(data, "
+") {
+		fields := strings.Fields(line)
+		if len(fields) < 9 || strings.HasPrefix(fields[0], "Inter") || strings.HasPrefix(fields[0], "face") {
+			continue
+		}
+		
+		iface := strings.TrimSuffix(fields[0], ":")
+		
+		// 接收字节数
+		if rxBytes, err := strconv.ParseFloat(fields[1], 64); err == nil {
+			metrics = append(metrics, &edge.MetricData{
+				Name:      "net_interface_rx_bytes",
+				Timestamp: now,
+				Value:     rxBytes,
+				Type:      edge.MetricType_GAUGE,
+				ProbeId:   "traditional-" + iface,
+			})
+		}
+		
+		// 发送字节数
+		if txBytes, err := strconv.ParseFloat(fields[9], 64); err == nil {
+			metrics = append(metrics, &edge.MetricData{
+				Name:      "net_interface_tx_bytes",
+				Timestamp: now,
+				Value:     txBytes,
+				Type:      edge.MetricType_GAUGE,
+				ProbeId:   "traditional-" + iface,
+			})
+		}
+		
+		// 接收包数
+		if rxPackets, err := strconv.ParseFloat(fields[2], 64); err == nil {
+			metrics = append(metrics, &edge.MetricData{
+				Name:      "net_interface_rx_packets",
+				Timestamp: now,
+				Value:     rxPackets,
+				Type:      edge.MetricType_GAUGE,
+				ProbeId:   "traditional-" + iface,
+			})
+		}
+		
+		// 发送包数
+		if txPackets, err := strconv.ParseFloat(fields[10], 64); err == nil {
+			metrics = append(metrics, &edge.MetricData{
+				Name:      "net_interface_tx_packets",
+				Timestamp: now,
+				Value:     txPackets,
+				Type:      edge.MetricType_GAUGE,
+				ProbeId:   "traditional-" + iface,
+			})
+		}
+	}
+	
+	return metrics
+}
+
+// readProcNetDev 读取 /proc/net/dev 内容
+func readProcNetDev() (string, error) {
+	data, err := os.ReadFile("/proc/net/dev")
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 // IsAvailable 检查是否可用

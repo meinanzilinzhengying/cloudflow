@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 	"io"
 	"net/http"
 	"strings"
@@ -379,9 +381,79 @@ func (s *Storage) GetStats() Stats {
 
 // FlowToMetrics 将 Flow 转换为 Metrics
 func FlowToMetrics(f interface{}, tenantID string) []*Metric {
-	// TODO: 实现 Flow 到 Metrics 的转换
-	// 提取: bytes, packets, latency, error_rate 等
-	return nil
+	// P0-11: 实现 Flow 到 Metrics 的转换
+	flow, ok := f.(*edge.MetricData)
+	if !ok {
+		return nil
+	}
+	
+	baseLabels := map[string]string{
+		"probe_id": flow.ProbeId,
+		"asset_id": flow.AssetId,
+		"protocol": string(flow.Protocol),
+		"src_ip":   flow.SrcIp,
+		"dst_ip":   flow.DstIp,
+		"service":  flow.Service,
+	}
+	
+	var metrics []*Metric
+	
+	// bytes 总量
+	if flow.Bytes > 0 {
+		metrics = append(metrics, &Metric{
+			Name:      "flow_bytes_total",
+			Labels:    baseLabels,
+			Value:     float64(flow.Bytes),
+			Timestamp: flow.Timestamp,
+			TenantID:  tenantID,
+		})
+	}
+	
+	// packets 总量
+	if flow.Packets > 0 {
+		metrics = append(metrics, &Metric{
+			Name:      "flow_packets_total",
+			Labels:    baseLabels,
+			Value:     float64(flow.Packets),
+			Timestamp: flow.Timestamp,
+			TenantID:  tenantID,
+		})
+	}
+	
+	// latency（毫秒）
+	if flow.Latency > 0 {
+		metrics = append(metrics, &Metric{
+			Name:      "flow_latency_ms",
+			Labels:    baseLabels,
+			Value:     float64(flow.Latency) / 1000.0,
+			Timestamp: flow.Timestamp,
+			TenantID:  tenantID,
+		})
+	}
+	
+	// error_rate
+	if flow.ErrorRate > 0 {
+		metrics = append(metrics, &Metric{
+			Name:      "flow_error_rate",
+			Labels:    baseLabels,
+			Value:     flow.ErrorRate,
+			Timestamp: flow.Timestamp,
+			TenantID:  tenantID,
+		})
+	}
+	
+	// error_count
+	if flow.ErrorCount > 0 {
+		metrics = append(metrics, &Metric{
+			Name:      "flow_error_count",
+			Labels:    baseLabels,
+			Value:     float64(flow.ErrorCount),
+			Timestamp: flow.Timestamp,
+			TenantID:  tenantID,
+		})
+	}
+	
+	return metrics
 }
 
 // BuildPromQL 构建 PromQL 查询

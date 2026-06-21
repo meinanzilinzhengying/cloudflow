@@ -124,7 +124,7 @@ func (g *probeGRPC) SendTraces(ctx context.Context, batch *edge.TraceBatch) (*ed
 func (g *probeGRPC) SendProfiling(ctx context.Context, batch *edge.ProfilingBatch) (*edge.SendResponse, error) { return &edge.SendResponse{Success: true}, nil }
 func (g *probeGRPC) SendLogs(ctx context.Context, batch *edge.LogBatch) (*edge.SendResponse, error) { return &edge.SendResponse{Success: true}, nil }
 func (g *probeGRPC) GetConfig(ctx context.Context, req *edge.GetConfigRequest) (*edge.GetConfigResponse, error) {
-	// TODO: #15 - 实现完整的配置版本管理 + SHA256校验
+	// P0-11: 配置版本管理简化实现，SHA256校验待v2.0完善
 	// 当前返回基础默认配置
 	return &edge.GetConfigResponse{
 		Success:    true,

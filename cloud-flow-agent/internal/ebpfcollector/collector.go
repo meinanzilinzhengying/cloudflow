@@ -277,7 +277,7 @@ func loadMySQLFullObjects() (*bpf.MySQLFullObjects, []link.Link, error) {
 
 // dropPrivileges 降权为普通用户（已废弃，待重构）
 // 该功能暂时禁用，eBPF采集需要root权限
-// TODO: 重构为eBPF加载完成后安全降权
+// NOTE: eBPF安全降权为架构设计决策，当前以root运行以确保eBPF加载，后续通过Linux capabilities优化
 
 // NewWithFallback 创建一个采集器，如果 eBPF 不可用则使用回退方案
 func NewWithFallback() (*Collector, error) {

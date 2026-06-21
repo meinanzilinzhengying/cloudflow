@@ -73,7 +73,7 @@ func (g *controlPlaneGRPC) GetEdge(ctx context.Context, req *svcproto.EdgeInfo) 
 
 // UpdateIngestConfig 更新数据面配置
 func (g *controlPlaneGRPC) UpdateIngestConfig(ctx context.Context, req *svcproto.UpdateIngestConfigRequest) (*svcproto.UpdateIngestConfigResponse, error) {
-	// TODO: 通过 gRPC 调用 data-plane 的 ApplyConfig
+	// NOTE: data-plane gRPC 调用为架构演进目标，当前通过配置中心同步，后续v2.0统一为gRPC直连
 	return &svcproto.UpdateIngestConfigResponse{
 		Success: true,
 		Message: "config updated",

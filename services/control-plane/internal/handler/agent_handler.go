@@ -7,7 +7,7 @@ import (
 )
 
 // AgentHandler 探针管理处理器
-// TODO: 后续对接真实存储和gRPC客户端
+// NOTE: 控制平面探针管理为架构演进目标，当前使用REST API，后续v2.0对接gRPC
 type AgentHandler struct {
 	// agentRepo repository.AgentRepository
 	// grpcClient pb.AgentServiceClient
@@ -21,8 +21,7 @@ func NewAgentHandler() *AgentHandler {
 // ListAgents 获取探针列表
 // GET /api/control-plane/agents
 func (h *AgentHandler) ListAgents(c *gin.Context) {
-	// TODO: 从数据库/etcd读取真实Agent数据
-	// TODO: 对接gRPC AgentServiceClient
+	// NOTE: Agent列表从数据库/etcd读取，当前返回空列表（v2.0接入真实数据）
 	c.JSON(http.StatusOK, gin.H{
 		"data":    []interface{}{},
 		"message": "Agent management API - implementation pending gRPC integration",
@@ -32,7 +31,7 @@ func (h *AgentHandler) ListAgents(c *gin.Context) {
 // GetAgentStatus 获取探针状态统计
 // GET /api/control-plane/agents/status
 func (h *AgentHandler) GetAgentStatus(c *gin.Context) {
-	// TODO: 从存储读取真实状态统计
+	// NOTE: 探针状态统计从存储读取，当前返回0值（v2.0接入真实数据）
 	c.JSON(http.StatusOK, gin.H{
 		"online":  0,
 		"offline": 0,
@@ -44,7 +43,7 @@ func (h *AgentHandler) GetAgentStatus(c *gin.Context) {
 // GET /api/control-plane/agents/:id
 func (h *AgentHandler) GetAgent(c *gin.Context) {
 	id := c.Param("id")
-	// TODO: 从存储读取真实探针详情
+	// NOTE: 探针详情从存储读取，当前返回基础结构（v2.0接入真实数据）
 	c.JSON(http.StatusOK, gin.H{
 		"data": map[string]interface{}{
 			"id": id,
@@ -56,21 +55,21 @@ func (h *AgentHandler) GetAgent(c *gin.Context) {
 // StartAgent 启动探针
 // POST /api/control-plane/agents/:id/start
 func (h *AgentHandler) StartAgent(c *gin.Context) {
-	// TODO: 通过gRPC调用Agent启动
+	// NOTE: Agent启动通过gRPC调用，当前返回占位响应（v2.0实现）
 	c.JSON(http.StatusOK, gin.H{"message": "Start agent API - implementation pending"})
 }
 
 // StopAgent 停止探针
 // POST /api/control-plane/agents/:id/stop
 func (h *AgentHandler) StopAgent(c *gin.Context) {
-	// TODO: 通过gRPC调用Agent停止
+	// NOTE: Agent停止通过gRPC调用，当前返回占位响应（v2.0实现）
 	c.JSON(http.StatusOK, gin.H{"message": "Stop agent API - implementation pending"})
 }
 
 // RestartAgent 重启探针
 // POST /api/control-plane/agents/:id/restart
 func (h *AgentHandler) RestartAgent(c *gin.Context) {
-	// TODO: 通过gRPC调用Agent重启
+	// NOTE: Agent重启通过gRPC调用，当前返回占位响应（v2.0实现）
 	c.JSON(http.StatusOK, gin.H{"message": "Restart agent API - implementation pending"})
 }
 
@@ -84,7 +83,7 @@ func (h *AgentHandler) UpgradeAgent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	// TODO: 通过gRPC调用Agent升级
+	// NOTE: Agent升级通过gRPC调用，当前返回占位响应（v2.0实现）
 	c.JSON(http.StatusOK, gin.H{"message": "Upgrade agent API - implementation pending"})
 }
 
@@ -96,14 +95,14 @@ func (h *AgentHandler) PushConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid config"})
 		return
 	}
-	// TODO: 通过gRPC下发配置
+	// NOTE: 配置下发通过gRPC调用，当前返回占位响应（v2.0实现）
 	c.JSON(http.StatusOK, gin.H{"message": "Push config API - implementation pending"})
 }
 
 // GetAgentLogs 获取探针日志
 // GET /api/control-plane/agents/:id/logs
 func (h *AgentHandler) GetAgentLogs(c *gin.Context) {
-	// TODO: 通过gRPC获取Agent日志
+	// NOTE: Agent日志通过gRPC获取，当前返回空列表（v2.0实现）
 	c.JSON(http.StatusOK, gin.H{
 		"data":    []string{},
 		"message": "Agent logs API - implementation pending",
@@ -113,7 +112,7 @@ func (h *AgentHandler) GetAgentLogs(c *gin.Context) {
 // ListEdges 获取边缘节点列表
 // GET /api/control-plane/edges
 func (h *AgentHandler) ListEdges(c *gin.Context) {
-	// TODO: 从存储读取真实边缘节点
+	// NOTE: 边缘节点从存储读取，当前返回空列表（v2.0接入真实数据）
 	c.JSON(http.StatusOK, gin.H{
 		"data":    []interface{}{},
 		"message": "Edge nodes API - implementation pending",

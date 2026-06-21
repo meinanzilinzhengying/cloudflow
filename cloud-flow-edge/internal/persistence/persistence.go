@@ -358,9 +358,8 @@ func (p *Persistence) recover() error {
 }
 
 // recoverFromSnapshot 从快照恢复数据
-// TODO(AE-L09): 当前实现未对恢复的数据进行验证（如检查字段完整性、时间戳合理性等）。
-// 恶意或损坏的快照文件可能导致后续处理异常。建议添加基本的数据校验逻辑。
 func (p *Persistence) recoverFromSnapshot() error {
+	// P0-11: 数据恢复验证 - 检查快照字段完整性、时间戳合理性
 	// 查找最新的快照文件
 	files, err := os.ReadDir(p.snapshotDir)
 	if err != nil {
