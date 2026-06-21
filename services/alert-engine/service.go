@@ -32,6 +32,7 @@ import (
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/alert-engine/notifier"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
@@ -142,6 +143,9 @@ type Service struct {
 	// ClickHouse 连接（实时指标查询）
 	clickHouseDB *sql.DB
 
+	// P0-6: 通知渠道工厂
+	notifierFactory *notifier.Factory
+
 	startTime time.Time
 }
 
@@ -153,7 +157,8 @@ func New(config *Config) (*Service, error) {
 	s := &Service{
 		config:       config,
 		startTime:    time.Now(),
-		health:       health.NewServer(),
+		health:          health.NewServer(),
+		notifierFactory: notifier.NewFactory(),
 		evalStopChan: make(chan struct{}),
 	}
 
@@ -716,16 +721,72 @@ func (s *Service) evaluateRule(expression string, metrics map[string]float64) (b
 	}
 }
 
-// createNotification 创建告警通知
+// createNotification 创建告警通知并实际发送到配置渠道
 func (s *Service) createNotification(tenantID, ruleID, alertID, title, message string) {
-	notificationID := fmt.Sprintf("notif-%d", time.Now().UnixNano())
-	_, err := s.db.Exec(context.Background(), 
-		"INSERT INTO alert_notifications (notification_id, alert_id, rule_id, tenant_id, channel_type, status, message) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		notificationID, alertID, ruleID, tenantID, "console", "sent", fmt.Sprintf("[%s] %s", title, message),
-	)
+	// 查询规则的通知渠道配置
+	var notifyChannels string
+	err := s.db.QueryRow(context.Background(), "SELECT notify_channels FROM alert_rules WHERE rule_id = ?", ruleID).Scan(&notifyChannels)
 	if err != nil {
-		fmt.Printf("Failed to create notification: %v\n", err)
+		notifyChannels = "[]"
 	}
+
+	// 解析通知渠道配置
+	configs, err := notifier.ParseChannels(notifyChannels)
+	if err != nil {
+		configs = []notifier.ChannelConfig{{Type: "console"}}
+	}
+
+	// 创建通知消息
+	msg := &notifier.Message{
+		Title:    title,
+		Body:     message,
+		Severity: "critical",
+		TenantID: tenantID,
+		RuleID:   ruleID,
+		AlertID:  alertID,
+	}
+
+	// 创建通知器并发送
+	notifiers, parseErrs, err := s.notifierFactory.CreateMulti(configs)
+	if err != nil {
+		fmt.Printf("Failed to create notifiers: %v\n", err)
+		return
+	}
+	for _, e := range parseErrs {
+		fmt.Printf("Notification channel error: %s\n", e)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// 并发发送通知
+	sendErrs := notifier.SendAll(ctx, notifiers, msg)
+
+	// 记录通知结果到数据库
+	for _, n := range notifiers {
+		status := "sent"
+		errMsg := ""
+		for _, e := range sendErrs {
+			if len(e) > len(n.Name()) && e[:len(n.Name())] == n.Name() {
+				status = "failed"
+				errMsg = e[len(n.Name())+2:]
+				break
+			}
+		}
+		notificationID := fmt.Sprintf("notif-%d-%s", time.Now().UnixNano(), n.Name())
+		_, dbErr := s.db.Exec(context.Background(),
+			"INSERT INTO alert_notifications (notification_id, alert_id, rule_id, tenant_id, channel_type, status, message, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+			notificationID, alertID, ruleID, tenantID, n.Name(), status, fmt.Sprintf("[%s] %s", title, message), errMsg,
+		)
+		if dbErr != nil {
+			fmt.Printf("Failed to record notification: %v\n", dbErr)
+		}
+	}
+
+	// 释放通知器资源
+	for _, n := range notifiers {
+		_ = n.Close()
+}
 }
 
 // ============================================================================
