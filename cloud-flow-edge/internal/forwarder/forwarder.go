@@ -110,11 +110,12 @@ type Forwarder struct {
 // NewForwarder 创建数据转发器
 // L1 修复: 添加 maxBufferLimit 参数
 func NewForwarder(client ForwardClient, batchSize, flushIntervalSec, maxBufferLimit int, log *logger.Logger) *Forwarder {
+	// P0-15: 增大默认 batchSize 和减小 flushInterval，提高吞吐量
 	if batchSize <= 0 {
-		batchSize = 100
+		batchSize = 5000
 	}
 	if flushIntervalSec <= 0 {
-		flushIntervalSec = 5
+		flushIntervalSec = 1
 	}
 	// L1 修复: 使用传入的 maxBufferLimit 或默认值
 	if maxBufferLimit <= 0 {
@@ -469,56 +470,26 @@ func (f *Forwarder) flushMetrics(force bool) {
 	f.muMetrics.Unlock()
 	f.metrics.UpdateMetricsBufSize(0)
 
-	retryCount := 0
-	allSent := true
-	var failedBatches []*edge.MetricsBatch
-	for i, batch := range buf {
-		client := f.getClient()
-		if err := client.ForwardMetrics(batch); err != nil {
-			f.logger.Warnf("[forwarder][metrics] 转发指标数据失败 (第 %d/%d 批): %v", i+1, len(buf), err)
-			f.metrics.AddForwardError()
-			retryCount++
-			allSent = false
-			failedBatches = append(failedBatches, batch)
-
-			// 通知续传管理器转发失败
-			if f.resender != nil {
-				f.resender.OnForwardError("metrics", err)
-			}
-
-			if retryCount >= maxRetryAttempts {
-				// 将剩余未处理的批次也加入失败列表，避免静默丢失
-				failedBatches = append(failedBatches, buf[i+1:]...)
-				break
-			}
-			if !force {
-				select {
-				case <-time.After(time.Duration(retryCount) * time.Second):
-				case <-f.stopCh:
-					// 将已收集的失败批次缓存到本地磁盘
-					if len(failedBatches) > 0 && f.localCache != nil {
-						for _, failedBatch := range failedBatches {
-							if err := f.localCache.AddMetrics(failedBatch); err != nil {
-								f.logger.Warnf("[forwarder][metrics] 缓存失败数据到本地失败: %v", err)
-							}
-						}
-					}
-					return
-				}
-			} else {
-				time.Sleep(time.Duration(retryCount) * time.Second)
-			}
-			continue
-		}
-		f.metrics.AddMetricsBatch()
-		retryCount = 0
+	// P0-15: 合并多个小 batch 为一个大 batch，减少 gRPC 调用次数
+	merged := mergeMetricsBatches(buf)
+	if merged == nil {
+		return
 	}
 
-	// 将失败批次缓存到本地磁盘（用于网络恢复后续传）
-	if len(failedBatches) > 0 {
+	client := f.getClient()
+	if err := client.ForwardMetrics(merged); err != nil {
+		f.logger.Warnf("[forwarder][metrics] 转发指标数据失败 (合并 %d 批, %d 条 metrics): %v", len(buf), len(merged.Metrics), err)
+		f.metrics.AddForwardError()
+
+		// 通知续传管理器转发失败
+		if f.resender != nil {
+			f.resender.OnForwardError("metrics", err)
+		}
+
+		// 将失败数据缓存到本地磁盘
 		if f.localCache != nil {
 			cachedCount := 0
-			for _, batch := range failedBatches {
+			for _, batch := range buf {
 				if err := f.localCache.AddMetrics(batch); err != nil {
 					f.logger.Warnf("[forwarder][metrics] 缓存失败数据到本地失败: %v", err)
 				} else {
@@ -529,14 +500,18 @@ func (f *Forwarder) flushMetrics(force bool) {
 		} else {
 			// 如果没有本地缓存，放回内存缓冲区
 			f.muMetrics.Lock()
-			f.metricsBuf = append(failedBatches, f.metricsBuf...)
+			f.metricsBuf = append(buf, f.metricsBuf...)
 			f.muMetrics.Unlock()
-			f.logger.Warnf("[forwarder][metrics] 转发失败，%d 条数据已放回缓冲区", len(failedBatches))
+			f.logger.Warnf("[forwarder][metrics] 转发失败，%d 条数据已放回缓冲区", len(buf))
 		}
+		return
 	}
 
+	f.metrics.AddMetricsBatch()
+	f.logger.Infof("[forwarder][metrics] 成功转发 %d 批合并数据 (共 %d 条 metrics)", len(buf), len(merged.Metrics))
+
 	// 所有数据发送成功，清空指标的持久化数据
-	if allSent && f.persistence != nil {
+	if f.persistence != nil {
 		f.persistence.ClearMetrics()
 	}
 }
@@ -552,56 +527,26 @@ func (f *Forwarder) flushTraces(force bool) {
 	f.muTraces.Unlock()
 	f.metrics.UpdateTracesBufSize(0)
 
-	retryCount := 0
-	allSent := true
-	var failedBatches []*edge.TraceBatch
-	for i, batch := range buf {
-		client := f.getClient()
-		if err := client.ForwardTraces(batch); err != nil {
-			f.logger.Warnf("[forwarder][traces] 转发链路追踪数据失败 (第 %d/%d 批): %v", i+1, len(buf), err)
-			f.metrics.AddForwardError()
-			retryCount++
-			allSent = false
-			failedBatches = append(failedBatches, batch)
-
-			// 通知续传管理器转发失败
-			if f.resender != nil {
-				f.resender.OnForwardError("traces", err)
-			}
-
-			if retryCount >= maxRetryAttempts {
-				// 将剩余未处理的批次也加入失败列表，避免静默丢失
-				failedBatches = append(failedBatches, buf[i+1:]...)
-				break
-			}
-			if !force {
-				select {
-				case <-time.After(time.Duration(retryCount) * time.Second):
-				case <-f.stopCh:
-					// 将已收集的失败批次缓存到本地磁盘
-					if len(failedBatches) > 0 && f.localCache != nil {
-						for _, failedBatch := range failedBatches {
-							if err := f.localCache.AddTraces(failedBatch); err != nil {
-								f.logger.Warnf("[forwarder][traces] 缓存失败数据到本地失败: %v", err)
-							}
-						}
-					}
-					return
-				}
-			} else {
-				time.Sleep(time.Duration(retryCount) * time.Second)
-			}
-			continue
-		}
-		f.metrics.AddTracesBatch()
-		retryCount = 0
+	// P0-15: 合并多个小 batch 为一个大 batch，减少 gRPC 调用次数
+	merged := mergeTraceBatches(buf)
+	if merged == nil {
+		return
 	}
 
-	// 将失败批次缓存到本地磁盘（用于网络恢复后续传）
-	if len(failedBatches) > 0 {
+	client := f.getClient()
+	if err := client.ForwardTraces(merged); err != nil {
+		f.logger.Warnf("[forwarder][traces] 转发链路追踪数据失败 (合并 %d 批, %d 条 traces): %v", len(buf), len(merged.Spans), err)
+		f.metrics.AddForwardError()
+
+		// 通知续传管理器转发失败
+		if f.resender != nil {
+			f.resender.OnForwardError("traces", err)
+		}
+
+		// 将失败数据缓存到本地磁盘
 		if f.localCache != nil {
 			cachedCount := 0
-			for _, batch := range failedBatches {
+			for _, batch := range buf {
 				if err := f.localCache.AddTraces(batch); err != nil {
 					f.logger.Warnf("[forwarder][traces] 缓存失败数据到本地失败: %v", err)
 				} else {
@@ -612,14 +557,18 @@ func (f *Forwarder) flushTraces(force bool) {
 		} else {
 			// 如果没有本地缓存，放回内存缓冲区
 			f.muTraces.Lock()
-			f.tracesBuf = append(failedBatches, f.tracesBuf...)
+			f.tracesBuf = append(buf, f.tracesBuf...)
 			f.muTraces.Unlock()
-			f.logger.Warnf("[forwarder][traces] 转发失败，%d 条数据已放回缓冲区", len(failedBatches))
+			f.logger.Warnf("[forwarder][traces] 转发失败，%d 条数据已放回缓冲区", len(buf))
 		}
+		return
 	}
 
+	f.metrics.AddTracesBatch()
+	f.logger.Infof("[forwarder][traces] 成功转发 %d 批合并数据 (共 %d 条 traces)", len(buf), len(merged.Spans))
+
 	// 所有数据发送成功，清空链路追踪的持久化数据
-	if allSent && f.persistence != nil {
+	if f.persistence != nil {
 		f.persistence.ClearTraces()
 	}
 }
@@ -635,56 +584,26 @@ func (f *Forwarder) flushProfiling(force bool) {
 	f.muProfiling.Unlock()
 	f.metrics.UpdateProfilingBufSize(0)
 
-	retryCount := 0
-	allSent := true
-	var failedBatches []*edge.ProfilingBatch
-	for i, batch := range buf {
-		client := f.getClient()
-		if err := client.ForwardProfiling(batch); err != nil {
-			f.logger.Warnf("[forwarder][profiling] 转发性能分析数据失败 (第 %d/%d 批): %v", i+1, len(buf), err)
-			f.metrics.AddForwardError()
-			retryCount++
-			allSent = false
-			failedBatches = append(failedBatches, batch)
-
-			// 通知续传管理器转发失败
-			if f.resender != nil {
-				f.resender.OnForwardError("profiling", err)
-			}
-
-			if retryCount >= maxRetryAttempts {
-				// 将剩余未处理的批次也加入失败列表，避免静默丢失
-				failedBatches = append(failedBatches, buf[i+1:]...)
-				break
-			}
-			if !force {
-				select {
-				case <-time.After(time.Duration(retryCount) * time.Second):
-				case <-f.stopCh:
-					// 将已收集的失败批次缓存到本地磁盘
-					if len(failedBatches) > 0 && f.localCache != nil {
-						for _, failedBatch := range failedBatches {
-							if err := f.localCache.AddProfiling(failedBatch); err != nil {
-								f.logger.Warnf("[forwarder][profiling] 缓存失败数据到本地失败: %v", err)
-							}
-						}
-					}
-					return
-				}
-			} else {
-				time.Sleep(time.Duration(retryCount) * time.Second)
-			}
-			continue
-		}
-		f.metrics.AddProfilingBatch()
-		retryCount = 0
+	// P0-15: 合并多个小 batch 为一个大 batch，减少 gRPC 调用次数
+	merged := mergeProfilingBatches(buf)
+	if merged == nil {
+		return
 	}
 
-	// 将失败批次缓存到本地磁盘（用于网络恢复后续传）
-	if len(failedBatches) > 0 {
+	client := f.getClient()
+	if err := client.ForwardProfiling(merged); err != nil {
+		f.logger.Warnf("[forwarder][profiling] 转发性能分析数据失败 (合并 %d 批, %d 条 profiles): %v", len(buf), len(merged.Profiles), err)
+		f.metrics.AddForwardError()
+
+		// 通知续传管理器转发失败
+		if f.resender != nil {
+			f.resender.OnForwardError("profiling", err)
+		}
+
+		// 将失败数据缓存到本地磁盘
 		if f.localCache != nil {
 			cachedCount := 0
-			for _, batch := range failedBatches {
+			for _, batch := range buf {
 				if err := f.localCache.AddProfiling(batch); err != nil {
 					f.logger.Warnf("[forwarder][profiling] 缓存失败数据到本地失败: %v", err)
 				} else {
@@ -695,14 +614,104 @@ func (f *Forwarder) flushProfiling(force bool) {
 		} else {
 			// 如果没有本地缓存，放回内存缓冲区
 			f.muProfiling.Lock()
-			f.profilingBuf = append(failedBatches, f.profilingBuf...)
+			f.profilingBuf = append(buf, f.profilingBuf...)
 			f.muProfiling.Unlock()
-			f.logger.Warnf("[forwarder][profiling] 转发失败，%d 条数据已放回缓冲区", len(failedBatches))
+			f.logger.Warnf("[forwarder][profiling] 转发失败，%d 条数据已放回缓冲区", len(buf))
 		}
+		return
 	}
 
+	f.metrics.AddProfilingBatch()
+	f.logger.Infof("[forwarder][profiling] 成功转发 %d 批合并数据 (共 %d 条 profiles)", len(buf), len(merged.Profiles))
+
 	// 所有数据发送成功，清空性能分析的持久化数据
-	if allSent && f.persistence != nil {
+	if f.persistence != nil {
 		f.persistence.ClearProfiling()
 	}
+}
+
+// ============================================================================
+// P0-15: Batch 合并辅助函数
+// ============================================================================
+
+// mergeMetricsBatches 将多个 MetricsBatch 合并为单个大的 batch
+// 减少 gRPC 调用次数，提高吞吐量
+func mergeMetricsBatches(batches []*edge.MetricsBatch) *edge.MetricsBatch {
+	if len(batches) == 0 {
+		return nil
+	}
+	if len(batches) == 1 {
+		return batches[0]
+	}
+	merged := &edge.MetricsBatch{
+		ProbeId:   batches[0].ProbeId,
+		AssetId:   batches[0].AssetId,
+		Timestamp: time.Now().UnixMilli(),
+	}
+	var allMetrics []*edge.MetricData
+	var minStart, maxEnd int64
+	for _, b := range batches {
+		if b.Metrics != nil {
+			allMetrics = append(allMetrics, b.Metrics...)
+		}
+		if minStart == 0 || (b.StartTime > 0 && b.StartTime < minStart) {
+			minStart = b.StartTime
+		}
+		if b.EndTime > maxEnd {
+			maxEnd = b.EndTime
+		}
+	}
+	merged.Metrics = allMetrics
+	merged.Count = int32(len(allMetrics))
+	merged.StartTime = minStart
+	merged.EndTime = maxEnd
+	return merged
+}
+
+// mergeTraceBatches 将多个 TraceBatch 合并为单个大的 batch
+func mergeTraceBatches(batches []*edge.TraceBatch) *edge.TraceBatch {
+	if len(batches) == 0 {
+		return nil
+	}
+	if len(batches) == 1 {
+		return batches[0]
+	}
+	merged := &edge.TraceBatch{
+		ProbeId:   batches[0].ProbeId,
+		AssetId:   batches[0].AssetId,
+		Timestamp: time.Now().UnixMilli(),
+	}
+	var allSpans []*edge.TraceSpanData
+	for _, b := range batches {
+		if b.Spans != nil {
+			allSpans = append(allSpans, b.Spans...)
+		}
+	}
+	merged.Spans = allSpans
+	merged.Count = int32(len(allSpans))
+	return merged
+}
+
+// mergeProfilingBatches 将多个 ProfilingBatch 合并为单个大的 batch
+func mergeProfilingBatches(batches []*edge.ProfilingBatch) *edge.ProfilingBatch {
+	if len(batches) == 0 {
+		return nil
+	}
+	if len(batches) == 1 {
+		return batches[0]
+	}
+	merged := &edge.ProfilingBatch{
+		ProbeId:   batches[0].ProbeId,
+		AssetId:   batches[0].AssetId,
+		Timestamp: time.Now().UnixMilli(),
+	}
+	var allProfiles []*edge.ProfilingData
+	for _, b := range batches {
+		if b.Profiles != nil {
+			allProfiles = append(allProfiles, b.Profiles...)
+		}
+	}
+	merged.Profiles = allProfiles
+	merged.Count = int32(len(allProfiles))
+	return merged
 }

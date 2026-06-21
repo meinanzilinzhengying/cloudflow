@@ -73,6 +73,9 @@ func NewClient(addr string, tlsCfg config.TLSConfig, apiKey string, log *logger.
 		return nil, err
 	}
 
+	// P0-15: 启用 gzip 压缩，减少网络传输量
+	c.opts = append(c.opts, grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")))
+
 	c.conn = conn
 	c.client = edge.NewCenterServiceClient(conn)
 

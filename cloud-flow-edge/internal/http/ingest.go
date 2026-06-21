@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -45,13 +44,14 @@ type IngestHandler struct {
 
 // NewIngestHandler 创建数据接收处理器
 func NewIngestHandler(chDB *sql.DB) *IngestHandler {
+	// P0-15: 增大 batchSize 和减小 flush 间隔，提高吞吐量
 	h := &IngestHandler{
 		chDB:       chDB,
-		batch:      make([]*IngestEvent, 0, 1000),
-		ticker:     time.NewTicker(5 * time.Second),
+		batch:      make([]*IngestEvent, 0, 10000),
+		ticker:     time.NewTicker(1 * time.Second),
 		stopCh:     make(chan struct{}),
-		batchSize:  1000,
-		flushIntvl: 5 * time.Second,
+		batchSize:  10000,
+		flushIntvl: 1 * time.Second,
 	}
 	go h.flushLoop()
 	return h
