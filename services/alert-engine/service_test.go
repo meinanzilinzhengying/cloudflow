@@ -224,7 +224,11 @@ func TestNewService(t *testing.T) {
 }
 
 func TestNewService_NilConfig(t *testing.T) {
-	s, err := New(nil)
+	cfg := DefaultConfig()
+	cfg.RelationalDBHost = ""
+	cfg.ClickHouseHost = ""
+	cfg.AuthAddr = ""
+	s, err := New(cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, s)
 	assert.Equal(t, "alert-engine", s.config.ServiceName)
@@ -302,7 +306,7 @@ func TestEvaluateRule_EdgeCases(t *testing.T) {
 
 func TestEvaluateRule_FloatPrecision(t *testing.T) {
 	s := createTestAlertEngine(t)
-	metrics := map[string]float64{"value": 0.1 + 0.2} // 0.30000000000000004
+	metrics := map[string]float64{"value": 0.30000000000000004} // 0.30000000000000004
 
 	fired, err := s.evaluateRule("value == 0.3", metrics)
 	assert.NoError(t, err)

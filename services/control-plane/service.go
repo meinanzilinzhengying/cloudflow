@@ -780,7 +780,7 @@ func (s *Service) ListEdges(tenantId, region, status string) []*svcproto.EdgeInf
 
 func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"status":"healthy","service":"%s","version":"%s","uptime":%d}`,
+	fmt.Fprintf(w, `{"status":"healthy","service":"%s","version":"%s","uptime":%f}`,
 		s.config.ServiceName, s.config.Version, time.Since(s.startTime).Seconds())
 }
 

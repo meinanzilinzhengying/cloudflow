@@ -177,7 +177,7 @@ func TestNewServerTLSCredentials(t *testing.T) {
 	cfg.TLSCertFile = "/tmp/nonexistent-cert.pem"
 	cfg.TLSKeyFile = "/tmp/nonexistent-key.pem"
 
-	s, err := New(cfg)
+	_, err := New(cfg)
 	// 即使 New 失败，我们关心的是 newServerTLSCredentials 的错误
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "TLS credentials init failed")
@@ -199,8 +199,6 @@ func TestService_StartStop(t *testing.T) {
 	assert.False(t, s.running)
 
 	// 健康状态应为 NOT_SERVING
-	healthStatus := s.health.GetServingStatus(cfg.ServiceName)
-	assert.Equal(t, int(healthStatus), int(healthStatus)) // 至少能调用
 }
 
 // ============================================================================
@@ -227,7 +225,7 @@ func TestGetGRPCDialOptions_TLSEnabled(t *testing.T) {
 	cfg.TLSCertFile = "/tmp/nonexistent-cert.pem"
 	cfg.TLSKeyFile = "/tmp/nonexistent-key.pem"
 
-	s, err := New(cfg)
+	_, err := New(cfg)
 	// New 会失败，但我们可以测试 dial options 逻辑
 	assert.Error(t, err)
 }

@@ -2,7 +2,6 @@
 package discovery
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -124,7 +123,7 @@ func TestServiceRegistry_Struct(t *testing.T) {
 	registry, err := NewServiceRegistry(nil, "/test")
 	require.NoError(t, err)
 
-	assert.NotNil(t, registry.client)
+	assert.Nil(t, registry.client)
 	assert.NotNil(t, registry.instances)
 	assert.NotNil(t, registry.mu)
 }

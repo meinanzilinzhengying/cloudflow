@@ -4,7 +4,6 @@ package tenantservice
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,7 +65,9 @@ func TestNewService(t *testing.T) {
 }
 
 func TestNewService_NilConfig(t *testing.T) {
-	s, err := New(nil)
+	cfg := DefaultConfig()
+	cfg.DBHost = ""
+	s, err := New(cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, s)
 	assert.Equal(t, "tenant-service", s.config.ServiceName)

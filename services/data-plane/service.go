@@ -587,7 +587,7 @@ func (s *Service) writeToLoki(flows []*flow.UnifiedFlow) error {
 	for _, f := range flows {
 		labels := fmt.Sprintf(`{src_ip="%s",dst_ip="%s",protocol="%s",service="%s",namespace="%s",tenant_id="%s",direction="%s"}`,
 			f.SrcIP.String(), f.DstIP.String(), f.Protocol.String(),
-			f.Service.String(), f.Namespace.String(), f.TenantID.String(), f.Direction)
+			f.Service.String(), f.Namespace.String(), f.TenantID.String(), f.Direction.String())
 
 		// 构建日志消息
 		message := fmt.Sprintf("Flow: %s -> %s:%d %s bytes=%d latency=%dns",

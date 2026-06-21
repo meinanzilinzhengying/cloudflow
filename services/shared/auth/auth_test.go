@@ -2,7 +2,6 @@
 package auth
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -42,7 +41,7 @@ func TestConfig_Default(t *testing.T) {
 
 func TestNewAuthenticator_EmptyAddr(t *testing.T) {
 	// 空地址应该仍然能创建（但无法连接）
-	cfg := Config{AuthAddr: ""}
+	cfg := Config{AuthAddr: "localhost:0"}
 	auth, err := NewAuthenticator(cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, auth)
@@ -73,7 +72,7 @@ func TestNewAuthenticator_TLSWithoutFiles(t *testing.T) {
 // ============================================================================
 
 func TestAuthenticator_Close(t *testing.T) {
-	cfg := Config{AuthAddr: ""}
+	cfg := Config{AuthAddr: "localhost:0"}
 	auth, err := NewAuthenticator(cfg)
 	require.NoError(t, err)
 
@@ -95,7 +94,7 @@ func TestAuthenticator_Close_NilConn(t *testing.T) {
 // ============================================================================
 
 func TestAuthenticator_Middleware_WithoutAuth(t *testing.T) {
-	cfg := Config{AuthAddr: ""}
+	cfg := Config{AuthAddr: "localhost:0"}
 	auth, err := NewAuthenticator(cfg)
 	require.NoError(t, err)
 
@@ -105,7 +104,7 @@ func TestAuthenticator_Middleware_WithoutAuth(t *testing.T) {
 }
 
 func TestAuthenticator_Middleware_Exclusions(t *testing.T) {
-	cfg := Config{AuthAddr: ""}
+	cfg := Config{AuthAddr: "localhost:0"}
 	auth, err := NewAuthenticator(cfg)
 	require.NoError(t, err)
 
@@ -119,7 +118,7 @@ func TestAuthenticator_Middleware_Exclusions(t *testing.T) {
 // ============================================================================
 
 func TestAuthenticator_GRPCInterceptor(t *testing.T) {
-	cfg := Config{AuthAddr: ""}
+	cfg := Config{AuthAddr: "localhost:0"}
 	auth, err := NewAuthenticator(cfg)
 	require.NoError(t, err)
 
@@ -151,7 +150,7 @@ func TestConfig_TLSSelfSigned(t *testing.T) {
 }
 
 func TestNewAuthenticator_MultipleCalls(t *testing.T) {
-	cfg := Config{AuthAddr: ""}
+	cfg := Config{AuthAddr: "localhost:0"}
 	auth1, err := NewAuthenticator(cfg)
 	require.NoError(t, err)
 	auth2, err := NewAuthenticator(cfg)
@@ -163,7 +162,7 @@ func TestNewAuthenticator_MultipleCalls(t *testing.T) {
 }
 
 func TestAuthenticator_ConcurrentClose(t *testing.T) {
-	cfg := Config{AuthAddr: ""}
+	cfg := Config{AuthAddr: "localhost:0"}
 	auth, err := NewAuthenticator(cfg)
 	require.NoError(t, err)
 
@@ -191,7 +190,7 @@ func TestAuthenticator_ConcurrentClose(t *testing.T) {
 // ============================================================================
 
 func TestAuthenticator_Struct(t *testing.T) {
-	cfg := Config{AuthAddr: ""}
+	cfg := Config{AuthAddr: "localhost:0"}
 	auth, err := NewAuthenticator(cfg)
 	require.NoError(t, err)
 

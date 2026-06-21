@@ -10,10 +10,6 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 )
 
-// ============================================================================
-// 一、隔离级别测试
-// ============================================================================
-
 func TestIsolationLevel_String(t *testing.T) {
 	assert.Equal(t, "strict", IsolationStrict.String())
 	assert.Equal(t, "platform", IsolationPlatform.String())
@@ -25,9 +21,14 @@ func TestIsolationLevel_Values(t *testing.T) {
 	assert.Equal(t, IsolationLevel(2), IsolationPlatform)
 }
 
-// ============================================================================
-// 二、QueryFilter 测试
-// ============================================================================
+func TestNewIsolationGuard(t *testing.T) {
+	g := NewIsolationGuard(IsolationStrict)
+	assert.NotNil(t, g)
+	assert.Equal(t, IsolationStrict, g.Level())
+
+	g2 := NewIsolationGuard(IsolationPlatform)
+	assert.Equal(t, IsolationPlatform, g2.Level())
+}
 
 func TestQueryFilter_Valid(t *testing.T) {
 	filter := &QueryFilter{
@@ -47,121 +48,101 @@ func TestQueryFilter_Empty(t *testing.T) {
 	assert.Nil(t, filter.Namespaces)
 }
 
-func TestQueryFilter_NilNamespaces(t *testing.T) {
-	filter := &QueryFilter{
-		TenantID: "tenant-1",
-	}
-	assert.Nil(t, filter.Namespaces)
+func TestBuildNamespaceFilter_NoNamespaces(t *testing.T) {
+	result := BuildNamespaceFilter("tenant-1", nil)
+	assert.Equal(t, "tenant_id = 'tenant-1'", result)
 }
 
-// ============================================================================
-// 三、TenantContext 测试（通过 tenant 包）
-// ============================================================================
+func TestBuildNamespaceFilter_WithNamespaces(t *testing.T) {
+	result := BuildNamespaceFilter("tenant-1", []string{"ns1", "ns2"})
+	assert.Equal(t, "tenant_id = 'tenant-1' AND namespace IN ('ns1','ns2')", result)
+}
 
-func TestTenantContext_FromContext(t *testing.T) {
+func TestBuildNamespaceFilter_EmptyTenant(t *testing.T) {
+	result := BuildNamespaceFilter("", []string{"ns1"})
+	assert.Equal(t, "tenant_id = '' AND namespace IN ('ns1')", result)
+}
+
+func TestValidateNamespaceOwnership_Valid(t *testing.T) {
+	assert.NoError(t, ValidateNamespaceOwnership("tenant-1", "tenant-1-app"))
+	assert.NoError(t, ValidateNamespaceOwnership("tenant-1", "shared-public"))
+}
+
+func TestValidateNamespaceOwnership_Invalid(t *testing.T) {
+	err := ValidateNamespaceOwnership("tenant-1", "tenant-2-app")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "namespace ownership violation")
+}
+
+func TestValidateNamespaceOwnership_EmptyTenant(t *testing.T) {
+	err := ValidateNamespaceOwnership("", "ns1")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "tenant_id is empty")
+}
+
+func TestValidateNamespaceOwnership_EmptyNamespace(t *testing.T) {
+	err := ValidateNamespaceOwnership("tenant-1", "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "namespace is empty")
+}
+
+func TestEnforceQueryFilter_NoTenantContext(t *testing.T) {
+	g := NewIsolationGuard(IsolationStrict)
 	ctx := context.Background()
-	
-	// 空 context 不应 panic
-	tc, ok := tenant.FromContext(ctx)
-	assert.False(t, ok)
-	assert.Nil(t, tc)
+	_, err := g.EnforceQueryFilter(ctx, "SELECT * FROM flows")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no tenant_id in context")
 }
 
-func TestTenantContext_NilContext(t *testing.T) {
-	// nil context 应该安全处理
-	var ctx context.Context
-	if ctx != nil {
-		tc, ok := tenant.FromContext(ctx)
-		assert.False(t, ok)
-		assert.Nil(t, tc)
-	}
-	// nil context 时 FromContext 会 panic，这是预期行为
-}
-
-// ============================================================================
-// 四、隔离函数测试
-// ============================================================================
-
-func TestEnforceTenantIsolation(t *testing.T) {
-	ctx := context.Background()
-	filter := &QueryFilter{
-		TenantID: "tenant-1",
-	}
-	
-	// 无 tenant context 时应该返回错误
-	err := EnforceTenantIsolation(ctx, filter)
-	assert.Error(t, err, "无 tenant context 时应返回错误")
-}
-
-func TestEnforceTenantIsolation_NilFilter(t *testing.T) {
-	ctx := context.Background()
-	err := EnforceTenantIsolation(ctx, nil)
-	assert.Error(t, err, "nil filter 时应返回错误")
-}
-
-func TestEnforceTenantIsolation_PlatformAdmin(t *testing.T) {
-	// 平台管理员可以跨租户查询
-	tc := &tenant.TenantContext{
-		TenantID:       "admin",
-		IsPlatformAdmin: true,
-	}
+func TestEnforceQueryFilter_WithTenantContext(t *testing.T) {
+	g := NewIsolationGuard(IsolationStrict)
+	tc := &tenant.TenantContext{TenantID: "tenant-1"}
 	ctx := tenant.NewContext(context.Background(), tc)
-	
-	filter := &QueryFilter{
-		TenantID: "tenant-1",
-	}
-	
-	err := EnforceTenantIsolation(ctx, filter)
-	assert.NoError(t, err, "平台管理员应允许跨租户查询")
+
+	result, err := g.EnforceQueryFilter(ctx, "SELECT * FROM flows WHERE 1=1")
+	assert.NoError(t, err)
+	assert.Contains(t, result, "tenant_id")
+	assert.Contains(t, result, "tenant-1")
 }
 
-func TestEnforceTenantIsolation_StrictMatch(t *testing.T) {
-	// 普通租户只能查询自己的数据
-	tc := &tenant.TenantContext{
-		TenantID:        "tenant-1",
-		IsPlatformAdmin: false,
-	}
+func TestEnforceQueryFilter_NoWhereClause(t *testing.T) {
+	g := NewIsolationGuard(IsolationStrict)
+	tc := &tenant.TenantContext{TenantID: "tenant-1"}
 	ctx := tenant.NewContext(context.Background(), tc)
-	
-	filter := &QueryFilter{
-		TenantID: "tenant-1",
-	}
-	
-	err := EnforceTenantIsolation(ctx, filter)
-	assert.NoError(t, err, "同一租户应允许查询")
+
+	result, err := g.EnforceQueryFilter(ctx, "SELECT * FROM flows")
+	assert.NoError(t, err)
+	assert.Contains(t, result, "WHERE")
+	assert.Contains(t, result, "tenant_id = 'tenant-1'")
 }
 
-func TestEnforceTenantIsolation_StrictMismatch(t *testing.T) {
-	// 普通租户不能查询其他租户的数据
-	tc := &tenant.TenantContext{
-		TenantID:        "tenant-1",
-		IsPlatformAdmin: false,
-	}
+func TestEnforceClickHouseQuery(t *testing.T) {
+	g := NewIsolationGuard(IsolationStrict)
+	tc := &tenant.TenantContext{TenantID: "tenant-1"}
 	ctx := tenant.NewContext(context.Background(), tc)
-	
-	filter := &QueryFilter{
-		TenantID: "tenant-2",
-	}
-	
-	err := EnforceTenantIsolation(ctx, filter)
-	assert.Error(t, err, "不同租户应拒绝查询")
+
+	result, err := g.EnforceClickHouseQuery(ctx, "SELECT * FROM flows")
+	assert.NoError(t, err)
+	assert.Contains(t, result, "tenant_id")
 }
 
-// ============================================================================
-// 五、边界条件测试
-// ============================================================================
+func TestEnforceTiDBQuery(t *testing.T) {
+	g := NewIsolationGuard(IsolationStrict)
+	tc := &tenant.TenantContext{TenantID: "tenant-1"}
+	ctx := tenant.NewContext(context.Background(), tc)
+
+	result, err := g.EnforceTiDBQuery(ctx, "SELECT * FROM flows")
+	assert.NoError(t, err)
+	assert.Contains(t, result, "tenant_id")
+}
 
 func TestQueryFilter_EmptyTenantID(t *testing.T) {
-	filter := &QueryFilter{
-		TenantID: "",
-	}
+	filter := &QueryFilter{TenantID: ""}
 	assert.Equal(t, "", filter.TenantID)
 }
 
 func TestQueryFilter_SpecialCharacters(t *testing.T) {
-	filter := &QueryFilter{
-		TenantID: "tenant-123_abc.456",
-	}
+	filter := &QueryFilter{TenantID: "tenant-123_abc.456"}
 	assert.Equal(t, "tenant-123_abc.456", filter.TenantID)
 }
 
