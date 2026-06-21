@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 )
 
 func main() {
@@ -54,7 +55,7 @@ func main() {
 	}
 	if tsdbType := os.Getenv("TSDB_TYPE"); tsdbType != "" {
 		if tsdbType == "clickhouse" {
-			cfg.TimeSeriesDBType = 0 // DatabaseClickHouse
+			cfg.TimeSeriesDBType = storage.DatabaseClickHouse
 		}
 	}
 

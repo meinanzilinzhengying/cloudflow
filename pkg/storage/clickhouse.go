@@ -65,12 +65,12 @@ func (s *ClickHouseStorage) Exec(ctx context.Context, sql string, args ...interf
 	return &chResult{}, nil
 }
 func (s *ClickHouseStorage) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
-	rows, err := s.conn.Query(ctx, sql, args...)
+	rows, err := s.db.QueryContext(ctx, sql, args...)
 	if err != nil { return nil, err }
-	return &chRows{rows: rows}, nil
+	return rows, nil
 }
 func (s *ClickHouseStorage) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
-	return &chRow{row: s.conn.QueryRow(ctx, sql, args...)}
+	return s.db.QueryRowContext(ctx, sql, args...)
 }
 func (s *ClickHouseStorage) Ping(ctx context.Context) error { return s.conn.Ping(ctx) }
 func (s *ClickHouseStorage) PingContext(ctx context.Context) error { return s.conn.Ping(ctx) }
