@@ -70,7 +70,7 @@ func (s *ClickHouseStorage) Query(ctx context.Context, sql string, args ...inter
 	return rows, nil
 }
 func (s *ClickHouseStorage) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
-	return s.db.QueryRowContext(ctx, sql, args...)
+	return s.conn.QueryRow(ctx, sql, args...)
 }
 func (s *ClickHouseStorage) Ping(ctx context.Context) error { return s.conn.Ping(ctx) }
 func (s *ClickHouseStorage) PingContext(ctx context.Context) error { return s.conn.Ping(ctx) }

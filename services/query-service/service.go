@@ -955,16 +955,17 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cpuVal, memVal, netVal := 0.0, 0.0, 0.0
-	s.tsDB.QueryRow(ctx, "SELECT metric_value FROM cloudflow.ebpf_events WHERE metric_name='cpu_percent' ORDER BY timestamp DESC LIMIT 1").Scan(&cpuVal)
-	s.tsDB.QueryRow(ctx, "SELECT metric_value FROM cloudflow.ebpf_events WHERE metric_name='memory' ORDER BY timestamp DESC LIMIT 1").Scan(&memVal)
-	s.tsDB.QueryRow(ctx, "SELECT metric_value FROM cloudflow.ebpf_events WHERE metric_name='network' ORDER BY timestamp DESC LIMIT 1").Scan(&netVal)
+	cpuVal, memVal, netVal, diskVal := 0.0, 0.0, 0.0, 0.0
+	s.tsDB.QueryRow(ctx, "SELECT ifNull(JSONExtractFloat(details, 'cpu_percent'), 0.0) FROM cloudflow.ebpf_events WHERE category = 'metrics' AND event_type = 'host_metrics' ORDER BY timestamp DESC LIMIT 1").Scan(&cpuVal)
+	s.tsDB.QueryRow(ctx, "SELECT ifNull(JSONExtractFloat(details, 'memory_percent'), 0.0) FROM cloudflow.ebpf_events WHERE category = 'metrics' AND event_type = 'host_metrics' ORDER BY timestamp DESC LIMIT 1").Scan(&memVal)
+	s.tsDB.QueryRow(ctx, "SELECT ifNull(JSONExtractFloat(details, 'net_rx_bytes'), 0.0) FROM cloudflow.ebpf_events WHERE category = 'metrics' AND event_type = 'host_metrics' ORDER BY timestamp DESC LIMIT 1").Scan(&netVal)
+	s.tsDB.QueryRow(ctx, "SELECT ifNull(JSONExtractFloat(details, 'disk_percent'), 0.0) FROM cloudflow.ebpf_events WHERE category = 'metrics' AND event_type = 'host_metrics' ORDER BY timestamp DESC LIMIT 1").Scan(&diskVal)
 
 	resources := []map[string]interface{}{
 		{"name": "CPU", "percentage": cpuVal, "color": "stroke-primary-500"},
 		{"name": "Memory", "percentage": memVal, "color": "stroke-accent-500"},
-		{"name": "NetworkIO", "percentage": netVal / 10000.0, "color": "stroke-amber-500"},
-		{"name": "Disk", "percentage": 0.0, "color": "stroke-emerald-500"},
+		{"name": "NetworkIO", "percentage": netVal / 1000000.0, "color": "stroke-amber-500"},
+		{"name": "Disk", "percentage": diskVal, "color": "stroke-emerald-500"},
 	}
 
 	var avgLatency float64
