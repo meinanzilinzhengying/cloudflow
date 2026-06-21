@@ -59,6 +59,13 @@ func main() {
 		}
 	}
 
+	// Auth 配置
+	if addr := os.Getenv("AUTH_ADDR"); addr != "" {
+		cfg.AuthAddr = addr
+	} else {
+		cfg.AuthAddr = "auth-service:9006"
+	}
+
 	// P0-2 TLS 配置
 	if v := os.Getenv("TLS_ENABLED"); v == "true" {
 		cfg.TLSEnabled = true

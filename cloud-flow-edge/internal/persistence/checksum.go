@@ -4,7 +4,7 @@
 package persistence
 
 import (
-	"crypto/crc32"
+	"hash/crc32"
 	"encoding/binary"
 	"fmt"
 	"os"

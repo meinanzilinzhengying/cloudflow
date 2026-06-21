@@ -21,6 +21,8 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/grpcclient"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/grpcserver"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/http"
+	_ "github.com/ClickHouse/clickhouse-go/v2"
+	"database/sql"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/kafkafwd"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/probemgr"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/servicediscovery"
@@ -328,10 +330,26 @@ func main() {
 	healthChecker := grpcserver.NewHealthChecker(srv)
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthChecker)
 
+	// 初始化 ClickHouse 连接
+	var chDB *sql.DB
+	if localCfg.ClickHouseAddr != "" {
+		dsn := fmt.Sprintf("clickhouse://%s:%d/%s", localCfg.ClickHouseAddr, localCfg.ClickHousePort, localCfg.ClickHouseDatabase)
+		db, err := sql.Open("clickhouse", dsn)
+		if err != nil {
+			log.Errorf("ClickHouse 连接失败: %v", err)
+		} else {
+			chDB = db
+			log.Infof("ClickHouse 连接成功: %s", localCfg.ClickHouseAddr)
+		}
+	}
+
+	// 创建数据接收处理器
+	ingestHandler := http.NewIngestHandler(chDB)
+
 	// 启动 HTTP 健康检查服务器
 	healthHandler := http.NewHealthHandler(manager, log)
 	healthAddr := fmt.Sprintf(":%d", localCfg.HealthPort)
-	healthServer = http.StartHealthServer(healthAddr, healthHandler)
+	healthServer = http.StartHealthServer(healthAddr, healthHandler, ingestHandler)
 	log.Infof("健康检查 HTTP 服务监听: %s/health", healthAddr)
 
 	// 启动 gRPC 服务

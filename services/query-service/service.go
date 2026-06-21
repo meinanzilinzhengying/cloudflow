@@ -35,6 +35,7 @@ import (
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service/correlation"
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service/otel"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
 
@@ -64,6 +65,8 @@ type Config struct {
 	// 查询配置
 	QueryTimeout         time.Duration
 	MaxConcurrentQueries int
+
+	AuthAddr string // e.g. "auth-service:9006"
 
 	// P0-2 修复: TLS 配置
 	TLSEnabled      bool
@@ -132,6 +135,8 @@ type Service struct {
 	stats   Stats
 	statsMu sync.RWMutex
 
+	authenticator *auth.Authenticator
+
 	// P0-2 修复: TLS 凭证
 	grpcCreds credentials.TransportCredentials
 	startTime time.Time
@@ -162,6 +167,17 @@ func New(config *Config) (*Service, error) {
 		s.grpcCreds, err = tlsutil.ServerCredentials(tlsCfg)
 		if err != nil {
 			return nil, fmt.Errorf("TLS credentials init failed: %w", err)
+		}
+	}
+
+	// 初始化认证器
+	if config.AuthAddr != "" {
+		var err error
+		s.authenticator, err = auth.NewAuthenticator(auth.Config{
+			AuthAddr: config.AuthAddr,
+		})
+		if err != nil {
+			fmt.Printf("Auth init failed: %v", err)
 		}
 	}
 
@@ -321,6 +337,10 @@ func (s *Service) Stop() {
 	if s.tsDB != nil {
 		s.tsDB.Close()
 	}
+
+	if s.authenticator != nil {
+		s.authenticator.Close()
+	}
 }
 
 // QueryFlows 查询 Flow
@@ -331,6 +351,10 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
+	if req.TenantId == "" {
+		return nil, fmt.Errorf("tenant_id is required")
+	}
+
 	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
@@ -339,10 +363,8 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 	query := "SELECT * FROM ebpf_events WHERE 1=1"
 	args := []interface{}{}
 
-	if req.TenantId != "" {
-		query += " AND tenant_id = ?"
-		args = append(args, req.TenantId)
-	}
+	query += " AND tenant_id = ?"
+	args = append(args, req.TenantId)
 	if req.StartTime > 0 {
 		query += " AND timestamp >= ?"
 		args = append(args, req.StartTime)
@@ -425,6 +447,10 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
+	if req.TenantId == "" {
+		return nil, fmt.Errorf("tenant_id is required")
+	}
+
 	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
@@ -433,10 +459,8 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 	query := "SELECT * FROM ebpf_events WHERE 1=1"
 	args := []interface{}{}
 
-	if req.TenantId != "" {
-		query += " AND tenant_id = ?"
-		args = append(args, req.TenantId)
-	}
+	query += " AND tenant_id = ?"
+	args = append(args, req.TenantId)
 	if req.StartTime > 0 {
 		query += " AND timestamp >= ?"
 		args = append(args, req.StartTime)
@@ -511,6 +535,10 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
+	if req.TenantId == "" {
+		return nil, fmt.Errorf("tenant_id is required")
+	}
+
 	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
@@ -519,10 +547,8 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 	query := "SELECT * FROM traces WHERE 1=1"
 	args := []interface{}{}
 
-	if req.TenantId != "" {
-		query += " AND tenant_id = ?"
-		args = append(args, req.TenantId)
-	}
+	query += " AND tenant_id = ?"
+	args = append(args, req.TenantId)
 	if req.StartTime > 0 {
 		query += " AND timestamp >= ?"
 		args = append(args, req.StartTime)
@@ -596,6 +622,10 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
+	if req.TenantId == "" {
+		return nil, fmt.Errorf("tenant_id is required")
+	}
+
 	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
@@ -649,12 +679,8 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 	}
 
 	// 添加过滤条件
-	filterQuery := ""
-	filterArgs := []interface{}{}
-	if req.TenantId != "" {
-		filterQuery += " AND tenant_id = ?"
-		filterArgs = append(filterArgs, req.TenantId)
-	}
+	filterQuery := " AND tenant_id = ?"
+	filterArgs := []interface{}{req.TenantId}
 	if req.StartTime > 0 {
 		filterQuery += " AND timestamp >= ?"
 		filterArgs = append(filterArgs, req.StartTime)
@@ -879,6 +905,22 @@ func (s *Service) GetOTLPStats(ctx context.Context, req *svcproto.HealthCheckReq
 	}, nil
 }
 
+
+// extractTenantID 从 HTTP 请求中提取租户 ID
+func (s *Service) extractTenantID(r *http.Request) (string, error) {
+	if s.authenticator == nil {
+		return "", fmt.Errorf("auth not configured")
+	}
+	result, err := s.authenticator.ValidateRequest(r)
+	if err != nil {
+		return "", fmt.Errorf("auth failed: %w", err)
+	}
+	if !result.Valid {
+		return "", fmt.Errorf("invalid token")
+	}
+	return result.TenantID, nil
+}
+
 // HTTP Handlers
 
 func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
@@ -887,6 +929,11 @@ func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
+	_, err := s.extractTenantID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 	ctx := r.Context()
 
 	if s.tsDB == nil {
@@ -988,8 +1035,13 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) metricsHandler(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := s.extractTenantID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 	req := &svcproto.QueryFlowRequest{
-		TenantId:  r.URL.Query().Get("tenant_id"),
+		TenantId:  tenantID,
 		StartTime: parseInt64(r.URL.Query().Get("start_time")),
 		EndTime:   parseInt64(r.URL.Query().Get("end_time")),
 		Namespace: r.URL.Query().Get("namespace"),
@@ -1005,8 +1057,13 @@ func (s *Service) metricsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) flowsHandler(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := s.extractTenantID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 	req := &svcproto.QueryFlowRequest{
-		TenantId:  r.URL.Query().Get("tenant_id"),
+		TenantId:  tenantID,
 		StartTime: parseInt64(r.URL.Query().Get("start_time")),
 		EndTime:   parseInt64(r.URL.Query().Get("end_time")),
 		SrcIp:     r.URL.Query().Get("src_ip"),
@@ -1024,8 +1081,13 @@ func (s *Service) flowsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) tracesHandler(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := s.extractTenantID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 	req := &svcproto.QueryFlowRequest{
-		TenantId:  r.URL.Query().Get("tenant_id"),
+		TenantId:  tenantID,
 		StartTime: parseInt64(r.URL.Query().Get("start_time")),
 		EndTime:   parseInt64(r.URL.Query().Get("end_time")),
 		Namespace: r.URL.Query().Get("namespace"),

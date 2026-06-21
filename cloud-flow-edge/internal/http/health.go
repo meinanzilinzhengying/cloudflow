@@ -57,11 +57,14 @@ type Server struct {
 	server *http.Server
 }
 
-func StartHealthServer(addr string, handler *HealthHandler) *Server {
+func StartHealthServer(addr string, handler *HealthHandler, ingestHandler *IngestHandler) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handler.HandleHealth)
 	mux.HandleFunc("/ready", handler.HandleHealth)
 	mux.HandleFunc("/live", handler.HandleHealth)
+	if ingestHandler != nil {
+		mux.HandleFunc("/api/v1/ingest", ingestHandler.HandleIngest)
+	}
 
 	server := &http.Server{
 		Addr:    addr,

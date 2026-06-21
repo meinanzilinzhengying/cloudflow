@@ -19,6 +19,7 @@ import random
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import redis
+from quota import QuotaManager
 from clickhouse_driver import Client
 from clickhouse_driver.errors import NetworkError, SocketTimeoutError, ServerException
 
@@ -154,6 +155,7 @@ class DataIngestService:
         self._backup_lock = threading.Lock()
         self._backup_file = None
         self._backup_size = 0
+        self.quota_manager = QuotaManager()
         os.makedirs(REDIS_BACKUP_DIR, exist_ok=True)
 
     def _init_redis(self):
@@ -247,8 +249,19 @@ class DataIngestService:
                 continue
 
             # 补充 tenant_id 默认值
-            if not ev.get("tenant_id"):
+            tenant_id = ev.get("tenant_id", "default")
+            if not tenant_id:
                 ev["tenant_id"] = "default"
+                tenant_id = "default"
+
+            # Check tenant quota
+            if self.quota_manager.is_disabled(tenant_id):
+                logger.warning(f"Tenant {tenant_id} is disabled, dropping events")
+                return False
+            if not self.quota_manager.check_event_rate(tenant_id):
+                logger.warning(f"Tenant {tenant_id} rate limit exceeded")
+                EVENTS_DROPPED_TOTAL.labels(reason="quota_exceeded").inc()
+                continue
 
             filtered.append(ev)
             EVENTS_INGESTED_TOTAL.labels(
@@ -433,6 +446,10 @@ class DataIngestService:
                         tenant_id=ev.get("tenant_id", "default"),
                         status="success"
                     ).inc()
+                # Track storage usage
+                for ev in events:
+                    tenant_id = ev.get("tenant_id", "default")
+                    self.quota_manager.add_storage_usage(tenant_id, len(json.dumps(ev)))
                 logger.info(f"Flushed {len(events)} events to ClickHouse in {duration:.3f}s")
             else:
                 FLUSH_DURATION.labels(status="failure").observe(duration)

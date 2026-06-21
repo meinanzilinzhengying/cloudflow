@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/meinanzilinzhengying/cloudflow/edge/internal/forwarder"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/localcache"
 	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
 	edge "github.com/meinanzilinzhengying/cloudflow/proto"
@@ -67,6 +66,13 @@ func DefaultConfig() Config {
 	}
 }
 
+// ForwardClient 转发客户端接口（避免循环导入）
+type ForwardClient interface {
+	ForwardMetrics(batch *edge.MetricsBatch) error
+	ForwardTraces(batch *edge.TraceBatch) error
+	ForwardProfiling(batch *edge.ProfilingBatch) error
+}
+
 // Resender 续传管理器
 type Resender struct {
 	config Config
@@ -74,7 +80,7 @@ type Resender struct {
 
 	// 依赖组件
 	cache  *localcache.Cache
-	client forwarder.ForwardClient
+	client ForwardClient
 
 	// 网络状态
 	status    NetworkStatus
@@ -100,7 +106,7 @@ type Resender struct {
 }
 
 // NewResender 创建续传管理器
-func NewResender(cfg Config, cache *localcache.Cache, client forwarder.ForwardClient, log *logger.Logger) *Resender {
+func NewResender(cfg Config, cache *localcache.Cache, client ForwardClient, log *logger.Logger) *Resender {
 	if cfg.CheckInterval == 0 {
 		cfg = DefaultConfig()
 	}
@@ -138,7 +144,7 @@ func (r *Resender) Stop() {
 }
 
 // SetClient 更新转发客户端
-func (r *Resender) SetClient(client forwarder.ForwardClient) {
+func (r *Resender) SetClient(client ForwardClient) {
 	r.client = client
 }
 
