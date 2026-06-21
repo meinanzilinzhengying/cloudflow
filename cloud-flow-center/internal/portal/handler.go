@@ -2892,9 +2892,70 @@ func (s *Server) handleIpAddresses(w http.ResponseWriter, r *http.Request) {
 
 // handleTopology 拓扑图数据（GET /api/topology）
 func (s *Server) handleTopology(w http.ResponseWriter, r *http.Request) {
+	if s.store == nil {
+		s.writeJSONWithStatus(w, r, http.StatusServiceUnavailable, map[string]interface{}{"success": false, "message": "存储服务不可用"})
+		return
+	}
+	nodes, err := s.store.GetNodes()
+	if err != nil {
+		s.writeJSONWithStatus(w, r, http.StatusInternalServerError, map[string]interface{}{"success": false, "message": err.Error()})
+		return
+	}
+
+	var topologyNodes []map[string]interface{}
+	var topologyLinks []map[string]interface{}
+
+	// Gateway
+	topologyNodes = append(topologyNodes, map[string]interface{}{
+		"name":   "Gateway",
+		"value":  10,
+		"symbolSize": 40,
+		"category": 0,
+		"itemStyle": map[string]interface{}{"color": "#0ABAFF"},
+	})
+	// Load Balancer
+	topologyNodes = append(topologyNodes, map[string]interface{}{
+		"name":   "LB",
+		"value":  10,
+		"symbolSize": 35,
+		"category": 1,
+		"itemStyle": map[string]interface{}{"color": "#61DDAA"},
+	})
+	// Gateway -> LB
+	topologyLinks = append(topologyLinks, map[string]interface{}{
+		"source": "Gateway", "target": "LB",
+	})
+
+	for i, n := range nodes {
+		name, _ := n["hostname"].(string)
+		if name == "" {
+			name, _ = n["edge_node_id"].(string)
+		}
+		if name == "" {
+			name = fmt.Sprintf("node-%d", i)
+		}
+		status, _ := n["status"].(string)
+		color := "#61DDAA"
+		if status == "unhealthy" || status == "abnormal" {
+			color = "#FF745A"
+		}
+		topologyNodes = append(topologyNodes, map[string]interface{}{
+			"name":   name,
+			"value":  10,
+			"symbolSize": 25,
+			"category": 2,
+			"itemStyle": map[string]interface{}{"color": color},
+			"label":  map[string]interface{}{"show": true, "color": "#fff"},
+		})
+		// LB -> Node
+		topologyLinks = append(topologyLinks, map[string]interface{}{
+			"source": "LB", "target": name,
+		})
+	}
+
 	s.writeJSON(w, r, successResponse(map[string]interface{}{
-		"nodes": []map[string]interface{}{},
-		"edges": []map[string]interface{}{},
+		"nodes": topologyNodes,
+		"links": topologyLinks,
 	}, "获取拓扑数据成功"))
 }
 
