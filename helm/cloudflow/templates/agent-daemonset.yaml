@@ -1,0 +1,78 @@
+{{- if .Values.agent.enabled }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "cloudflow.agent.name" . }}
+  namespace: {{ include "cloudflow.namespace" . }}
+  labels:
+    app: {{ include "cloudflow.agent.name" . }}
+    {{- include "cloudflow.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "cloudflow.agent.name" . }}
+  {{- with .Values.agent.daemonset.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "cloudflow.agent.name" . }}
+        {{- include "cloudflow.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.agent.config.metricsPort }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "cloudflow.serviceAccountName" . }}
+      {{- if .Values.agent.priorityClassName }}
+      priorityClassName: {{ .Values.agent.priorityClassName }}
+      {{- end }}
+      {{- if .Values.agent.hostNetwork }}
+      hostNetwork: true
+      {{- end }}
+      {{- if .Values.agent.hostPID }}
+      hostPID: true
+      {{- end }}
+      {{- if .Values.agent.dnsPolicy }}
+      dnsPolicy: {{ .Values.agent.dnsPolicy }}
+      {{- end }}
+      {{- with .Values.agent.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Always
+      containers:
+        - name: agent
+          image: {{ include "cloudflow.image" (dict "image" .Values.agent.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
+          {{- if .Values.agent.securityContext }}
+          securityContext:
+            {{- toYaml .Values.agent.securityContext | nindent 12 }}
+          {{- end }}
+          env:
+            - name: PROBE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.agent.config.metricsPort }}
+            - name: health
+              containerPort: {{ .Values.agent.config.healthPort }}
+          resources:
+            {{- toYaml .Values.agent.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflow
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
+            - name: proc
+              mount

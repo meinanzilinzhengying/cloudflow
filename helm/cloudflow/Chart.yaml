@@ -1,0 +1,17 @@
+apiVersion: v2
+name: cloudflow
+description: CloudFlow 云原生可观测平台 Helm Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - observability
+  - monitoring
+  - ebpf
+  - cloud-native
+  - APM
+sources:
+  - https://github.com/meinanzilinzhengying/cloudflow
+maintainers:
+  - name: CloudFlow Team
+    email: team@cloudflow.io

@@ -1,0 +1,216 @@
+# CloudFlow 全局配置
+# P23: 所有参数可配置，无需修改模板
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  namespace: cloudflow
+  labels:
+    app.kubernetes.io/part-of: cloudflow
+    app.kubernetes.io/managed-by: helm
+
+center:
+  enabled: true
+  replicaCount: 2
+  image:
+    registry: ""
+    repository: cloudflow/center
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    httpPort: 8080
+    grpcPort: 9090
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  livenessProbe:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 5
+  env:
+    LOG_LEVEL: "info"
+
+edge:
+  enabled: true
+  replicaCount: 3
+  image:
+    registry: ""
+    repository: cloudflow/edge
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    grpcPort: 50051
+    metricsPort: 9092
+    healthPort: 8081
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 2
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+  env:
+    BATCH_SIZE: "5000"
+    FLUSH_INTERVAL: "1"
+    LOG_LEVEL: "info"
+
+agent:
+  enabled: true
+  daemonset:
+    enabled: true
+    updateStrategy:
+      type: RollingUpdate
+      maxUnavailable: 1
+  image:
+    registry: ""
+    repository: cloudflow/agent
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+  securityContext:
+    privileged: true
+    capabilities:
+      add:
+        - SYS_ADMIN
+        - NET_ADMIN
+        - SYS_RESOURCE
+        - IPC_LOCK
+        - SYS_PTRACE
+  hostNetwork: true
+  hostPID: true
+  dnsPolicy: ClusterFirstWithHostNet
+  priorityClassName: system-node-critical
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoSchedule
+  config:
+    edgeAddr: "cloudflow-edge.cloudflow.svc.cluster.local:50051"
+    metricsPort: "9090"
+    collectInterval: 10
+    batchSize: 10
+    ebpf:
+      enabled: true
+      maxCpuCore: 1.0
+      maxMemoryMB: 1024
+
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    registry: ""
+    repository: cloudflow/frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: cloudflow.local
+        paths:
+          - path: /
+            pathType: Prefix
+
+config:
+  logLevel: info
+  database:
+    type: mysql
+    host: mysql
+    port: 3306
+    user: root
+    database: cloudflow
+  timeseries:
+    type: clickhouse
+    host: clickhouse
+    port: 9000
+  redis:
+    host: redis
+    port: 6379
+  etcd:
+    endpoints:
+      - http://etcd:2379
+  cors:
+    allowedOrigins:
+      - http://localhost:3000
+
+secrets:
+  jwtSecret: "change-this-in-production"
+  mysqlPassword: "change-me-in-production"
+  clickhousePassword: "change-me-in-production"
+  redisPassword: ""
+
+rbac:
+  create: true
+  clusterRole:
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "services", "endpoints", "namespaces", "nodes"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["apps"]
+        resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["batch"]
+        resources: ["jobs", "cronjobs"]
+        verbs: ["get", "list", "watch"]
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: cloudflow.local
+      paths:
+        - path: /api
+          pathType: Prefix
+  tls:
+    enabled: false
+    secretName: cloudflow-tls
+
+clickhouse:
+  enabled: false
+redis:
+  enabled: false
+etcd:
+  enabled: false
+mysql:
+  enabled: false
+grafana:
+  enabled: false

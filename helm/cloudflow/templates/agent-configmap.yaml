@@ -1,0 +1,51 @@
+{{- if .Values.agent.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cloudflow.agent.name" . }}-config
+  namespace: {{ include "cloudflow.namespace" . }}
+  labels:
+    app: {{ include "cloudflow.agent.name" . }}
+    {{- include "cloudflow.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    probe_id: ""
+    edge_addr: {{ .Values.agent.config.edgeAddr | quote }}
+    metrics_port: {{ .Values.agent.config.metricsPort | quote }}
+    health_port: {{ .Values.agent.config.healthPort | quote }}
+    collect_interval: {{ .Values.agent.config.collectInterval }}
+    batch_size: {{ .Values.agent.config.batchSize }}
+    kubernetes:
+      enabled: true
+      connect_mode: "in-cluster"
+      exclude_namespaces: ["kube-system", "kube-public", "kube-node-lease"]
+      collect_pods: true
+      collect_services: true
+      collect_deployments: true
+      collect_statefulsets: true
+      collect_daemonsets: true
+      collect_jobs: true
+      collect_cronjobs: true
+      collect_namespaces: true
+    ebpf:
+      enabled: {{ .Values.agent.config.ebpf.enabled }}
+      tcp_metrics:
+        enabled: true
+      http_metrics:
+        enabled: true
+      resource_limit:
+        enabled: true
+        max_cpu_core: {{ .Values.agent.config.ebpf.maxCpuCore }}
+        max_memory_mb: {{ .Values.agent.config.ebpf.maxMemoryMB }}
+        max_goroutines: {{ .Values.agent.config.ebpf.maxGoroutines }}
+        use_cgroup: {{ .Values.agent.config.ebpf.useCgroup }}
+      self_monitor:
+        enabled: true
+        collect_interval: {{ .Values.agent.config.selfMonitor.collectInterval | quote }}
+        report_interval: {{ .Values.agent.config.selfMonitor.reportInterval | quote }}
+        heartbeat_timeout: {{ .Values.agent.config.selfMonitor.heartbeatTimeout | quote }}
+        alert_heartbeat_fail_count: {{ .Values.agent.config.selfMonitor.alertHeartbeatFailCount }}
+        alert_cpu_percent: {{ .Values.agent.config.selfMonitor.alertCpuPercent }}
+        alert_memory_percent: {{ .Values.agent.config.selfMonitor.alertMemoryPercent }}
+{{- end }}
