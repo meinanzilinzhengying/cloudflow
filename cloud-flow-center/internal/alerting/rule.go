@@ -49,6 +49,13 @@ const (
 	RuleTypeNetwork RuleType = "network"
 	RuleTypeDisk    RuleType = "disk"
 	RuleTypeTraffic RuleType = "traffic"
+
+	// P2 新增: 兼容旧测试的额外类型
+	RuleTypeMetric    RuleType = "metric"
+	RuleTypeTrace     RuleType = "trace"
+	RuleTypeProfiling RuleType = "profiling"
+	RuleTypeSystem    RuleType = "system"
+	RuleTypeCustom    RuleType = "custom"
 )
 
 type ConditionOperator string
@@ -62,6 +69,16 @@ const (
 	OperatorNotEqual       ConditionOperator = "!="
 )
 
+// P2 新增: 兼容旧测试的 ConditionOperator 别名
+const (
+	OpGreaterThan         ConditionOperator = ">"
+	OpLessThan            ConditionOperator = "<"
+	OpEqual               ConditionOperator = "=="
+	OpNotEqual            ConditionOperator = "!="
+	OpGreaterThanOrEqual  ConditionOperator = ">="
+	OpLessThanOrEqual     ConditionOperator = "<="
+)
+
 // Rule 告警规则
 type Rule struct {
 	ID               string            `json:"id"`
@@ -70,6 +87,7 @@ type Rule struct {
 	Type             RuleType          `json:"type"`
 	Enabled          bool              `json:"enabled"`
 	Condition        Condition         `json:"condition"`
+	Conditions       []Condition       `json:"conditions,omitempty"`  // P2: backward compatible
 	Threshold        float64           `json:"threshold"`
 	Duration         Duration          `json:"duration"`
 	Severity         string            `json:"severity"`
@@ -84,6 +102,7 @@ type Condition struct {
 	Metric    string            `json:"metric"`
 	Operator  ConditionOperator `json:"operator"`
 	Threshold float64           `json:"threshold"`
+	Duration  Duration          `json:"duration,omitempty"`  // P2: backward compatible
 }
 
 // RuleManager 规则管理器
@@ -95,13 +114,15 @@ type RuleManager struct {
 	stopped  bool
 }
 
-// NewRuleManager 创建规则管理器
+// NewRuleManager 创建规则管理器（自动加载已有规则）
 func NewRuleManager(ruleDir string, log *logger.Logger) *RuleManager {
-	return &RuleManager{
+	rm := &RuleManager{
 		rules:   make(map[string]*Rule),
 		ruleDir: ruleDir,
 		logger:  log,
 	}
+	_ = rm.LoadRules()
+	return rm
 }
 
 // LoadRules 从目录加载规则
@@ -115,37 +136,39 @@ func (rm *RuleManager) LoadRules() error {
 		return fmt.Errorf("读取规则目录失败: %w", err)
 	}
 
-	if len(files) == 0 {
-		rm.logger.Info("未找到规则文件，创建默认规则")
-		rm.createDefaultRules()
-		return nil
-	}
-
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
 	for _, file := range files {
 		data, err := os.ReadFile(file)
 		if err != nil {
-			rm.logger.Warnf("读取规则文件失败 %s: %v", file, err)
+			if rm.logger != nil {
+				rm.logger.Warnf("读取规则文件失败 %s: %v", file, err)
+			}
 			continue
 		}
 
 		var rule Rule
 		if err := json.Unmarshal(data, &rule); err != nil {
-			rm.logger.Warnf("解析规则文件失败 %s: %v", file, err)
+			if rm.logger != nil {
+				rm.logger.Warnf("解析规则文件失败 %s: %v", file, err)
+			}
 			continue
 		}
 
 		if rule.ID == "" {
-			rm.logger.Warnf("规则文件 %s 缺少 ID，跳过", file)
+			if rm.logger != nil {
+				rm.logger.Warnf("规则文件 %s 缺少 ID，跳过", file)
+			}
 			continue
 		}
 
 		rm.rules[rule.ID] = &rule
 	}
 
-	rm.logger.Infof("加载了 %d 条规则", len(rm.rules))
+	if rm.logger != nil {
+		rm.logger.Infof("加载了 %d 条规则", len(rm.rules))
+	}
 	return nil
 }
 
@@ -188,6 +211,9 @@ func (rm *RuleManager) createDefaultRules() {
 
 // SaveRule 保存规则到文件
 func (rm *RuleManager) SaveRule(rule *Rule) error {
+	if rule.ID == "" {
+		rule.ID = fmt.Sprintf("rule-%d", time.Now().UnixNano())
+	}
 	rm.mu.Lock()
 	rm.rules[rule.ID] = rule
 	rm.mu.Unlock()
