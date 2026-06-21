@@ -88,6 +88,7 @@ type Resender struct {
 
 	// 控制信号
 	stopCh chan struct{}
+	stopOnce sync.Once
 	wg     sync.WaitGroup
 
 	// 续传控制
@@ -130,7 +131,7 @@ func (r *Resender) Start() {
 
 // Stop 停止续传管理器
 func (r *Resender) Stop() {
-	close(r.stopCh)
+	r.stopOnce.Do(func() { close(r.stopCh) })
 
 	// 取消正在进行的续传
 	r.resendMu.Lock()

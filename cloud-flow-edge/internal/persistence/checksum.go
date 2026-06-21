@@ -93,13 +93,13 @@ func backupCorruptedFile(path string) {
 
 // saveWithChecksum 保存数据带校验和
 func (p *Persistence) saveWithChecksum(key string, data []byte) error {
-	path := filepath.Join(p.config.DataDir, key+".dat")
+	path := filepath.Join(p.walDir, key+".dat")
 	return WriteWithChecksum(path, data)
 }
 
 // loadWithChecksum 加载数据并验证校验和
 func (p *Persistence) loadWithChecksum(key string) ([]byte, error) {
-	path := filepath.Join(p.config.DataDir, key+".dat")
+	path := filepath.Join(p.walDir, key+".dat")
 	return ReadWithChecksum(path)
 }
 
@@ -115,7 +115,7 @@ type ChecksumStats struct {
 func (p *Persistence) GetChecksumStats() (*ChecksumStats, error) {
 	stats := &ChecksumStats{}
 
-	files, err := os.ReadDir(p.config.DataDir)
+	files, err := os.ReadDir(p.walDir)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (p *Persistence) GetChecksumStats() (*ChecksumStats, error) {
 
 		stats.TotalFiles++
 
-		path := filepath.Join(p.config.DataDir, file.Name())
+		path := filepath.Join(p.walDir, file.Name())
 		info, err := file.Info()
 		if err == nil {
 			stats.TotalBytes += info.Size()

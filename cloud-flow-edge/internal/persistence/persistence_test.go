@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/testutil"
 	edge "github.com/meinanzilinzhengying/cloudflow/proto"

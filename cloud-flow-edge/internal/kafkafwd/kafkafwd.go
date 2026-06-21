@@ -22,7 +22,7 @@ type Serializer interface {
 
 // KafkaForwarder Kafka 转发器
 type KafkaForwarder struct {
-	producer  *sarama.AsyncProducer
+	producer  sarama.AsyncProducer
 	serializer Serializer
 	logger     Logger
 
@@ -66,14 +66,14 @@ func New(kafkaBrokers []string, serializer Serializer, logger Logger) (*KafkaFor
 	cfg.Producer.RequiredAcks = sarama.WaitForLocal
 	cfg.Producer.Retry.Max = 5
 	cfg.Producer.Retry.Backoff = 100 * time.Millisecond
-	cfg.Producer.Retry.BackoffMax = 2 * time.Second
+	
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Return.Errors = true
 	cfg.Producer.MaxMessageBytes = 4 * 1024 * 1024
 	cfg.Producer.Flush.Bytes = 1 << 16       // 64KB
 	cfg.Producer.Flush.Frequency = 5 * time.Millisecond
 	cfg.Producer.Flush.Messages = 500
-	cfg.Producer.BufferMemory = 128 * 1024 * 1024 // 128MB
+	
 	cfg.Producer.Idempotent = true
 	cfg.Producer.Compression = sarama.CompressionSnappy
 	cfg.ChannelBufferSize = 16384

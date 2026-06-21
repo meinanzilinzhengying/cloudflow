@@ -9,6 +9,7 @@ package forwarder
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"time"
 
@@ -40,6 +41,8 @@ type MetricsSink interface {
 	RecordMetricsDropped(count int, reason string)
 	RecordTracesDropped(count int, reason string)
 	RecordProfilingDropped(count int, reason string)
+	// P0-16: 添加内存监控
+	UpdateMemoryStats()
 }
 
 // noopMetrics 空实现，不产生依赖
@@ -55,6 +58,7 @@ func (noopMetrics) UpdateProfilingBufSize(int)         {}
 func (noopMetrics) RecordMetricsDropped(int, string)   {} // M5
 func (noopMetrics) RecordTracesDropped(int, string)    {} // M5
 func (noopMetrics) RecordProfilingDropped(int, string) {} // M5
+func (noopMetrics) UpdateMemoryStats() {} // P0-16
 
 const (
 	// 默认缓冲区上限（条目数），超过时丢弃最旧数据以防止 OOM
@@ -96,7 +100,7 @@ type Forwarder struct {
 	stopped       bool           // 停止状态
 	stopMu        sync.Mutex     // 停止操作的互斥锁
 	clientMu      sync.Mutex     // 客户端更新的互斥锁
-	configMu      sync.Mutex     // 配置更新的互斥锁
+	configMu      sync.RWMutex   // 配置更新的互斥锁
 
 	// UpdateConfig 防抖
 	configDebounceTimer *time.Timer // 防抖定时器
@@ -105,6 +109,9 @@ type Forwarder struct {
 	// 网络状态
 	networkOnline bool
 	networkMu     sync.RWMutex
+
+	// P0-16: 内存限制（MB），超过时主动丢弃数据
+	memoryLimitMB uint64
 }
 
 // NewForwarder 创建数据转发器
@@ -146,6 +153,8 @@ func NewForwarder(client ForwardClient, batchSize, flushIntervalSec, maxBufferLi
 		maxBufLimit:   maxBufferLimit,
 		stopCh:        make(chan struct{}),
 		networkOnline: true,
+		// P0-16: 默认内存限制 512MB，超过时主动丢弃数据
+		memoryLimitMB: 512,
 	}
 
 	// 初始化续传管理器
@@ -183,14 +192,32 @@ func (f *Forwarder) SetMetrics(m MetricsSink) {
 	f.metrics = m
 }
 
+// checkMemory 检查内存使用是否超过限制（P0-16）
+func (f *Forwarder) checkMemory() bool {
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	allocMB := memStats.Alloc / 1024 / 1024
+	if allocMB > f.memoryLimitMB {
+		f.logger.Warnf("[P0-16] 内存使用 %d MB 超过限制 %d MB，将丢弃数据以防止 OOM", allocMB, f.memoryLimitMB)
+		return false
+	}
+	return true
+}
+
 // AddMetrics 添加指标数据到缓冲区
-// 如果缓冲区超过上限，丢弃最旧的数据防止 OOM
+// 如果缓冲区超过上限或内存超限，丢弃最旧的数据防止 OOM
 func (f *Forwarder) AddMetrics(batch *edge.MetricsBatch) {
 	f.stopMu.Lock()
 	stopped := f.stopped
 	f.stopMu.Unlock()
 	if stopped {
 		f.logger.Warn("[forwarder] 转发器已停止，丢弃指标数据")
+		return
+	}
+
+	// P0-16: 内存限制检查
+	if !f.checkMemory() {
+		f.metrics.RecordMetricsDropped(len(batch.Metrics), "memory_limit")
 		return
 	}
 
@@ -211,6 +238,9 @@ func (f *Forwarder) AddMetrics(batch *edge.MetricsBatch) {
 	shouldFlush := len(f.metricsBuf) >= f.batchSize
 	size := len(f.metricsBuf)
 	f.muMetrics.Unlock()
+
+	// P0-16: 更新内存监控指标
+	f.metrics.UpdateMemoryStats()
 
 	// 持久化数据
 	if f.persistence != nil {
@@ -236,6 +266,12 @@ func (f *Forwarder) AddTraces(batch *edge.TraceBatch) {
 		return
 	}
 
+	// P0-16: 内存限制检查
+	if !f.checkMemory() {
+		f.metrics.RecordTracesDropped(len(batch.Spans), "memory_limit")
+		return
+	}
+
 	f.muTraces.Lock()
 	f.tracesBuf = append(f.tracesBuf, batch)
 	// M5 修复: 统一丢弃策略，与 Agent 一致（保留最新 batchSize 条）
@@ -252,6 +288,9 @@ func (f *Forwarder) AddTraces(batch *edge.TraceBatch) {
 	shouldFlush := len(f.tracesBuf) >= f.batchSize
 	size := len(f.tracesBuf)
 	f.muTraces.Unlock()
+
+	// P0-16: 更新内存监控指标
+	f.metrics.UpdateMemoryStats()
 
 	// 持久化数据
 	if f.persistence != nil {
@@ -277,6 +316,12 @@ func (f *Forwarder) AddProfiling(batch *edge.ProfilingBatch) {
 		return
 	}
 
+	// P0-16: 内存限制检查
+	if !f.checkMemory() {
+		f.metrics.RecordProfilingDropped(len(batch.Profiles), "memory_limit")
+		return
+	}
+
 	f.muProfiling.Lock()
 	f.profilingBuf = append(f.profilingBuf, batch)
 	// M5 修复: 统一丢弃策略，与 Agent 一致（保留最新 batchSize 条）
@@ -293,6 +338,9 @@ func (f *Forwarder) AddProfiling(batch *edge.ProfilingBatch) {
 	shouldFlush := len(f.profilingBuf) >= f.batchSize
 	size := len(f.profilingBuf)
 	f.muProfiling.Unlock()
+
+	// P0-16: 更新内存监控指标
+	f.metrics.UpdateMemoryStats()
 
 	// 持久化数据
 	if f.persistence != nil {
@@ -344,10 +392,12 @@ const flushTimeout = 30 * time.Second
 // Stop 停止转发器，刷新剩余数据
 func (f *Forwarder) Stop() {
 	f.stopMu.Lock()
-	if !f.stopped {
-		close(f.stopCh)
-		f.stopped = true
+	if f.stopped {
+		f.stopMu.Unlock()
+		return
 	}
+	close(f.stopCh)
+	f.stopped = true
 	f.stopMu.Unlock()
 
 	// 停止续传管理器

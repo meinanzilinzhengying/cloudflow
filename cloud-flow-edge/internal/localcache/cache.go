@@ -143,6 +143,7 @@ type Cache struct {
 
 	// 清理控制
 	stopCh chan struct{}
+	stopOnce sync.Once
 	wg     sync.WaitGroup
 }
 
@@ -193,7 +194,7 @@ func NewCache(cfg Config, log *logger.Logger) (*Cache, error) {
 
 // Close 关闭缓存
 func (c *Cache) Close() error {
-	close(c.stopCh)
+	c.stopOnce.Do(func() { close(c.stopCh) })
 	c.wg.Wait()
 	c.logger.Info("[localcache] 本地磁盘缓存已关闭")
 	return nil

@@ -4,6 +4,7 @@ package metrics
 import (
 	"fmt"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -39,6 +40,12 @@ type Metrics struct {
 	ProbesOnline        prometheus.Gauge
 	HeartbeatsTotal     prometheus.Counter
 	HeartbeatErrorsTotal prometheus.Counter
+
+	// 内存指标
+	memoryAllocBytes    prometheus.Gauge
+	memorySysBytes      prometheus.Gauge
+	memoryHeapAllocBytes prometheus.Gauge
+	dataDroppedCount    prometheus.Counter
 
 	// 注册中心
 	registry            *prometheus.Registry
@@ -128,6 +135,24 @@ func New(log *logger.Logger) *Metrics {
 			Name: "cloud_flow_edge_heartbeat_errors_total",
 			Help: "Total number of heartbeat errors",
 		}),
+
+		// P0-16: 内存使用指标
+		memoryAllocBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "cloud_flow_edge_memory_alloc_bytes",
+			Help: "Current allocated memory in bytes",
+		}),
+		memorySysBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "cloud_flow_edge_memory_sys_bytes",
+			Help: "Current system memory in bytes",
+		}),
+		memoryHeapAllocBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "cloud_flow_edge_memory_heap_alloc_bytes",
+			Help: "Current heap allocated memory in bytes",
+		}),
+		dataDroppedCount: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "cloud_flow_edge_data_dropped_total",
+			Help: "Total number of data dropped due to buffer overflow",
+		}),
 	}
 
 	// 注册指标
@@ -148,6 +173,10 @@ func New(log *logger.Logger) *Metrics {
 		m.ProbesOnline,
 		m.HeartbeatsTotal,
 		m.HeartbeatErrorsTotal,
+		m.memoryAllocBytes,
+		m.memorySysBytes,
+		m.memoryHeapAllocBytes,
+		m.dataDroppedCount,
 	)
 
 	// 注册标准指标
@@ -198,6 +227,15 @@ func (m *Metrics) UpdateTracesBufSize(size int) {
 // UpdateProfilingBufSize 更新性能分析缓冲区大小
 func (m *Metrics) UpdateProfilingBufSize(size int) {
 	m.profilingBufSize.Set(float64(size))
+}
+
+// UpdateMemoryStats 更新内存使用统计（P0-16）
+func (m *Metrics) UpdateMemoryStats() {
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	m.memoryAllocBytes.Set(float64(memStats.Alloc))
+	m.memorySysBytes.Set(float64(memStats.Sys))
+	m.memoryHeapAllocBytes.Set(float64(memStats.HeapAlloc))
 }
 
 // UpdateProbeCount 更新探针数量

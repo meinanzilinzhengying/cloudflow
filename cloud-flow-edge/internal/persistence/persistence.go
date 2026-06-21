@@ -3,8 +3,11 @@
 package persistence
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -394,6 +397,20 @@ func (p *Persistence) recoverFromSnapshot() error {
 		return err
 	}
 
+	// P0-16: 如果快照是 gzip 格式，先解压
+	if strings.HasSuffix(latestSnapshot, ".gz") {
+		gzReader, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return fmt.Errorf("创建gzip reader失败: %w", err)
+		}
+		defer gzReader.Close()
+		decompressed, err := io.ReadAll(gzReader)
+		if err != nil {
+			return fmt.Errorf("解压快照失败: %w", err)
+		}
+		data = decompressed
+	}
+
 	// 解析快照
 	var snapshot struct {
 		Metrics   []*edge.MetricsBatch   `json:"metrics"`
@@ -555,15 +572,26 @@ func (p *Persistence) createSnapshot() error {
 		Timestamp: time.Now().Unix(),
 	}
 
-	// 序列化快照
+	// P0-16: 使用 gzip 压缩快照，减少磁盘占用
 	data, err := json.Marshal(snapshot)
 	if err != nil {
 		return fmt.Errorf("序列化快照失败: %w", err)
 	}
 
-	// 写入快照文件
-	filename := filepath.Join(p.snapshotDir, fmt.Sprintf("snapshot_%d.json", time.Now().Unix()))
-	if err := os.WriteFile(filename, data, 0644); err != nil {
+	// gzip 压缩
+	var compressed bytes.Buffer
+	gz := gzip.NewWriter(&compressed)
+	if _, err := gz.Write(data); err != nil {
+		gz.Close()
+		return fmt.Errorf("压缩快照失败: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return fmt.Errorf("关闭gzip writer失败: %w", err)
+	}
+
+	// 写入快照文件（.gz 扩展名）
+	filename := filepath.Join(p.snapshotDir, fmt.Sprintf("snapshot_%d.json.gz", time.Now().Unix()))
+	if err := os.WriteFile(filename, compressed.Bytes(), 0644); err != nil {
 		return fmt.Errorf("写入快照文件失败: %w", err)
 	}
 
