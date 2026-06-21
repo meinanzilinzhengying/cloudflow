@@ -30,6 +30,8 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/security"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
+	"github.com/meinanzilinzhengying/cloudflow/services/auth-service/internal/blacklist"
+	"github.com/go-redis/redis/v8"
 )
 
 // ============================================================================
@@ -179,23 +181,81 @@ type UserInfo struct {
 	UpdatedAt time.Time
 }
 
+// authBlacklistAdapter 将 auth.TokenBlacklist 适配到 security.TokenBlacklist
+// P2-04: 统一黑名单实现，支持 Redis 持久化
+type authBlacklistAdapter struct {
+	bl auth.TokenBlacklist
+}
+
+func (a *authBlacklistAdapter) IsBlacklisted(ctx context.Context, jti string) (bool, error) {
+	return a.bl.IsBlacklisted(ctx, jti)
+}
+
+func (a *authBlacklistAdapter) AddToBlacklist(ctx context.Context, jti string, entry *security.BlacklistEntry) error {
+	ttl := time.Until(entry.ExpiresAt)
+	if ttl <= 0 {
+		return nil
+	}
+	return a.bl.AddToBlacklist(ctx, jti, ttl)
+}
+
+func (a *authBlacklistAdapter) RemoveFromBlacklist(ctx context.Context, jti string) error {
+	return nil
+}
+
+func (a *authBlacklistAdapter) GetBlacklistEntry(ctx context.Context, jti string) (*security.BlacklistEntry, error) {
+	return nil, nil
+}
+
+func (a *authBlacklistAdapter) ClearExpired(ctx context.Context) (int, error) {
+	return 0, nil
+}
+
 // New 创建服务
 func New(config *Config) (*Service, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
 
+	// P2-04: 初始化 Token 黑名单（优先 Redis，回退内存）
+	var tokenBlacklist auth.TokenBlacklist
+	redisAddr := os.Getenv("REDIS_HOST")
+	if redisAddr != "" {
+		redisPort := os.Getenv("REDIS_PORT")
+		if redisPort == "" {
+			redisPort = "6379"
+		}
+		redisClient := redis.NewClient(&redis.Options{
+			Addr:     redisAddr + ":" + redisPort,
+			Password: os.Getenv("REDIS_PASSWORD"),
+			DB:       0,
+		})
+		if err := redisClient.Ping(context.Background()).Err(); err == nil {
+			redisBlacklist := blacklist.NewBlacklist(blacklist.Config{
+				Redis:      redisClient,
+				KeyPrefix:  "jwt:blacklist:",
+				DefaultTTL: time.Duration(config.JWTExpireSec) * time.Second,
+			})
+			tokenBlacklist = redisBlacklist
+		} else {
+			tokenBlacklist = auth.NewInMemoryBlacklist(time.Duration(config.JWTExpireSec) * time.Second)
+		}
+	} else {
+		tokenBlacklist = auth.NewInMemoryBlacklist(time.Duration(config.JWTExpireSec) * time.Second)
+	}
+
 	// 初始化安全管理器
 	secConfig := security.DefaultSecurityConfig()
 	secManager := security.NewSecurityManager(secConfig)
+	secManager.SetBlacklist(&authBlacklistAdapter{bl: tokenBlacklist}) // P2-04: 统一黑名单
 	
-	// 初始化认证器（使用安全管理器的黑名单）
+	// 初始化认证器（使用同一个黑名单）
 	authConfig := &auth.JWTConfig{
 		PrivateKey:      config.JWTSecret,
 		Issuer:          config.JWTIssuer,
 		ExpireDuration:  time.Duration(config.JWTExpireSec) * time.Second,
 		RefreshDuration: time.Duration(config.JWTRefreshSec) * time.Second,
-		Blacklist:       auth.NewInMemoryBlacklist(time.Duration(config.JWTExpireSec) * time.Second),
+		Blacklist:       tokenBlacklist, // P2-04: 使用 Redis 持久化黑名单
 	}
 	
 	authenticator, err := auth.NewAuthenticatorWithConfig(authConfig)

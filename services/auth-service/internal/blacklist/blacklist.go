@@ -63,6 +63,28 @@ func (bl *Blacklist) Add(ctx context.Context, tokenID string, expireAt time.Time
 	return nil
 }
 
+// AddToBlacklist 实现 auth.TokenBlacklist 接口，将 token 加入黑名单（按 TTL）
+// P2-04: 支持按剩余有效期加入黑名单
+func (bl *Blacklist) AddToBlacklist(ctx context.Context, tokenID string, expiry time.Duration) error {
+	key := bl.config.KeyPrefix + tokenID
+	
+	if expiry <= 0 {
+		return nil
+	}
+	
+	// 如果 TTL 超过默认值，使用默认值
+	if expiry > bl.config.DefaultTTL {
+		expiry = bl.config.DefaultTTL
+	}
+	
+	err := bl.config.Redis.Set(ctx, key, "1", expiry).Err()
+	if err != nil {
+		return fmt.Errorf("add to blacklist failed: %w", err)
+	}
+	
+	return nil
+}
+
 // AddWithReason 将 token 加入黑名单并记录原因
 func (bl *Blacklist) AddWithReason(ctx context.Context, tokenID string, expireAt time.Time, reason string) error {
 	key := bl.config.KeyPrefix + tokenID

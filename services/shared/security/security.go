@@ -615,6 +615,11 @@ func (m *SecurityManager) KeyRotation() *KeyRotationManager {
 	return m.keyRotation
 }
 
+// SetBlacklist 设置外部黑名单实现
+func (m *SecurityManager) SetBlacklist(bl TokenBlacklist) {
+	m.blacklist = bl
+}
+
 // RevokeToken 撤销 Token
 func (m *SecurityManager) RevokeToken(ctx context.Context, jti, reason, userID string, expiresAt time.Time) error {
 	if m.blacklist == nil {
