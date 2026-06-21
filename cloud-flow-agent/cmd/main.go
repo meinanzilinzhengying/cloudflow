@@ -15,6 +15,14 @@ import (
 
 var Version = "dev"
 
+// P20: 采集相关常量（替代硬编码魔法数字）
+const (
+	// DefaultCollectInterval 默认采集间隔（秒）
+	DefaultCollectInterval = 30
+	// DefaultShutdownTimeout 默认优雅关闭超时
+	DefaultShutdownTimeout = 30 * time.Second
+)
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -60,14 +68,15 @@ func main() {
 	deps.Logger.Info("探针已安全退出")
 }
 
-// shutdownComponents 关闭所有组件，确保优雅退出
-func shutdownComponents(ctx context.Context, deps *Dependencies) {
-	var wg sync.WaitGroup
+// P20: 将组件定义提取为顶层结构，避免 shutdownComponents 函数过长
+type stoppableComponent struct {
+	name string
+	stop func()
+}
 
-	components := []struct {
-		name string
-		stop func()
-	}{
+// newShutdownComponents 返回所有需要关闭的组件列表
+func newShutdownComponents(deps *Dependencies) []stoppableComponent {
+	return []stoppableComponent{
 		{"NetMonitor", func() {
 			if deps.NetMonitor != nil {
 				deps.NetMonitor.Stop()
@@ -104,7 +113,13 @@ func shutdownComponents(ctx context.Context, deps *Dependencies) {
 			}
 		}},
 	}
+}
 
+// shutdownComponents 关闭所有组件，确保优雅退出
+func shutdownComponents(ctx context.Context, deps *Dependencies) {
+	var wg sync.WaitGroup
+
+	components := newShutdownComponents(deps)
 	for _, c := range components {
 		wg.Add(1)
 		go func(name string, stop func()) {
@@ -113,7 +128,7 @@ func shutdownComponents(ctx context.Context, deps *Dependencies) {
 		}(c.name, c.stop)
 	}
 
-	// 等待所有组件关闭，最多 30 秒
+	// 等待所有组件关闭，最多 DefaultShutdownTimeout
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -128,6 +143,14 @@ func shutdownComponents(ctx context.Context, deps *Dependencies) {
 	}
 }
 
+// P20: 采集间隔解析（从配置读取，未配置则使用默认值）
+func getCollectInterval(cfg *config.Config) time.Duration {
+	if cfg.CollectInterval > 0 {
+		return time.Duration(cfg.CollectInterval) * time.Second
+	}
+	return DefaultCollectInterval * time.Second
+}
+
 // mainLoop 主采集循环
 func mainLoop(ctx context.Context, deps *Dependencies) {
 	defer func() {
@@ -135,9 +158,10 @@ func mainLoop(ctx context.Context, deps *Dependencies) {
 			deps.Logger.Errorf("mainLoop panic: %v", r)
 		}
 	}()
-	deps.Logger.Infof("mainLoop 启动，采集间隔: %ds", 30)
-	heartbeatInterval := 30
-	ticker := time.NewTicker(time.Duration(heartbeatInterval) * time.Second)
+
+	interval := getCollectInterval(deps.Config)
+	deps.Logger.Infof("mainLoop 启动，采集间隔: %v", interval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -153,58 +177,77 @@ func mainLoop(ctx context.Context, deps *Dependencies) {
 }
 
 // collectAndReport 采集并上报数据
+// P20: 将采集、组装、发送逻辑拆分为独立小函数，提高可测试性
 func collectAndReport(ctx context.Context, deps *Dependencies) {
-	// 调试：写入文件确认函数被调用
-	f, _ := os.OpenFile("/tmp/agent-collect.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if f != nil {
-		f.WriteString(fmt.Sprintf("%s: collectAndReport called\n", time.Now().Format("15:04:05")))
-		f.Close()
-	}
 	if deps.Reporter == nil {
 		deps.Logger.Warnf("[采集] Reporter 未初始化，跳过此次采集")
 		return
 	}
 
-	var allMetrics []*edge.MetricData
-
-	// 采集传统指标（CPU、内存、网络、磁盘）
-	if deps.LegacyCollector != nil {
-		metrics, err := deps.LegacyCollector.Collect()
-		if err != nil {
-			deps.Logger.Warnf("[采集] 传统采集失败: %v", err)
-		} else {
-			deps.Logger.Debugf("[采集] 传统采集返回 %d 条指标", len(metrics))
-			if len(metrics) > 0 {
-				allMetrics = append(allMetrics, metrics...)
-			}
-		}
-	}
-
-	// 采集 eBPF 指标
-	if deps.EBPFCollector != nil {
-		ebpfMetrics := deps.EBPFCollector.Collect()
-		if len(ebpfMetrics) > 0 {
-			allMetrics = append(allMetrics, ebpfMetrics...)
-		}
-	}
-
+	allMetrics := collectAllMetrics(ctx, deps)
 	if len(allMetrics) == 0 {
 		deps.Logger.Debug("[采集] 本轮无数据")
 		return
 	}
 
-	// 设置 ProbeId
-	for _, m := range allMetrics {
-		m.ProbeId = deps.Config.ProbeID
+	batch := buildMetricsBatch(deps.Config.ProbeID, allMetrics)
+	sendMetricsBatch(deps, batch)
+}
+
+// collectAllMetrics 采集所有指标（传统 + eBPF）
+func collectAllMetrics(ctx context.Context, deps *Dependencies) []*edge.MetricData {
+	var allMetrics []*edge.MetricData
+
+	// 采集传统指标（CPU、内存、网络、磁盘）
+	if legacyMetrics := collectLegacyMetrics(deps); len(legacyMetrics) > 0 {
+		allMetrics = append(allMetrics, legacyMetrics...)
 	}
 
-	// 创建批次
-	batch := &edge.MetricsBatch{
-		ProbeId: deps.Config.ProbeID,
-		Metrics: allMetrics,
+	// 采集 eBPF 指标
+	if ebpfMetrics := collectEBPFMetrics(deps); len(ebpfMetrics) > 0 {
+		allMetrics = append(allMetrics, ebpfMetrics...)
 	}
 
-	// 通过可靠上报器发送
+	return allMetrics
+}
+
+// collectLegacyMetrics 采集传统指标
+func collectLegacyMetrics(deps *Dependencies) []*edge.MetricData {
+	if deps.LegacyCollector == nil {
+		return nil
+	}
+	metrics, err := deps.LegacyCollector.Collect()
+	if err != nil {
+		deps.Logger.Warnf("[采集] 传统采集失败: %v", err)
+		return nil
+	}
+	deps.Logger.Debugf("[采集] 传统采集返回 %d 条指标", len(metrics))
+	return metrics
+}
+
+// collectEBPFMetrics 采集 eBPF 指标
+func collectEBPFMetrics(deps *Dependencies) []*edge.MetricData {
+	if deps.EBPFCollector == nil {
+		return nil
+	}
+	metrics := deps.EBPFCollector.Collect()
+	deps.Logger.Debugf("[采集] eBPF 采集返回 %d 条指标", len(metrics))
+	return metrics
+}
+
+// buildMetricsBatch 构建指标批次并设置 ProbeId
+func buildMetricsBatch(probeID string, metrics []*edge.MetricData) *edge.MetricsBatch {
+	for _, m := range metrics {
+		m.ProbeId = probeID
+	}
+	return &edge.MetricsBatch{
+		ProbeId: probeID,
+		Metrics: metrics,
+	}
+}
+
+// sendMetricsBatch 发送指标批次
+func sendMetricsBatch(deps *Dependencies, batch *edge.MetricsBatch) {
 	deps.Reporter.Send(batch)
-	deps.Logger.Infof("[上报] 已发送 %d 条指标", len(allMetrics))
+	deps.Logger.Infof("[上报] 已发送 %d 条指标", len(batch.Metrics))
 }
