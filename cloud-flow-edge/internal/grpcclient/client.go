@@ -25,14 +25,14 @@ import (
 )
 
 const (
-	reconnectBaseDelay = 1 * time.Second
-	reconnectMaxDelay  = 30 * time.Second
-	rpcTimeout         = 10 * time.Second
+	DefaultReconnectBaseDelay = 1 * time.Second
+	DefaultReconnectMaxDelay  = 30 * time.Second
+	DefaultRPCTimeout         = 10 * time.Second
 )
 
 // Client 中心服务 gRPC 客户端
 type Client struct {
-	mu     sync.Mutex
+	mu     sync.RWMutex
 	conn   *grpc.ClientConn
 	client edge.CenterServiceClient
 	logger *logger.Logger
@@ -43,26 +43,32 @@ type Client struct {
 	stopped sync.Once
 	watchCtx    context.Context
 	watchCancel context.CancelFunc
+	reconnectBaseDelay time.Duration
+	reconnectMaxDelay  time.Duration
+	rpcTimeout         time.Duration
 }
 
 // NewClient 创建并连接中心服务客户端
-func NewClient(addr string, tlsCfg config.TLSConfig, apiKey string, log *logger.Logger) (*Client, error) {
+func NewClient(addr string, cfg config.Config, log *logger.Logger) (*Client, error) {
 	c := &Client{
 		logger: log,
 		addr:   addr,
-		apiKey: apiKey,
+		apiKey: cfg.CenterAPIKey,
+		reconnectBaseDelay: cfg.ReconnectBaseDelay,
+		reconnectMaxDelay:  cfg.ReconnectMaxDelay,
+		rpcTimeout:         DefaultRPCTimeout,
 		stopCh: make(chan struct{}),
 	}
 	c.watchCtx, c.watchCancel = context.WithCancel(context.Background())
 
 	// 构建连接选项
-	if tlsCfg.Enabled {
-		creds, err := buildClientTLS(tlsCfg, addr)
+	if cfg.TLS.Enabled {
+		creds, err := buildClientTLS(cfg.TLS, addr)
 		if err != nil {
 			return nil, fmt.Errorf("构建 TLS 凭证失败: %w", err)
 		}
 		c.opts = append(c.opts, grpc.WithTransportCredentials(creds))
-		log.Infof("中心服务连接启用 TLS, serverName=%s", tlsCfg.ServerName)
+		log.Infof("中心服务连接启用 TLS, serverName=%s", cfg.TLS.ServerName)
 	} else {
 		c.opts = append(c.opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		log.Warn("中心服务连接未启用 TLS，将使用明文传输")
@@ -88,7 +94,7 @@ func NewClient(addr string, tlsCfg config.TLSConfig, apiKey string, log *logger.
 
 // connect 执行连接（不持有锁）
 func (c *Client) connect() (*grpc.ClientConn, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 	defer cancel()
 
 	dialOpts := append([]grpc.DialOption(nil), c.opts...)
@@ -203,7 +209,15 @@ func (c *Client) watchConnection() {
 
 // reconnectWithBackoff 指数退避重连（无限重试）
 func (c *Client) reconnectWithBackoff() {
-	delay := reconnectBaseDelay
+	baseDelay := c.reconnectBaseDelay
+	if baseDelay <= 0 {
+		baseDelay = DefaultReconnectBaseDelay
+	}
+	maxDelay := c.reconnectMaxDelay
+	if maxDelay <= 0 {
+		maxDelay = DefaultReconnectMaxDelay
+	}
+	delay := baseDelay
 	attempt := 0
 
 	for {
@@ -225,8 +239,8 @@ func (c *Client) reconnectWithBackoff() {
 		if err := c.reconnect(); err != nil {
 			c.logger.Errorf("重连中心服务失败 (第 %d 次): %v", attempt, err)
 			delay *= 2
-			if delay > reconnectMaxDelay {
-				delay = reconnectMaxDelay
+			if delay > maxDelay {
+				delay = maxDelay
 			}
 			continue
 		}
@@ -242,7 +256,7 @@ func buildClientTLS(cfg config.TLSConfig, addr string) (credentials.TransportCre
 	serverName := cfg.ServerName
 	if serverName == "" {
 		// 从地址中提取 host（移除端口）
-		if host, _, err := splitHostPort(addr); err == nil {
+		if host, err := splitHostPort(addr); err == nil {
 			serverName = host
 		} else {
 			serverName = addr
@@ -307,7 +321,7 @@ func (c *Client) Close() error {
 
 // ReportProbes 上报探针列表到中心服务
 func (c *Client) ReportProbes(edgeNodeID, platform, region string, probes []*edge.ProbeInfo) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 	defer cancel()
 
 	req := &edge.ReportProbesRequest{
@@ -329,7 +343,7 @@ func (c *Client) ReportProbes(edgeNodeID, platform, region string, probes []*edg
 
 // ForwardMetrics 转发指标数据到中心服务
 func (c *Client) ForwardMetrics(batch *edge.MetricsBatch) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 	defer cancel()
 
 	resp, err := c.client.ForwardMetrics(grpcutil.WithAuth(ctx, c.apiKey), batch)
@@ -344,7 +358,7 @@ func (c *Client) ForwardMetrics(batch *edge.MetricsBatch) error {
 
 // ForwardTraces 转发链路追踪数据到中心服务
 func (c *Client) ForwardTraces(batch *edge.TraceBatch) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 	defer cancel()
 
 	resp, err := c.client.ForwardTraces(grpcutil.WithAuth(ctx, c.apiKey), batch)
@@ -359,7 +373,7 @@ func (c *Client) ForwardTraces(batch *edge.TraceBatch) error {
 
 // ForwardProfiling 转发性能分析数据到中心服务
 func (c *Client) ForwardProfiling(batch *edge.ProfilingBatch) error {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 	defer cancel()
 
 	resp, err := c.client.ForwardProfiling(grpcutil.WithAuth(ctx, c.apiKey), batch)
@@ -376,7 +390,7 @@ func (c *Client) ForwardProfiling(batch *edge.ProfilingBatch) error {
 // H3 修复: 返回 Center 下发的心跳间隔，允许动态调整
 // P1 修复: 携带 Edge 地址，供 Center 维护 Edge 注册表
 func (c *Client) SendHeartbeat(edgeNodeID, platform, region string, probeCount int32) (heartbeatInterval int32, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 	defer cancel()
 
 	req := &edge.EdgeHeartbeatRequest{
@@ -404,7 +418,7 @@ func (c *Client) SendHeartbeat(edgeNodeID, platform, region string, probeCount i
 
 // GetEdgeStatus 查询 Edge 节点状态列表（P1: Center Edge 注册表）
 func (c *Client) GetEdgeStatus(edgeNodeID string) (*edge.GetEdgeStatusResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.rpcTimeout)
 	defer cancel()
 
 	req := &edge.GetEdgeStatusRequest{EdgeNodeId: edgeNodeID}

@@ -2,6 +2,7 @@
 // and preventing OOM under high load (e.g. 5000+ concurrent Agent gRPC streams).
 package gopool
 
+
 import (
 	"context"
 	"fmt"
@@ -9,6 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 )
+// P19: 默认 worker 检查间隔
+const DefaultWorkerTick = 5 * time.Millisecond
+
 
 // Task is a unit of work submitted to the pool.
 type Task func()
@@ -192,7 +196,7 @@ func (p *Pool) QueueCap() int {
 // WaitUntilIdle blocks until no tasks are queued and no workers are active,
 // or the given context is cancelled, or the pool is stopped.
 func (p *Pool) WaitUntilIdle(ctx context.Context) error {
-	ticker := time.NewTicker(5 * time.Millisecond)
+	ticker := time.NewTicker(DefaultWorkerTick)
 	defer ticker.Stop()
 	for {
 		if atomic.LoadInt64(&p.queuedTasks) == 0 && atomic.LoadInt64(&p.activeWorkers) == 0 {

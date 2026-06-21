@@ -643,7 +643,8 @@ func (p *Persistence) cleanupSnapshots() error {
 	})
 
 	// 保留最近3个快照
-	for i := 3; i < len(fileInfos); i++ {
+	const DefaultMaxSnapshots = 3
+	for i := DefaultMaxSnapshots; i < len(fileInfos); i++ {
 		filePath := filepath.Join(p.snapshotDir, fileInfos[i].name)
 		if err := os.Remove(filePath); err != nil {
 			p.logger.Warnf("删除旧快照 %s 失败: %v", fileInfos[i].name, err)

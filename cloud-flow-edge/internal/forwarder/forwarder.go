@@ -65,6 +65,11 @@ const (
 	defaultMaxBufferLimit = 1000
 	// 最大重试次数
 	maxRetryAttempts = 3
+	// P19: 配置回退默认值（与 config.yaml 默认值保持一致）
+	defaultBatchSizeFallback     = 100
+	defaultFlushIntervalFallback = 5
+	// P19: 配置更新防抖间隔
+	defaultDebounceDelay = 500 * time.Millisecond
 )
 
 // Forwarder 数据转发器
@@ -442,13 +447,12 @@ func (f *Forwarder) Stop() {
 
 // UpdateConfig 更新转发器配置（带防抖，短时间内多次调用只会执行最后一次）
 func (f *Forwarder) UpdateConfig(batchSize, flushIntervalSec int) {
-	const debounceDelay = 500 * time.Millisecond
 
 	f.configDebounceMu.Lock()
 	if f.configDebounceTimer != nil {
 		f.configDebounceTimer.Stop()
 	}
-	f.configDebounceTimer = time.AfterFunc(debounceDelay, func() {
+	f.configDebounceTimer = time.AfterFunc(defaultDebounceDelay, func() {
 		f.applyConfig(batchSize, flushIntervalSec)
 	})
 	f.configDebounceMu.Unlock()
@@ -469,10 +473,10 @@ func (f *Forwarder) applyConfig(batchSize, flushIntervalSec int) {
 	defer f.configMu.Unlock()
 
 	if batchSize <= 0 {
-		batchSize = 100
+		batchSize = defaultBatchSizeFallback
 	}
 	if flushIntervalSec <= 0 {
-		flushIntervalSec = 5
+		flushIntervalSec = defaultFlushIntervalFallback
 	}
 
 	f.batchSize = batchSize

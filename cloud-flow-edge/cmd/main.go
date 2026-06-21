@@ -134,7 +134,7 @@ func main() {
 	// 闭包内从 atomic.Value 读取最新配置，确保热加载后 TLS/CenterAPIKey 能更新
 	createCenterClient := func(addr string) error {
 		currentCfg := loadCfg()
-		newClient, err := grpcclient.NewClient(addr, currentCfg.TLS, currentCfg.CenterAPIKey, log)
+		newClient, err := grpcclient.NewClient(addr, currentCfg, log)
 		if err != nil {
 			return err
 		}

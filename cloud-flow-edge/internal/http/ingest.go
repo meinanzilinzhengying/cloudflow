@@ -1,5 +1,6 @@
 package http
 
+
 import (
 	"database/sql"
 	"encoding/json"
@@ -11,6 +12,9 @@ import (
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
 )
+// P19: 默认数据摄取刷新间隔
+const DefaultIngestFlushInterval = 1 * time.Second
+
 
 // Event 探针上报的事件
 type IngestEvent struct {
@@ -48,7 +52,7 @@ func NewIngestHandler(chDB *sql.DB) *IngestHandler {
 	h := &IngestHandler{
 		chDB:       chDB,
 		batch:      make([]*IngestEvent, 0, 10000),
-		ticker:     time.NewTicker(1 * time.Second),
+		ticker:     time.NewTicker(DefaultIngestFlushInterval),
 		stopCh:     make(chan struct{}),
 		batchSize:  10000,
 		flushIntvl: 1 * time.Second,
