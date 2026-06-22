@@ -63,6 +63,17 @@ type Config struct {
 	EvalInterval time.Duration
 	MaxRules     int
 
+	// P0-19 修复: HTTP 和超时配置
+	HTTPReadTimeout         time.Duration
+	HTTPWriteTimeout        time.Duration
+	HTTPIdleTimeout         time.Duration
+	GracefulShutdownTimeout time.Duration
+	GRPCShutdownTimeout     time.Duration
+	DBPingTimeout           time.Duration
+	CHPingTimeout           time.Duration
+	NotificationTimeout     time.Duration
+	MetricsQueryTimeout     time.Duration
+
 	// P0-2 修复: TLS 配置
 	TLSEnabled      bool
 	TLSCAFile       string
@@ -106,6 +117,15 @@ func DefaultConfig() *Config {
 		TLSEnabled:           false,
 		TLSInsecureSkip:      false,
 		MockMetricsEnabled:   false,
+		HTTPReadTimeout:         30 * time.Second,
+		HTTPWriteTimeout:        30 * time.Second,
+		HTTPIdleTimeout:         120 * time.Second,
+		GracefulShutdownTimeout: 30 * time.Second,
+		GRPCShutdownTimeout:     30 * time.Second,
+		DBPingTimeout:           5 * time.Second,
+		CHPingTimeout:           5 * time.Second,
+		NotificationTimeout:     30 * time.Second,
+		MetricsQueryTimeout:     5 * time.Second,
 	}
 }
 
@@ -249,7 +269,7 @@ func (s *Service) initDatabase() error {
 		return fmt.Errorf("database open failed: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.DBPingTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -307,7 +327,7 @@ func (s *Service) initClickHouse() error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.DBPingTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -460,9 +480,9 @@ func (s *Service) Start() error {
 	s.httpServer = &http.Server{
 		Addr:         s.config.HttpAddr,
 		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  s.config.HTTPReadTimeout,
+		WriteTimeout: s.config.HTTPWriteTimeout,
+		IdleTimeout:  s.config.HTTPIdleTimeout,
 	}
 	go func() { s.httpServer.ListenAndServe() }()
 
@@ -495,7 +515,7 @@ func (s *Service) Stop() {
 
 	// P1-04 修复: 使用优雅关闭等待请求完成
 	if s.httpServer != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), s.config.GracefulShutdownTimeout)
 		defer cancel()
 		if err := s.httpServer.Shutdown(ctx); err != nil {
 			fmt.Printf("HTTP server shutdown error: %v\n", err)
@@ -511,7 +531,7 @@ func (s *Service) Stop() {
 		}()
 		select {
 		case <-stopped:
-		case <-time.After(30 * time.Second):
+		case <-time.After(s.config.GRPCShutdownTimeout):
 			fmt.Println("gRPC graceful stop timeout, forcing stop")
 			s.grpcServer.Stop()
 		}
@@ -682,7 +702,7 @@ func (s *Service) getLatestMetrics(tenantID string) map[string]float64 {
 		return result
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.MetricsQueryTimeout)
 	defer cancel()
 
 	// 查询各分类表最近1分钟的指标统计
@@ -781,7 +801,7 @@ func (s *Service) createNotification(tenantID, ruleID, alertID, title, message s
 		fmt.Printf("Notification channel error: %s\n", e)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.NotificationTimeout)
 	defer cancel()
 
 	// 并发发送通知

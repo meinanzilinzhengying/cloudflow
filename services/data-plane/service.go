@@ -112,6 +112,16 @@ type Config struct {
 	TLSKeyFile      string
 	TLSClientAuth   bool
 	TLSInsecureSkip bool
+
+	// P0-19 修复: HTTP 和超时配置
+	HTTPReadTimeout         time.Duration
+	HTTPWriteTimeout        time.Duration
+	HTTPIdleTimeout         time.Duration
+	GracefulShutdownTimeout time.Duration
+	GRPCShutdownTimeout     time.Duration
+	ClientTimeout           time.Duration
+	ClientIdleConnTimeout   time.Duration
+	CHPingTimeout           time.Duration
 }
 
 // DefaultConfig 默认配置
@@ -136,6 +146,14 @@ func DefaultConfig() *Config {
 		Sampling:            sampling.NewSamplingConfig(),
 		TLSEnabled:          false,
 		TLSInsecureSkip:     false,
+		HTTPReadTimeout:         30 * time.Second,
+		HTTPWriteTimeout:        30 * time.Second,
+		HTTPIdleTimeout:         120 * time.Second,
+		GracefulShutdownTimeout: 30 * time.Second,
+		GRPCShutdownTimeout:     30 * time.Second,
+		ClientTimeout:           30 * time.Second,
+		ClientIdleConnTimeout:   90 * time.Second,
+		CHPingTimeout:           5 * time.Second,
 	}
 }
 
@@ -350,9 +368,9 @@ func (s *Service) Start() error {
 	s.metricsServer = &http.Server{
 		Addr:         s.config.MetricsAddr,
 		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  s.config.HTTPReadTimeout,
+		WriteTimeout: s.config.HTTPWriteTimeout,
+		IdleTimeout:  s.config.HTTPIdleTimeout,
 	}
 	go func() {
 		if err := s.metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -405,7 +423,7 @@ func (s *Service) Stop() {
 		}()
 		select {
 		case <-stopped:
-		case <-time.After(30 * time.Second):
+		case <-time.After(s.config.GRPCShutdownTimeout):
 			fmt.Println("gRPC graceful stop timeout, forcing stop")
 			s.grpcServer.Stop()
 		}
@@ -459,7 +477,7 @@ func (s *Service) initClickHouse() error {
 	db.SetMaxIdleConns(5)
 
 	// 测试连接
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.CHPingTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {

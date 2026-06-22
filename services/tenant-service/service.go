@@ -77,6 +77,14 @@ type Config struct {
 	TLSKeyFile      string
 	TLSClientAuth   bool
 	TLSInsecureSkip bool
+
+	// P0-19 修复: HTTP 和超时配置
+	HTTPReadTimeout         time.Duration
+	HTTPWriteTimeout        time.Duration
+	HTTPIdleTimeout         time.Duration
+	GracefulShutdownTimeout time.Duration
+	GRPCShutdownTimeout     time.Duration
+	DBPingTimeout           time.Duration
 }
 
 // DefaultConfig 默认配置
@@ -102,6 +110,12 @@ func DefaultConfig() *Config {
 		DefaultMaxAlertRules:  100,
 		TLSEnabled:            false,
 		TLSInsecureSkip:       false,
+		HTTPReadTimeout:         30 * time.Second,
+		HTTPWriteTimeout:        30 * time.Second,
+		HTTPIdleTimeout:         120 * time.Second,
+		GracefulShutdownTimeout: 30 * time.Second,
+		GRPCShutdownTimeout:     30 * time.Second,
+		DBPingTimeout:           5 * time.Second,
 	}
 }
 
@@ -223,7 +237,7 @@ func (s *Service) initDatabase() error {
 		return fmt.Errorf("database open failed: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.DBPingTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -401,9 +415,9 @@ func (s *Service) Start() error {
 	s.httpServer = &http.Server{
 		Addr:         s.config.HttpAddr,
 		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  s.config.HTTPReadTimeout,
+		WriteTimeout: s.config.HTTPWriteTimeout,
+		IdleTimeout:  s.config.HTTPIdleTimeout,
 	}
 	go func() { s.httpServer.ListenAndServe() }()
 
@@ -435,7 +449,7 @@ func (s *Service) Stop() {
 		}()
 		select {
 		case <-stopped:
-		case <-time.After(30 * time.Second):
+		case <-time.After(s.config.GRPCShutdownTimeout):
 			fmt.Println("gRPC graceful stop timeout, forcing stop")
 			s.grpcServer.Stop()
 		}
