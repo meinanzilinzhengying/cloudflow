@@ -5,8 +5,11 @@ package ebpfcollector
 
 import (
 	"log"
+	"os"
+	"strconv"
+	"strings"
 	"time"
-	
+
 	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
 
@@ -35,23 +38,22 @@ func (tc *TraditionalCollector) Stop() {
 // Collect 采集网络流量数据（基于 /proc/net/dev 实现基础统计）
 func (tc *TraditionalCollector) Collect() []*edge.MetricData {
 	var metrics []*edge.MetricData
-	
+
 	data, err := readProcNetDev()
 	if err != nil {
-		log.Printf([TraditionalCollector] 读取 /proc/net/dev 失败: %v, err)
+		log.Printf("[TraditionalCollector] 读取 /proc/net/dev 失败: %v", err)
 		return metrics
 	}
-	
+
 	now := time.Now().UnixMilli()
-	for _, line := range strings.Split(data, "
-") {
+	for _, line := range strings.Split(data, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 9 || strings.HasPrefix(fields[0], "Inter") || strings.HasPrefix(fields[0], "face") {
 			continue
 		}
-		
+
 		iface := strings.TrimSuffix(fields[0], ":")
-		
+
 		// 接收字节数
 		if rxBytes, err := strconv.ParseFloat(fields[1], 64); err == nil {
 			metrics = append(metrics, &edge.MetricData{
@@ -62,7 +64,7 @@ func (tc *TraditionalCollector) Collect() []*edge.MetricData {
 				ProbeId:   "traditional-" + iface,
 			})
 		}
-		
+
 		// 发送字节数
 		if txBytes, err := strconv.ParseFloat(fields[9], 64); err == nil {
 			metrics = append(metrics, &edge.MetricData{
@@ -73,7 +75,7 @@ func (tc *TraditionalCollector) Collect() []*edge.MetricData {
 				ProbeId:   "traditional-" + iface,
 			})
 		}
-		
+
 		// 接收包数
 		if rxPackets, err := strconv.ParseFloat(fields[2], 64); err == nil {
 			metrics = append(metrics, &edge.MetricData{
@@ -84,7 +86,7 @@ func (tc *TraditionalCollector) Collect() []*edge.MetricData {
 				ProbeId:   "traditional-" + iface,
 			})
 		}
-		
+
 		// 发送包数
 		if txPackets, err := strconv.ParseFloat(fields[10], 64); err == nil {
 			metrics = append(metrics, &edge.MetricData{
@@ -96,7 +98,7 @@ func (tc *TraditionalCollector) Collect() []*edge.MetricData {
 			})
 		}
 	}
-	
+
 	return metrics
 }
 
@@ -152,16 +154,16 @@ func NewEnhancedFallbackCollector(opts *CollectorOptions) (*EnhancedFallbackColl
 	if err == nil && collector != nil {
 		return &EnhancedFallbackCollector{
 			collector: collector,
-			useEBPF: true,
+			useEBPF:   true,
 		}, nil
 	}
-	
+
 	log.Printf("[eBPF] eBPF 不可用: %v，使用传统采集模式", err)
-	
+
 	// 降级到传统模式
 	return &EnhancedFallbackCollector{
 		collector: NewTraditionalCollector(),
-		useEBPF: false,
+		useEBPF:   false,
 	}, nil
 }
 
