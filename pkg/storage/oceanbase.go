@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"strings"
 	"time"
 )
@@ -25,6 +26,7 @@ type OceanBaseDialect struct{}
 
 func init() {
 	RegisterDriver(DatabaseOceanBase, &OceanBaseDriver{})
+	RegisterDriver(DatabaseMySQL, &OceanBaseDriver{})
 }
 
 // ==================== OceanBase驱动 ====================

@@ -1,0 +1,7 @@
+FROM nginx:alpine
+RUN apk add --no-cache ca-certificates tzdata curl
+ENV TZ=Asia/Shanghai
+WORKDIR /app
+COPY auth-service .
+EXPOSE 8006 9006
+ENTRYPOINT ["./auth-service"]

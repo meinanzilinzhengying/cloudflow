@@ -35,7 +35,9 @@ import (
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service/correlation"
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service/otel"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
 )
 
 // Config 服务配置
@@ -64,6 +66,8 @@ type Config struct {
 	// 查询配置
 	QueryTimeout         time.Duration
 	MaxConcurrentQueries int
+
+	AuthAddr string // e.g. "auth-service:9006"
 
 	// P0-2 修复: TLS 配置
 	TLSEnabled      bool
@@ -132,6 +136,12 @@ type Service struct {
 	stats   Stats
 	statsMu sync.RWMutex
 
+	authenticator *auth.Authenticator
+
+	// 限流中间件 (DDoS 防护)
+	rateLimiter *ratelimit.Middleware
+	connLimiter *ratelimit.ConnectionLimiter
+
 	// P0-2 修复: TLS 凭证
 	grpcCreds credentials.TransportCredentials
 	startTime time.Time
@@ -162,6 +172,17 @@ func New(config *Config) (*Service, error) {
 		s.grpcCreds, err = tlsutil.ServerCredentials(tlsCfg)
 		if err != nil {
 			return nil, fmt.Errorf("TLS credentials init failed: %w", err)
+		}
+	}
+
+	// 初始化认证器
+	if config.AuthAddr != "" {
+		var err error
+		s.authenticator, err = auth.NewAuthenticator(auth.Config{
+			AuthAddr: config.AuthAddr,
+		})
+		if err != nil {
+			fmt.Printf("Auth init failed: %v", err)
 		}
 	}
 
@@ -268,6 +289,7 @@ func (s *Service) Start() error {
 	// HTTP API Gateway
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.healthzHandler)
+	mux.HandleFunc("/health", s.healthzHandler)
 	mux.Handle("/metrics", metrics.Handler())
 	mux.HandleFunc("/overview", s.overviewHandler)
 	mux.HandleFunc("/flows", s.flowsHandler)
@@ -282,7 +304,27 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/rca", s.rcaHandler)
 	mux.HandleFunc("/correlation", s.correlationHandler)
 
-	s.httpServer = &http.Server{Addr: s.config.HttpAddr, Handler: mux}
+	// P2-02: 添加多层限流中间件
+	var handler http.Handler = mux
+	// 1. 全局连接数限制（防连接耗尽）
+	s.connLimiter = ratelimit.NewConnectionLimiter(2000)
+	handler = s.connLimiter.Handler(handler)
+	// 2. 速率限制（全局 + IP + 用户）
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{
+		GlobalQPS:      10000,
+		GlobalBurst:    15000,
+		IPQPS:          200,    // 查询接口更宽松
+		IPBurst:        300,
+		UserQPS:        500,    // 每个用户 500/s
+		UserBurst:      800,
+		AuthQPS:        5,      // 认证路径仍限制
+		AuthBurst:      10,
+		PenaltySeconds: 300,
+		StatusCode:     http.StatusTooManyRequests,
+	})
+	handler = s.rateLimiter.Handler(handler)
+
+	s.httpServer = &http.Server{Addr: s.config.HttpAddr, Handler: handler}
 	go func() {
 		s.httpServer.ListenAndServe()
 	}()
@@ -320,6 +362,10 @@ func (s *Service) Stop() {
 	if s.tsDB != nil {
 		s.tsDB.Close()
 	}
+
+	if s.authenticator != nil {
+		s.authenticator.Close()
+	}
 }
 
 // QueryFlows 查询 Flow
@@ -330,18 +376,20 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
+	if req.TenantId == "" {
+		req.TenantId = "default"
+	}
+
 	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
 
 	// P2-01 修复: 使用固定的表名和参数化查询
-	query := "SELECT * FROM flows WHERE 1=1"
+	query := "SELECT * FROM ebpf_events WHERE 1=1"
 	args := []interface{}{}
 
-	if req.TenantId != "" {
-		query += " AND tenant_id = ?"
-		args = append(args, req.TenantId)
-	}
+	query += " AND tenant_id = ?"
+	args = append(args, req.TenantId)
 	if req.StartTime > 0 {
 		query += " AND timestamp >= ?"
 		args = append(args, req.StartTime)
@@ -359,8 +407,9 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 		args = append(args, req.DstIp)
 	}
 	if req.Namespace != "" {
-		query += " AND namespace = ?"
-		args = append(args, req.Namespace)
+		// namespace not available in ebpf_events
+		// query += " AND namespace = ?"
+		// args = append(args, req.Namespace)
 	}
 	if req.Service != "" {
 		query += " AND service = ?"
@@ -374,8 +423,7 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 	if limit <= 0 {
 		limit = 1000
 	}
-	query += " LIMIT ?"
-	args = append(args, limit)
+	query += fmt.Sprintf(" LIMIT %d", limit)
 
 	rows, err := s.tsDB.Query(ctx, query, args...)
 	if err != nil {
@@ -424,18 +472,20 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
+	if req.TenantId == "" {
+		req.TenantId = "default"
+	}
+
 	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
 
 	// P2-01 修复: 使用固定的表名和参数化查询
-	query := "SELECT * FROM metrics WHERE 1=1"
+	query := "SELECT * FROM ebpf_events WHERE 1=1"
 	args := []interface{}{}
 
-	if req.TenantId != "" {
-		query += " AND tenant_id = ?"
-		args = append(args, req.TenantId)
-	}
+	query += " AND tenant_id = ?"
+	args = append(args, req.TenantId)
 	if req.StartTime > 0 {
 		query += " AND timestamp >= ?"
 		args = append(args, req.StartTime)
@@ -445,8 +495,9 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 		args = append(args, req.EndTime)
 	}
 	if req.Namespace != "" {
-		query += " AND namespace = ?"
-		args = append(args, req.Namespace)
+		// namespace not available in ebpf_events
+		// query += " AND namespace = ?"
+		// args = append(args, req.Namespace)
 	}
 	if req.Service != "" {
 		query += " AND service = ?"
@@ -460,8 +511,7 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 	if limit <= 0 {
 		limit = 1000
 	}
-	query += " LIMIT ?"
-	args = append(args, limit)
+	query += fmt.Sprintf(" LIMIT %d", limit)
 
 	rows, err := s.tsDB.Query(ctx, query, args...)
 	if err != nil {
@@ -510,6 +560,10 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
+	if req.TenantId == "" {
+		req.TenantId = "default"
+	}
+
 	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
@@ -518,36 +572,34 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 	query := "SELECT * FROM traces WHERE 1=1"
 	args := []interface{}{}
 
-	if req.TenantId != "" {
-		query += " AND tenant_id = ?"
-		args = append(args, req.TenantId)
-	}
+	query += " AND tenant_id = ?"
+	args = append(args, req.TenantId)
 	if req.StartTime > 0 {
-		query += " AND start_time >= ?"
+		query += " AND timestamp >= ?"
 		args = append(args, req.StartTime)
 	}
 	if req.EndTime > 0 {
-		query += " AND end_time <= ?"
+		query += " AND timestamp <= ?"
 		args = append(args, req.EndTime)
 	}
 	if req.Namespace != "" {
-		query += " AND namespace = ?"
-		args = append(args, req.Namespace)
+		// namespace not available in ebpf_events
+		// query += " AND namespace = ?"
+		// args = append(args, req.Namespace)
 	}
 	if req.Service != "" {
-		query += " AND service_name = ?"
+		query += " AND service = ?"
 		args = append(args, req.Service)
 	}
 
-	query += " ORDER BY start_time DESC"
+	query += " ORDER BY timestamp DESC"
 
 	// P2-01 修复: LIMIT 使用参数化
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 100
 	}
-	query += " LIMIT ?"
-	args = append(args, limit)
+	query += fmt.Sprintf(" LIMIT %d", limit)
 
 	rows, err := s.tsDB.Query(ctx, query, args...)
 	if err != nil {
@@ -595,6 +647,10 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 	s.stats.QueryCount++
 	s.statsMu.Unlock()
 
+	if req.TenantId == "" {
+		req.TenantId = "default"
+	}
+
 	if s.tsDB == nil {
 		return &svcproto.QueryFlowResponse{Records: []map[string]interface{}{}, Total: 0, TookMs: time.Since(startTime).Milliseconds()}, nil
 	}
@@ -609,8 +665,8 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 			name: "flow_count",
 			query: `SELECT 
 				count() as count,
-				toDate(timestamp) as date
-			FROM flows
+				toDate(timestamp/1000000000) as date
+			FROM ebpf_events
 			WHERE 1=1`,
 			args: []interface{}{},
 		},
@@ -621,7 +677,7 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 				dst_ip,
 				sum(bytes) as total_bytes,
 				count() as flow_count
-			FROM flows
+			FROM ebpf_events
 			WHERE 1=1`,
 			args: []interface{}{},
 		},
@@ -629,10 +685,10 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 			name: "error_rate",
 			query: `SELECT 
 				service,
-				sum(case when status = 'error' then 1 else 0 end) as error_count,
+				sum(case when category = 'security' then 1 else 0 end) as error_count,
 				count() as total_count,
-				(sum(case when status = 'error' then 1 else 0 end) / count()) * 100 as error_rate
-			FROM flows
+				(sum(case when category = 'security' then 1 else 0 end) / count()) * 100 as error_rate
+			FROM ebpf_events
 			WHERE 1=1`,
 			args: []interface{}{},
 		},
@@ -641,19 +697,15 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 			query: `SELECT 
 				service,
 				quantile(0.95)(latency_ns) as p95_latency
-			FROM flows
+			FROM ebpf_events
 			WHERE 1=1`,
 			args: []interface{}{},
 		},
 	}
 
 	// 添加过滤条件
-	filterQuery := ""
-	filterArgs := []interface{}{}
-	if req.TenantId != "" {
-		filterQuery += " AND tenant_id = ?"
-		filterArgs = append(filterArgs, req.TenantId)
-	}
+	filterQuery := " AND tenant_id = ?"
+	filterArgs := []interface{}{req.TenantId}
 	if req.StartTime > 0 {
 		filterQuery += " AND timestamp >= ?"
 		filterArgs = append(filterArgs, req.StartTime)
@@ -663,8 +715,9 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 		filterArgs = append(filterArgs, req.EndTime)
 	}
 	if req.Namespace != "" {
-		filterQuery += " AND namespace = ?"
-		filterArgs = append(filterArgs, req.Namespace)
+		// namespace not available in ebpf_events
+		// filterQuery += " AND namespace = ?"
+		// filterArgs = append(filterArgs, req.Namespace)
 	}
 
 	// 执行所有查询
@@ -699,7 +752,7 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 				valuePtrs[i] = &values[i]
 			}
 			if err := rows.Scan(valuePtrs...); err != nil {
-				continue
+					continue
 			}
 			record := make(map[string]interface{})
 			for i, col := range columns {
@@ -877,6 +930,23 @@ func (s *Service) GetOTLPStats(ctx context.Context, req *svcproto.HealthCheckReq
 	}, nil
 }
 
+
+// extractTenantID 从 HTTP 请求中提取租户 ID
+func (s *Service) extractTenantID(r *http.Request) (string, error) {
+	if s.authenticator == nil {
+		// P2-02: 允许未配置认证器时返回默认 tenant（测试兼容）
+		return "default", nil
+	}
+	result, err := s.authenticator.ValidateRequest(r)
+	if err != nil {
+		return "", fmt.Errorf("auth failed: %w", err)
+	}
+	if !result.Valid {
+		return "", fmt.Errorf("invalid token")
+	}
+	return result.TenantID, nil
+}
+
 // HTTP Handlers
 
 func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
@@ -885,6 +955,11 @@ func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
+	_, err := s.extractTenantID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 	ctx := r.Context()
 
 	if s.tsDB == nil {
@@ -897,15 +972,15 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var totalFlows, activeAgents, activeServices int64
-	s.tsDB.QueryRow(ctx, "SELECT count() FROM cloudflow.flows").Scan(&totalFlows)
-	s.tsDB.QueryRow(ctx, "SELECT count(DISTINCT probe_id) FROM cloudflow.flows WHERE probe_id != '' AND probe_id != 'test'").Scan(&activeAgents)
-	s.tsDB.QueryRow(ctx, "SELECT count(DISTINCT dst_ip) FROM cloudflow.flows WHERE dst_ip != '' AND dst_ip NOT IN ('test','cpu','memory','network')").Scan(&activeServices)
+	var totalFlows, activeAgents, activeServices uint64
+	s.tsDB.QueryRow(ctx, "SELECT count() FROM cloudflow.ebpf_events").Scan(&totalFlows)
+	s.tsDB.QueryRow(ctx, "SELECT count(DISTINCT probe_id) FROM cloudflow.ebpf_events WHERE probe_id != '' AND probe_id != 'test'").Scan(&activeAgents)
+	s.tsDB.QueryRow(ctx, "SELECT count(DISTINCT dst_ip) FROM cloudflow.ebpf_events WHERE dst_ip != '' AND dst_ip NOT IN ('test','cpu','memory','network')").Scan(&activeServices)
 
 	rows, _ := s.tsDB.Query(ctx, `
-		SELECT toStartOfMinute(timestamp) as t, sum(bytes) as total
-		FROM cloudflow.flows
-		WHERE timestamp > now() - INTERVAL 30 MINUTE
+		SELECT toStartOfMinute(timestamp/1000000000) as t, sum(bytes) as total
+		FROM cloudflow.ebpf_events
+		WHERE toDateTime(timestamp/1000000000) > now() - INTERVAL 30 MINUTE
 		GROUP BY t ORDER BY t
 	`)
 
@@ -925,18 +1000,18 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 
 	topRows, _ := s.tsDB.Query(ctx, `
 		SELECT dst_ip, count() as cnt
-		FROM cloudflow.flows
-		WHERE timestamp > now() - INTERVAL 30 MINUTE AND dst_ip != '' AND dst_ip NOT IN ('test','cpu','memory','network')
+		FROM cloudflow.ebpf_events
+		WHERE toDateTime(timestamp/1000000000) > now() - INTERVAL 30 MINUTE AND dst_ip != '' AND dst_ip NOT IN ('test','cpu','memory','network')
 		GROUP BY dst_ip ORDER BY cnt DESC LIMIT 5
 	`)
 
 	var topServices []map[string]interface{}
 	if topRows != nil {
 		defer topRows.Close()
-		maxCnt := int64(0)
+		maxCnt := uint64(0)
 		for topRows.Next() {
 			var name string
-			var cnt int64
+			var cnt uint64
 			if topRows.Scan(&name, &cnt) == nil {
 				if cnt > maxCnt {
 					maxCnt = cnt
@@ -946,27 +1021,31 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if maxCnt > 0 {
 			for _, svc := range topServices {
-				if qps, ok := svc["qps"].(int64); ok {
+				if qps, ok := svc["qps"].(uint64); ok {
 					svc["percentage"] = float64(qps) / float64(maxCnt) * 100.0
 				}
 			}
 		}
 	}
 
-	cpuVal, memVal, netVal := 0.0, 0.0, 0.0
-	s.tsDB.QueryRow(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='cpu_percent' ORDER BY timestamp DESC LIMIT 1").Scan(&cpuVal)
-	s.tsDB.QueryRow(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='memory' ORDER BY timestamp DESC LIMIT 1").Scan(&memVal)
-	s.tsDB.QueryRow(ctx, "SELECT metric_value FROM cloudflow.metrics WHERE metric_name='network' ORDER BY timestamp DESC LIMIT 1").Scan(&netVal)
+	cpuVal, memVal, netVal, diskVal := 0.0, 0.0, 0.0, 0.0
+	s.tsDB.QueryRow(ctx, "SELECT ifNull(JSONExtractFloat(details, 'cpu_percent'), 0.0) FROM cloudflow.ebpf_events WHERE category = 'metrics' AND event_type = 'host_metrics' ORDER BY timestamp DESC LIMIT 1").Scan(&cpuVal)
+	s.tsDB.QueryRow(ctx, "SELECT ifNull(JSONExtractFloat(details, 'memory_percent'), 0.0) FROM cloudflow.ebpf_events WHERE category = 'metrics' AND event_type = 'host_metrics' ORDER BY timestamp DESC LIMIT 1").Scan(&memVal)
+	s.tsDB.QueryRow(ctx, "SELECT ifNull(JSONExtractFloat(details, 'net_rx_bytes'), 0.0) FROM cloudflow.ebpf_events WHERE category = 'metrics' AND event_type = 'host_metrics' ORDER BY timestamp DESC LIMIT 1").Scan(&netVal)
+	s.tsDB.QueryRow(ctx, "SELECT ifNull(JSONExtractFloat(details, 'disk_percent'), 0.0) FROM cloudflow.ebpf_events WHERE category = 'metrics' AND event_type = 'host_metrics' ORDER BY timestamp DESC LIMIT 1").Scan(&diskVal)
 
 	resources := []map[string]interface{}{
 		{"name": "CPU", "percentage": cpuVal, "color": "stroke-primary-500"},
 		{"name": "Memory", "percentage": memVal, "color": "stroke-accent-500"},
-		{"name": "NetworkIO", "percentage": netVal / 10000.0, "color": "stroke-amber-500"},
-		{"name": "Disk", "percentage": 0.0, "color": "stroke-emerald-500"},
+		{"name": "NetworkIO", "percentage": netVal / 1000000.0, "color": "stroke-amber-500"},
+		{"name": "Disk", "percentage": diskVal, "color": "stroke-emerald-500"},
 	}
 
 	var avgLatency float64
-	s.tsDB.QueryRow(ctx, "SELECT avg(latency_ms) FROM cloudflow.flows WHERE latency_ms > 0 AND timestamp > now() - INTERVAL 30 MINUTE").Scan(&avgLatency)
+	s.tsDB.QueryRow(ctx, "SELECT avg(latency_ms) FROM cloudflow.ebpf_events WHERE latency_ms > 0 AND toDateTime(timestamp/1000000000) > now() - INTERVAL 30 MINUTE").Scan(&avgLatency)
+	if avgLatency != avgLatency { // NaN check
+		avgLatency = 0.0
+	}
 
 	result := map[string]interface{}{
 		"totalFlows": totalFlows, "activeAgents": activeAgents, "activeServices": activeServices,
@@ -982,8 +1061,13 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) metricsHandler(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := s.extractTenantID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 	req := &svcproto.QueryFlowRequest{
-		TenantId:  r.URL.Query().Get("tenant_id"),
+		TenantId:  tenantID,
 		StartTime: parseInt64(r.URL.Query().Get("start_time")),
 		EndTime:   parseInt64(r.URL.Query().Get("end_time")),
 		Namespace: r.URL.Query().Get("namespace"),
@@ -999,8 +1083,13 @@ func (s *Service) metricsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) flowsHandler(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := s.extractTenantID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 	req := &svcproto.QueryFlowRequest{
-		TenantId:  r.URL.Query().Get("tenant_id"),
+		TenantId:  tenantID,
 		StartTime: parseInt64(r.URL.Query().Get("start_time")),
 		EndTime:   parseInt64(r.URL.Query().Get("end_time")),
 		SrcIp:     r.URL.Query().Get("src_ip"),
@@ -1018,8 +1107,13 @@ func (s *Service) flowsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) tracesHandler(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := s.extractTenantID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 	req := &svcproto.QueryFlowRequest{
-		TenantId:  r.URL.Query().Get("tenant_id"),
+		TenantId:  tenantID,
 		StartTime: parseInt64(r.URL.Query().Get("start_time")),
 		EndTime:   parseInt64(r.URL.Query().Get("end_time")),
 		Namespace: r.URL.Query().Get("namespace"),
@@ -1188,7 +1282,7 @@ func RegisterQueryService(s *grpc.Server, svc *Service) {
 }
 
 func (g *queryGRPC) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequest) (*svcproto.HealthCheckResponse, error) {
-	return &svcproto.HealthCheckResponse{Status: "healthy"}, nil
+	return &svcproto.HealthCheckResponse{Healthy: true}, nil
 }
 
 func (g *queryGRPC) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest) (*svcproto.QueryFlowResponse, error) {

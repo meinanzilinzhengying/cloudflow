@@ -22,7 +22,7 @@ type Serializer interface {
 
 // KafkaForwarder Kafka 转发器
 type KafkaForwarder struct {
-	producer  *sarama.AsyncProducer
+	producer  sarama.AsyncProducer
 	serializer Serializer
 	logger     Logger
 
@@ -55,6 +55,17 @@ type noopLogger struct{}
 func (n noopLogger) Infof(string, ...interface{})  {}
 func (n noopLogger) Warnf(string, ...interface{})  {}
 func (n noopLogger) Errorf(string, ...interface{}) {}
+// P19: Kafka 默认配置常量
+const (
+	DefaultKafkaRetryMax          = 5
+	DefaultKafkaRetryBackoff      = 100 * time.Millisecond
+	DefaultKafkaMaxMessageBytes   = 4 * 1024 * 1024 // 4MB
+	DefaultKafkaFlushBytes        = 1 << 16        // 64KB
+	DefaultKafkaFlushFrequency    = 5 * time.Millisecond
+	DefaultKafkaFlushMessages     = 500
+	DefaultKafkaChannelBufferSize = 16384
+)
+
 
 // New 创建 Kafka 转发器
 func New(kafkaBrokers []string, serializer Serializer, logger Logger) (*KafkaForwarder, error) {
@@ -64,19 +75,19 @@ func New(kafkaBrokers []string, serializer Serializer, logger Logger) (*KafkaFor
 
 	cfg := sarama.NewConfig()
 	cfg.Producer.RequiredAcks = sarama.WaitForLocal
-	cfg.Producer.Retry.Max = 5
-	cfg.Producer.Retry.Backoff = 100 * time.Millisecond
-	cfg.Producer.Retry.BackoffMax = 2 * time.Second
+	cfg.Producer.Retry.Max = DefaultKafkaRetryMax
+	cfg.Producer.Retry.Backoff = DefaultKafkaRetryBackoff
+	
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Return.Errors = true
-	cfg.Producer.MaxMessageBytes = 4 * 1024 * 1024
-	cfg.Producer.Flush.Bytes = 1 << 16       // 64KB
-	cfg.Producer.Flush.Frequency = 5 * time.Millisecond
-	cfg.Producer.Flush.Messages = 500
-	cfg.Producer.BufferMemory = 128 * 1024 * 1024 // 128MB
+	cfg.Producer.MaxMessageBytes = DefaultKafkaMaxMessageBytes
+	cfg.Producer.Flush.Bytes = DefaultKafkaFlushBytes       // 64KB
+	cfg.Producer.Flush.Frequency = DefaultKafkaFlushFrequency
+	cfg.Producer.Flush.Messages = DefaultKafkaFlushMessages
+	
 	cfg.Producer.Idempotent = true
 	cfg.Producer.Compression = sarama.CompressionSnappy
-	cfg.ChannelBufferSize = 16384
+	cfg.ChannelBufferSize = DefaultKafkaChannelBufferSize
 
 	asyncProd, err := sarama.NewAsyncProducer(kafkaBrokers, cfg)
 	if err != nil {

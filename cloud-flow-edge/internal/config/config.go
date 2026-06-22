@@ -156,6 +156,13 @@ type Config struct {
 	Log              LogConfig              // 日志配置
 	Kafka            KafkaConfig            // P0: Kafka 配置（Flow Ingest Pipeline）
 
+	// ClickHouse 配置（本地缓冲写入）
+	ClickHouseAddr       string // ClickHouse 地址
+	ClickHousePort       int    // ClickHouse 端口
+	ClickHouseUser       string // ClickHouse 用户名
+	ClickHousePassword   string // ClickHouse 密码
+	ClickHouseDatabase   string // ClickHouse 数据库
+
 	// L1 修复: 可配置的定时任务间隔
 	HeartbeatInterval       time.Duration // 心跳上报间隔（默认 30s）
 	ProbeReportInterval     time.Duration // 探针列表上报间隔（默认 60s）
@@ -257,8 +264,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("center_addr", "localhost:9090")
 	viper.SetDefault("cloud_platform", "onprem")
 	viper.SetDefault("region", "local")
-	viper.SetDefault("batch_size", 100)
-	viper.SetDefault("flush_interval", 5)
+	viper.SetDefault("batch_size", 5000)
+	viper.SetDefault("flush_interval", 1)
 	viper.SetDefault("tls.enabled", true)
 	viper.SetDefault("tls.ca_cert", "")
 	viper.SetDefault("tls.client_cert", "")

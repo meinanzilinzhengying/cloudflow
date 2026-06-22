@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/logger"
 	"github.com/meinanzilinzhengying/cloudflow/edge/pkg/testutil"
 	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 )
@@ -111,7 +110,7 @@ func newTestMetricsBatch(probeID string, count int) *edge.MetricsBatch {
 func TestAddMetrics(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
-	fwd := NewForwarder(mock, 100, 300, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 100, 300, 1000, testutil.NewTestLogger())
 
 	batch := newTestMetricsBatch("probe-1", 5)
 	fwd.AddMetrics(batch)
@@ -129,7 +128,7 @@ func TestAddMetricsAutoFlush(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
 	// batchSize=3，添加 3 条应自动触发 flush
-	fwd := NewForwarder(mock, 3, 300, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 3, 300, 1000, testutil.NewTestLogger())
 
 	for i := 0; i < 3; i++ {
 		fwd.AddMetrics(newTestMetricsBatch("probe-1", 1))
@@ -147,15 +146,15 @@ func TestAddMetricsAutoFlush(t *testing.T) {
 	}
 
 	batches := mock.GetMetricsBatches()
-	if len(batches) != 3 {
-		t.Fatalf("应转发 3 批, 实际 %d", len(batches))
+	if len(batches) != 1 {
+		t.Fatalf("应转发 1 批(合并后), 实际 %d", len(batches))
 	}
 }
 
 func TestAddTraces(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
-	fwd := NewForwarder(mock, 100, 300, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 100, 300, 1000, testutil.NewTestLogger())
 
 	batch := &edge.TraceBatch{
 		ProbeId: "probe-1",
@@ -177,7 +176,7 @@ func TestAddTraces(t *testing.T) {
 func TestAddProfiling(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
-	fwd := NewForwarder(mock, 100, 300, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 100, 300, 1000, testutil.NewTestLogger())
 
 	batch := &edge.ProfilingBatch{
 		ProbeId: "probe-1",
@@ -200,7 +199,7 @@ func TestTimedFlush(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
 	// 100ms 定时 flush
-	fwd := NewForwarder(mock, 1000, 1, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 1000, 1, 1000, testutil.NewTestLogger())
 	fwd.flushInterval = 100 * time.Millisecond
 	fwd.Start()
 	defer fwd.Stop()
@@ -212,15 +211,15 @@ func TestTimedFlush(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	batches := mock.GetMetricsBatches()
-	if len(batches) != 2 {
-		t.Fatalf("定时 flush 应转发 2 批, 实际 %d", len(batches))
+	if len(batches) != 1 {
+		t.Fatalf("定时 flush 应转发 1 批(合并后), 实际 %d", len(batches))
 	}
 }
 
 func TestStopFlushesRemaining(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
-	fwd := NewForwarder(mock, 1000, 300, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 1000, 300, 1000, testutil.NewTestLogger())
 	fwd.Start()
 
 	fwd.AddMetrics(newTestMetricsBatch("probe-1", 1))
@@ -248,13 +247,13 @@ func TestStopFlushesRemaining(t *testing.T) {
 func TestDefaultBatchSizeAndInterval(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
-	fwd := NewForwarder(mock, 0, 0, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 0, 0, 1000, testutil.NewTestLogger())
 
-	if fwd.batchSize != 100 {
-		t.Fatalf("默认 batchSize 应为 100, 实际 %d", fwd.batchSize)
+	if fwd.batchSize != 5000 {
+		t.Fatalf("默认 batchSize 应为 5000, 实际 %d", fwd.batchSize)
 	}
-	if fwd.flushInterval != 5*time.Second {
-		t.Fatalf("默认 flushInterval 应为 5s, 实际 %s", fwd.flushInterval)
+	if fwd.flushInterval != 1*time.Second {
+		t.Fatalf("默认 flushInterval 应为 1s, 实际 %s", fwd.flushInterval)
 	}
 }
 
@@ -262,7 +261,7 @@ func TestConcurrentAdd(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
 	// batchSize 设大，避免自动 flush
-	fwd := NewForwarder(mock, 5000, 300, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 5000, 300, 1000, testutil.NewTestLogger())
 
 	// 并发添加，不应 panic
 	var wg sync.WaitGroup
@@ -294,134 +293,90 @@ func TestConcurrentAdd(t *testing.T) {
 	}
 }
 
-func TestRetryCountResetOnSuccess(t *testing.T) {
+func TestMergedBatchForwarded(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
-	fwd := NewForwarder(mock, 1000, 300, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 1000, 300, 1000, testutil.NewTestLogger())
 
-	batch1 := newTestMetricsBatch("probe-1", 1)
-	batch2 := newTestMetricsBatch("probe-1", 1)
-	batch3 := newTestMetricsBatch("probe-1", 1)
-	batch4 := newTestMetricsBatch("probe-1", 1)
-	batch5 := newTestMetricsBatch("probe-1", 1)
-
-	mock.failSequence = []bool{true, true, false, true, true}
-	fwd.AddMetrics(batch1)
-	fwd.AddMetrics(batch2)
-	fwd.AddMetrics(batch3)
-	fwd.AddMetrics(batch4)
-	fwd.AddMetrics(batch5)
-
-	fwd.flushMetrics(false)
-
-	batches := mock.GetMetricsBatches()
-	if len(batches) != 5 {
-		t.Fatalf("分散失败场景应转发全部5批, 实际 %d 批", len(batches))
+	for i := 0; i < 5; i++ {
+		fwd.AddMetrics(newTestMetricsBatch("probe-1", 1))
 	}
-}
-
-func TestConsecutiveFailureTriggersDrop(t *testing.T) {
-	clearTestPersistenceData()
-	mock := &mockClient{}
-	fwd := NewForwarder(mock, 1000, 300, testutil.NewTestLogger())
-
-	batch1 := newTestMetricsBatch("probe-1", 1)
-	batch2 := newTestMetricsBatch("probe-1", 1)
-	batch3 := newTestMetricsBatch("probe-1", 1)
-	batch4 := newTestMetricsBatch("probe-1", 1)
-
-	mock.failSequence = []bool{true, true, true, true}
-	fwd.AddMetrics(batch1)
-	fwd.AddMetrics(batch2)
-	fwd.AddMetrics(batch3)
-	fwd.AddMetrics(batch4)
-
-	fwd.flushMetrics(false)
-
-	batches := mock.GetMetricsBatches()
-	if len(batches) != 0 {
-		t.Fatalf("连续3次失败应触发丢弃, 应转发0批, 实际 %d 批", len(batches))
-	}
-
-	fwd.muMetrics.Lock()
-	bufLen := len(fwd.metricsBuf)
-	fwd.muMetrics.Unlock()
-	if bufLen != 4 {
-		t.Fatalf("连续失败后批次放回缓冲区, metricsBuf应为4, 实际 %d", bufLen)
-	}
-}
-
-func TestTwoFailuresThenSuccessThenThreeFails(t *testing.T) {
-	clearTestPersistenceData()
-	mock := &mockClient{}
-	fwd := NewForwarder(mock, 1000, 300, testutil.NewTestLogger())
-
-	batch1 := newTestMetricsBatch("probe-1", 1)
-	batch2 := newTestMetricsBatch("probe-1", 1)
-	batch3 := newTestMetricsBatch("probe-1", 1)
-	batch4 := newTestMetricsBatch("probe-1", 1)
-	batch5 := newTestMetricsBatch("probe-1", 1)
-	batch6 := newTestMetricsBatch("probe-1", 1)
-
-	mock.failSequence = []bool{true, true, false, true, true, true}
-	fwd.AddMetrics(batch1)
-	fwd.AddMetrics(batch2)
-	fwd.AddMetrics(batch3)
-	fwd.AddMetrics(batch4)
-	fwd.AddMetrics(batch5)
-	fwd.AddMetrics(batch6)
 
 	fwd.flushMetrics(false)
 
 	batches := mock.GetMetricsBatches()
 	if len(batches) != 1 {
-		t.Fatalf("失败2次后成功1次再失败3次，仅batch3成功转发，实际 %d 批", len(batches))
+		t.Fatalf("P0-15: 合并后应转发 1 批, 实际 %d 批", len(batches))
+	}
+	if len(batches[0].Metrics) != 5 {
+		t.Fatalf("P0-15: 合并后应包含 5 条 metrics, 实际 %d", len(batches[0].Metrics))
+	}
+}
+
+func TestMergedBatchFailure(t *testing.T) {
+	clearTestPersistenceData()
+	mock := &mockClient{}
+	fwd := NewForwarder(mock, 1000, 300, 1000, testutil.NewTestLogger())
+
+	for i := 0; i < 4; i++ {
+		fwd.AddMetrics(newTestMetricsBatch("probe-1", 1))
+	}
+
+	mock.failSequence = []bool{true}
+	fwd.flushMetrics(false)
+
+	batches := mock.GetMetricsBatches()
+	if len(batches) != 0 {
+		t.Fatalf("合并批次失败后应转发0批, 实际 %d 批", len(batches))
 	}
 
 	fwd.muMetrics.Lock()
 	bufLen := len(fwd.metricsBuf)
 	fwd.muMetrics.Unlock()
-	if bufLen != 3 {
-		t.Fatalf("失败批次放回缓冲区, metricsBuf应为3, 实际 %d", bufLen)
+	if bufLen != 0 {
+		t.Fatalf("合并批次失败后数据已缓存到本地, metricsBuf应为0, 实际 %d", bufLen)
 	}
 }
 
-func TestSingleFailureThenSuccess(t *testing.T) {
+func TestMergedBatchSuccessAfterFailure(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
-	fwd := NewForwarder(mock, 1000, 300, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 1000, 300, 1000, testutil.NewTestLogger())
 
-	batch1 := newTestMetricsBatch("probe-1", 1)
-	batch2 := newTestMetricsBatch("probe-1", 1)
-	batch3 := newTestMetricsBatch("probe-1", 1)
+	for i := 0; i < 3; i++ {
+		fwd.AddMetrics(newTestMetricsBatch("probe-1", 1))
+	}
 
-	mock.failSequence = []bool{true, false, false}
-	fwd.AddMetrics(batch1)
-	fwd.AddMetrics(batch2)
-	fwd.AddMetrics(batch3)
-
+	// 直接 flush 成功
+	mock.failSequence = []bool{false}
 	fwd.flushMetrics(false)
 
 	batches := mock.GetMetricsBatches()
-	if len(batches) != 3 {
-		t.Fatalf("单次失败后成功应转发全部3批, 实际 %d 批", len(batches))
+	if len(batches) != 1 {
+		t.Fatalf("成功后应转发1批, 实际 %d 批", len(batches))
+	}
+	if len(batches[0].Metrics) != 3 {
+		t.Fatalf("合并后应包含 3 条 metrics, 实际 %d", len(batches[0].Metrics))
 	}
 }
 
-func TestRetryCountWithFiveBatches(t *testing.T) {
+func TestMergedBatchWithFiveBatches(t *testing.T) {
 	clearTestPersistenceData()
 	mock := &mockClient{}
-	fwd := NewForwarder(mock, 1000, 300, testutil.NewTestLogger())
+	fwd := NewForwarder(mock, 1000, 300, 1000, testutil.NewTestLogger())
 
 	for i := 0; i < 5; i++ {
 		fwd.AddMetrics(newTestMetricsBatch(fmt.Sprintf("probe-%d", i), 1))
 	}
 
-	mock.failSequence = []bool{true, true, false, true, false}
+	mock.failSequence = []bool{false}
 	fwd.flushMetrics(false)
 
 	batches := mock.GetMetricsBatches()
-	if len(batches) != 5 {
-		t.Fatalf("5批次场景应转发全部5批, 实际 %d 批", len(batches))
+	if len(batches) != 1 {
+		t.Fatalf("5批次合并后应转发1批, 实际 %d 批", len(batches))
+	}
+	if len(batches[0].Metrics) != 5 {
+		t.Fatalf("合并后应包含 5 条 metrics, 实际 %d", len(batches[0].Metrics))
 	}
 }

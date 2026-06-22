@@ -444,6 +444,19 @@ const (
 	DirInternal         // 内部
 )
 
+func (d Direction) String() string {
+	switch d {
+	case DirIngress:
+		return "ingress"
+	case DirEgress:
+		return "egress"
+	case DirInternal:
+		return "internal"
+	default:
+		return "unknown"
+	}
+}
+
 // ============================================================================
 // UnifiedFlow 统一流量数据模型
 // ============================================================================

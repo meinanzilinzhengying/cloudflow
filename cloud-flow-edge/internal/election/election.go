@@ -2,6 +2,7 @@
 // 当前为接口定义和空实现，后续可基于 Redis 或 etcd 实现
 package election
 
+
 import (
 	"context"
 	"fmt"
@@ -10,12 +11,14 @@ import (
 
 	"github.com/redis/go-redis/v9"
 )
+// P19: 默认租约续期间隔
+const DefaultRenewalInterval = 2 * time.Second
+
 
 const (
 	leaderKeyPrefix = "cloudflow:leader:"
 	leaderLockKey   = "cloudflow:leader:lock"
 )
-
 // State Leader 状态
 type State string
 
@@ -24,6 +27,7 @@ const (
 	StateCandidate State = "candidate" // 候选者
 	StateLeader    State = "leader"    // 领导者
 )
+// P19: 默认租约续期间隔
 
 // LeaderElection Leader 选举接口
 type LeaderElection interface {
@@ -240,7 +244,7 @@ func (r *RedisElection) renewLeadership(ctx context.Context) {
 
 // watchLeaderChange 监听 Leader 变更（Follower 模式）
 func (r *RedisElection) watchLeaderChange(ctx context.Context) {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(DefaultRenewalInterval)
 	defer ticker.Stop()
 
 	for {

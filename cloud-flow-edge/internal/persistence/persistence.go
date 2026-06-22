@@ -3,8 +3,11 @@
 package persistence
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -358,9 +361,8 @@ func (p *Persistence) recover() error {
 }
 
 // recoverFromSnapshot 从快照恢复数据
-// TODO(AE-L09): 当前实现未对恢复的数据进行验证（如检查字段完整性、时间戳合理性等）。
-// 恶意或损坏的快照文件可能导致后续处理异常。建议添加基本的数据校验逻辑。
 func (p *Persistence) recoverFromSnapshot() error {
+	// P0-11: 数据恢复验证 - 检查快照字段完整性、时间戳合理性
 	// 查找最新的快照文件
 	files, err := os.ReadDir(p.snapshotDir)
 	if err != nil {
@@ -393,6 +395,20 @@ func (p *Persistence) recoverFromSnapshot() error {
 	data, err := os.ReadFile(snapshotPath)
 	if err != nil {
 		return err
+	}
+
+	// P0-16: 如果快照是 gzip 格式，先解压
+	if strings.HasSuffix(latestSnapshot, ".gz") {
+		gzReader, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return fmt.Errorf("创建gzip reader失败: %w", err)
+		}
+		defer gzReader.Close()
+		decompressed, err := io.ReadAll(gzReader)
+		if err != nil {
+			return fmt.Errorf("解压快照失败: %w", err)
+		}
+		data = decompressed
 	}
 
 	// 解析快照
@@ -556,15 +572,26 @@ func (p *Persistence) createSnapshot() error {
 		Timestamp: time.Now().Unix(),
 	}
 
-	// 序列化快照
+	// P0-16: 使用 gzip 压缩快照，减少磁盘占用
 	data, err := json.Marshal(snapshot)
 	if err != nil {
 		return fmt.Errorf("序列化快照失败: %w", err)
 	}
 
-	// 写入快照文件
-	filename := filepath.Join(p.snapshotDir, fmt.Sprintf("snapshot_%d.json", time.Now().Unix()))
-	if err := os.WriteFile(filename, data, 0644); err != nil {
+	// gzip 压缩
+	var compressed bytes.Buffer
+	gz := gzip.NewWriter(&compressed)
+	if _, err := gz.Write(data); err != nil {
+		gz.Close()
+		return fmt.Errorf("压缩快照失败: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return fmt.Errorf("关闭gzip writer失败: %w", err)
+	}
+
+	// 写入快照文件（.gz 扩展名）
+	filename := filepath.Join(p.snapshotDir, fmt.Sprintf("snapshot_%d.json.gz", time.Now().Unix()))
+	if err := os.WriteFile(filename, compressed.Bytes(), 0644); err != nil {
 		return fmt.Errorf("写入快照文件失败: %w", err)
 	}
 
@@ -616,7 +643,8 @@ func (p *Persistence) cleanupSnapshots() error {
 	})
 
 	// 保留最近3个快照
-	for i := 3; i < len(fileInfos); i++ {
+	const DefaultMaxSnapshots = 3
+	for i := DefaultMaxSnapshots; i < len(fileInfos); i++ {
 		filePath := filepath.Join(p.snapshotDir, fileInfos[i].name)
 		if err := os.Remove(filePath); err != nil {
 			p.logger.Warnf("删除旧快照 %s 失败: %v", fileInfos[i].name, err)

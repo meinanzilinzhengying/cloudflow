@@ -1,0 +1,71 @@
+{{- if .Values.edge.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloudflow.edge.name" . }}
+  namespace: {{ include "cloudflow.namespace" . }}
+  labels:
+    app: {{ include "cloudflow.edge.name" . }}
+    {{- include "cloudflow.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.edge.autoscaling.enabled }}
+  replicas: {{ .Values.edge.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ include "cloudflow.edge.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "cloudflow.edge.name" . }}
+        {{- include "cloudflow.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.edge.service.metricsPort }}"
+    spec:
+      serviceAccountName: {{ include "cloudflow.serviceAccountName" . }}
+      containers:
+        - name: edge
+          image: {{ include "cloudflow.image" (dict "image" .Values.edge.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.edge.image.pullPolicy }}
+          env:
+{{- range $key, $value := .Values.edge.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+{{- end }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.edge.service.grpcPort }}
+            - name: metrics
+              containerPort: {{ .Values.edge.service.metricsPort }}
+            - name: health
+              containerPort: {{ .Values.edge.service.healthPort }}
+          {{- if .Values.edge.livenessProbe.enabled }}
+          livenessProbe:
+            grpc:
+              port: {{ .Values.edge.service.grpcPort }}
+            initialDelaySeconds: {{ .Values.edge.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.edge.livenessProbe.periodSeconds }}
+          {{- end }}
+          {{- if .Values.edge.readinessProbe.enabled }}
+          readinessProbe:
+            grpc:
+              port: {{ .Values.edge.service.grpcPort }}
+            initialDelaySeconds: {{ .Values.edge.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.edge.readinessProbe.periodSeconds }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.edge.resources | nindent 12 }}
+          {{- if .Values.edge.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/cloudflow
+          {{- end }}
+      {{- if .Values.edge.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "cloudflow.edge.name" . }}-data
+      {{- end }}
+{{- end }}

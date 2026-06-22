@@ -41,12 +41,16 @@ type ServiceRegistry struct {
 
 // NewServiceRegistry 创建服务注册中心
 func NewServiceRegistry(etcdEndpoints []string, prefix string) (*ServiceRegistry, error) {
-	client, err := clientv3.New(clientv3.Config{
-		Endpoints:   etcdEndpoints,
-		DialTimeout: 5 * time.Second,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("etcd connect failed: %w", err)
+	var client *clientv3.Client
+	if len(etcdEndpoints) > 0 {
+		var err error
+		client, err = clientv3.New(clientv3.Config{
+			Endpoints:   etcdEndpoints,
+			DialTimeout: 5 * time.Second,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("etcd connect failed: %w", err)
+		}
 	}
 
 	return &ServiceRegistry{
@@ -121,7 +125,7 @@ func (r *ServiceRegistry) Discover(ctx context.Context, serviceName string) ([]*
 
 	var instances []*ServiceInstance
 	for _, kv := range resp.Kvs {
-		inst := parseInstance(kv.Value)
+		inst := parseInstance(string(kv.Value))
 		if inst != nil {
 			inst.Name = serviceName
 			instances = append(instances, inst)
@@ -150,7 +154,7 @@ func (r *ServiceRegistry) ListServices(ctx context.Context) (map[string][]*Servi
 			continue
 		}
 		serviceName := parts[len(parts)-2]
-		inst := parseInstance(kv.Value)
+		inst := parseInstance(string(kv.Value))
 		if inst != nil {
 			inst.Name = serviceName
 			services[serviceName] = append(services[serviceName], inst)

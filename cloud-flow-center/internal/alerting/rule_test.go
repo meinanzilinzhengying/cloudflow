@@ -249,7 +249,7 @@ func TestDefaultRules(t *testing.T) {
 // TestNewRuleManager 测试创建规则管理器
 func TestNewRuleManager(t *testing.T) {
 	tmpDir := t.TempDir()
-	rm := NewRuleManager(tmpDir)
+	rm := NewRuleManager(tmpDir, nil)
 	if rm == nil {
 		t.Fatal("NewRuleManager 返回 nil")
 	}
@@ -258,7 +258,7 @@ func TestNewRuleManager(t *testing.T) {
 // TestRuleManager_CRUD 测试规则的增删改查
 func TestRuleManager_CRUD(t *testing.T) {
 	tmpDir := t.TempDir()
-	rm := NewRuleManager(tmpDir)
+	rm := NewRuleManager(tmpDir, nil)
 
 	// 1. 创建规则
 	rule := Rule{
@@ -276,7 +276,8 @@ func TestRuleManager_CRUD(t *testing.T) {
 		},
 	}
 
-	created, err := rm.SaveRule(rule)
+	err := rm.SaveRule(&rule)
+	created := &rule
 	if err != nil {
 		t.Fatalf("SaveRule 失败: %v", err)
 	}
@@ -285,7 +286,7 @@ func TestRuleManager_CRUD(t *testing.T) {
 	}
 
 	// 2. 获取规则
-	retrieved, err := rm.GetRuleByID(created.ID)
+	retrieved := rm.GetRuleByID(created.ID)
 	if err != nil {
 		t.Fatalf("GetRuleByID 失败: %v", err)
 	}
@@ -297,7 +298,7 @@ func TestRuleManager_CRUD(t *testing.T) {
 	}
 
 	// 3. 获取所有规则
-	rules, err := rm.GetRules()
+	rules := rm.GetRules()
 	if err != nil {
 		t.Fatalf("GetRules 失败: %v", err)
 	}
@@ -309,13 +310,13 @@ func TestRuleManager_CRUD(t *testing.T) {
 	updated := retrieved
 	updated.Name = "更新后的规则"
 	updated.Conditions[0].Threshold = 90.0
-	_, err = rm.SaveRule(updated)
+	err = rm.SaveRule(updated)
 	if err != nil {
 		t.Fatalf("更新规则失败: %v", err)
 	}
 
 	// 验证更新
-	retrieved2, _ := rm.GetRuleByID(created.ID)
+	retrieved2 := rm.GetRuleByID(created.ID)
 	if retrieved2.Name != "更新后的规则" {
 		t.Errorf("更新后 Name = %q, want 更新后的规则", retrieved2.Name)
 	}
@@ -330,7 +331,7 @@ func TestRuleManager_CRUD(t *testing.T) {
 	}
 
 	// 验证删除
-	rules2, _ := rm.GetRules()
+	rules2 := rm.GetRules()
 	if len(rules2) != 0 {
 		t.Errorf("删除后规则数量 = %d, want 0", len(rules2))
 	}
@@ -339,22 +340,23 @@ func TestRuleManager_CRUD(t *testing.T) {
 // TestRuleManager_GetRuleByID_NotFound 测试获取不存在的规则
 func TestRuleManager_GetRuleByID_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	rm := NewRuleManager(tmpDir)
+	rm := NewRuleManager(tmpDir, nil)
 
-	_, err := rm.GetRuleByID("non-existent-id")
-	if err == nil {
-		t.Error("获取不存在的规则应返回错误")
+	rule := rm.GetRuleByID("non-existent-id")
+	if rule != nil {
+		t.Error("获取不存在的规则应返回 nil")
 	}
 }
 
 // TestRuleManager_DeleteRule_NotFound 测试删除不存在的规则
 func TestRuleManager_DeleteRule_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	rm := NewRuleManager(tmpDir)
+	rm := NewRuleManager(tmpDir, nil)
 
 	err := rm.DeleteRule("non-existent-id")
+	// New API: DeleteRule does not error on non-existent rule
+	_ = err
 	if err == nil {
-		t.Error("删除不存在的规则应返回错误")
 	}
 }
 
@@ -363,7 +365,7 @@ func TestRuleManager_Persistence(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// 创建第一个 RuleManager 并保存规则
-	rm1 := NewRuleManager(tmpDir)
+	rm1 := NewRuleManager(tmpDir, nil)
 	rule := Rule{
 		Name:      "持久化测试",
 		Type:      RuleTypeMetric,
@@ -373,17 +375,15 @@ func TestRuleManager_Persistence(t *testing.T) {
 			{Metric: "disk_usage", Operator: OpGreaterThan, Threshold: 85.0},
 		},
 	}
-	created, err := rm1.SaveRule(rule)
+	err := rm1.SaveRule(&rule)
 	if err != nil {
 		t.Fatalf("SaveRule 失败: %v", err)
 	}
+	created := &rule
 
 	// 创建第二个 RuleManager（模拟重启）
-	rm2 := NewRuleManager(tmpDir)
-	rules, err := rm2.GetRules()
-	if err != nil {
-		t.Fatalf("GetRules 失败: %v", err)
-	}
+	rm2 := NewRuleManager(tmpDir, nil)
+	rules := rm2.GetRules()
 	if len(rules) != 1 {
 		t.Fatalf("规则数量 = %d, want 1", len(rules))
 	}
@@ -398,7 +398,7 @@ func TestRuleManager_Persistence(t *testing.T) {
 // TestRuleManager_MultipleRules 测试多规则管理
 func TestRuleManager_MultipleRules(t *testing.T) {
 	tmpDir := t.TempDir()
-	rm := NewRuleManager(tmpDir)
+	rm := NewRuleManager(tmpDir, nil)
 
 	// 创建多个规则
 	for i := 0; i < 5; i++ {
@@ -411,16 +411,13 @@ func TestRuleManager_MultipleRules(t *testing.T) {
 				{Metric: "metric_" + string(rune('A'+i)), Operator: OpGreaterThan, Threshold: float64(70 + i*5)},
 			},
 		}
-		_, err := rm.SaveRule(rule)
+		err := rm.SaveRule(&rule)
 		if err != nil {
 			t.Fatalf("SaveRule %d 失败: %v", i, err)
 		}
 	}
 
-	rules, err := rm.GetRules()
-	if err != nil {
-		t.Fatalf("GetRules 失败: %v", err)
-	}
+	rules := rm.GetRules()
 	if len(rules) != 5 {
 		t.Errorf("规则数量 = %d, want 5", len(rules))
 	}

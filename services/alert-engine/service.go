@@ -32,6 +32,8 @@ import (
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
+	"github.com/meinanzilinzhengying/cloudflow/services/alert-engine/notifier"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
@@ -60,6 +62,17 @@ type Config struct {
 	// 评估配置
 	EvalInterval time.Duration
 	MaxRules     int
+
+	// P0-19 修复: HTTP 和超时配置
+	HTTPReadTimeout         time.Duration
+	HTTPWriteTimeout        time.Duration
+	HTTPIdleTimeout         time.Duration
+	GracefulShutdownTimeout time.Duration
+	GRPCShutdownTimeout     time.Duration
+	DBPingTimeout           time.Duration
+	CHPingTimeout           time.Duration
+	NotificationTimeout     time.Duration
+	MetricsQueryTimeout     time.Duration
 
 	// P0-2 修复: TLS 配置
 	TLSEnabled      bool
@@ -104,6 +117,15 @@ func DefaultConfig() *Config {
 		TLSEnabled:           false,
 		TLSInsecureSkip:      false,
 		MockMetricsEnabled:   false,
+		HTTPReadTimeout:         30 * time.Second,
+		HTTPWriteTimeout:        30 * time.Second,
+		HTTPIdleTimeout:         120 * time.Second,
+		GracefulShutdownTimeout: 30 * time.Second,
+		GRPCShutdownTimeout:     30 * time.Second,
+		DBPingTimeout:           5 * time.Second,
+		CHPingTimeout:           5 * time.Second,
+		NotificationTimeout:     30 * time.Second,
+		MetricsQueryTimeout:     5 * time.Second,
 	}
 }
 
@@ -142,6 +164,14 @@ type Service struct {
 	// ClickHouse 连接（实时指标查询）
 	clickHouseDB *sql.DB
 
+	// P0-6: 通知渠道工厂
+	notifierFactory *notifier.Factory
+
+	// P0-7 修复: 多实例 Leader 选举
+	leaderElection *LeaderElection
+
+	rateLimiter *ratelimit.Middleware
+
 	startTime time.Time
 }
 
@@ -153,7 +183,8 @@ func New(config *Config) (*Service, error) {
 	s := &Service{
 		config:       config,
 		startTime:    time.Now(),
-		health:       health.NewServer(),
+		health:          health.NewServer(),
+		notifierFactory: notifier.NewFactory(),
 		evalStopChan: make(chan struct{}),
 	}
 
@@ -197,6 +228,9 @@ func New(config *Config) (*Service, error) {
 		}
 	}
 
+	// P0-7 修复: 初始化 Leader 选举
+	s.leaderElection = NewLeaderElection(s.db, "", "")
+
 	// 初始化 ClickHouse 连接
 	if err := s.initClickHouse(); err != nil {
 		return nil, fmt.Errorf("clickhouse init failed: %w", err)
@@ -210,6 +244,8 @@ func New(config *Config) (*Service, error) {
 	s.grpcServer = grpc.NewServer(grpcOptions...)
 	svcproto.RegisterAlertServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
+
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
 
 	return s, nil
 }
@@ -233,7 +269,7 @@ func (s *Service) initDatabase() error {
 		return fmt.Errorf("database open failed: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.DBPingTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -291,7 +327,7 @@ func (s *Service) initClickHouse() error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.DBPingTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -433,6 +469,7 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/rules/delete", s.deleteRuleHTTPHandler)
 
 	var handler http.Handler = mux
+		handler = s.rateLimiter.Handler(handler)
 	// P0-3 修复: 应用共享认证中间件
 	if s.auth != nil {
 		handler = s.auth.Middleware("/healthz")(handler)
@@ -443,15 +480,20 @@ func (s *Service) Start() error {
 	s.httpServer = &http.Server{
 		Addr:         s.config.HttpAddr,
 		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  s.config.HTTPReadTimeout,
+		WriteTimeout: s.config.HTTPWriteTimeout,
+		IdleTimeout:  s.config.HTTPIdleTimeout,
 	}
 	go func() { s.httpServer.ListenAndServe() }()
 
 	// P0-05 新增：启动周期性评估
 	s.evalWG.Add(1)
 	go s.runPeriodicEvaluation()
+
+	// P0-7 修复: 启动 Leader 选举
+	if s.leaderElection != nil {
+		go s.leaderElection.Start(context.Background())
+	}
 
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_SERVING)
 	fmt.Printf("Alert Engine started: gRPC=%s, HTTP=%s (DB=%s:%d/%s)\n",
@@ -462,13 +504,18 @@ func (s *Service) Start() error {
 func (s *Service) Stop() {
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_NOT_SERVING)
 
+	// P0-7 修复: 停止 Leader 选举
+	if s.leaderElection != nil {
+		s.leaderElection.Stop()
+	}
+
 	// P0-05 新增：停止周期性评估
 	close(s.evalStopChan)
 	s.evalWG.Wait()
 
 	// P1-04 修复: 使用优雅关闭等待请求完成
 	if s.httpServer != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), s.config.GracefulShutdownTimeout)
 		defer cancel()
 		if err := s.httpServer.Shutdown(ctx); err != nil {
 			fmt.Printf("HTTP server shutdown error: %v\n", err)
@@ -484,7 +531,7 @@ func (s *Service) Stop() {
 		}()
 		select {
 		case <-stopped:
-		case <-time.After(30 * time.Second):
+		case <-time.After(s.config.GRPCShutdownTimeout):
 			fmt.Println("gRPC graceful stop timeout, forcing stop")
 			s.grpcServer.Stop()
 		}
@@ -516,7 +563,10 @@ func (s *Service) runPeriodicEvaluation() {
 	for {
 		select {
 		case <-ticker.C:
-			s.evaluateAllRules()
+			// P0-7 修复: 只有 Leader 才执行评估
+			if s.leaderElection == nil || s.leaderElection.IsLeader() {
+				s.evaluateAllRules()
+			}
 		case <-s.evalStopChan:
 			fmt.Println("Alert periodic evaluation stopped")
 			return
@@ -652,7 +702,7 @@ func (s *Service) getLatestMetrics(tenantID string) map[string]float64 {
 		return result
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.MetricsQueryTimeout)
 	defer cancel()
 
 	// 查询各分类表最近1分钟的指标统计
@@ -716,16 +766,72 @@ func (s *Service) evaluateRule(expression string, metrics map[string]float64) (b
 	}
 }
 
-// createNotification 创建告警通知
+// createNotification 创建告警通知并实际发送到配置渠道
 func (s *Service) createNotification(tenantID, ruleID, alertID, title, message string) {
-	notificationID := fmt.Sprintf("notif-%d", time.Now().UnixNano())
-	_, err := s.db.Exec(context.Background(), 
-		"INSERT INTO alert_notifications (notification_id, alert_id, rule_id, tenant_id, channel_type, status, message) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		notificationID, alertID, ruleID, tenantID, "console", "sent", fmt.Sprintf("[%s] %s", title, message),
-	)
+	// 查询规则的通知渠道配置
+	var notifyChannels string
+	err := s.db.QueryRow(context.Background(), "SELECT notify_channels FROM alert_rules WHERE rule_id = ?", ruleID).Scan(&notifyChannels)
 	if err != nil {
-		fmt.Printf("Failed to create notification: %v\n", err)
+		notifyChannels = "[]"
 	}
+
+	// 解析通知渠道配置
+	configs, err := notifier.ParseChannels(notifyChannels)
+	if err != nil {
+		configs = []notifier.ChannelConfig{{Type: "console"}}
+	}
+
+	// 创建通知消息
+	msg := &notifier.Message{
+		Title:    title,
+		Body:     message,
+		Severity: "critical",
+		TenantID: tenantID,
+		RuleID:   ruleID,
+		AlertID:  alertID,
+	}
+
+	// 创建通知器并发送
+	notifiers, parseErrs, err := s.notifierFactory.CreateMulti(configs)
+	if err != nil {
+		fmt.Printf("Failed to create notifiers: %v\n", err)
+		return
+	}
+	for _, e := range parseErrs {
+		fmt.Printf("Notification channel error: %s\n", e)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.NotificationTimeout)
+	defer cancel()
+
+	// 并发发送通知
+	sendErrs := notifier.SendAll(ctx, notifiers, msg)
+
+	// 记录通知结果到数据库
+	for _, n := range notifiers {
+		status := "sent"
+		errMsg := ""
+		for _, e := range sendErrs {
+			if len(e) > len(n.Name()) && e[:len(n.Name())] == n.Name() {
+				status = "failed"
+				errMsg = e[len(n.Name())+2:]
+				break
+			}
+		}
+		notificationID := fmt.Sprintf("notif-%d-%s", time.Now().UnixNano(), n.Name())
+		_, dbErr := s.db.Exec(context.Background(),
+			"INSERT INTO alert_notifications (notification_id, alert_id, rule_id, tenant_id, channel_type, status, message, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+			notificationID, alertID, ruleID, tenantID, n.Name(), status, fmt.Sprintf("[%s] %s", title, message), errMsg,
+		)
+		if dbErr != nil {
+			fmt.Printf("Failed to record notification: %v\n", dbErr)
+		}
+	}
+
+	// 释放通知器资源
+	for _, n := range notifiers {
+		_ = n.Close()
+}
 }
 
 // ============================================================================

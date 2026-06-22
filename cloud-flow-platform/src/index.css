@@ -1,0 +1,92 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+.sidebar {
+  width: 220px;
+  background: #1e293b;
+  border-right: 1px solid #334155;
+  padding: 20px 0;
+}
+.sidebar .logo {
+  padding: 0 20px 20px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #38bdf8;
+  border-bottom: 1px solid #334155;
+  margin-bottom: 10px;
+}
+.sidebar nav a {
+  display: block;
+  padding: 12px 20px;
+  color: #94a3b8;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.sidebar nav a:hover, .sidebar nav a.active {
+  color: #38bdf8;
+  background: #0f172a;
+  border-left: 3px solid #38bdf8;
+}
+.main {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+.card {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 1px solid #334155;
+}
+.card h3 {
+  color: #38bdf8;
+  margin-bottom: 12px;
+  font-size: 16px;
+}
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  border: 1px solid #334155;
+}
+.stat-card .value {
+  font-size: 32px;
+  font-weight: bold;
+  color: #38bdf8;
+}
+.stat-card .label {
+  font-size: 14px;
+  color: #94a3b8;
+  margin-top: 8px;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th, .table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #334155;
+}
+.table th {
+  color: #94a3b8;
+  font-weight: 500;
+}
+.status-online { color: #22c55e; }
+.status-offline { color: #ef4444; }
+.status-warning { color: #f59e0b; }

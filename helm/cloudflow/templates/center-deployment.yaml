@@ -1,0 +1,77 @@
+{{- if .Values.center.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloudflow.center.name" . }}
+  namespace: {{ include "cloudflow.namespace" . }}
+  labels:
+    app: {{ include "cloudflow.center.name" . }}
+    {{- include "cloudflow.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.center.autoscaling.enabled }}
+  replicas: {{ .Values.center.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ include "cloudflow.center.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "cloudflow.center.name" . }}
+        {{- include "cloudflow.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.center.service.httpPort }}"
+    spec:
+      serviceAccountName: {{ include "cloudflow.serviceAccountName" . }}
+      containers:
+        - name: center
+          image: {{ include "cloudflow.image" (dict "image" .Values.center.image "global" .Values.global) }}
+          imagePullPolicy: {{ .Values.center.image.pullPolicy }}
+          env:
+{{- range $key, $value := .Values.center.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+{{- end }}
+            - name: CLOUD_FLOW_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cloudflow.secret.name" . }}
+                  key: CLOUD_FLOW_JWT_SECRET
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cloudflow.secret.name" . }}
+                  key: MYSQL_PASSWORD
+          ports:
+            - name: http
+              containerPort: {{ .Values.center.service.httpPort }}
+            - name: grpc
+              containerPort: {{ .Values.center.service.grpcPort }}
+          {{- if .Values.center.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.center.livenessProbe.path }}
+              port: {{ .Values.center.service.httpPort }}
+            initialDelaySeconds: {{ .Values.center.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.center.livenessProbe.periodSeconds }}
+          {{- end }}
+          {{- if .Values.center.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.center.readinessProbe.path }}
+              port: {{ .Values.center.service.httpPort }}
+            initialDelaySeconds: {{ .Values.center.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.center.readinessProbe.periodSeconds }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.center.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflow
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "cloudflow.config.name" . }}
+{{- end }}

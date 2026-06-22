@@ -1,0 +1,9 @@
+{{- if .Values.global.namespace }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "cloudflow.namespace" . }}
+  labels:
+    {{- include "cloudflow.labels" . | nindent 4 }}
+{{- end }}

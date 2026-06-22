@@ -22,26 +22,19 @@
       <div class="filter-item">
         <span class="filter-label">选择业务:</span>
         <el-select v-model="selectedBusiness" placeholder="请选择" size="small" class="filter-select">
-          <el-option label="业务-1" value="biz1" />
-          <el-option label="业务-2" value="biz2" />
-          <el-option label="业务-3" value="biz3" />
+          <el-option v-for="b in businessOptions" :key="b.value" :label="b.label" :value="b.value" />
         </el-select>
       </div>
       <div class="filter-item">
         <span class="filter-label">选择服务:</span>
         <el-select v-model="selectedService" placeholder="请选择" size="small" class="filter-select">
-          <el-option label="业务服务-1" value="svc1" />
-          <el-option label="业务服务-2" value="svc2" />
-          <el-option label="RDS服务" value="rds" />
+          <el-option v-for="s in serviceOptions" :key="s.value" :label="s.label" :value="s.value" />
         </el-select>
       </div>
       <div class="filter-item">
         <span class="filter-label">选择虚拟机/Pod:</span>
         <el-select v-model="selectedPod" placeholder="请选择" size="small" class="filter-select">
-          <el-option label="product-1" value="p1" />
-          <el-option label="product-2" value="p2" />
-          <el-option label="MySQL" value="mysql" />
-          <el-option label="Redis" value="redis" />
+          <el-option v-for="p in podOptions" :key="p.value" :label="p.label" :value="p.value" />
         </el-select>
       </div>
       <el-button type="primary" size="small" class="query-btn" @click="handleQuery">查询</el-button>
@@ -236,27 +229,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {
   OfficeBuilding, Collection, Box, ArrowLeft, ArrowRight,
   Warning, CircleCheck, TrendCharts, Timer, Bell, Cloudy, Grid, SetUp
 } from '@element-plus/icons-vue'
+import axios from 'axios'
+
+const api = axios.create({ baseURL: '/api', timeout: 30000 })
 
 // KPI 数据
 const kpiData = ref([
-  { name: '总请求量', value: '1967.5 K', compare: '12.5% VS 昨日', trend: 'up', icon: TrendCharts, iconSize: 44, iconColor: '#00CCFF' },
-  { name: '总流量', value: '2.8 TB', compare: '12.5% VS 昨日', trend: 'up', icon: TrendCharts, iconSize: 44, iconColor: '#00CCFF' },
-  { name: '平均延迟', value: '23ms', compare: '8% VS 昨日', trend: 'down', icon: Timer, iconSize: 44, iconColor: '#00CCFF' },
-  { name: '告警数量', value: '15', compare: '', trend: '', icon: Bell, iconSize: 44, iconColor: '#FF745A' },
-  { name: '云主机节点/异常数', value: '15/0', compare: '', trend: '', icon: Cloudy, iconSize: 44, iconColor: '#61DDAA' },
-  { name: '容器节点数/异常数', value: '20/1', compare: '', trend: '', icon: Grid, iconSize: 44, iconColor: '#61DDAA' },
-  { name: '业务节点数/异常数', value: '15/1', compare: '', trend: '', icon: SetUp, iconSize: 44, iconColor: '#61DDAA' },
+  { name: '总请求量', value: '0', compare: '', trend: '', icon: TrendCharts, iconSize: 44, iconColor: '#00CCFF' },
+  { name: '总流量', value: '0', compare: '', trend: '', icon: TrendCharts, iconSize: 44, iconColor: '#00CCFF' },
+  { name: '平均延迟', value: '0ms', compare: '', trend: '', icon: Timer, iconSize: 44, iconColor: '#00CCFF' },
+  { name: '告警数量', value: '0', compare: '', trend: '', icon: Bell, iconSize: 44, iconColor: '#FF745A' },
+  { name: '云主机节点/异常数', value: '0/0', compare: '', trend: '', icon: Cloudy, iconSize: 44, iconColor: '#61DDAA' },
+  { name: '容器节点数/异常数', value: '0/0', compare: '', trend: '', icon: Grid, iconSize: 44, iconColor: '#61DDAA' },
+  { name: '业务节点数/异常数', value: '0/0', compare: '', trend: '', icon: SetUp, iconSize: 44, iconColor: '#61DDAA' },
 ])
 
-// 筛选器
+// 选择器
 const selectedBusiness = ref('')
 const selectedService = ref('')
 const selectedPod = ref('')
+const businessOptions = ref<{label: string, value: string}[]>([])
+const serviceOptions = ref<{label: string, value: string}[]>([])
+const podOptions = ref<{label: string, value: string}[]>([])
 
 const handleQuery = () => {
   console.log('Query:', selectedBusiness.value, selectedService.value, selectedPod.value)
@@ -268,71 +267,33 @@ const onlyAbnormalSvc = ref(false)
 const onlyAbnormalPod = ref(false)
 
 // 业务层数据
-const businessData = ref([
-  { name: '业务-1', value: '2.8 Gbps', status: '正常', selected: true },
-  { name: '业务-2', value: '1.5 Gbps', status: '正常', selected: false },
-  { name: '业务-3', value: '2.8 Gbps', status: '正常', selected: false },
-  { name: '业务-4', value: '1.5 Gbps', status: '正常', selected: false },
-  { name: '业务-5', value: '2.8 Gbps', status: '正常', selected: false },
-  { name: '业务-6', value: '1.5 Gbps', status: '正常', selected: false },
-  { name: '业务-7', value: '1.5 Gbps', status: '正常', selected: false },
-  { name: '业务-8', value: '1.5 Gbps', status: '异常', selected: false },
-  { name: '业务-9', value: '1.5 Gbps', status: '正常', selected: false },
-  { name: '业务-10', value: '1.5 Gbps', status: '正常', selected: false },
-])
-
+const businessData = ref<any[]>([])
 const filteredBusiness = computed(() => {
   if (onlyAbnormalBiz.value) return businessData.value.filter(b => b.status === '异常')
   return businessData.value
 })
-
 const selectBusiness = (biz: any) => {
   businessData.value.forEach(b => b.selected = false)
   biz.selected = true
 }
 
 // 服务层数据
-const servicesData = ref([
-  { name: '业务服务-1', value: '4.5 Gbps', delay: '45ms', status: '正常', selected: false },
-  { name: '业务服务-2', value: '1.2 Gbps', delay: '32ms', status: '正常', selected: false },
-  { name: 'RDS服务', value: '0.8 Gbps', delay: '28ms', status: '正常', selected: false },
-  { name: '业务服务-3', value: '4.5 Gbps', delay: '45ms', status: '正常', selected: false },
-  { name: '业务服务-4', value: '1.2 Gbps', delay: '32ms', status: '正常', selected: false },
-  { name: '业务服务-5', value: '0.8 Gbps', delay: '28ms', status: '正常', selected: false },
-  { name: '业务服务-6', value: '4.5 Gbps', delay: '45ms', status: '正常', selected: false },
-  { name: '业务服务-7', value: '4.5 Gbps', delay: '45ms', status: '正常', selected: false },
-])
-
+const servicesData = ref<any[]>([])
 const filteredServices = computed(() => {
   if (onlyAbnormalSvc.value) return servicesData.value.filter(s => s.status === '异常')
   return servicesData.value
 })
-
 const selectService = (svc: any) => {
   servicesData.value.forEach(s => s.selected = false)
   svc.selected = true
 }
 
 // 虚拟机/Pod层数据
-const podsData = ref([
-  { name: 'product-1', value: '456 Mbps', delay: '18ms', status: '正常', selected: false },
-  { name: 'product-2', value: '312 Mbps', delay: '45ms', status: '正常', selected: false },
-  { name: 'product-3', value: '389 Mbps', delay: '22ms', status: '正常', selected: false },
-  { name: 'product-4', value: '234 Mbps', delay: '12ms', status: '正常', selected: false },
-  { name: 'MySQL', value: '234 Mbps', delay: '12ms', status: '正常', selected: false },
-  { name: 'Redis', value: '189 Mbps', delay: '8ms', status: '正常', selected: false },
-  { name: 'product-5', value: '156 Mbps', delay: '14ms', status: '正常', selected: false },
-  { name: 'product-6', value: '456 Mbps', delay: '18ms', status: '正常', selected: false },
-  { name: 'product-7', value: '312 Mbps', delay: '45ms', status: '正常', selected: false },
-  { name: 'product-8', value: '389 Mbps', delay: '22ms', status: '正常', selected: false },
-  { name: 'product-9', value: '234 Mbps', delay: '12ms', status: '正常', selected: false },
-])
-
+const podsData = ref<any[]>([])
 const filteredPods = computed(() => {
   if (onlyAbnormalPod.value) return podsData.value.filter(p => p.status === '异常')
   return podsData.value
 })
-
 const selectPod = (pod: any) => {
   podsData.value.forEach(p => p.selected = false)
   pod.selected = true
@@ -354,6 +315,12 @@ const scrollPod = (dir: number) => {
 }
 
 // 告警饼图配置
+const alertPieData = ref([
+  { name: '网络指标告警', value: 0, itemStyle: { color: '#2391FF' } },
+  { name: '事件告警', value: 0, itemStyle: { color: '#FF745A' } },
+  { name: '连通性告警', value: 0, itemStyle: { color: '#FFC328' } },
+  { name: '系统告警', value: 0, itemStyle: { color: '#5D7092' } },
+])
 const alertPieOption = computed(() => ({
   backgroundColor: 'transparent',
   tooltip: { trigger: 'item', backgroundColor: 'rgba(5, 56, 90, 0.9)', borderColor: '#0ABAFF', textStyle: { color: '#fff' } },
@@ -365,32 +332,120 @@ const alertPieOption = computed(() => ({
     itemStyle: { borderRadius: 4, borderColor: 'rgba(38, 36, 68, 0.8)', borderWidth: 2 },
     label: { show: true, color: '#fff', fontSize: 12, formatter: '{d}%' },
     labelLine: { lineStyle: { color: 'rgba(255,255,255,0.45)' } },
-    data: [
-      { name: '网络指标告警', value: 3, itemStyle: { color: '#2391FF' }, label: { formatter: '{d}%' } },
-      { name: '事件告警', value: 5, itemStyle: { color: '#FF745A' }, label: { formatter: '{d}%' } },
-      { name: '连通性告警', value: 4, itemStyle: { color: '#FFC328' }, label: { formatter: '{d}%' } },
-      { name: '系统告警', value: 2, itemStyle: { color: '#5D7092' }, label: { formatter: '{d}%' } },
-    ]
+    data: alertPieData.value.filter(d => d.value > 0)
   }]
 }))
 
 // 请求数 TOP 5
-const requestTop5 = ref([
-  { ip: '192.168.1.45', name: 'order-service-7d8f9c-xk2m9', status: 'normal', statusText: '正常', value: '453次/秒', percent: 90 },
-  { ip: '10.244.3.12', name: 'payment-service-5b6c8d-p9k4n', status: 'normal', statusText: '正常', value: '389次/秒', percent: 78 },
-  { ip: '192.168.0.99', name: 'user-service-9a2b3c-m7h5j', status: 'warning', statusText: '需关注', value: '349次/秒', percent: 70 },
-  { ip: '192.168.1.45', name: 'production-service-4e5f6g-q3w8r', status: 'normal', statusText: '正常', value: '320次/秒', percent: 64 },
-  { ip: '192.168.0.41', name: 'search-service-8h9i0j-t6y2u', status: 'normal', statusText: '正常', value: '290次/秒', percent: 58 },
-])
-
+const requestTop5 = ref<any[]>([])
 // 流量 TOP 5
-const trafficTop5 = ref([
-  { name: '业务-1', status: 'normal', statusText: '正常', value: '1.2 Gbps', percent: 85 },
-  { name: '业务-2', status: 'normal', statusText: '正常', value: '567 Mbps', percent: 60 },
-  { name: '业务-3', status: 'warning', statusText: '需关注', value: '234 Mbps', percent: 45 },
-  { name: '业务-4', status: 'normal', statusText: '正常', value: '189 Mbps', percent: 35 },
-  { name: '业务-5', status: 'normal', statusText: '正常', value: '145 Mbps', percent: 28 },
-])
+const trafficTop5 = ref<any[]>([])
+
+const loadDashboard = async () => {
+  try {
+    // 1. Overview
+    const overviewRes = await api.get('/overview')
+    const ov = overviewRes.data?.data || overviewRes.data || {}
+    kpiData.value[0].value = ov.total_requests ? ov.total_requests.toString() : '0'
+    kpiData.value[1].value = ov.total_traffic ? ov.total_traffic.toString() : '0'
+    kpiData.value[2].value = ov.avg_latency ? (ov.avg_latency + 'ms') : '0ms'
+    kpiData.value[3].value = ov.alert_count ? ov.alert_count.toString() : '0'
+    const nodes = ov.nodes || {}
+    kpiData.value[4].value = `${nodes.total || 0}/${nodes.abnormal || 0}`
+    kpiData.value[5].value = `${nodes.container_total || 0}/${nodes.container_abnormal || 0}`
+    kpiData.value[6].value = `${nodes.business_total || 0}/${nodes.business_abnormal || 0}`
+  } catch (e) { console.error('overview error:', e) }
+
+  try {
+    // 2. Business
+    const bizRes = await api.get('/business')
+    const bizList = bizRes.data?.data || bizRes.data || []
+    const list = Array.isArray(bizList) ? bizList : (bizList.list || [])
+    businessData.value = list.map((b: any, i: number) => ({
+      name: b.name || b.id || `业务-${i+1}`,
+      value: b.traffic || b.value || '0 Gbps',
+      status: b.status === 'abnormal' ? '异常' : '正常',
+      selected: i === 0
+    }))
+    businessOptions.value = list.map((b: any, i: number) => ({ label: b.name || b.id || `业务-${i+1}`, value: b.id || `biz${i+1}` }))
+    trafficTop5.value = list.slice(0, 5).map((b: any, i: number) => {
+      const val = parseFloat(b.traffic || b.value || '0')
+      const max = Math.max(...list.slice(0, 5).map((x: any) => parseFloat(x.traffic || x.value || '0')))
+      return {
+        name: b.name || b.id || `业务-${i+1}`,
+        status: b.status === 'abnormal' ? 'warning' : 'normal',
+        statusText: b.status === 'abnormal' ? '需关注' : '正常',
+        value: b.traffic || b.value || '0',
+        percent: max > 0 ? Math.round((val / max) * 100) : 0
+      }
+    })
+  } catch (e) { console.error('business error:', e) }
+
+  try {
+    // 3. Service
+    const svcRes = await api.get('/service')
+    const svcList = svcRes.data?.data || svcRes.data || []
+    const list = Array.isArray(svcList) ? svcList : (svcList.list || [])
+    servicesData.value = list.map((s: any, i: number) => ({
+      name: s.name || s.id || `服务-${i+1}`,
+      value: s.traffic || s.value || '0 Gbps',
+      delay: s.latency ? (s.latency + 'ms') : '0ms',
+      status: s.status === 'abnormal' ? '异常' : '正常',
+      selected: false
+    }))
+    serviceOptions.value = list.map((s: any, i: number) => ({ label: s.name || s.id || `服务-${i+1}`, value: s.id || `svc${i+1}` }))
+  } catch (e) { console.error('service error:', e) }
+
+  try {
+    // 4. Nodes (Pod)
+    const nodeRes = await api.get('/nodes')
+    const nodeList = nodeRes.data?.data || nodeRes.data || []
+    const list = Array.isArray(nodeList) ? nodeList : (nodeList.list || [])
+    podsData.value = list.map((n: any, i: number) => ({
+      name: n.name || n.hostname || n.id || `node-${i+1}`,
+      value: n.traffic || n.value || '0 Mbps',
+      delay: n.latency ? (n.latency + 'ms') : '0ms',
+      status: n.status === 'abnormal' || n.status === 'unhealthy' ? '异常' : '正常',
+      selected: false
+    }))
+    podOptions.value = list.map((n: any, i: number) => ({ label: n.name || n.hostname || n.id || `node-${i+1}`, value: n.id || `p${i+1}` }))
+    requestTop5.value = list.slice(0, 5).map((n: any, i: number) => {
+      const req = n.requests || n.req_count || 0
+      const maxReq = Math.max(...list.slice(0, 5).map((x: any) => x.requests || x.req_count || 0))
+      return {
+        ip: n.ip || n.address || '0.0.0.0',
+        name: n.name || n.hostname || n.id || `node-${i+1}`,
+        status: n.status === 'abnormal' || n.status === 'unhealthy' ? 'warning' : 'normal',
+        statusText: n.status === 'abnormal' || n.status === 'unhealthy' ? '需关注' : '正常',
+        value: (req ? (req + '次/秒') : '0次/秒'),
+        percent: maxReq > 0 ? Math.round((req / maxReq) * 100) : 0
+      }
+    })
+  } catch (e) { console.error('nodes error:', e) }
+
+  try {
+    // 5. Alerts for pie
+    const alertRes = await api.get('/alert/list')
+    const alertData = alertRes.data?.data || alertRes.data || []
+    const alerts = Array.isArray(alertData) ? alertData : (alertData.list || [])
+    const counts: Record<string, number> = { '网络指标告警': 0, '事件告警': 0, '连通性告警': 0, '系统告警': 0 }
+    alerts.forEach((a: any) => {
+      const type = (a.rule_name || (a.labels && a.labels.alertname) || '').toLowerCase()
+      if (type.includes('network') || type.includes('网络')) counts['网络指标告警']++
+      else if (type.includes('connect') || type.includes('连通') || type.includes('ping')) counts['连通性告警']++
+      else if (type.includes('system') || type.includes('系统') || type.includes('cpu') || type.includes('memory') || type.includes('disk')) counts['系统告警']++
+      else counts['事件告警']++
+    })
+    alertPieData.value = [
+      { name: '网络指标告警', value: counts['网络指标告警'], itemStyle: { color: '#2391FF' } },
+      { name: '事件告警', value: counts['事件告警'], itemStyle: { color: '#FF745A' } },
+      { name: '连通性告警', value: counts['连通性告警'], itemStyle: { color: '#FFC328' } },
+      { name: '系统告警', value: counts['系统告警'], itemStyle: { color: '#5D7092' } },
+    ]
+  } catch (e) { console.error('alert error:', e) }
+}
+
+onMounted(loadDashboard)
 </script>
 
 <style scoped lang="scss">

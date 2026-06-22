@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/meinanzilinzhengying/cloudflow/services/query-service"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 )
 
 func main() {
@@ -54,8 +55,15 @@ func main() {
 	}
 	if tsdbType := os.Getenv("TSDB_TYPE"); tsdbType != "" {
 		if tsdbType == "clickhouse" {
-			cfg.TimeSeriesDBType = 0 // DatabaseClickHouse
+			cfg.TimeSeriesDBType = storage.DatabaseClickHouse
 		}
+	}
+
+	// Auth 配置
+	if addr := os.Getenv("AUTH_ADDR"); addr != "" {
+		cfg.AuthAddr = addr
+	} else {
+		cfg.AuthAddr = "auth-service:9006"
 	}
 
 	// P0-2 TLS 配置

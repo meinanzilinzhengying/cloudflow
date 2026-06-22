@@ -1,0 +1,40 @@
+P23: CloudFlow Helm Chart 部署完成
+
+================================================================================
+  CloudFlow 已成功部署到 Kubernetes 集群
+================================================================================
+
+{{- if .Values.center.enabled }}
+中心服务 (Center):
+  服务名: {{ include "cloudflow.center.name" . }}
+  HTTP 地址: http://{{ include "cloudflow.center.name" . }}.{{ include "cloudflow.namespace" . }}.svc.cluster.local:{{ .Values.center.service.httpPort }}
+  gRPC 地址: {{ include "cloudflow.center.name" . }}.{{ include "cloudflow.namespace" . }}.svc.cluster.local:{{ .Values.center.service.grpcPort }}
+{{- end }}
+
+{{- if .Values.edge.enabled }}
+边缘服务 (Edge):
+  服务名: {{ include "cloudflow.edge.name" . }}
+  gRPC 地址: {{ include "cloudflow.edge.name" . }}.{{ include "cloudflow.namespace" . }}.svc.cluster.local:{{ .Values.edge.service.grpcPort }}
+{{- end }}
+
+{{- if .Values.agent.enabled }}
+探针 (Agent):
+  DaemonSet: {{ include "cloudflow.agent.name" . }}
+  状态检查: kubectl get ds {{ include "cloudflow.agent.name" . }} -n {{ include "cloudflow.namespace" . }}
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+访问入口:
+  {{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls.enabled }}s{{ end }}://{{ .host }}
+  {{- end }}
+{{- end }}
+
+重要提示:
+  1. 生产环境请修改 secrets.jwtSecret、secrets.mysqlPassword 等密码
+  2. 使用 externalSecrets 或 Vault 集成管理敏感信息
+  3. 根据需要启用中间件子 Chart（clickhouse、redis、etcd、mysql）
+
+监控与告警:
+  Prometheus 指标: http://{{ include "cloudflow.edge.name" . }}.{{ include "cloudflow.namespace" . }}.svc.cluster.local:{{ .Values.edge.service.metricsPort }}/metrics
+  SLI/SLO 告警规则: 参见 docs/slo/prometheus-rules.yml

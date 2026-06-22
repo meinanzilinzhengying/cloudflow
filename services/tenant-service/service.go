@@ -31,6 +31,7 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
@@ -76,6 +77,14 @@ type Config struct {
 	TLSKeyFile      string
 	TLSClientAuth   bool
 	TLSInsecureSkip bool
+
+	// P0-19 修复: HTTP 和超时配置
+	HTTPReadTimeout         time.Duration
+	HTTPWriteTimeout        time.Duration
+	HTTPIdleTimeout         time.Duration
+	GracefulShutdownTimeout time.Duration
+	GRPCShutdownTimeout     time.Duration
+	DBPingTimeout           time.Duration
 }
 
 // DefaultConfig 默认配置
@@ -101,6 +110,12 @@ func DefaultConfig() *Config {
 		DefaultMaxAlertRules:  100,
 		TLSEnabled:            false,
 		TLSInsecureSkip:       false,
+		HTTPReadTimeout:         30 * time.Second,
+		HTTPWriteTimeout:        30 * time.Second,
+		HTTPIdleTimeout:         120 * time.Second,
+		GracefulShutdownTimeout: 30 * time.Second,
+		GRPCShutdownTimeout:     30 * time.Second,
+		DBPingTimeout:           5 * time.Second,
 	}
 }
 
@@ -128,6 +143,9 @@ type Service struct {
 
 	// P0-2 修复: TLS 凭证
 	grpcCreds credentials.TransportCredentials
+
+	resilienceClient *TenantResilienceClient
+	rateLimiter      *ratelimit.Middleware
 
 	startTime time.Time
 }
@@ -193,6 +211,9 @@ func New(config *Config) (*Service, error) {
 	svcproto.RegisterTenantServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
+	s.resilienceClient = NewTenantResilienceClient()
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
+
 	return s, nil
 }
 
@@ -211,12 +232,12 @@ func (s *Service) initDatabase() error {
 		DualWriteMode:  s.config.DBDualWriteMode,
 	}
 
-	db, err := storage.OpenRelational(cfg)
+	db, err := storage.OpenRelational(&cfg)
 	if err != nil {
 		return fmt.Errorf("database open failed: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.DBPingTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -227,7 +248,7 @@ func (s *Service) initDatabase() error {
 	s.db = db
 
 	// 初始化表结构
-	if err := s.initTables(); err != nil {
+	if err := s.initTables(ctx); err != nil {
 		return fmt.Errorf("init tables failed: %w", err)
 	}
 
@@ -237,7 +258,7 @@ func (s *Service) initDatabase() error {
 }
 
 // initTables 初始化租户服务所需的表结构
-func (s *Service) initTables() error {
+func (s *Service) initTables(ctx context.Context) error {
 	// 租户表
 	createTenantTable := `
 	CREATE TABLE IF NOT EXISTS tenants (
@@ -253,7 +274,7 @@ func (s *Service) initTables() error {
 		INDEX idx_status (status)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	if _, err := s.db.Exec(createTenantTable); err != nil {
+	if _, err := s.db.Exec(ctx, createTenantTable); err != nil {
 		return fmt.Errorf("create tenants table: %w", err)
 	}
 
@@ -272,7 +293,7 @@ func (s *Service) initTables() error {
 		INDEX idx_name (name)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	if _, err := s.db.Exec(createProjectTable); err != nil {
+	if _, err := s.db.Exec(ctx, createProjectTable); err != nil {
 		return fmt.Errorf("create projects table: %w", err)
 	}
 
@@ -293,7 +314,7 @@ func (s *Service) initTables() error {
 		INDEX idx_project_id (project_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	if _, err := s.db.Exec(createQuotaTable); err != nil {
+	if _, err := s.db.Exec(ctx, createQuotaTable); err != nil {
 		return fmt.Errorf("create quotas table: %w", err)
 	}
 
@@ -311,24 +332,24 @@ func (s *Service) initTables() error {
 		UNIQUE INDEX idx_tenant_user (tenant_id, user_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 
-	if _, err := s.db.Exec(createMemberTable); err != nil {
+	if _, err := s.db.Exec(ctx, createMemberTable); err != nil {
 		return fmt.Errorf("create tenant_members table: %w", err)
 	}
 
 	// 创建默认租户（如果不存在）
-	return s.createDefaultTenant()
+	return s.createDefaultTenant(ctx)
 }
 
 // createDefaultTenant 创建默认租户
-func (s *Service) createDefaultTenant() error {
+func (s *Service) createDefaultTenant(ctx context.Context) error {
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM tenants WHERE tenant_id = 'default'").Scan(&count)
+	err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM tenants WHERE tenant_id = 'default'").Scan(&count)
 	if err != nil {
 		return fmt.Errorf("check default tenant: %w", err)
 	}
 
 	if count == 0 {
-		_, err = s.db.Exec(
+		_, err = s.db.Exec(ctx, 
 			"INSERT INTO tenants (tenant_id, name, display_name, description, plan) VALUES (?, ?, ?, ?, ?)",
 			"default",
 			"default",
@@ -341,7 +362,7 @@ func (s *Service) createDefaultTenant() error {
 		}
 
 		// 创建默认租户的配额
-		_, err = s.db.Exec(
+		_, err = s.db.Exec(ctx, 
 			"INSERT INTO quotas (quota_id, tenant_id, max_agents, max_flows_per_day, max_storage_gb, max_alert_rules, retention_days) VALUES (?, ?, ?, ?, ?, ?, ?)",
 			"quota-default",
 			"default",
@@ -383,6 +404,7 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/api/quotas", s.quotasHandler)
 
 	var handler http.Handler = mux
+		handler = s.rateLimiter.Handler(handler)
 	// P0-3 修复: 应用共享认证中间件
 	if s.auth != nil {
 		handler = s.auth.Middleware("/healthz")(handler)
@@ -393,9 +415,9 @@ func (s *Service) Start() error {
 	s.httpServer = &http.Server{
 		Addr:         s.config.HttpAddr,
 		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  s.config.HTTPReadTimeout,
+		WriteTimeout: s.config.HTTPWriteTimeout,
+		IdleTimeout:  s.config.HTTPIdleTimeout,
 	}
 	go func() { s.httpServer.ListenAndServe() }()
 
@@ -427,7 +449,7 @@ func (s *Service) Stop() {
 		}()
 		select {
 		case <-stopped:
-		case <-time.After(30 * time.Second):
+		case <-time.After(s.config.GRPCShutdownTimeout):
 			fmt.Println("gRPC graceful stop timeout, forcing stop")
 			s.grpcServer.Stop()
 		}
@@ -460,7 +482,7 @@ func (s *Service) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequ
 func (s *Service) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRequest) (*svcproto.CreateTenantResponse, error) {
 	tenantID := fmt.Sprintf("tenant-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(
+	_, err := s.db.Exec(ctx, 
 		"INSERT INTO tenants (tenant_id, name, display_name, description, plan) VALUES (?, ?, ?, ?, ?)",
 		tenantID,
 		req.Name,
@@ -473,7 +495,7 @@ func (s *Service) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRe
 	}
 
 	// 创建默认配额
-	_, err = s.db.Exec(
+	_, err = s.db.Exec(ctx, 
 		"INSERT INTO quotas (quota_id, tenant_id, max_agents, max_flows_per_day, max_storage_gb, max_alert_rules, retention_days) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		fmt.Sprintf("quota-%s", tenantID),
 		tenantID,
@@ -496,7 +518,7 @@ func (s *Service) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRe
 // GetTenant 获取租户信息
 func (s *Service) GetTenant(ctx context.Context, req *svcproto.GetTenantRequest) (*svcproto.GetTenantResponse, error) {
 	var tenant svcproto.Tenant
-	err := s.db.QueryRow(
+	err := s.db.QueryRow(ctx, 
 		"SELECT tenant_id, name, display_name, description, plan, status, created_at, updated_at FROM tenants WHERE tenant_id = ?",
 		req.TenantId,
 	).Scan(
@@ -521,7 +543,7 @@ func (s *Service) GetTenant(ctx context.Context, req *svcproto.GetTenantRequest)
 
 // UpdateTenant 更新租户信息
 func (s *Service) UpdateTenant(ctx context.Context, req *svcproto.UpdateTenantRequest) (*svcproto.UpdateTenantResponse, error) {
-	result, err := s.db.Exec(
+	result, err := s.db.Exec(ctx, 
 		"UPDATE tenants SET display_name = ?, description = ?, plan = ?, status = ? WHERE tenant_id = ?",
 		req.DisplayName,
 		req.Description,
@@ -551,28 +573,28 @@ func (s *Service) DeleteTenant(ctx context.Context, req *svcproto.DeleteTenantRe
 	}
 
 	// 删除配额
-	_, err = tx.Exec("DELETE FROM quotas WHERE tenant_id = ?", req.TenantId)
+	_, err = tx.Exec(ctx, "DELETE FROM quotas WHERE tenant_id = ?", req.TenantId)
 	if err != nil {
 		tx.Rollback()
 		return &svcproto.DeleteTenantResponse{Success: false, Message: err.Error()}, nil
 	}
 
 	// 删除项目
-	_, err = tx.Exec("DELETE FROM projects WHERE tenant_id = ?", req.TenantId)
+	_, err = tx.Exec(ctx, "DELETE FROM projects WHERE tenant_id = ?", req.TenantId)
 	if err != nil {
 		tx.Rollback()
 		return &svcproto.DeleteTenantResponse{Success: false, Message: err.Error()}, nil
 	}
 
 	// 删除成员
-	_, err = tx.Exec("DELETE FROM tenant_members WHERE tenant_id = ?", req.TenantId)
+	_, err = tx.Exec(ctx, "DELETE FROM tenant_members WHERE tenant_id = ?", req.TenantId)
 	if err != nil {
 		tx.Rollback()
 		return &svcproto.DeleteTenantResponse{Success: false, Message: err.Error()}, nil
 	}
 
 	// 删除租户
-	_, err = tx.Exec("DELETE FROM tenants WHERE tenant_id = ?", req.TenantId)
+	_, err = tx.Exec(ctx, "DELETE FROM tenants WHERE tenant_id = ?", req.TenantId)
 	if err != nil {
 		tx.Rollback()
 		return &svcproto.DeleteTenantResponse{Success: false, Message: err.Error()}, nil
@@ -588,7 +610,7 @@ func (s *Service) DeleteTenant(ctx context.Context, req *svcproto.DeleteTenantRe
 
 // ListTenants 列出所有租户
 func (s *Service) ListTenants(ctx context.Context, req *svcproto.ListTenantsRequest) (*svcproto.ListTenantsResponse, error) {
-	rows, err := s.db.Query("SELECT tenant_id, name, display_name, description, plan, status, created_at FROM tenants")
+	rows, err := s.db.Query(ctx, "SELECT tenant_id, name, display_name, description, plan, status, created_at FROM tenants")
 	if err != nil {
 		return nil, fmt.Errorf("list tenants: %w", err)
 	}
@@ -618,7 +640,7 @@ func (s *Service) ListTenants(ctx context.Context, req *svcproto.ListTenantsRequ
 func (s *Service) CreateProject(ctx context.Context, req *svcproto.CreateProjectRequest) (*svcproto.CreateProjectResponse, error) {
 	projectID := fmt.Sprintf("project-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(
+	_, err := s.db.Exec(ctx, 
 		"INSERT INTO projects (project_id, tenant_id, name, display_name, description) VALUES (?, ?, ?, ?, ?)",
 		projectID,
 		req.TenantId,
@@ -639,7 +661,7 @@ func (s *Service) CreateProject(ctx context.Context, req *svcproto.CreateProject
 // GetProject 获取项目信息
 func (s *Service) GetProject(ctx context.Context, req *svcproto.GetProjectRequest) (*svcproto.GetProjectResponse, error) {
 	var project svcproto.Project
-	err := s.db.QueryRow(
+	err := s.db.QueryRow(ctx, 
 		"SELECT project_id, tenant_id, name, display_name, description, status, created_at FROM projects WHERE project_id = ?",
 		req.ProjectId,
 	).Scan(
@@ -663,7 +685,7 @@ func (s *Service) GetProject(ctx context.Context, req *svcproto.GetProjectReques
 
 // ListProjects 列出租户下的项目
 func (s *Service) ListProjects(ctx context.Context, req *svcproto.ListProjectsRequest) (*svcproto.ListProjectsResponse, error) {
-	rows, err := s.db.Query("SELECT project_id, tenant_id, name, display_name, description, status, created_at FROM projects WHERE tenant_id = ?", req.TenantId)
+	rows, err := s.db.Query(ctx, "SELECT project_id, tenant_id, name, display_name, description, status, created_at FROM projects WHERE tenant_id = ?", req.TenantId)
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
@@ -692,7 +714,7 @@ func (s *Service) ListProjects(ctx context.Context, req *svcproto.ListProjectsRe
 // GetQuota 获取配额信息
 func (s *Service) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (*svcproto.GetQuotaResponse, error) {
 	var quota svcproto.Quota
-	err := s.db.QueryRow(
+	err := s.db.QueryRow(ctx, 
 		"SELECT quota_id, tenant_id, project_id, max_agents, max_flows_per_day, max_storage_gb, max_alert_rules, retention_days FROM quotas WHERE tenant_id = ?",
 		req.TenantId,
 	).Scan(
@@ -731,7 +753,7 @@ func (s *Service) UpdateQuota(ctx context.Context, req *svcproto.UpdateTenantQuo
 		return &svcproto.UpdateTenantQuotaResponse{Success: false, Message: "quota is required"}, nil
 	}
 
-	result, err := s.db.Exec(
+	result, err := s.db.Exec(ctx, 
 		"UPDATE quotas SET max_agents = ?, max_flows_per_day = ?, max_storage_gb = ?, max_alert_rules = ?, retention_days = ? WHERE tenant_id = ?",
 		req.Quota.MaxAgents,
 		req.Quota.MaxFlowsPerDay,
@@ -752,7 +774,7 @@ func (s *Service) UpdateQuota(ctx context.Context, req *svcproto.UpdateTenantQuo
 func (s *Service) AddTenantMember(ctx context.Context, req *svcproto.AddTenantMemberRequest) (*svcproto.AddTenantMemberResponse, error) {
 	memberID := fmt.Sprintf("member-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(
+	_, err := s.db.Exec(ctx, 
 		"INSERT INTO tenant_members (member_id, tenant_id, user_id, role) VALUES (?, ?, ?, ?)",
 		memberID,
 		req.TenantId,
@@ -768,7 +790,7 @@ func (s *Service) AddTenantMember(ctx context.Context, req *svcproto.AddTenantMe
 
 // RemoveTenantMember 移除租户成员
 func (s *Service) RemoveTenantMember(ctx context.Context, req *svcproto.RemoveTenantMemberRequest) (*svcproto.RemoveTenantMemberResponse, error) {
-	result, err := s.db.Exec(
+	result, err := s.db.Exec(ctx, 
 		"DELETE FROM tenant_members WHERE tenant_id = ? AND user_id = ?",
 		req.TenantId,
 		req.UserId,
@@ -783,7 +805,7 @@ func (s *Service) RemoveTenantMember(ctx context.Context, req *svcproto.RemoveTe
 
 // ListTenantMembers 列出租户成员
 func (s *Service) ListTenantMembers(ctx context.Context, req *svcproto.ListTenantMembersRequest) (*svcproto.ListTenantMembersResponse, error) {
-	rows, err := s.db.Query("SELECT member_id, tenant_id, user_id, role, created_at FROM tenant_members WHERE tenant_id = ?", req.TenantId)
+	rows, err := s.db.Query(ctx, "SELECT member_id, tenant_id, user_id, role, created_at FROM tenant_members WHERE tenant_id = ?", req.TenantId)
 	if err != nil {
 		return nil, fmt.Errorf("list tenant members: %w", err)
 	}

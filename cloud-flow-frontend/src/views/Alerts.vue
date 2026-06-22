@@ -63,21 +63,40 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import axios from 'axios'
+
+const api = axios.create({ baseURL: '/api', timeout: 30000 })
 
 const filterLevel = ref('')
 const filterStatus = ref('')
 const detailVisible = ref(false)
 const currentEvent = ref<any>(null)
+const events = ref<any[]>([])
 
-const events = ref([
-  { id: 'S001', timestamp: '2026-06-18 14:00:00', level: 'high', status: 'pending', type: '权限提升', description: '检测到进程尝试获取 CAP_SYS_ADMIN 权限', host: 'node-01', rawData: '{"pid":1234,"comm":"python3","cap":21}' },
-  { id: 'S002', timestamp: '2026-06-18 13:45:00', level: 'medium', status: 'pending', type: '异常连接', description: '发现非常规端口的外连行为', host: 'node-02', rawData: '{"src":"192.168.1.102:54321","dst":"8.8.8.8:53"}' },
-  { id: 'S003', timestamp: '2026-06-18 13:30:00', level: 'low', status: 'handled', type: '文件访问', description: '敏感文件 /etc/shadow 被读取', host: 'node-01', rawData: '{"pid":5678,"filename":"/etc/shadow","uid":0}' },
-  { id: 'S004', timestamp: '2026-06-18 13:00:00', level: 'high', status: 'ignored', type: '模块加载', description: '检测到未签名内核模块加载', host: 'node-03', rawData: '{"module":"unknown.ko","pid":9999}' },
-  { id: 'S005', timestamp: '2026-06-18 12:30:00', level: 'medium', status: 'pending', type: 'DNS隧道', description: '检测到可疑DNS查询长度，疑似DNS隧道', host: 'node-02', rawData: '{"domain":"a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z.example.com","len":120}' },
-])
+const fetchEvents = async () => {
+  try {
+    const res = await api.get('/alert/list')
+    const data = res.data?.data || res.data || []
+    const list = Array.isArray(data) ? data : (data.list || [])
+    events.value = list.map((alert: any) => ({
+      id: alert.id || alert.alert_id || '',
+      timestamp: alert.created_at ? new Date(alert.created_at).toLocaleString('zh-CN') : (alert.timestamp || ''),
+      level: alert.severity === 'critical' ? 'high' : (alert.severity || 'medium').toLowerCase(),
+      status: alert.resolved ? 'handled' : 'pending',
+      type: alert.rule_name || (alert.labels && alert.labels.alertname) || '未知告警',
+      description: alert.message || alert.description || '',
+      host: (alert.labels && alert.labels.instance) || alert.host || '未知',
+      rawData: JSON.stringify(alert, null, 2)
+    }))
+  } catch (err) {
+    console.error('获取告警失败:', err)
+    ElMessage.error('获取告警数据失败')
+  }
+}
+
+onMounted(fetchEvents)
 
 const filteredEvents = computed(() => {
   let list = events.value
@@ -104,10 +123,6 @@ const handleEvent = (id: string, status: string) => {
 const showDetail = (event: any) => {
   currentEvent.value = event
   detailVisible.value = true
-}
-
-const fetchEvents = () => {
-  // TODO: call API
 }
 </script>
 

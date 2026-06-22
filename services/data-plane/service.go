@@ -42,6 +42,7 @@ import (
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/data-plane/sampling"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
@@ -111,6 +112,16 @@ type Config struct {
 	TLSKeyFile      string
 	TLSClientAuth   bool
 	TLSInsecureSkip bool
+
+	// P0-19 修复: HTTP 和超时配置
+	HTTPReadTimeout         time.Duration
+	HTTPWriteTimeout        time.Duration
+	HTTPIdleTimeout         time.Duration
+	GracefulShutdownTimeout time.Duration
+	GRPCShutdownTimeout     time.Duration
+	ClientTimeout           time.Duration
+	ClientIdleConnTimeout   time.Duration
+	CHPingTimeout           time.Duration
 }
 
 // DefaultConfig 默认配置
@@ -135,6 +146,14 @@ func DefaultConfig() *Config {
 		Sampling:            sampling.NewSamplingConfig(),
 		TLSEnabled:          false,
 		TLSInsecureSkip:     false,
+		HTTPReadTimeout:         30 * time.Second,
+		HTTPWriteTimeout:        30 * time.Second,
+		HTTPIdleTimeout:         120 * time.Second,
+		GracefulShutdownTimeout: 30 * time.Second,
+		GRPCShutdownTimeout:     30 * time.Second,
+		ClientTimeout:           30 * time.Second,
+		ClientIdleConnTimeout:   90 * time.Second,
+		CHPingTimeout:           5 * time.Second,
 	}
 }
 
@@ -200,6 +219,9 @@ type Service struct {
 
 	// P0-3 修复: 认证中间件
 	auth *auth.Authenticator
+
+	// 限流中间件
+	rateLimiter *ratelimit.Middleware
 }
 
 // New 创建服务
@@ -297,6 +319,8 @@ func New(config *Config) (*Service, error) {
 		s.auth = authMiddleware
 	}
 
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
+
 	return s, nil
 }
 
@@ -335,6 +359,7 @@ func (s *Service) Start() error {
 
 	// P0-3 修复: 应用认证中间件
 	var handler http.Handler = mux
+	handler = s.rateLimiter.Handler(handler)
 	if s.auth != nil {
 		handler = s.auth.Middleware("/health", "/metrics", "/api/system-metrics", "/api/v1/analysis", "/api/v1/analysis/events", "/api/v1/analysis/top")(handler)
 	}
@@ -343,9 +368,9 @@ func (s *Service) Start() error {
 	s.metricsServer = &http.Server{
 		Addr:         s.config.MetricsAddr,
 		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  s.config.HTTPReadTimeout,
+		WriteTimeout: s.config.HTTPWriteTimeout,
+		IdleTimeout:  s.config.HTTPIdleTimeout,
 	}
 	go func() {
 		if err := s.metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -398,7 +423,7 @@ func (s *Service) Stop() {
 		}()
 		select {
 		case <-stopped:
-		case <-time.After(30 * time.Second):
+		case <-time.After(s.config.GRPCShutdownTimeout):
 			fmt.Println("gRPC graceful stop timeout, forcing stop")
 			s.grpcServer.Stop()
 		}
@@ -452,7 +477,7 @@ func (s *Service) initClickHouse() error {
 	db.SetMaxIdleConns(5)
 
 	// 测试连接
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.CHPingTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -587,7 +612,7 @@ func (s *Service) writeToLoki(flows []*flow.UnifiedFlow) error {
 	for _, f := range flows {
 		labels := fmt.Sprintf(`{src_ip="%s",dst_ip="%s",protocol="%s",service="%s",namespace="%s",tenant_id="%s",direction="%s"}`,
 			f.SrcIP.String(), f.DstIP.String(), f.Protocol.String(),
-			f.Service.String(), f.Namespace.String(), f.TenantID.String(), f.Direction)
+			f.Service.String(), f.Namespace.String(), f.TenantID.String(), f.Direction.String())
 
 		// 构建日志消息
 		message := fmt.Sprintf("Flow: %s -> %s:%d %s bytes=%d latency=%dns",

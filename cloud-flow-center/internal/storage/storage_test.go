@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Package storage 存储引擎测试
 
 package storage

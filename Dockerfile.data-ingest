@@ -1,0 +1,17 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+RUN pip install --no-cache-dir redis clickhouse-driver prometheus-client
+COPY data-ingest-service.py /app/
+
+EXPOSE 9104 9105
+
+ENV REDIS_HOST=redis
+ENV REDIS_PORT=6379
+ENV CLICKHOUSE_HOST=clickhouse
+ENV CLICKHOUSE_PORT=9000
+ENV HTTP_PORT=9104
+ENV METRICS_PORT=9105
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python3", "/app/data-ingest-service.py"]

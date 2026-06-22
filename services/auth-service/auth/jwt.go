@@ -519,6 +519,10 @@ func (m *JWTManager) RevokeToken(ctx context.Context, tokenString string) error 
 
 	claims, err := m.ValidateToken(ctx, tokenString)
 	if err != nil {
+		// P2-04: 如果 token 已过期，无需撤销（静默成功）
+		if strings.Contains(err.Error(), "token is expired") {
+			return nil
+		}
 		return fmt.Errorf("parse token for revocation: %w", err)
 	}
 

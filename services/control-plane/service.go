@@ -44,6 +44,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
 )
 
 // ============================================================================
@@ -82,6 +83,16 @@ type Config struct {
 	TLSKeyFile       string // 服务器私钥路径
 	TLSClientAuth    bool   // 是否要求客户端证书 (mTLS)
 	TLSInsecureSkip  bool   // 是否跳过证书验证 (仅用于开发)
+
+	// P0-19 修复: HTTP 和超时配置
+	HTTPReadTimeout    time.Duration
+	HTTPWriteTimeout   time.Duration
+	HTTPIdleTimeout    time.Duration
+	EtcdDialTimeout    time.Duration
+	GRPCDialTimeout    time.Duration
+	HTTPShutdownTimeout time.Duration
+	GRPCShutdownTimeout time.Duration
+	EtcdRestoreTimeout  time.Duration
 }
 
 // DefaultConfig 默认配置
@@ -97,6 +108,14 @@ func DefaultConfig() *Config {
 		HeartbeatTimeout: 60 * time.Second,
 		TLSEnabled:       false, // 默认禁用 TLS
 		TLSInsecureSkip:  false, // 默认不跳过证书验证
+		HTTPReadTimeout:    30 * time.Second,
+		HTTPWriteTimeout:   30 * time.Second,
+		HTTPIdleTimeout:    120 * time.Second,
+		EtcdDialTimeout:    5 * time.Second,
+		GRPCDialTimeout:    5 * time.Second,
+		HTTPShutdownTimeout: 10 * time.Second,
+		GRPCShutdownTimeout: 15 * time.Second,
+		EtcdRestoreTimeout:  10 * time.Second,
 	}
 }
 
@@ -153,6 +172,9 @@ type Service struct {
 	// 运行状态
 	startTime time.Time
 	running   bool
+
+	resilienceClient *ControlPlaneResilienceClient
+	rateLimiter      *ratelimit.Middleware
 }
 
 // New 创建服务
@@ -217,6 +239,9 @@ func New(config *Config) (*Service, error) {
 	RegisterControlPlaneService(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
+	s.resilienceClient = NewControlPlaneResilienceClient()
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
+
 	return s, nil
 }
 
@@ -257,11 +282,16 @@ func (s *Service) Start() error {
 	// Agent 管理 API (11个接口)
 	mux.HandleFunc("/api/control-plane/agents", s.listAgentsHandler)
 	mux.HandleFunc("/api/control-plane/edges", s.listEdgesHandler)
-	protected := s.authMiddleware(mux)
+	var handler http.Handler = mux
+	handler = s.rateLimiter.Handler(handler)
+	protected := s.authMiddleware(handler)
 
 	s.httpServer = &http.Server{
-		Addr:    s.config.HttpAddr,
-		Handler: protected,
+		Addr:         s.config.HttpAddr,
+		Handler:      protected,
+		ReadTimeout:  s.config.HTTPReadTimeout,
+		WriteTimeout: s.config.HTTPWriteTimeout,
+		IdleTimeout:  s.config.HTTPIdleTimeout,
 	}
 
 	go func() {
@@ -305,7 +335,7 @@ func (s *Service) Stop() {
 		select {
 		case <-stopChan:
 			// 正常停止
-		case <-time.After(15 * time.Second):
+		case <-time.After(s.config.GRPCShutdownTimeout):
 			s.grpcServer.Stop() // 强制停止
 		}
 	}
@@ -342,7 +372,7 @@ func (s *Service) initEtcd() error {
 
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   s.config.EtcdEndpoints,
-		DialTimeout: 5 * time.Second,
+		DialTimeout: s.config.EtcdDialTimeout,
 	})
 	if err != nil {
 		return err
@@ -394,7 +424,7 @@ func (s *Service) restoreStateFromEtcd() error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(s.etcdCtx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(s.etcdCtx, s.config.EtcdRestoreTimeout)
 	defer cancel()
 
 	// 恢复 Agents
@@ -503,7 +533,7 @@ func (s *Service) connectToDownstream() error {
 	if s.config.DataPlaneAddr != "" {
 		conn, err := grpc.Dial(
 			s.config.DataPlaneAddr,
-			append(dialOptions, grpc.WithTimeout(5*time.Second))...,
+			append(dialOptions, grpc.WithTimeout(s.config.GRPCDialTimeout))...,
 		)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("connect data-plane failed: %w", err))
@@ -516,7 +546,7 @@ func (s *Service) connectToDownstream() error {
 	if s.config.AuthAddr != "" {
 		conn, err := grpc.Dial(
 			s.config.AuthAddr,
-			append(dialOptions, grpc.WithTimeout(5*time.Second))...,
+			append(dialOptions, grpc.WithTimeout(s.config.GRPCDialTimeout))...,
 		)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("connect auth-service failed: %w", err))
@@ -529,7 +559,7 @@ func (s *Service) connectToDownstream() error {
 	if s.config.TenantAddr != "" {
 		conn, err := grpc.Dial(
 			s.config.TenantAddr,
-			append(dialOptions, grpc.WithTimeout(5*time.Second))...,
+			append(dialOptions, grpc.WithTimeout(s.config.GRPCDialTimeout))...,
 		)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("connect tenant-service failed: %w", err))
@@ -780,7 +810,7 @@ func (s *Service) ListEdges(tenantId, region, status string) []*svcproto.EdgeInf
 
 func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"status":"healthy","service":"%s","version":"%s","uptime":%d}`,
+	fmt.Fprintf(w, `{"status":"healthy","service":"%s","version":"%s","uptime":%f}`,
 		s.config.ServiceName, s.config.Version, time.Since(s.startTime).Seconds())
 }
 

@@ -20,6 +20,7 @@ const (
 	DatabaseGaussRedis DatabaseType = "gauss_redis"
 	DatabaseOceanBase  DatabaseType = "oceanbase"
 	DatabaseClickHouse DatabaseType = "clickhouse"
+	DatabaseMySQL     DatabaseType = "mysql"
 
 	// 别名，兼容旧代码
 	DBDameng     = DatabaseDameng
@@ -29,6 +30,7 @@ const (
 	DBGaussRedis = DatabaseGaussRedis
 	DBOceanBase  = DatabaseOceanBase
 	DBClickHouse = DatabaseClickHouse
+	DBMySQL      = DatabaseMySQL
 )
 
 // DualWriteMode 双写模式

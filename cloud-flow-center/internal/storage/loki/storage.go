@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	edge "github.com/meinanzilinzhengying/cloudflow/proto"
 	"io"
 	"net/http"
 	"sync"
@@ -441,7 +443,40 @@ func BuildLogQL(labels map[string]string, filter string) string {
 
 // FlowToLogEntry 将 Flow 转换为 LogEntry
 func FlowToLogEntry(f interface{}, tenantID string) *LogEntry {
-	// TODO: 实现 Flow 到 LogEntry 的转换
-	// 提取: L7 请求/响应内容、异常信息等
-	return nil
+	// P0-11: 实现 Flow 到 LogEntry 的转换
+	flow, ok := f.(*edge.MetricData)
+	if !ok {
+		return nil
+	}
+	
+	// 构建日志行：包含流的关键信息
+	line := fmt.Sprintf("flow src=%s:%d dst=%s:%d proto=%s bytes=%d packets=%d latency=%dus",
+		flow.SrcIp, flow.SrcPort,
+		flow.DstIp, flow.DstPort,
+		flow.Protocol,
+		flow.Bytes, flow.Packets, flow.Latency)
+	
+	// 附加错误信息
+	if flow.ErrorCount > 0 {
+		line += fmt.Sprintf(" errors=%d error_rate=%.2f%%", flow.ErrorCount, flow.ErrorRate*100)
+	}
+	
+	// 附加服务端点信息
+	if flow.Service != "" {
+		line += fmt.Sprintf(" service=%s endpoint=%s", flow.Service, flow.Endpoint)
+	}
+	
+	return &LogEntry{
+		Labels: map[string]string{
+			"probe_id":  flow.ProbeId,
+			"asset_id":  flow.AssetId,
+			"protocol":  string(flow.Protocol),
+			"src_ip":    flow.SrcIp,
+			"dst_ip":    flow.DstIp,
+			"service":   flow.Service,
+		},
+		Timestamp: flow.Timestamp * 1000000, // 毫秒 -> 纳秒
+		Line:      line,
+		TenantID:  tenantID,
+	}
 }

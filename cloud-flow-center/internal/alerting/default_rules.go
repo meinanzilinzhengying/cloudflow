@@ -21,6 +21,9 @@ func DefaultRules() []*Rule {
 				Operator:  OperatorGreaterThan,
 				Threshold: 80.0,
 			},
+			Conditions: []Condition{
+				{Metric: "cpu_usage", Operator: OperatorGreaterThan, Threshold: 80.0},
+			},
 			Threshold: 80.0,
 			Duration:  Duration{Duration: 2 * time.Minute},
 			Severity:  "warning",
@@ -41,6 +44,9 @@ func DefaultRules() []*Rule {
 				Metric:    "memory_usage",
 				Operator:  OperatorGreaterThan,
 				Threshold: 85.0,
+			},
+			Conditions: []Condition{
+				{Metric: "memory_usage", Operator: OperatorGreaterThan, Threshold: 85.0},
 			},
 			Threshold: 85.0,
 			Duration:  Duration{Duration: 2 * time.Minute},
@@ -63,6 +69,9 @@ func DefaultRules() []*Rule {
 				Operator:  OperatorGreaterThan,
 				Threshold: 1073741824.0, // 1GB
 			},
+			Conditions: []Condition{
+				{Metric: "network_bytes", Operator: OperatorGreaterThan, Threshold: 1073741824.0},
+			},
 			Threshold: 1073741824.0,
 			Duration:  Duration{Duration: 1 * time.Minute},
 			Severity:  "info",
@@ -84,6 +93,9 @@ func DefaultRules() []*Rule {
 				Operator:  OperatorGreaterThan,
 				Threshold: 10000.0,
 			},
+			Conditions: []Condition{
+				{Metric: "disk_ops", Operator: OperatorGreaterThan, Threshold: 10000.0},
+			},
 			Threshold: 10000.0,
 			Duration:  Duration{Duration: 1 * time.Minute},
 			Severity:  "info",
@@ -104,6 +116,9 @@ func DefaultRules() []*Rule {
 				Metric:    "traffic_bytes",
 				Operator:  OperatorGreaterThan,
 				Threshold: 536870912.0, // 500MB
+			},
+			Conditions: []Condition{
+				{Metric: "traffic_bytes", Operator: OperatorGreaterThan, Threshold: 536870912.0},
 			},
 			Threshold: 536870912.0,
 			Duration:  Duration{Duration: 1 * time.Minute},

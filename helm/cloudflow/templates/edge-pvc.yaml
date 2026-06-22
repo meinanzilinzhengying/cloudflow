@@ -1,0 +1,19 @@
+{{- if and .Values.edge.enabled .Values.edge.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "cloudflow.edge.name" . }}-data
+  namespace: {{ include "cloudflow.namespace" . }}
+  labels:
+    {{- include "cloudflow.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.edge.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.edge.persistence.size }}
+  {{- if .Values.edge.persistence.storageClass }}
+  storageClassName: {{ .Values.edge.persistence.storageClass }}
+  {{- end }}
+{{- end }}

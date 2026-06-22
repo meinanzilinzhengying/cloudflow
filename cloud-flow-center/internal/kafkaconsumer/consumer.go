@@ -27,6 +27,7 @@ type Consumer struct {
 	topics        []string
 	storage       storage.StorageEngine
 	logger        *logger.Logger
+	dedup         DedupChecker // P2-03: 消息去重器
 	consumerGroup sarama.ConsumerGroup
 	ctx           context.Context
 	cancel        context.CancelFunc
@@ -44,16 +45,10 @@ type Consumer struct {
 
 // ConsumerGroupHandler 消费者组处理器
 type ConsumerGroupHandler struct {
-	storage      storage.StorageEngine
-	logger       *logger.Logger
-	ready        chan bool
-
-	// 幂等性配置
-	redisClient  *redis.Client
-	dedupEnabled bool
-	dedupTTL     time.Duration
-	dedupSkipped *atomic.Int64
-	dedupErrors  *atomic.Int64
+	storage storage.StorageEngine
+	logger  *logger.Logger
+	dedup   DedupChecker // P2-03: 消息去重器
+	ready   chan bool
 }
 
 // New 创建 Kafka 消费者
@@ -66,13 +61,34 @@ func New(brokers []string, groupID string, topics []string, store storage.Storag
 	}
 
 	return &Consumer{
-		brokers:     brokers,
-		groupID:     groupID,
-		topics:      topics,
-		storage:     store,
-		logger:      log,
-		dedupEnabled: false,
-		dedupTTL:    5 * time.Minute,
+		brokers: brokers,
+		groupID: groupID,
+		topics:  topics,
+		storage: store,
+		logger:  log,
+		dedup:   NewMemoryDedup(24 * time.Hour), // P0-9 修复: 默认启用内存去重
+	}, nil
+}
+
+// NewWithDedup 创建带消息去重的 Kafka 消费者
+func NewWithDedup(brokers []string, groupID string, topics []string, store storage.StorageEngine, log *logger.Logger, dedup DedupChecker) (*Consumer, error) {
+	if len(brokers) == 0 {
+		return nil, fmt.Errorf("Kafka brokers 不能为空")
+	}
+	if len(topics) == 0 {
+		return nil, fmt.Errorf("Kafka topics 不能为空")
+	}
+	if dedup == nil {
+		dedup = &NoOpDedup{}
+	}
+
+	return &Consumer{
+		brokers: brokers,
+		groupID: groupID,
+		topics:  topics,
+		storage: store,
+		logger:  log,
+		dedup:   dedup,
 	}, nil
 }
 
@@ -117,14 +133,10 @@ func (c *Consumer) Start() error {
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 
 	handler := &ConsumerGroupHandler{
-		storage:      c.storage,
-		logger:       c.logger,
-		ready:        make(chan bool),
-		redisClient:  c.redisClient,
-		dedupEnabled: c.dedupEnabled,
-		dedupTTL:     c.dedupTTL,
-		dedupSkipped: &c.dedupSkipped,
-		dedupErrors:  &c.dedupErrors,
+		storage: c.storage,
+		logger:  c.logger,
+		dedup:   c.dedup, // P2-03: 传递去重器
+		ready:   make(chan bool),
 	}
 
 	c.wg.Add(1)
@@ -164,14 +176,13 @@ func (c *Consumer) Stop() {
 	}
 	c.wg.Wait()
 
-	// 打印幂等性统计
-	if c.dedupEnabled {
-		c.logger.Infof("[kafkaconsumer] 幂等性统计: skipped=%d, errors=%d",
-			c.dedupSkipped.Load(), c.dedupErrors.Load())
+	// P2-03: 关闭去重器
+	if c.dedup != nil {
+		if err := c.dedup.Close(); err != nil {
+			c.logger.Warnf("关闭去重器失败: %v", err)
+		}
 	}
-	if c.redisClient != nil {
-		c.redisClient.Close()
-	}
+
 	c.logger.Info("Kafka 消费者已停止")
 }
 
@@ -206,21 +217,18 @@ func (h *ConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				return nil
 			}
 
-			// P1修复: 消息去重检查
-			if h.dedupEnabled && h.redisClient != nil {
-				dedupKey := h.buildDedupKey(message)
-				isDuplicate, err := h.checkDedup(dedupKey)
-				if err != nil {
-					h.dedupErrors.Add(1)
-					h.logger.Warnf("[kafkaconsumer] 去重检查失败, 降级处理: %v", err)
-				} else if isDuplicate {
-					h.dedupSkipped.Add(1)
-					session.MarkMessage(message, "")
-					continue
-				}
+			// P2-03: 消息去重检查
+			isDup, err := h.dedup.IsDuplicate(message.Topic, message.Partition, message.Offset)
+			if err != nil {
+				h.logger.Warnf("去重检查失败 (topic=%s, partition=%d, offset=%d): %v, 继续处理",
+					message.Topic, message.Partition, message.Offset, err)
+			} else if isDup {
+				h.logger.Infof("跳过重复消息 (topic=%s, partition=%d, offset=%d)",
+					message.Topic, message.Partition, message.Offset)
+				session.MarkMessage(message, "")
+				continue
 			}
 
-			// 处理消息
 			if err := h.processMessage(message); err != nil {
 				h.logger.Errorf("处理 Kafka 消息失败 (topic=%s, partition=%d, offset=%d): %v",
 					message.Topic, message.Partition, message.Offset, err)

@@ -16,7 +16,7 @@ const (
 	// 默认实例超时时间
 	defaultInstanceTimeout = 30 * time.Second
 	// 健康检查失败阈值
-	maxHealthFailures = 3
+	DefaultMaxHealthFailures = 3
 )
 
 // EdgeInstance 表示 Edge 集群中的一个实例
@@ -305,7 +305,7 @@ func (cm *ClusterManager) UpdateHealth(instanceID string, healthy bool) {
 		}
 	} else {
 		inst.healthFailures++
-		if inst.healthFailures >= maxHealthFailures && inst.Healthy {
+		if inst.healthFailures >= DefaultMaxHealthFailures && inst.Healthy {
 			inst.Healthy = false
 			cm.logger.Warnf("实例 %s 被标记为不健康（连续%d次健康检查失败）", instanceID, inst.healthFailures)
 		}
@@ -355,7 +355,7 @@ func (cm *ClusterManager) performHealthCheck() {
 		// 检查是否超时
 		if now.Sub(inst.LastHeartbeat) > cm.instanceTimeout {
 			inst.healthFailures++
-			if inst.healthFailures >= maxHealthFailures && inst.Healthy {
+			if inst.healthFailures >= DefaultMaxHealthFailures && inst.Healthy {
 				inst.Healthy = false
 				cm.logger.Warnf("实例 %s 心跳超时，标记为不健康", id)
 			}

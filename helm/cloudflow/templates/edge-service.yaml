@@ -1,0 +1,25 @@
+{{- if .Values.edge.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cloudflow.edge.name" . }}
+  namespace: {{ include "cloudflow.namespace" . }}
+  labels:
+    app: {{ include "cloudflow.edge.name" . }}
+    {{- include "cloudflow.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.edge.service.type }}
+  selector:
+    app: {{ include "cloudflow.edge.name" . }}
+  ports:
+    - name: grpc
+      port: {{ .Values.edge.service.grpcPort }}
+      targetPort: grpc
+    - name: metrics
+      port: {{ .Values.edge.service.metricsPort }}
+      targetPort: metrics
+    - name: health
+      port: {{ .Values.edge.service.healthPort }}
+      targetPort: health
+{{- end }}

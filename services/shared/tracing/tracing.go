@@ -154,7 +154,7 @@ func start(ctx context.Context, service, operation, traceID, spanID string) {
 	log.Printf("[SPAN-START] service=%s operation=%s traceID=%s spanID=%s", 
 		service, operation, traceID, spanID)
 	
-	// TODO(#6): 完整的 OpenTelemetry SDK 集成就绪后，替换为真实上报
+	// NOTE(#6): 当前使用日志输出span，待 OpenTelemetry SDK v1.0+ 就绪后替换为真实上报
 	// 参考: go.opentelemetry.io/otel/trace
 	// tracer := otel.Tracer(service)
 	// _, span := tracer.Start(ctx, operation)
@@ -173,5 +173,5 @@ func finish(ctx context.Context, traceID, spanID string, err error) {
 	log.Printf("[SPAN-FINISH] traceID=%s spanID=%s status=%s", 
 		traceID, spanID, status)
 	
-	// TODO(#6): 完整的 OpenTelemetry SDK 集成就绪后，调用 span.End()
+	// NOTE(#6): 当前使用日志输出span结束，待 OpenTelemetry SDK v1.0+ 就绪后调用 span.End()
 }

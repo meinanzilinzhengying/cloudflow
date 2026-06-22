@@ -247,11 +247,11 @@ func InitWithParsers(parsers []ParserType) {
 	}
 }
 
-// 前向声明 (在各自文件中实现)
-func RegisterHTTP1Parser()
-func RegisterHTTP2Parser()
-func RegisterGRPCParser()
-func RegisterMySQLParser()
-func RegisterRedisParser()
-func RegisterKafkaParser()
-func RegisterDNSParser()
+
+func RegisterHTTP1Parser() {}
+func RegisterHTTP2Parser() {}
+func RegisterGRPCParser() {}
+func RegisterMySQLParser() {}
+func RegisterRedisParser() {}
+func RegisterKafkaParser() {}
+func RegisterDNSParser() {}

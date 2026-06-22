@@ -4,9 +4,11 @@ package blacklist
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"google.golang.org/grpc/metadata"
 )
 
 // Config 黑名单配置
@@ -56,6 +58,28 @@ func (bl *Blacklist) Add(ctx context.Context, tokenID string, expireAt time.Time
 	
 	// 存储到 Redis
 	err := bl.config.Redis.Set(ctx, key, "1", ttl).Err()
+	if err != nil {
+		return fmt.Errorf("add to blacklist failed: %w", err)
+	}
+	
+	return nil
+}
+
+// AddToBlacklist 实现 auth.TokenBlacklist 接口，将 token 加入黑名单（按 TTL）
+// P2-04: 支持按剩余有效期加入黑名单
+func (bl *Blacklist) AddToBlacklist(ctx context.Context, tokenID string, expiry time.Duration) error {
+	key := bl.config.KeyPrefix + tokenID
+	
+	if expiry <= 0 {
+		return nil
+	}
+	
+	// 如果 TTL 超过默认值，使用默认值
+	if expiry > bl.config.DefaultTTL {
+		expiry = bl.config.DefaultTTL
+	}
+	
+	err := bl.config.Redis.Set(ctx, key, "1", expiry).Err()
 	if err != nil {
 		return fmt.Errorf("add to blacklist failed: %w", err)
 	}
@@ -192,26 +216,47 @@ type Stats struct {
 // MiddlewareAuthInterceptor JWT 认证中间件（集成黑名单检查）
 func (bl *Blacklist) MiddlewareAuthInterceptor(validateToken func(string) (string, time.Time, error)) func(context.Context) (context.Context, error) {
 	return func(ctx context.Context) (context.Context, error) {
-		// TODO: 从 context 或 header 获取 token
-		// 这里仅提供框架，实际使用时需要根据具体场景实现
+		// P0-11: 从 gRPC metadata 获取 token（Bearer 格式）
+		md, ok := metadata.FromIncomingContext(ctx)
+		if !ok {
+			return ctx, nil // 无 metadata，放行（由其他中间件处理认证）
+		}
 		
-		// tokenString := getTokenFromContext(ctx)
-		// userID, expireAt, err := validateToken(tokenString)
-		// if err != nil {
-		//     return ctx, err
-		// }
+		authHeaders := md.Get("authorization")
+		if len(authHeaders) == 0 {
+			return ctx, nil // 无 token，放行
+		}
 		
-		// // 检查黑名单
-		// blacklisted, err := bl.IsBlacklisted(ctx, tokenString)
-		// if err != nil {
-		//     return ctx, err
-		// }
-		// if blacklisted {
-		//     return ctx, errors.New("token has been revoked")
-		// }
+		// 提取 Bearer token
+		tokenString := authHeaders[0]
+		if strings.HasPrefix(tokenString, "Bearer ") {
+			tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+		}
 		
-		// // 将用户信息存入 context
-		// ctx = context.WithValue(ctx, "userID", userID)
+		// 验证 token
+		userID, expireAt, err := validateToken(tokenString)
+		if err != nil {
+			return ctx, fmt.Errorf("invalid token: %w", err)
+		}
+		
+		// 检查黑名单
+		blacklisted, err := bl.IsBlacklisted(ctx, tokenString)
+		if err != nil {
+			return ctx, err
+		}
+		if blacklisted {
+			return ctx, fmt.Errorf("token has been revoked")
+		}
+		
+		// 检查 token 是否已过期
+		if time.Now().After(expireAt) {
+			return ctx, fmt.Errorf("token has expired")
+		}
+		
+		// 将用户信息存入 context
+		ctx = context.WithValue(ctx, "userID", userID)
+		ctx = context.WithValue(ctx, "token", tokenString)
+		ctx = context.WithValue(ctx, "tokenExpireAt", expireAt)
 		
 		return ctx, nil
 	}
