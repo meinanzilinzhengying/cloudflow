@@ -16,13 +16,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
+	"database/sql"
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/config"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/forwarder"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/grpcclient"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/grpcserver"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/http"
-	_ "github.com/ClickHouse/clickhouse-go/v2"
-	"database/sql"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/kafkafwd"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/probemgr"
 	"github.com/meinanzilinzhengying/cloudflow/edge/internal/servicediscovery"
@@ -188,7 +188,7 @@ func main() {
 	if localCfg.Kafka.Enabled && len(localCfg.Kafka.Brokers) > 0 {
 		// 使用 Kafka 转发器（异步，零阻塞）
 		log.Infof("P0: 启用 Kafka 转发器 (brokers=%v)", localCfg.Kafka.Brokers)
-		kafkaFwd, err = kafkafwd.New(localCfg.Kafka.Brokers, &kafkafwd.ProtoSerializer{}, log)
+		kafkaFwd, err = kafkafwd.New(localCfg.Kafka.Brokers, &kafkafwd.ProtoSerializer{}, log, localCfg.Kafka.ChannelBufferSize)
 		if err != nil {
 			log.Errorf("创建 Kafka 转发器失败: %v", err)
 			os.Exit(1)
@@ -257,16 +257,16 @@ func main() {
 				metricCollector.ProbesOnline.Set(float64(len(probes)))
 				metricCollector.UpdateProbeCount(manager.GetProbeCount())
 				metricCollector.HeartbeatsTotal.Inc()
-			clientMu.RLock()
-			currentClient := client
-			clientMu.RUnlock()
-			if currentClient == nil {
-				metricCollector.HeartbeatErrorsTotal.Inc()
-				log.Warn("gRPC 客户端未初始化，跳过心跳上报")
-				continue
-			}
-			// H3 修复: 获取 Center 下发的心跳间隔
-			newInterval, err := currentClient.SendHeartbeat(loadCfg().EdgeNodeID, loadCfg().CloudPlatform, loadCfg().Region, int32(len(probes)))
+				clientMu.RLock()
+				currentClient := client
+				clientMu.RUnlock()
+				if currentClient == nil {
+					metricCollector.HeartbeatErrorsTotal.Inc()
+					log.Warn("gRPC 客户端未初始化，跳过心跳上报")
+					continue
+				}
+				// H3 修复: 获取 Center 下发的心跳间隔
+				newInterval, err := currentClient.SendHeartbeat(loadCfg().EdgeNodeID, loadCfg().CloudPlatform, loadCfg().Region, int32(len(probes)))
 				if err != nil {
 					metricCollector.HeartbeatErrorsTotal.Inc()
 					log.Warnf("发送边缘心跳失败: %v", err)
@@ -309,14 +309,14 @@ func main() {
 						LastHeartbeat: p.LastHeartbeat.Unix(),
 					})
 				}
-			clientMu.RLock()
-			currentClient := client
-			clientMu.RUnlock()
-			if currentClient == nil {
-				log.Warn("gRPC 客户端未初始化，跳过探针列表上报")
-				continue
-			}
-			if err := currentClient.ReportProbes(loadCfg().EdgeNodeID, loadCfg().CloudPlatform, loadCfg().Region, probeInfos); err != nil {
+				clientMu.RLock()
+				currentClient := client
+				clientMu.RUnlock()
+				if currentClient == nil {
+					log.Warn("gRPC 客户端未初始化，跳过探针列表上报")
+					continue
+				}
+				if err := currentClient.ReportProbes(loadCfg().EdgeNodeID, loadCfg().CloudPlatform, loadCfg().Region, probeInfos); err != nil {
 					log.Warnf("上报探针列表失败: %v", err)
 				}
 			case <-stopCh:
@@ -365,10 +365,10 @@ func main() {
 	// 11. 优雅关闭和配置热加载（带超时保护）
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-	
+
 	for {
 		sig := <-sigCh
-		
+
 		// 处理 SIGHUP 信号（配置热加载）
 		if sig == syscall.SIGHUP {
 			log.Info("收到 SIGHUP 信号，重新加载配置...")
@@ -410,7 +410,7 @@ func main() {
 			// 继续运行，不需要重新注册信号，因为 signal.Notify 是持续有效的
 			continue
 		}
-		
+
 		// 处理 SIGINT 和 SIGTERM 信号（优雅关闭）
 		log.Infof("收到信号 %v，开始优雅关闭（超时 %s）...", sig, gracefulShutdownTimeout)
 		break

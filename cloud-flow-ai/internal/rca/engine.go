@@ -6,6 +6,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/meinanzilinzhengying/cloudflow/ai/internal/config"
 )
 
 // ============================================================================
@@ -34,32 +36,32 @@ type CauseGraph struct {
 
 // CauseNode 因果节点
 type CauseNode struct {
-	ID          string
-	Service     string
-	Metric      string
-	Value       float64
-	Severity    string
-	Timestamp   time.Time
-	Confidence  float64 // 0-1
+	ID         string
+	Service    string
+	Metric     string
+	Value      float64
+	Severity   string
+	Timestamp  time.Time
+	Confidence float64 // 0-1
 }
 
 // CauseEdge 因果关系边
 type CauseEdge struct {
-	From      string // 原因节点ID
-	To        string // 结果节点ID
-	Type      EdgeType
-	Strength  float64 // 0-1
-	Evidence  []string
+	From     string // 原因节点ID
+	To       string // 结果节点ID
+	Type     EdgeType
+	Strength float64 // 0-1
+	Evidence []string
 }
 
 // EdgeType 因果边类型
 type EdgeType string
 
 const (
-	EdgeTypeDependency  EdgeType = "dependency"   // 服务依赖
-	EdgeTypeCorrelation EdgeType = "correlation"    // 指标相关性
-	EdgeTypeCascade     EdgeType = "cascade"        // 级联故障
-	EdgeTypeResource    EdgeType = "resource"       // 资源竞争
+	EdgeTypeDependency  EdgeType = "dependency"  // 服务依赖
+	EdgeTypeCorrelation EdgeType = "correlation" // 指标相关性
+	EdgeTypeCascade     EdgeType = "cascade"     // 级联故障
+	EdgeTypeResource    EdgeType = "resource"    // 资源竞争
 )
 
 // AnomalyPattern 异常模式
@@ -74,20 +76,20 @@ type AnomalyPattern struct {
 
 // Symptom 症状
 type Symptom struct {
-	Service  string
-	Metric   string
-	Operator string // > < ==
+	Service   string
+	Metric    string
+	Operator  string // > < ==
 	Threshold float64
 }
 
 // RCAResult RCA 分析结果
 type RCAResult struct {
-	RootCauses  []*RootCause
-	CauseChain  []string
-	Confidence  float64
-	PatternMatch string
+	RootCauses      []*RootCause
+	CauseChain      []string
+	Confidence      float64
+	PatternMatch    string
 	Recommendations []string
-	AnalyzedAt  time.Time
+	AnalyzedAt      time.Time
 }
 
 // RootCause 根因
@@ -457,16 +459,37 @@ func (e *RCAEngine) buildCauseChain(graph *CauseGraph, rootNodes []*CauseNode) [
 	return chain
 }
 
-// LoadBuiltinPatterns 加载内置异常模式
-func (e *RCAEngine) LoadBuiltinPatterns() {
+// LoadBuiltinPatterns 加载内置异常模式，使用可配置的阈值
+func (e *RCAEngine) LoadBuiltinPatterns(cfg *config.RCAConfig) {
+	// Use defaults if cfg is nil
+	cascadeDBLat := 1000.0
+	cascadeAPILat := 2000.0
+	cascadeAPIErr := 0.05
+	oomMem := 90.0
+	oomErr := 0.1
+	oomQueue := 10000.0
+	cpuThrottleCPU := 85.0
+	cpuThrottleLat := 500.0
+
+	if cfg != nil {
+		cascadeDBLat = cfg.CascadeDBLatencyThreshold
+		cascadeAPILat = cfg.CascadeAPILatencyThreshold
+		cascadeAPIErr = cfg.CascadeAPIErrorRateThreshold
+		oomMem = cfg.OomMemoryThreshold
+		oomErr = cfg.OomErrorRateThreshold
+		oomQueue = cfg.OomQueueDepthThreshold
+		cpuThrottleCPU = cfg.CPUThrottleCPUThreshold
+		cpuThrottleLat = cfg.CPUThrottleLatencyThreshold
+	}
+
 	patterns := []*AnomalyPattern{
 		{
 			ID:   "cascade-db-timeout",
 			Name: "数据库级联超时",
 			Symptoms: []Symptom{
-				{Service: "db", Metric: "latency", Operator: ">", Threshold: 1000},
-				{Service: "api", Metric: "latency", Operator: ">", Threshold: 2000},
-				{Service: "api", Metric: "error_rate", Operator: ">", Threshold: 0.05},
+				{Service: "db", Metric: "latency", Operator: ">", Threshold: cascadeDBLat},
+				{Service: "api", Metric: "latency", Operator: ">", Threshold: cascadeAPILat},
+				{Service: "api", Metric: "error_rate", Operator: ">", Threshold: cascadeAPIErr},
 			},
 			RootCauses: []string{"数据库连接池耗尽", "数据库慢查询", "数据库锁竞争"},
 		},
@@ -474,9 +497,9 @@ func (e *RCAEngine) LoadBuiltinPatterns() {
 			ID:   "memory-oom-cascade",
 			Name: "内存溢出级联故障",
 			Symptoms: []Symptom{
-				{Service: "worker", Metric: "memory", Operator: ">", Threshold: 90},
-				{Service: "worker", Metric: "error_rate", Operator: ">", Threshold: 0.1},
-				{Service: "queue", Metric: "depth", Operator: ">", Threshold: 10000},
+				{Service: "worker", Metric: "memory", Operator: ">", Threshold: oomMem},
+				{Service: "worker", Metric: "error_rate", Operator: ">", Threshold: oomErr},
+				{Service: "queue", Metric: "depth", Operator: ">", Threshold: oomQueue},
 			},
 			RootCauses: []string{"内存泄漏", "大对象未释放", "并发量突增"},
 		},
@@ -484,8 +507,8 @@ func (e *RCAEngine) LoadBuiltinPatterns() {
 			ID:   "cpu-throttling",
 			Name: "CPU 节流导致延迟",
 			Symptoms: []Symptom{
-				{Service: "app", Metric: "cpu", Operator: ">", Threshold: 85},
-				{Service: "app", Metric: "latency", Operator: ">", Threshold: 500},
+				{Service: "app", Metric: "cpu", Operator: ">", Threshold: cpuThrottleCPU},
+				{Service: "app", Metric: "latency", Operator: ">", Threshold: cpuThrottleLat},
 			},
 			RootCauses: []string{"CPU 限制过低", "计算密集型任务", "垃圾回收频繁"},
 		},

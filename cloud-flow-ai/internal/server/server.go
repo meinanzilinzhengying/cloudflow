@@ -18,10 +18,10 @@ import (
 )
 
 type Server struct {
-	llmClient        *llm.Client
-	log              *logger.Logger
-	config           *config.Config
-	analysisHistory  []AnalysisRecord
+	llmClient       *llm.Client
+	log             *logger.Logger
+	config          *config.Config
+	analysisHistory []AnalysisRecord
 
 	// P6: AI engines
 	rcaEngine        *rca.RCAEngine
@@ -89,7 +89,8 @@ func NewServer(cfg *config.Config, log *logger.Logger, llmClient *llm.Client) *S
 		predictionEngine: prediction.NewPredictionEngine(),
 		nlqEngine:        nlq.NewNLQEngine(),
 	}
-	s.rcaEngine.LoadBuiltinPatterns()
+	s.rcaEngine.LoadBuiltinPatterns(&cfg.AI.RCA)
+	s.predictionEngine.AlertThresholdFactor = cfg.AI.Analysis.AlertThresholdFactor
 	return s
 }
 
@@ -244,7 +245,7 @@ func (s *Server) GetHistory(w http.ResponseWriter, r *http.Request) {
 func (s *Server) GetOllamaModels(w http.ResponseWriter, r *http.Request) {
 	ollamaURL := r.URL.Query().Get("url")
 	if ollamaURL == "" {
-		ollamaURL = "http://localhost:11434"
+		ollamaURL = s.config.AI.LLM.OllamaURL
 	}
 
 	// Validate URL to prevent SSRF
@@ -297,7 +298,7 @@ func (s *Server) GetOllamaModels(w http.ResponseWriter, r *http.Request) {
 func (s *Server) TestOllama(w http.ResponseWriter, r *http.Request) {
 	ollamaURL := r.URL.Query().Get("url")
 	if ollamaURL == "" {
-		ollamaURL = "http://localhost:11434"
+		ollamaURL = s.config.AI.LLM.OllamaURL
 	}
 
 	resp, err := http.Get(ollamaURL + "/api/tags")
@@ -433,7 +434,7 @@ func (s *Server) TestConnection(w http.ResponseWriter, r *http.Request) {
 	if req.Provider == "ollama" {
 		apiURL := req.APIURL
 		if apiURL == "" {
-			apiURL = "http://localhost:11434"
+			apiURL = s.config.AI.LLM.OllamaURL
 		}
 		resp, err := http.Get(apiURL + "/api/tags")
 		if err != nil {
@@ -686,7 +687,7 @@ func (s *Server) PredictCapacity(w http.ResponseWriter, r *http.Request) {
 }
 
 type PredictFailureRequest struct {
-	Service    string                   `json:"service"`
+	Service    string                     `json:"service"`
 	Indicators []prediction.RiskIndicator `json:"indicators"`
 }
 

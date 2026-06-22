@@ -86,27 +86,27 @@ type StorageConfig struct {
 
 // KafkaConsumerConfig Kafka 消费者配置（P0: Flow Ingest Pipeline）
 type KafkaConsumerConfig struct {
-	Enabled         bool     // 启用 Kafka 消费
-	Brokers         []string // Kafka broker 地址列表
-	GroupID         string   // 消费者组 ID
-	Topics          []string // 订阅的 topic 列表
-	AutoOffsetReset string   // 初始偏移量: earliest/latest
-	MaxPollRecords  int      // 单次 poll 最大记录数
-	SessionTimeout  int      // 会话超时（秒）
-	HeartbeatInterval int    // 心跳间隔（秒）
+	Enabled           bool     // 启用 Kafka 消费
+	Brokers           []string // Kafka broker 地址列表
+	GroupID           string   // 消费者组 ID
+	Topics            []string // 订阅的 topic 列表
+	AutoOffsetReset   string   // 初始偏移量: earliest/latest
+	MaxPollRecords    int      // 单次 poll 最大记录数
+	SessionTimeout    int      // 会话超时（秒）
+	HeartbeatInterval int      // 心跳间隔（秒）
 }
 
 type RateLimitLevelConfig struct {
-	BucketSize    int           // 令牌桶容量
-	RefillRate    int           // 每秒填充令牌数
+	BucketSize      int           // 令牌桶容量
+	RefillRate      int           // 每秒填充令牌数
 	CleanupInterval time.Duration // 清理间隔
 }
 
 type RateLimitConfig struct {
-	Enabled      bool                         // 是否启用限流
-	Login        RateLimitLevelConfig         // 登录接口限流配置
-	Query        RateLimitLevelConfig         // 查询接口限流配置
-	API          RateLimitLevelConfig         // 普通 API 接口限流配置
+	Enabled bool                 // 是否启用限流
+	Login   RateLimitLevelConfig // 登录接口限流配置
+	Query   RateLimitLevelConfig // 查询接口限流配置
+	API     RateLimitLevelConfig // 普通 API 接口限流配置
 }
 
 // DefaultRateLimitConfig 默认限流配置
@@ -114,18 +114,18 @@ func DefaultRateLimitConfig() RateLimitConfig {
 	return RateLimitConfig{
 		Enabled: true,
 		Login: RateLimitLevelConfig{
-			BucketSize:    5,      // 登录接口更严格，桶容量小
-			RefillRate:    1,      // 每秒 1 个令牌
+			BucketSize:      5, // 登录接口更严格，桶容量小
+			RefillRate:      1, // 每秒 1 个令牌
 			CleanupInterval: 10 * time.Minute,
 		},
 		Query: RateLimitLevelConfig{
-			BucketSize:    200,    // 查询接口容量大
-			RefillRate:    100,    // 每秒 100 个令牌
+			BucketSize:      200, // 查询接口容量大
+			RefillRate:      100, // 每秒 100 个令牌
 			CleanupInterval: 10 * time.Minute,
 		},
 		API: RateLimitLevelConfig{
-			BucketSize:    100,    // 普通 API 接口
-			RefillRate:    50,     // 每秒 50 个令牌
+			BucketSize:      100, // 普通 API 接口
+			RefillRate:      50,  // 每秒 50 个令牌
 			CleanupInterval: 10 * time.Minute,
 		},
 	}
@@ -146,6 +146,7 @@ type Config struct {
 	Alerting       AlertingConfig
 	Storage        StorageConfig
 	KafkaConsumer  KafkaConsumerConfig // P0: Kafka 消费者配置
+	Regions        []string            // 区域列表（P4: Asset Regions API）
 }
 
 // ConfigChangeCallback 配置变更回调函数类型
@@ -153,13 +154,13 @@ type ConfigChangeCallback func(oldConfig, newConfig *Config)
 
 // ConfigManager 配置管理器，支持热加载
 type ConfigManager struct {
-	mu           sync.RWMutex
-	config       *Config
-	watcher      *fsnotify.Watcher
-	callbacks    []ConfigChangeCallback
-	stopCh       chan struct{}
-	running      bool
-	logger       func(format string, args ...interface{})
+	mu               sync.RWMutex
+	config           *Config
+	watcher          *fsnotify.Watcher
+	callbacks        []ConfigChangeCallback
+	stopCh           chan struct{}
+	running          bool
+	logger           func(format string, args ...interface{})
 	watcherCloseOnce sync.Once // FIX: 防止 watcher 被双重关闭
 }
 
@@ -222,13 +223,13 @@ func (cm *ConfigManager) GetConfig() *Config {
 func (cm *ConfigManager) Reload() error {
 	cm.mu.Lock()
 	oldConfig := cm.config
-	
+
 	newConfig, err := Load()
 	if err != nil {
 		cm.mu.Unlock()
 		return err
 	}
-	
+
 	cm.config = newConfig
 	cm.mu.Unlock()
 
@@ -259,11 +260,11 @@ func (cm *ConfigManager) watchLoop() {
 			if !ok {
 				return
 			}
-			
+
 			// 只处理 config.yaml 文件的变化
 			if strings.HasSuffix(event.Name, "config.yaml") || strings.HasSuffix(event.Name, "config.yml") {
 				cm.logger("检测到配置文件变化: %s, 事件: %s", event.Name, event.Op)
-				
+
 				// 防抖处理，避免短时间内多次触发
 				debounceTimer := time.NewTimer(500 * time.Millisecond)
 				select {
@@ -276,13 +277,13 @@ func (cm *ConfigManager) watchLoop() {
 					return
 				}
 			}
-			
+
 		case err, ok := <-cm.watcher.Errors:
 			if !ok {
 				return
 			}
 			cm.logger("配置监听错误: %v", err)
-			
+
 		case <-cm.stopCh:
 			return
 		}
@@ -293,14 +294,14 @@ func (cm *ConfigManager) watchLoop() {
 func (cm *ConfigManager) Stop() {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-	
+
 	if !cm.running {
 		return
 	}
-	
+
 	close(cm.stopCh)
 	cm.running = false
-	
+
 	// FIX: 使用 sync.Once 统一关闭，防止与 watchLoop defer 并发
 	cm.watcherCloseOnce.Do(func() {
 		if cm.watcher != nil {
@@ -316,7 +317,7 @@ func (cm *ConfigManager) notifyCallbacks(oldConfig, newConfig *Config) {
 	callbacks := make([]ConfigChangeCallback, len(cm.callbacks))
 	copy(callbacks, cm.callbacks)
 	cm.mu.RUnlock()
-	
+
 	for _, callback := range callbacks {
 		func(cb ConfigChangeCallback) {
 			defer func() {
@@ -419,7 +420,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("center.alerting.webhook.headers", map[string]string{})
 	viper.SetDefault("center.storage.dsn", "root:@tcp(127.0.0.1:4000)/cloud_flow?parseTime=true&charset=utf8mb4")
 	viper.SetDefault("center.storage.retention_days", 7)
-
+	viper.SetDefault("center.regions", []string{})
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -566,6 +567,7 @@ func Load() (*Config, error) {
 			DSN:     viper.GetString("center.storage.dsn"),
 			RetDays: viper.GetInt("center.storage.retention_days"),
 		},
+		Regions: viper.GetStringSlice("center.regions"),
 	}, nil
 }
 

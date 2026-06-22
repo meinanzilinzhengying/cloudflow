@@ -274,9 +274,6 @@ func NewTiDB(dsn string, retDays int, log *logger.Logger) (*TiDBStorage, error) 
 		return nil, fmt.Errorf("连接 TiDB 失败: %w", err)
 	}
 
-	db.SetMaxOpenConns(50)
-	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(5 * time.Minute)
 
 	// 优化连接池（TiDB 分布式特性调优）
 	OptimizeConnectionPool(db, DefaultConnectionPoolConfig())

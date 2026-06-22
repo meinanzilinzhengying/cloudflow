@@ -15,39 +15,39 @@ import (
 
 // MetricsCollector Edge自监控指标采集器
 type MetricsCollector struct {
-	config     *config.Config
-	logger     *logger.Logger
+	config       *config.Config
+	logger       *logger.Logger
 	centerClient edge.CenterServiceClient
 
 	// 运行状态
-	startTime     time.Time
+	startTime      time.Time
 	lastReportTime time.Time
 
 	// 连接指标
-	activeConnections   int64 // 当前活跃连接数
-	totalConnections    int64 // 累计连接数
-	connectionErrors    int64 // 连接错误数
+	activeConnections int64 // 当前活跃连接数
+	totalConnections  int64 // 累计连接数
+	connectionErrors  int64 // 连接错误数
 
 	// 数据接收指标
-	metricsReceived     int64 // 累计接收metrics数量
-	tracesReceived      int64 // 累计接收traces数量
-	profilingReceived   int64 // 累计接收profiling数量
-	logsReceived        int64 // 累计接收logs数量
-	bytesReceived       int64 // 累计接收字节数
+	metricsReceived   int64 // 累计接收metrics数量
+	tracesReceived    int64 // 累计接收traces数量
+	profilingReceived int64 // 累计接收profiling数量
+	logsReceived      int64 // 累计接收logs数量
+	bytesReceived     int64 // 累计接收字节数
 
 	// 数据转发指标
-	metricsForwarded    int64 // 累计转发metrics数量
-	tracesForwarded     int64 // 累计转发traces数量
-	profilingForwarded  int64 // 累计转发profiling数量
-	logsForwarded       int64 // 累计转发logs数量
-	bytesForwarded      int64 // 累计转发字节数
-	forwardErrors       int64 // 转发错误数
+	metricsForwarded   int64 // 累计转发metrics数量
+	tracesForwarded    int64 // 累计转发traces数量
+	profilingForwarded int64 // 累计转发profiling数量
+	logsForwarded      int64 // 累计转发logs数量
+	bytesForwarded     int64 // 累计转发字节数
+	forwardErrors      int64 // 转发错误数
 
 	// 缓存指标
-	cacheHits           int64 // 缓存命中次数
-	cacheMisses         int64 // 缓存未命中次数
-	cacheSize           int64 // 当前缓存大小（字节）
-	cacheItems          int64 // 当前缓存条目数
+	cacheHits   int64 // 缓存命中次数
+	cacheMisses int64 // 缓存未命中次数
+	cacheSize   int64 // 当前缓存大小（字节）
+	cacheItems  int64 // 当前缓存条目数
 
 	// 错误指标
 	totalErrors         int64 // 总错误数
@@ -56,40 +56,40 @@ type MetricsCollector struct {
 	circuitBreakerOpens int64 // 熔断器打开次数
 
 	// 资源指标
-	cpuUsage            float64 // CPU使用率
-	memoryUsage         float64 // 内存使用率
-	memoryUsed          int64   // 内存使用量（字节）
-	goroutineCount      int64   // 当前goroutine数
+	cpuUsage       float64 // CPU使用率
+	memoryUsage    float64 // 内存使用率
+	memoryUsed     int64   // 内存使用量（字节）
+	goroutineCount int64   // 当前goroutine数
 
 	// 探针指标
-	probeCount          int32   // 当前探针数
-	onlineProbeCount    int32   // 在线探针数
+	probeCount       int32 // 当前探针数
+	onlineProbeCount int32 // 在线探针数
 
 	// L1 修复: 可配置的上报间隔
-	reportInterval      time.Duration
+	reportInterval time.Duration
 
 	// 内部状态
-	mu                  sync.RWMutex
-	running             bool
-	stopCh              chan struct{}
-	wg                  sync.WaitGroup
+	mu      sync.RWMutex
+	running bool
+	stopCh  chan struct{}
+	wg      sync.WaitGroup
 }
 
 // EdgeMetrics Edge节点监控指标快照
 type EdgeMetrics struct {
-	Timestamp           int64   `json:"timestamp"`
-	EdgeNodeID          string  `json:"edge_node_id"`
-	EdgeAddress         string  `json:"edge_address"`
-	CloudPlatform       string  `json:"cloud_platform"`
-	Region              string  `json:"region"`
-	Zone                string  `json:"zone"`
-	Version             string  `json:"version"`
-	Uptime              int64   `json:"uptime"`               // 运行时长（秒）
+	Timestamp     int64  `json:"timestamp"`
+	EdgeNodeID    string `json:"edge_node_id"`
+	EdgeAddress   string `json:"edge_address"`
+	CloudPlatform string `json:"cloud_platform"`
+	Region        string `json:"region"`
+	Zone          string `json:"zone"`
+	Version       string `json:"version"`
+	Uptime        int64  `json:"uptime"` // 运行时长（秒）
 
 	// 连接指标
-	ActiveConnections   int64   `json:"active_connections"`   // 当前活跃连接数
-	TotalConnections    int64   `json:"total_connections"`    // 累计连接数
-	ConnectionErrors    int64   `json:"connection_errors"`    // 连接错误数
+	ActiveConnections   int64   `json:"active_connections"`    // 当前活跃连接数
+	TotalConnections    int64   `json:"total_connections"`     // 累计连接数
+	ConnectionErrors    int64   `json:"connection_errors"`     // 连接错误数
 	ConnectionErrorRate float64 `json:"connection_error_rate"` // 连接错误率
 
 	// 数据接收指标（当前周期）
@@ -123,38 +123,38 @@ type EdgeMetrics struct {
 	ForwardErrorsTotal      int64 `json:"forward_errors_total"`      // 累计转发错误数
 
 	// 缓存指标
-	CacheHitsDelta      int64   `json:"cache_hits_delta"`       // 本周期缓存命中
-	CacheMissesDelta    int64   `json:"cache_misses_delta"`     // 本周期缓存未命中
-	CacheHitRate        float64 `json:"cache_hit_rate"`         // 缓存命中率
-	CacheSize           int64   `json:"cache_size"`             // 当前缓存大小（字节）
-	CacheItems          int64   `json:"cache_items"`            // 当前缓存条目数
+	CacheHitsDelta   int64   `json:"cache_hits_delta"`   // 本周期缓存命中
+	CacheMissesDelta int64   `json:"cache_misses_delta"` // 本周期缓存未命中
+	CacheHitRate     float64 `json:"cache_hit_rate"`     // 缓存命中率
+	CacheSize        int64   `json:"cache_size"`         // 当前缓存大小（字节）
+	CacheItems       int64   `json:"cache_items"`        // 当前缓存条目数
 
 	// 错误指标（当前周期）
-	TotalErrorsDelta      int64 `json:"total_errors_delta"`       // 本周期总错误数
-	AuthErrorsDelta       int64 `json:"auth_errors_delta"`        // 本周期认证错误数
-	RateLimitHitsDelta    int64 `json:"rate_limit_hits_delta"`    // 本周期限流触发数
+	TotalErrorsDelta         int64 `json:"total_errors_delta"`          // 本周期总错误数
+	AuthErrorsDelta          int64 `json:"auth_errors_delta"`           // 本周期认证错误数
+	RateLimitHitsDelta       int64 `json:"rate_limit_hits_delta"`       // 本周期限流触发数
 	CircuitBreakerOpensDelta int64 `json:"circuit_breaker_opens_delta"` // 本周期熔断器打开数
 
 	// 错误指标（累计）
-	TotalErrorsTotal      int64 `json:"total_errors_total"`       // 累计总错误数
-	AuthErrorsTotal       int64 `json:"auth_errors_total"`        // 累计认证错误数
-	RateLimitHitsTotal    int64 `json:"rate_limit_hits_total"`    // 累计限流触发数
+	TotalErrorsTotal         int64 `json:"total_errors_total"`          // 累计总错误数
+	AuthErrorsTotal          int64 `json:"auth_errors_total"`           // 累计认证错误数
+	RateLimitHitsTotal       int64 `json:"rate_limit_hits_total"`       // 累计限流触发数
 	CircuitBreakerOpensTotal int64 `json:"circuit_breaker_opens_total"` // 累计熔断器打开数
 
 	// 错误率
-	ErrorRate           float64 `json:"error_rate"`             // 总错误率
-	ForwardErrorRate    float64 `json:"forward_error_rate"`     // 转发错误率
+	ErrorRate        float64 `json:"error_rate"`         // 总错误率
+	ForwardErrorRate float64 `json:"forward_error_rate"` // 转发错误率
 
 	// 资源指标
-	CpuUsage            float64 `json:"cpu_usage"`              // CPU使用率
-	MemoryUsage         float64 `json:"memory_usage"`           // 内存使用率
-	MemoryUsed          int64   `json:"memory_used"`            // 内存使用量（字节）
-	GoroutineCount      int64   `json:"goroutine_count"`        // 当前goroutine数
+	CpuUsage       float64 `json:"cpu_usage"`       // CPU使用率
+	MemoryUsage    float64 `json:"memory_usage"`    // 内存使用率
+	MemoryUsed     int64   `json:"memory_used"`     // 内存使用量（字节）
+	GoroutineCount int64   `json:"goroutine_count"` // 当前goroutine数
 
 	// 探针指标
-	ProbeCount          int32   `json:"probe_count"`            // 当前探针数
-	OnlineProbeCount    int32   `json:"online_probe_count"`     // 在线探针数
-	ProbeOnlineRate     float64 `json:"probe_online_rate"`      // 探针在线率
+	ProbeCount       int32   `json:"probe_count"`        // 当前探针数
+	OnlineProbeCount int32   `json:"online_probe_count"` // 在线探针数
+	ProbeOnlineRate  float64 `json:"probe_online_rate"`  // 探针在线率
 }
 
 // NewMetricsCollector 创建新的监控指标采集器
@@ -416,7 +416,7 @@ func (c *MetricsCollector) Collect() *EdgeMetrics {
 		EdgeAddress:   c.getEdgeAddress(),
 		CloudPlatform: c.config.CloudPlatform,
 		Region:        c.config.Region,
-		Zone:          "", // 可从配置或元数据获取
+		Zone:          "",       // 可从配置或元数据获取
 		Version:       "v2.0.0", // 从版本文件获取
 		Uptime:        uptime,
 
@@ -483,9 +483,8 @@ func (c *MetricsCollector) Collect() *EdgeMetrics {
 
 // getEdgeAddress 获取Edge节点地址
 func (c *MetricsCollector) getEdgeAddress() string {
-	// 优先使用配置中的地址，否则自动生成
-	if c.config.CenterAddr != "" {
-		return c.config.CenterAddr
+	if c.config.GrpcAddr != "" {
+		return c.config.GrpcAddr
 	}
 	return "localhost:50051"
 }

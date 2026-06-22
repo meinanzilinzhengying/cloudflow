@@ -3,9 +3,9 @@ package portal
 
 import (
 	"context"
+	"embed"
 	"encoding/csv"
 	"encoding/json"
-	"embed"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -52,9 +52,9 @@ type Server struct {
 	allowedOrigins     []string
 	loginFailures      map[string]loginFailureInfo
 	loginFailuresMutex sync.Mutex
-	secureCookie       bool // 是否使用安全Cookie（HTTPS环境）
-	tokenDuration      time.Duration // JWT 令牌有效期
-	redisStore         *RedisStore // Redis 外部存储（可选，nil 时使用内存存储）
+	secureCookie       bool           // 是否使用安全Cookie（HTTPS环境）
+	tokenDuration      time.Duration  // JWT 令牌有效期
+	redisStore         *RedisStore    // Redis 外部存储（可选，nil 时使用内存存储）
 	centerConfig       *config.Config // 中心服务配置（用于系统配置查询）
 }
 
@@ -66,14 +66,14 @@ const (
 )
 
 type loginFailureInfo struct {
-	count int
+	count       int
 	lastFailure time.Time
 }
 
 // NewServer 创建 Portal 服务
 func NewServer(store storage.StorageEngine, jwtSecret string, auditLogger *audit.Logger, alertManager *alerting.AlertManager, log *logger.Logger, secureCookie bool, rateLimitCfg config.RateLimitConfig, tokenDuration time.Duration, redisAddr string, centerCfg *config.Config, configMgr *config.ConfigManager) *Server {
 	jwtManager := auth.NewJWTManager(jwtSecret)
-	
+
 	// 初始化多级速率限制器
 	rateLimiter := ratelimit.NewMultiLevelRateLimiter()
 	if rateLimitCfg.Enabled {
@@ -86,7 +86,7 @@ func NewServer(store storage.StorageEngine, jwtSecret string, auditLogger *audit
 			rateLimitCfg.API.BucketSize, rateLimitCfg.API.RefillRate,
 		)
 	}
-	
+
 	// 初始化安全中间件
 	securityMiddleware := security.NewSecurityMiddleware(security.SecurityConfig{
 		EnableParamValidation: true,
@@ -94,7 +94,7 @@ func NewServer(store storage.StorageEngine, jwtSecret string, auditLogger *audit
 		MaxRequestBodySize:    10 * 1024 * 1024, // 10MB
 		AllowedContentTypes:   []string{"application/json", "application/x-www-form-urlencoded", "multipart/form-data"},
 	}, log.Warnf)
-	
+
 	// 初始化 CSRF 令牌映射
 	csrfTokens := make(map[string]time.Time)
 	// 初始化登录失败计数器
@@ -126,17 +126,17 @@ func NewServer(store storage.StorageEngine, jwtSecret string, auditLogger *audit
 	return &Server{
 		store:              store,
 		jwtSecret:          jwtSecret,
-		jwtManager:        jwtManager,
+		jwtManager:         jwtManager,
 		auditLogger:        auditLogger,
 		alertManager:       alertManager,
 		logger:             log,
 		rateLimiter:        rateLimiter,
 		rateLimitEnabled:   rateLimitCfg.Enabled,
-		securityMiddleware:  securityMiddleware,
+		securityMiddleware: securityMiddleware,
 		configMgr:          configMgr,
 		csrfTokens:         csrfTokens,
 		allowedOrigins:     allowedOrigins,
-		loginFailures:     loginFailures,
+		loginFailures:      loginFailures,
 		secureCookie:       secureCookie,
 		tokenDuration:      tokenDuration,
 		redisStore:         redisStore,
@@ -165,12 +165,12 @@ func (s *Server) getClientIP(r *http.Request) string {
 			return strings.TrimSpace(ips[0])
 		}
 	}
-	
+
 	// 检查 X-Real-IP 头部
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		return xri
 	}
-	
+
 	// 从 RemoteAddr 获取
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -259,7 +259,7 @@ func (s *Server) validateCSRFToken(token string) bool {
 
 	s.csrfMutex.Lock()
 	defer s.csrfMutex.Unlock()
-	
+
 	// 清理过期的令牌
 	now := time.Now()
 	for t, expiry := range s.csrfTokens {
@@ -267,7 +267,7 @@ func (s *Server) validateCSRFToken(token string) bool {
 			delete(s.csrfTokens, t)
 		}
 	}
-	
+
 	// 验证令牌
 	if expiry, ok := s.csrfTokens[token]; ok {
 		if expiry.After(now) {
@@ -294,7 +294,7 @@ func (s *Server) csrfMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				Name:     "csrf_token",
 				Value:    token,
 				Path:     "/",
-				HttpOnly: true, // 禁止前端 JS 读取，防止 XSS 窃取
+				HttpOnly: true,           // 禁止前端 JS 读取，防止 XSS 窃取
 				Secure:   s.secureCookie, // 根据环境动态设置：HTTPS环境为true，HTTP环境为false
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   15 * 60, // 15分钟
@@ -492,13 +492,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/memory", s.rateLimitMiddleware(s.authMiddleware(s.handleMemory)))
 	mux.HandleFunc("/api/alerts", s.rateLimitMiddleware(s.authMiddleware(s.handleAlerts)))
 	mux.HandleFunc("/api/rules", s.rateLimitMiddleware(s.authMiddleware(s.handleRules)))
-	
+
 	// 导出功能
 	mux.HandleFunc("/api/export/metrics/json", s.rateLimitMiddleware(s.authMiddleware(s.handleExportMetricsJSON)))
 	mux.HandleFunc("/api/export/metrics/csv", s.rateLimitMiddleware(s.authMiddleware(s.handleExportMetricsCSV)))
 	mux.HandleFunc("/api/export/traces/json", s.rateLimitMiddleware(s.authMiddleware(s.handleExportTracesJSON)))
 	mux.HandleFunc("/api/export/traces/csv", s.rateLimitMiddleware(s.authMiddleware(s.handleExportTracesCSV)))
-	
+
 	// 用户管理（需要 CSRF 保护）
 	mux.HandleFunc("/api/users", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleListUsers))))
 	mux.HandleFunc("/api/users/create", s.rateLimitMiddleware(s.authMiddleware(s.csrfMiddleware(methodHandler(http.MethodPost, s.handleCreateUser)))))
@@ -543,7 +543,7 @@ func (s *Server) Handler() http.Handler {
 		// csrfMiddleware 的 GET 分支会自动设置 csrf_token cookie
 		s.writeJSONWithStatus(w, r, http.StatusOK, map[string]interface{}{"success": true})
 	}))
-	
+
 	// 用户信息
 	mux.HandleFunc("/api/users/info", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -556,12 +556,12 @@ func (s *Server) Handler() http.Handler {
 		}
 	})))
 	mux.HandleFunc("/api/users/password", s.rateLimitMiddleware(s.authMiddleware(s.csrfMiddleware(methodHandler(http.MethodPut, s.handleChangePassword)))))
-	
+
 	// 指标高级查询
 	mux.HandleFunc("/api/metrics/list", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleMetricList))))
 	mux.HandleFunc("/api/metrics/trend", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleMetricTrend))))
 	mux.HandleFunc("/api/metrics/aggregation", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleMetricAggregation))))
-	
+
 	// 告警管理
 	mux.HandleFunc("/api/alert/list", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleAlertList))))
 	mux.HandleFunc("/api/alert/rules", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -592,7 +592,7 @@ func (s *Server) Handler() http.Handler {
 			methodHandler(http.MethodGet, s.handleAlertDetail)(w, r)
 		}
 	})))
-	
+
 	// 资产管理
 	mux.HandleFunc("/api/asset/change-events", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleAssetChangeEvents))))
 	mux.HandleFunc("/api/asset/resource-pools", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleResourcePools))))
@@ -606,14 +606,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/asset/routers", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleRouters))))
 	mux.HandleFunc("/api/asset/dhcp-servers", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleDhcpServers))))
 	mux.HandleFunc("/api/asset/ip-addresses", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleIpAddresses))))
-	
+
 	// 网络分析（/api/tracing 已在上方作为 /api/traces 别名注册）
 	mux.HandleFunc("/api/topology", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleTopology))))
 	mux.HandleFunc("/api/network/resource-analysis", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleNetworkResourceAnalysis))))
 	mux.HandleFunc("/api/network/path-analysis", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleNetworkPathAnalysis))))
 	mux.HandleFunc("/api/network/topology-analysis", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleNetworkTopologyAnalysis))))
 	mux.HandleFunc("/api/network/flow-logs", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleFlowLogs))))
-	
+
 	// 业务观测 - Business CRUD
 	mux.HandleFunc("/api/business", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -637,7 +637,7 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})))
-	
+
 	// 业务观测 - Service CRUD
 	mux.HandleFunc("/api/service", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -661,7 +661,7 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})))
-	
+
 	// 系统管理 - Collectors CRUD
 	mux.HandleFunc("/api/system/collectors", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -685,12 +685,12 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})))
-	
+
 	// 配置管理
 	mux.HandleFunc("/api/system/config/reload", s.rateLimitMiddleware(s.authMiddleware(s.requireAdmin(func(w http.ResponseWriter, r *http.Request) {
 		s.handleConfigReload(w, r)
 	}))))
-	
+
 	// 系统管理 - Data Nodes CRUD
 	mux.HandleFunc("/api/system/data-nodes", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -714,7 +714,7 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})))
-	
+
 	// 系统管理 - Config
 	mux.HandleFunc("/api/system/config", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -726,10 +726,10 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})))
-	
+
 	// 系统管理 - Logs
 	mux.HandleFunc("/api/system/logs", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleSystemLogs))))
-	
+
 	// 报表管理
 	mux.HandleFunc("/api/report/list", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleReportList))))
 	mux.HandleFunc("/api/report/generate", s.rateLimitMiddleware(s.authMiddleware(s.csrfMiddleware(methodHandler(http.MethodPost, s.handleReportGenerate)))))
@@ -740,16 +740,16 @@ func (s *Server) Handler() http.Handler {
 			methodHandler(http.MethodGet, s.handleReportDetail)(w, r)
 		}
 	})))
-	
+
 	// 可视化增强 - 多维度筛选
 	mux.HandleFunc("/api/traffic/advanced", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleTrafficAdvanced))))
 	mux.HandleFunc("/api/filters/protocols", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleProtocolFilter))))
 	mux.HandleFunc("/api/filters/k8s/namespaces", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleK8sNamespaces))))
 	mux.HandleFunc("/api/filters/k8s/services", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleK8sServices))))
-	
+
 	// 可视化增强 - 高级导出
 	mux.HandleFunc("/api/export/advanced", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleExportAdvanced))))
-	
+
 	// 可视化增强 - 自定义仪表盘 CRUD
 	mux.HandleFunc("/api/dashboard", s.rateLimitMiddleware(s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -773,13 +773,13 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})))
-	
+
 	// 可视化增强 - 大屏展示
 	mux.HandleFunc("/api/screen/display", s.rateLimitMiddleware(s.authMiddleware(methodHandler(http.MethodGet, s.handleScreenDisplay))))
-	
+
 	// Swagger 文档（带认证）
 	RegisterSwaggerRoutes(mux, s.authMiddleware)
-	
+
 	mux.HandleFunc("/api/healthz", s.rateLimitMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "ok")
 	}))
@@ -812,12 +812,12 @@ func (s *Server) handleAlertmanagerWebhook(w http.ResponseWriter, r *http.Reques
 	}
 
 	var payload []struct {
-		Status   string            `json:"status"`
-		Labels   map[string]string `json:"labels"`
-		Annotations map[string]string `json:"annotations"`
-		StartsAt time.Time         `json:"startsAt"`
-		EndsAt   time.Time         `json:"endsAt"`
-		GeneratorURL string        `json:"generatorURL"`
+		Status       string            `json:"status"`
+		Labels       map[string]string `json:"labels"`
+		Annotations  map[string]string `json:"annotations"`
+		StartsAt     time.Time         `json:"startsAt"`
+		EndsAt       time.Time         `json:"endsAt"`
+		GeneratorURL string            `json:"generatorURL"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -1214,7 +1214,7 @@ func (s *Server) handleCPU(w http.ResponseWriter, r *http.Request) {
 	// 按小时聚合数据
 	hourlyData := make(map[int]float64)
 	hourlyCount := make(map[int]int)
-	
+
 	for _, metric := range metrics {
 		// 解析时间戳，兼容 int64/float64/int 类型
 		var ts int64
@@ -1231,7 +1231,7 @@ func (s *Server) handleCPU(w http.ResponseWriter, r *http.Request) {
 		}
 		t := time.Unix(ts, 0)
 		hour := t.Hour()
-		
+
 		// 检查是否为 CPU 指标（通过 cpu_usage 字段判断）
 		if cpuUsage, ok := metric["cpu_usage"]; ok {
 			cpu := toFloat64(cpuUsage)
@@ -1245,7 +1245,7 @@ func (s *Server) handleCPU(w http.ResponseWriter, r *http.Request) {
 	// 构建返回数据
 	labels := []string{}
 	values := []float64{}
-	
+
 	for i := 0; i < 24; i += 3 { // 每 3 小时一个点
 		labels = append(labels, fmt.Sprintf("%02d:00", i))
 		if count := hourlyCount[i]; count > 0 {
@@ -1291,7 +1291,7 @@ func (s *Server) handleMemory(w http.ResponseWriter, r *http.Request) {
 	// 按小时聚合数据
 	hourlyData := make(map[int]float64)
 	hourlyCount := make(map[int]int)
-	
+
 	for _, metric := range metrics {
 		// 解析时间戳，兼容 int64/float64/int 类型
 		var ts int64
@@ -1308,7 +1308,7 @@ func (s *Server) handleMemory(w http.ResponseWriter, r *http.Request) {
 		}
 		t := time.Unix(ts, 0)
 		hour := t.Hour()
-		
+
 		// 检查是否为内存指标（通过 memory_usage 字段判断）
 		if memUsage, ok := metric["memory_usage"]; ok {
 			mem := toFloat64(memUsage)
@@ -1322,7 +1322,7 @@ func (s *Server) handleMemory(w http.ResponseWriter, r *http.Request) {
 	// 构建返回数据
 	labels := []string{}
 	values := []float64{}
-	
+
 	for i := 0; i < 24; i += 3 { // 每 3 小时一个点
 		labels = append(labels, fmt.Sprintf("%02d:00", i))
 		if count := hourlyCount[i]; count > 0 {
@@ -1376,7 +1376,7 @@ func isPrivateIP(ip string) bool {
 		{mustParseCIDR("172.16.0.0/12")},
 		{mustParseCIDR("192.168.0.0/16")},
 		{mustParseCIDR("169.254.0.0/16")}, // 链路本地
-		{mustParseCIDR("fc00::/7")},        // IPv6 ULA
+		{mustParseCIDR("fc00::/7")},       // IPv6 ULA
 	}
 	for _, r := range privateRanges {
 		if r.network.Contains(netIP) {
@@ -1419,7 +1419,7 @@ func (s *Server) handleExportMetricsJSON(w http.ResponseWriter, r *http.Request)
 		day = today()
 	}
 	probeID := r.URL.Query().Get("probe_id")
-	
+
 	// 导出时可以设置更大的限制
 	limit := 10000
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
@@ -1431,7 +1431,7 @@ func (s *Server) handleExportMetricsJSON(w http.ResponseWriter, r *http.Request)
 	if limit > 100000 {
 		limit = 100000
 	}
-	
+
 	results, err := s.store.QueryMetrics(day, probeID, limit)
 	if err != nil {
 		s.logger.Errorf("导出指标数据查询失败: %v", err)
@@ -1454,7 +1454,7 @@ func (s *Server) handleExportMetricsJSON(w http.ResponseWriter, r *http.Request)
 	// 与普通 API 的 Content-Type 不同，且浏览器对下载请求的 CORS 行为有差异。
 	// 统一 CORS 配置：使用服务实例的 allowedOrigins 配置
 	s.setExportHeaders(w, r)
-	
+
 	if err := json.NewEncoder(w).Encode(results); err != nil {
 		s.logger.Errorf("JSON Encode 失败: %v", err)
 	}
@@ -1481,7 +1481,7 @@ func (s *Server) handleExportMetricsCSV(w http.ResponseWriter, r *http.Request) 
 		day = today()
 	}
 	probeID := r.URL.Query().Get("probe_id")
-	
+
 	// 导出时可以设置更大的限制
 	limit := 10000
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
@@ -1493,7 +1493,7 @@ func (s *Server) handleExportMetricsCSV(w http.ResponseWriter, r *http.Request) 
 	if limit > 100000 {
 		limit = 100000
 	}
-	
+
 	results, err := s.store.QueryMetrics(day, probeID, limit)
 	if err != nil {
 		s.setExportHeaders(w, r)
@@ -1509,15 +1509,15 @@ func (s *Server) handleExportMetricsCSV(w http.ResponseWriter, r *http.Request) 
 	// 设置响应头
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=metrics_%s.csv", sanitizeFilename(day)))
-	
+
 	// 创建 CSV writer
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
-	
+
 	// 写入表头
 	headers := []string{"ID", "ProbeID", "Timestamp", "SrcIP", "DstIP", "SrcPort", "DstPort", "Protocol", "Bytes", "Packets", "Latency"}
 	writer.Write(headers)
-	
+
 	// 写入数据
 	for _, metric := range results {
 		row := []string{
@@ -1558,7 +1558,7 @@ func (s *Server) handleExportTracesJSON(w http.ResponseWriter, r *http.Request) 
 		day = today()
 	}
 	probeID := r.URL.Query().Get("probe_id")
-	
+
 	// 导出时可以设置更大的限制
 	limit := 10000
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
@@ -1570,7 +1570,7 @@ func (s *Server) handleExportTracesJSON(w http.ResponseWriter, r *http.Request) 
 	if limit > 100000 {
 		limit = 100000
 	}
-	
+
 	results, err := s.store.QueryTraces(day, probeID, limit)
 	if err != nil {
 		s.logger.Errorf("导出链路追踪数据查询失败: %v", err)
@@ -1587,10 +1587,10 @@ func (s *Server) handleExportTracesJSON(w http.ResponseWriter, r *http.Request) 
 	// 设置响应头
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=traces_%s.json", sanitizeFilename(day)))
-	
+
 	// 统一 CORS 配置：使用服务实例的 allowedOrigins 配置
 	s.setExportHeaders(w, r)
-	
+
 	if err := json.NewEncoder(w).Encode(results); err != nil {
 		s.logger.Errorf("JSON Encode 失败: %v", err)
 	}
@@ -1617,7 +1617,7 @@ func (s *Server) handleExportTracesCSV(w http.ResponseWriter, r *http.Request) {
 		day = today()
 	}
 	probeID := r.URL.Query().Get("probe_id")
-	
+
 	// 导出时可以设置更大的限制
 	limit := 10000
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
@@ -1629,7 +1629,7 @@ func (s *Server) handleExportTracesCSV(w http.ResponseWriter, r *http.Request) {
 	if limit > 100000 {
 		limit = 100000
 	}
-	
+
 	results, err := s.store.QueryTraces(day, probeID, limit)
 	if err != nil {
 		s.setExportHeaders(w, r)
@@ -1645,15 +1645,15 @@ func (s *Server) handleExportTracesCSV(w http.ResponseWriter, r *http.Request) {
 	// 设置响应头
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=traces_%s.csv", sanitizeFilename(day)))
-	
+
 	// 创建 CSV writer
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
-	
+
 	// 写入表头
 	headers := []string{"ID", "ProbeID", "Timestamp", "TraceID", "SpanID", "ParentID", "Operation", "Duration", "Service", "Tags"}
 	writer.Write(headers)
-	
+
 	// 写入数据
 	for _, trace := range results {
 		row := []string{
@@ -2035,7 +2035,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	valid, role, err = s.store.VerifyUser(loginData.Username, loginData.Password)
-	
+
 	if err != nil || !valid {
 		// 增加登录失败计数
 		if s.redisStore != nil {
@@ -2837,7 +2837,17 @@ func (s *Server) handleCloudPlatforms(w http.ResponseWriter, r *http.Request) {
 // handleRegions 区域列表（GET /api/asset/regions）
 func (s *Server) handleRegions(w http.ResponseWriter, r *http.Request) {
 	page, pageSize := parsePagination(r)
-	s.writeJSON(w, r, paginatedResponse([]map[string]interface{}{}, 0, page, pageSize))
+	regions := s.centerConfig.Regions
+	if regions == nil {
+		regions = []string{}
+	}
+	items := make([]map[string]interface{}, 0, len(regions))
+	for _, region := range regions {
+		items = append(items, map[string]interface{}{
+			"name": region,
+		})
+	}
+	s.writeJSON(w, r, paginatedResponse(items, len(items), page, pageSize))
 }
 
 // handleAvailabilityZones 可用区列表（GET /api/asset/availability-zones）
@@ -2907,19 +2917,19 @@ func (s *Server) handleTopology(w http.ResponseWriter, r *http.Request) {
 
 	// Gateway
 	topologyNodes = append(topologyNodes, map[string]interface{}{
-		"name":   "Gateway",
-		"value":  10,
+		"name":       "Gateway",
+		"value":      10,
 		"symbolSize": 40,
-		"category": 0,
-		"itemStyle": map[string]interface{}{"color": "#0ABAFF"},
+		"category":   0,
+		"itemStyle":  map[string]interface{}{"color": "#0ABAFF"},
 	})
 	// Load Balancer
 	topologyNodes = append(topologyNodes, map[string]interface{}{
-		"name":   "LB",
-		"value":  10,
+		"name":       "LB",
+		"value":      10,
 		"symbolSize": 35,
-		"category": 1,
-		"itemStyle": map[string]interface{}{"color": "#61DDAA"},
+		"category":   1,
+		"itemStyle":  map[string]interface{}{"color": "#61DDAA"},
 	})
 	// Gateway -> LB
 	topologyLinks = append(topologyLinks, map[string]interface{}{
@@ -2940,12 +2950,12 @@ func (s *Server) handleTopology(w http.ResponseWriter, r *http.Request) {
 			color = "#FF745A"
 		}
 		topologyNodes = append(topologyNodes, map[string]interface{}{
-			"name":   name,
-			"value":  10,
+			"name":       name,
+			"value":      10,
 			"symbolSize": 25,
-			"category": 2,
-			"itemStyle": map[string]interface{}{"color": color},
-			"label":  map[string]interface{}{"show": true, "color": "#fff"},
+			"category":   2,
+			"itemStyle":  map[string]interface{}{"color": color},
+			"label":      map[string]interface{}{"show": true, "color": "#fff"},
 		})
 		// LB -> Node
 		topologyLinks = append(topologyLinks, map[string]interface{}{
@@ -2962,9 +2972,9 @@ func (s *Server) handleTopology(w http.ResponseWriter, r *http.Request) {
 // handleNetworkResourceAnalysis 网络资源分析（GET /api/network/resource-analysis）
 func (s *Server) handleNetworkResourceAnalysis(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, r, successResponse(map[string]interface{}{
-		"total_bandwidth":  0,
-		"used_bandwidth":   0,
-		"total_connections": 0,
+		"total_bandwidth":    0,
+		"used_bandwidth":     0,
+		"total_connections":  0,
 		"active_connections": 0,
 	}, "获取网络资源分析成功"))
 }
@@ -3377,13 +3387,13 @@ func (s *Server) handleDataNodeDelete(w http.ResponseWriter, r *http.Request) {
 // handleGetSystemConfig 获取系统配置（GET /api/system/config）
 func (s *Server) handleGetSystemConfig(w http.ResponseWriter, r *http.Request) {
 	cfg := map[string]interface{}{
-		"probe_interval":    "10s",
-		"data_retention":    "7d",
+		"probe_interval":       "10s",
+		"data_retention":       "7d",
 		"alert_check_interval": "10s",
-		"max_connections":   1000,
-		"log_level":         "info",
-		"tls_enabled":       false,
-		"rate_limit_enabled": false,
+		"max_connections":      1000,
+		"log_level":            "info",
+		"tls_enabled":          false,
+		"rate_limit_enabled":   false,
 	}
 
 	if s.centerConfig != nil {
@@ -3451,11 +3461,11 @@ func (s *Server) handleReportList(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleReportDetail(w http.ResponseWriter, r *http.Request) {
 	id := extractPathID(r.URL.Path, "/api/report/")
 	s.writeJSON(w, r, successResponse(map[string]interface{}{
-		"id":          id,
-		"name":        "",
-		"type":        "",
-		"status":      "completed",
-		"created_at":  time.Now().Format(time.RFC3339),
+		"id":           id,
+		"name":         "",
+		"type":         "",
+		"status":       "completed",
+		"created_at":   time.Now().Format(time.RFC3339),
 		"download_url": "",
 	}, "获取报表详情成功"))
 }
@@ -3600,7 +3610,7 @@ func (s *Server) handleK8sNamespaces(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleK8sServices(w http.ResponseWriter, r *http.Request) {
 	namespace := r.URL.Query().Get("namespace")
 	services := []map[string]interface{}{}
-	
+
 	if s.store != nil && namespace != "" {
 		if svcList, err := s.store.GetK8sServices(namespace); err == nil && svcList != nil {
 			services = svcList
@@ -3674,13 +3684,13 @@ func (s *Server) handleExportAdvanced(w http.ResponseWriter, r *http.Request) {
 	if exportFormat == "csv" {
 		w.Header().Set("Content-Type", "text/csv")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=traffic_export_%s.csv", timestamp))
-		
+
 		writer := csv.NewWriter(w)
 		defer writer.Flush()
-		
+
 		headers := []string{"timestamp", "src_ip", "dst_ip", "src_port", "dst_port", "protocol", "bytes", "packets", "k8s_namespace", "k8s_service", "k8s_pod"}
 		writer.Write(headers)
-		
+
 		for _, metric := range filtered {
 			row := []string{
 				fmt.Sprintf("%v", metric["timestamp"]),
@@ -3722,7 +3732,7 @@ type Dashboard struct {
 // DashboardWidget 仪表盘组件
 type DashboardWidget struct {
 	ID         string                 `json:"id"`
-	Type       string                 `json:"type"`       // chart, table, gauge, text
+	Type       string                 `json:"type"` // chart, table, gauge, text
 	Title      string                 `json:"title"`
 	PositionX  int                    `json:"position_x"`
 	PositionY  int                    `json:"position_y"`
@@ -3743,7 +3753,7 @@ var dashboardStore = struct {
 // handleDashboardList 获取仪表盘列表
 func (s *Server) handleDashboardList(w http.ResponseWriter, r *http.Request) {
 	page, pageSize := parsePagination(r)
-	
+
 	dashboardStore.RLock()
 	allDashboards := make([]*Dashboard, 0, len(dashboardStore.dashboards))
 	for _, d := range dashboardStore.dashboards {
@@ -3809,7 +3819,7 @@ func (s *Server) handleDashboardDetail(w http.ResponseWriter, r *http.Request) {
 // handleDashboardUpdate 更新仪表盘
 func (s *Server) handleDashboardUpdate(w http.ResponseWriter, r *http.Request) {
 	id := extractPathID(r.URL.Path, "/api/dashboard/")
-	
+
 	var dashboard Dashboard
 	if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
 		s.writeJSONWithStatus(w, r, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "无效的请求体"})
@@ -3823,7 +3833,7 @@ func (s *Server) handleDashboardUpdate(w http.ResponseWriter, r *http.Request) {
 		s.writeJSONWithStatus(w, r, http.StatusNotFound, map[string]interface{}{"success": false, "message": "仪表盘不存在"})
 		return
 	}
-	
+
 	dashboard.ID = id
 	dashboard.CreatedAt = existing.CreatedAt
 	dashboard.UpdatedAt = time.Now()
@@ -3855,7 +3865,7 @@ func (s *Server) handleDashboardDelete(w http.ResponseWriter, r *http.Request) {
 // handleScreenDisplay 获取大屏展示数据
 func (s *Server) handleScreenDisplay(w http.ResponseWriter, r *http.Request) {
 	dashboardID := r.URL.Query().Get("dashboard_id")
-	
+
 	// 获取仪表盘数据
 	var dashboard *Dashboard
 	if dashboardID != "" {
@@ -4050,4 +4060,3 @@ func toInt64(v interface{}) int64 {
 		return 0
 	}
 }
-

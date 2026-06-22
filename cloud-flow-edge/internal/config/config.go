@@ -50,13 +50,13 @@ type ServiceDiscoveryConfig struct {
 
 // ClusterConfig Edge集群配置
 type ClusterConfig struct {
-	Enabled                bool          // 启用集群模式
-	NodeID                 string        // 当前节点ID
-	ServiceName            string        // 集群服务名称（用于服务发现）
-	HeartbeatInterval      time.Duration // 心跳间隔
-	HealthCheckTimeout     time.Duration // 健康检查超时
-	LoadBalanceStrategy    string        // 负载均衡策略: least-connections/round-robin/consistent-hash
-	MaxConnectionsPerNode  int           // 每个节点最大连接数
+	Enabled               bool          // 启用集群模式
+	NodeID                string        // 当前节点ID
+	ServiceName           string        // 集群服务名称（用于服务发现）
+	HeartbeatInterval     time.Duration // 心跳间隔
+	HealthCheckTimeout    time.Duration // 健康检查超时
+	LoadBalanceStrategy   string        // 负载均衡策略: least-connections/round-robin/consistent-hash
+	MaxConnectionsPerNode int           // 每个节点最大连接数
 }
 
 // RateLimitConfig 限流配置
@@ -111,22 +111,22 @@ type KafkaConfig struct {
 
 // AggregatorConfig 数据聚合配置
 type AggregatorConfig struct {
-	Enabled           bool          // 启用数据聚合（默认启用）
-	WindowSize        time.Duration // 聚合窗口大小（默认1分钟）
-	MaxWindowCount    int           // 最大窗口数量（默认10个）
-	Deduplication     bool          // 启用去重（默认启用）
-	FilterInvalid     bool          // 启用无效数据过滤（默认启用）
-	MinCompression    float64       // 最小压缩率要求（默认0.5，即50%）
+	Enabled        bool          // 启用数据聚合（默认启用）
+	WindowSize     time.Duration // 聚合窗口大小（默认1分钟）
+	MaxWindowCount int           // 最大窗口数量（默认10个）
+	Deduplication  bool          // 启用去重（默认启用）
+	FilterInvalid  bool          // 启用无效数据过滤（默认启用）
+	MinCompression float64       // 最小压缩率要求（默认0.5，即50%）
 }
 
 // AuthConfig Agent接入鉴权配置
 type AuthConfig struct {
-	Enabled          bool          // 启用鉴权（默认启用）
-	RequireMTLS      bool          // 要求mTLS双向证书认证
-	RequireToken     bool          // 要求Agent Token认证
-	RequireWhitelist bool          // 要求白名单校验
-	TokenHeader      string        // Token metadata header键名
-	RejectLog        bool          // 记录被拒绝连接的详细日志
+	Enabled               bool          // 启用鉴权（默认启用）
+	RequireMTLS           bool          // 要求mTLS双向证书认证
+	RequireToken          bool          // 要求Agent Token认证
+	RequireWhitelist      bool          // 要求白名单校验
+	TokenHeader           string        // Token metadata header键名
+	RejectLog             bool          // 记录被拒绝连接的详细日志
 	WhitelistSyncInterval time.Duration // Center白名单同步间隔
 }
 
@@ -137,6 +137,7 @@ type Config struct {
 	MetricsPort      int                    // Prometheus metrics HTTP 端口
 	HealthPort       int                    // 健康检查 HTTP 端口
 	CenterAddr       string                 // 中心服务地址
+	GrpcAddr         string                 // Edge 自己的 gRPC 地址（用于自监控上报）
 	ServiceDiscovery ServiceDiscoveryConfig // 服务发现配置
 	CloudPlatform    string                 // 云平台标识
 	Region           string                 // 区域标识
@@ -157,20 +158,20 @@ type Config struct {
 	Kafka            KafkaConfig            // P0: Kafka 配置（Flow Ingest Pipeline）
 
 	// ClickHouse 配置（本地缓冲写入）
-	ClickHouseAddr       string // ClickHouse 地址
-	ClickHousePort       int    // ClickHouse 端口
-	ClickHouseUser       string // ClickHouse 用户名
-	ClickHousePassword   string // ClickHouse 密码
-	ClickHouseDatabase   string // ClickHouse 数据库
+	ClickHouseAddr     string // ClickHouse 地址
+	ClickHousePort     int    // ClickHouse 端口
+	ClickHouseUser     string // ClickHouse 用户名
+	ClickHousePassword string // ClickHouse 密码
+	ClickHouseDatabase string // ClickHouse 数据库
 
 	// L1 修复: 可配置的定时任务间隔
-	HeartbeatInterval       time.Duration // 心跳上报间隔（默认 30s）
-	ProbeReportInterval     time.Duration // 探针列表上报间隔（默认 60s）
-	SelfMonitorInterval     time.Duration // 自监控上报间隔（默认 30s）
-	MaxBufferLimit          int           // 转发缓冲区上限（默认 1000）
-	ReconnectBaseDelay      time.Duration // 重连基础延迟（默认 2s）
-	ReconnectMaxDelay       time.Duration // 重连最大延迟（默认 30s）
-	MaxReconnectAttempts    int           // 最大重连次数（默认 10）
+	HeartbeatInterval    time.Duration // 心跳上报间隔（默认 30s）
+	ProbeReportInterval  time.Duration // 探针列表上报间隔（默认 60s）
+	SelfMonitorInterval  time.Duration // 自监控上报间隔（默认 30s）
+	MaxBufferLimit       int           // 转发缓冲区上限（默认 1000）
+	ReconnectBaseDelay   time.Duration // 重连基础延迟（默认 2s）
+	ReconnectMaxDelay    time.Duration // 重连最大延迟（默认 30s）
+	MaxReconnectAttempts int           // 最大重连次数（默认 10）
 }
 
 // loadAPIKey 从环境变量或配置文件加载 API Key
@@ -262,6 +263,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("metrics_port", 9092)
 	viper.SetDefault("health_port", 8081)
 	viper.SetDefault("center_addr", "localhost:9090")
+	viper.SetDefault("grpc_addr", "localhost:50051")
 	viper.SetDefault("cloud_platform", "onprem")
 	viper.SetDefault("region", "local")
 	viper.SetDefault("batch_size", 5000)
@@ -309,6 +311,18 @@ func Load() (*Config, error) {
 	viper.SetDefault("aggregator.deduplication", true)
 	viper.SetDefault("aggregator.filter_invalid", true)
 	viper.SetDefault("aggregator.min_compression", 0.5)
+
+	// P0: Kafka 配置默认值（Flow Ingest Pipeline）
+	viper.SetDefault("kafka.enabled", false)
+	viper.SetDefault("kafka.brokers", []string{})
+	viper.SetDefault("kafka.compression", "snappy")
+	viper.SetDefault("kafka.max_message_bytes", 4194304)
+	viper.SetDefault("kafka.batch_size", 500)
+	viper.SetDefault("kafka.linger_ms", 5)
+	viper.SetDefault("kafka.buffer_memory", 33554432)
+	viper.SetDefault("kafka.retries", 5)
+	viper.SetDefault("kafka.retry_backoff_ms", 100)
+	viper.SetDefault("kafka.channel_buffer_size", 16384)
 
 	// Agent接入鉴权配置默认值
 	viper.SetDefault("auth.enabled", true)
@@ -378,6 +392,7 @@ func Load() (*Config, error) {
 		MetricsPort:    viper.GetInt("metrics_port"),
 		HealthPort:     viper.GetInt("health_port"),
 		CenterAddr:     viper.GetString("center_addr"),
+		GrpcAddr:       viper.GetString("grpc_addr"),
 		ServiceDiscovery: ServiceDiscoveryConfig{
 			Enabled:         viper.GetBool("service_discovery.enabled"),
 			Type:            viper.GetString("service_discovery.type"),
@@ -436,12 +451,12 @@ func Load() (*Config, error) {
 			MinCompression: viper.GetFloat64("aggregator.min_compression"),
 		},
 		Auth: AuthConfig{
-			Enabled:             viper.GetBool("auth.enabled"),
-			RequireMTLS:         viper.GetBool("auth.require_mtls"),
-			RequireToken:        viper.GetBool("auth.require_token"),
-			RequireWhitelist:    viper.GetBool("auth.require_whitelist"),
-			TokenHeader:         viper.GetString("auth.token_header"),
-			RejectLog:           viper.GetBool("auth.reject_log"),
+			Enabled:               viper.GetBool("auth.enabled"),
+			RequireMTLS:           viper.GetBool("auth.require_mtls"),
+			RequireToken:          viper.GetBool("auth.require_token"),
+			RequireWhitelist:      viper.GetBool("auth.require_whitelist"),
+			TokenHeader:           viper.GetString("auth.token_header"),
+			RejectLog:             viper.GetBool("auth.reject_log"),
 			WhitelistSyncInterval: viper.GetDuration("auth.whitelist_sync_interval"),
 		},
 		Cluster: ClusterConfig{
@@ -452,6 +467,18 @@ func Load() (*Config, error) {
 			HealthCheckTimeout:    viper.GetDuration("cluster.health_check_timeout"),
 			LoadBalanceStrategy:   viper.GetString("cluster.load_balance_strategy"),
 			MaxConnectionsPerNode: viper.GetInt("cluster.max_connections_per_node"),
+		},
+		Kafka: KafkaConfig{
+			Enabled:           viper.GetBool("kafka.enabled"),
+			Brokers:           viper.GetStringSlice("kafka.brokers"),
+			Compression:       viper.GetString("kafka.compression"),
+			MaxMessageBytes:   viper.GetInt("kafka.max_message_bytes"),
+			BatchSize:         viper.GetInt("kafka.batch_size"),
+			LingerMs:          viper.GetInt("kafka.linger_ms"),
+			BufferMemory:      viper.GetInt("kafka.buffer_memory"),
+			Retries:           viper.GetInt("kafka.retries"),
+			RetryBackoffMs:    viper.GetInt("kafka.retry_backoff_ms"),
+			ChannelBufferSize: viper.GetInt("kafka.channel_buffer_size"),
 		},
 		Log: LogConfig{
 			Level:  viper.GetString("log.level"),

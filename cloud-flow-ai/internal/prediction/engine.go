@@ -22,15 +22,18 @@ type PredictionEngine struct {
 
 	// 预测模型参数
 	models map[string]*PredictionModel
+
+	// 可配置的告警阈值因子
+	AlertThresholdFactor float64
 }
 
 // TimeSeries 时间序列数据
 type TimeSeries struct {
-	Key       string
-	Points    []DataPoint
-	MaxSize   int
-	Unit      string
-	Label     string
+	Key     string
+	Points  []DataPoint
+	MaxSize int
+	Unit    string
+	Label   string
 }
 
 // DataPoint 数据点
@@ -52,22 +55,22 @@ type PredictionModel struct {
 type ModelType string
 
 const (
-	ModelLinear    ModelType = "linear"
+	ModelLinear      ModelType = "linear"
 	ModelExponential ModelType = "exponential"
-	ModelSeasonal  ModelType = "seasonal"
+	ModelSeasonal    ModelType = "seasonal"
 )
 
 // PredictionResult 预测结果
 type PredictionResult struct {
-	Key           string
-	CurrentValue  float64
+	Key            string
+	CurrentValue   float64
 	PredictedValue float64
-	Confidence    float64
-	Horizon       time.Duration
-	Trend         TrendDirection
-	RiskLevel     RiskLevel
-	Reasoning     string
-	PredictedAt   time.Time
+	Confidence     float64
+	Horizon        time.Duration
+	Trend          TrendDirection
+	RiskLevel      RiskLevel
+	Reasoning      string
+	PredictedAt    time.Time
 }
 
 // TrendDirection 趋势方向
@@ -84,49 +87,50 @@ const (
 type RiskLevel string
 
 const (
-	RiskLow     RiskLevel = "low"
-	RiskMedium  RiskLevel = "medium"
-	RiskHigh    RiskLevel = "high"
+	RiskLow      RiskLevel = "low"
+	RiskMedium   RiskLevel = "medium"
+	RiskHigh     RiskLevel = "high"
 	RiskCritical RiskLevel = "critical"
 )
 
 // CapacityPrediction 容量预测
 type CapacityPrediction struct {
-	Resource       string
-	CurrentUsage   float64
-	CapacityLimit  float64
-	GrowthRate     float64
-	DaysUntilFull  float64
-	DaysUntilAlert float64
-	RiskLevel      RiskLevel
+	Resource        string
+	CurrentUsage    float64
+	CapacityLimit   float64
+	GrowthRate      float64
+	DaysUntilFull   float64
+	DaysUntilAlert  float64
+	RiskLevel       RiskLevel
 	Recommendations []string
 }
 
 // FailurePrediction 故障预测
 type FailurePrediction struct {
-	Service       string
-	FailureType   string
-	Probability   float64
-	ETA           time.Time
-	Indicators    []RiskIndicator
-	Confidence    float64
+	Service         string
+	FailureType     string
+	Probability     float64
+	ETA             time.Time
+	Indicators      []RiskIndicator
+	Confidence      float64
 	Recommendations []string
 }
 
 // RiskIndicator 风险指标
 type RiskIndicator struct {
-	Metric      string
-	Current     float64
-	Threshold   float64
-	Deviation   float64
-	Severity    string
+	Metric    string
+	Current   float64
+	Threshold float64
+	Deviation float64
+	Severity  string
 }
 
 // NewPredictionEngine 创建预测引擎
 func NewPredictionEngine() *PredictionEngine {
 	return &PredictionEngine{
-		timeSeries: make(map[string]*TimeSeries),
-		models:     make(map[string]*PredictionModel),
+		timeSeries:           make(map[string]*TimeSeries),
+		models:               make(map[string]*PredictionModel),
+		AlertThresholdFactor: 0.8,
 	}
 }
 
@@ -313,9 +317,9 @@ func calculateConfidence(points []DataPoint, slope, intercept float64) float64 {
 // PredictCapacity 容量预测
 func (e *PredictionEngine) PredictCapacity(resource string, capacityLimit float64) *CapacityPrediction {
 	result := &CapacityPrediction{
-		Resource:      resource,
-		CapacityLimit: capacityLimit,
-		RiskLevel:     RiskLow,
+		Resource:        resource,
+		CapacityLimit:   capacityLimit,
+		RiskLevel:       RiskLow,
 		Recommendations: []string{},
 	}
 
@@ -341,8 +345,12 @@ func (e *PredictionEngine) PredictCapacity(resource string, capacityLimit float6
 		}
 	}
 
-	// 80% 告警阈值
-	alertThreshold := capacityLimit * 0.8
+	// 可配置的告警阈值
+	factor := e.AlertThresholdFactor
+	if factor <= 0 || factor > 1.0 {
+		factor = 0.8
+	}
+	alertThreshold := capacityLimit * factor
 	if growthRate > 0 && currentUsage < alertThreshold {
 		diff := alertThreshold - currentUsage
 		result.DaysUntilAlert = diff / (growthRate * 24)

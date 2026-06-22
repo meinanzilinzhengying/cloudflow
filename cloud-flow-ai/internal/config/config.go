@@ -12,12 +12,13 @@ import (
 
 type Config struct {
 	AI struct {
-		Port     int    `mapstructure:"port"`
-		DataDir  string `mapstructure:"data_dir"`
-		Log      LogConfig `mapstructure:"log"`
-		JWT      JWTConfig `mapstructure:"jwt"`
-		LLM      LLMConfig `mapstructure:"llm"`
+		Port     int            `mapstructure:"port"`
+		DataDir  string         `mapstructure:"data_dir"`
+		Log      LogConfig      `mapstructure:"log"`
+		JWT      JWTConfig      `mapstructure:"jwt"`
+		LLM      LLMConfig      `mapstructure:"llm"`
 		Analysis AnalysisConfig `mapstructure:"analysis"`
+		RCA      RCAConfig      `mapstructure:"rca"`
 	} `mapstructure:"ai"`
 }
 
@@ -32,36 +33,50 @@ type LogConfig struct {
 }
 
 type JWTConfig struct {
-	SecretKey      string `mapstructure:"secret_key"`
-	TokenDuration  int    `mapstructure:"token_duration"`
+	SecretKey     string `mapstructure:"secret_key"`
+	TokenDuration int    `mapstructure:"token_duration"`
 }
 
 type LLMConfig struct {
-	Provider     string        `mapstructure:"provider"`
-	Models       []LLMModel    `mapstructure:"models"`
-	DefaultModel string        `mapstructure:"default_model"`
+	Provider     string     `mapstructure:"provider"`
+	Models       []LLMModel `mapstructure:"models"`
+	DefaultModel string     `mapstructure:"default_model"`
+	OllamaURL    string     `mapstructure:"ollama_url"`
 }
 
 type LLMModel struct {
-	Name          string  `mapstructure:"name"`
-	Provider      string  `mapstructure:"provider"`
-	APIURL        string  `mapstructure:"api_url"`
-	APIKey        string  `mapstructure:"api_key"`
-	MaxTokens     int     `mapstructure:"max_tokens"`
-	Temperature   float64 `mapstructure:"temperature"`
+	Name        string  `mapstructure:"name"`
+	Provider    string  `mapstructure:"provider"`
+	APIURL      string  `mapstructure:"api_url"`
+	APIKey      string  `mapstructure:"api_key"`
+	MaxTokens   int     `mapstructure:"max_tokens"`
+	Temperature float64 `mapstructure:"temperature"`
+}
+
+// RCAConfig holds thresholds for built-in RCA anomaly patterns.
+type RCAConfig struct {
+	CascadeDBLatencyThreshold    float64 `mapstructure:"cascade_db_latency_threshold"`
+	CascadeAPILatencyThreshold   float64 `mapstructure:"cascade_api_latency_threshold"`
+	CascadeAPIErrorRateThreshold float64 `mapstructure:"cascade_api_error_rate_threshold"`
+	OomMemoryThreshold           float64 `mapstructure:"oom_memory_threshold"`
+	OomErrorRateThreshold        float64 `mapstructure:"oom_error_rate_threshold"`
+	OomQueueDepthThreshold       float64 `mapstructure:"oom_queue_depth_threshold"`
+	CPUThrottleCPUThreshold      float64 `mapstructure:"cpu_throttle_cpu_threshold"`
+	CPUThrottleLatencyThreshold  float64 `mapstructure:"cpu_throttle_latency_threshold"`
 }
 
 type AnalysisConfig struct {
-	CacheTTL            int `mapstructure:"cache_ttl"`
-	MaxAnalysisHistory  int `mapstructure:"max_analysis_history"`
+	CacheTTL             int     `mapstructure:"cache_ttl"`
+	MaxAnalysisHistory   int     `mapstructure:"max_analysis_history"`
+	AlertThresholdFactor float64 `mapstructure:"alert_threshold_factor"`
 }
 
 type ConfigManager struct {
-	mu       sync.RWMutex
-	config   *Config
-	viper    *viper.Viper
+	mu        sync.RWMutex
+	config    *Config
+	viper     *viper.Viper
 	callbacks []func(old, new *Config)
-	stopCh   chan struct{}
+	stopCh    chan struct{}
 }
 
 type Option func(*ConfigManager)
@@ -124,8 +139,18 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ai.log.format", "json")
 	v.SetDefault("ai.log.output", "stdout")
 	v.SetDefault("ai.llm.default_model", "gpt-4o")
+	v.SetDefault("ai.llm.ollama_url", "http://localhost:11434")
 	v.SetDefault("ai.analysis.cache_ttl", 3600)
 	v.SetDefault("ai.analysis.max_analysis_history", 100)
+	v.SetDefault("ai.analysis.alert_threshold_factor", 0.8)
+	v.SetDefault("ai.rca.cascade_db_latency_threshold", 1000.0)
+	v.SetDefault("ai.rca.cascade_api_latency_threshold", 2000.0)
+	v.SetDefault("ai.rca.cascade_api_error_rate_threshold", 0.05)
+	v.SetDefault("ai.rca.oom_memory_threshold", 90.0)
+	v.SetDefault("ai.rca.oom_error_rate_threshold", 0.1)
+	v.SetDefault("ai.rca.oom_queue_depth_threshold", 10000.0)
+	v.SetDefault("ai.rca.cpu_throttle_cpu_threshold", 85.0)
+	v.SetDefault("ai.rca.cpu_throttle_latency_threshold", 500.0)
 }
 
 func (cm *ConfigManager) replaceEnvVars(cfg *Config) {

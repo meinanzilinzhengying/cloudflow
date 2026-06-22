@@ -32,7 +32,7 @@ type ChatResponse struct {
 	Created int64  `json:"created"`
 	Model   string `json:"model"`
 	Choices []struct {
-		Index int `json:"index"`
+		Index   int `json:"index"`
 		Message struct {
 			Role    string `json:"role"`
 			Content string `json:"content"`
@@ -51,6 +51,7 @@ type Client struct {
 	httpClient   *http.Client
 	models       map[string]config.LLMModel
 	defaultModel string
+	ollamaURL    string
 }
 
 // NewClient creates a new LLM client from the application configuration.
@@ -63,6 +64,7 @@ func NewClient(cfg *config.Config) *Client {
 	}
 	c.SetModels(cfg.AI.LLM.Models)
 	c.defaultModel = cfg.AI.LLM.DefaultModel
+	c.ollamaURL = cfg.AI.LLM.OllamaURL
 	return c
 }
 
@@ -168,7 +170,7 @@ type ollamaChatResponse struct {
 func (c *Client) ollamaChat(model config.LLMModel, messages []ChatMessage) (*ChatResponse, error) {
 	apiURL := model.APIURL
 	if apiURL == "" {
-		apiURL = "http://localhost:11434"
+		apiURL = c.ollamaURL
 	}
 
 	ollamaReq := ollamaChatRequest{
@@ -217,7 +219,7 @@ func (c *Client) ollamaChat(model config.LLMModel, messages []ChatMessage) (*Cha
 	}
 
 	chatResp.Choices = []struct {
-		Index int `json:"index"`
+		Index   int `json:"index"`
 		Message struct {
 			Role    string `json:"role"`
 			Content string `json:"content"`
@@ -259,7 +261,7 @@ func (c *Client) TestConnection(provider, apiURL, apiKey, modelName string) (str
 // testOllamaConnection verifies that an Ollama instance is reachable via /api/tags.
 func (c *Client) testOllamaConnection(apiURL string) (string, error) {
 	if apiURL == "" {
-		apiURL = "http://localhost:11434"
+		apiURL = c.ollamaURL
 	}
 
 	endpoint := apiURL + "/api/tags"
@@ -344,7 +346,7 @@ type ollamaTagModel struct {
 // DiscoverOllamaModels lists all available models from an Ollama instance.
 func (c *Client) DiscoverOllamaModels(ollamaURL string) ([]string, error) {
 	if ollamaURL == "" {
-		ollamaURL = "http://localhost:11434"
+		ollamaURL = c.ollamaURL
 	}
 
 	endpoint := ollamaURL + "/api/tags"
