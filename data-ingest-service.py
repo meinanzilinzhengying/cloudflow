@@ -19,6 +19,7 @@ import random
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import redis
+from quota import QuotaManager
 from clickhouse_driver import Client
 from clickhouse_driver.errors import NetworkError, SocketTimeoutError, ServerException
 
@@ -88,6 +89,10 @@ MAX_REDIS_BACKUP_SIZE_MB = int(os.getenv("MAX_REDIS_BACKUP_SIZE_MB", "500"))
 CLICKHOUSE_RETRY_MAX = int(os.getenv("CLICKHOUSE_RETRY_MAX", "3"))
 CLICKHOUSE_RETRY_DELAY = float(os.getenv("CLICKHOUSE_RETRY_DELAY", "1.0"))
 
+# 消息幂等性配置
+DEDUP_ENABLED = os.getenv("DEDUP_ENABLED", "true").lower() in ("true", "1", "yes")
+DEDUP_TTL = int(os.getenv("DEDUP_TTL", "300"))  # Redis 去重 Key TTL（秒），默认5分钟窗口
+
 # 日志
 import sys
 handler = logging.StreamHandler(sys.stdout)
@@ -140,12 +145,19 @@ BACKUP_FILE_SIZE = Gauge(
     'Current backup file size',
     registry=registry
 )
+EVENTS_DEDUPED_TOTAL = Counter(
+    'cloudflow_events_deduped_total',
+    'Total events deduplicated (prevented duplicates)',
+    ['tenant_id'],
+    registry=registry
+)
 
 
 class DataIngestService:
     def __init__(self):
         self._init_redis()
         self._init_clickhouse()
+        self.quota_manager = QuotaManager()
         self._stop = threading.Event()
         self._flush_thread = threading.Thread(target=self._flush_loop)
         self._flush_thread.daemon = True
@@ -249,6 +261,16 @@ class DataIngestService:
             # 补充 tenant_id 默认值
             if not ev.get("tenant_id"):
                 ev["tenant_id"] = "default"
+            tenant_id = ev.get("tenant_id", "default")
+
+            # Check tenant quota
+            if self.quota_manager.is_disabled(tenant_id):
+                logger.warning(f"Tenant {tenant_id} is disabled, dropping events")
+                return False
+            if not self.quota_manager.check_event_rate(tenant_id):
+                logger.warning(f"Tenant {tenant_id} rate limit exceeded")
+                EVENTS_DROPPED_TOTAL.labels(reason="quota_exceeded").inc()
+                continue
 
             filtered.append(ev)
             EVENTS_INGESTED_TOTAL.labels(
@@ -355,6 +377,68 @@ class DataIngestService:
             except Exception:
                 pass
 
+    def _build_dedup_key(self, ev):
+        """构建事件去重键，用于幂等性保证"""
+        ts = ev.get("timestamp", "")
+        # 截断到秒级精度用于去重
+        try:
+            if isinstance(ts, str):
+                ts_int = int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp())
+            elif isinstance(ts, datetime):
+                ts_int = int(ts.timestamp())
+            elif isinstance(ts, int):
+                ts_int = ts // 1_000_000_000
+            else:
+                ts_int = int(time.time())
+        except Exception:
+            ts_int = int(time.time())
+
+        fields = [
+            ev.get("probe_id", ""),
+            str(ts_int),
+            ev.get("category", ""),
+            ev.get("event_type", ""),
+            ev.get("src_ip", ""),
+            ev.get("dst_ip", ""),
+            str(ev.get("src_port", 0) or 0),
+            str(ev.get("dst_port", 0) or 0),
+            ev.get("protocol", ""),
+            ev.get("tenant_id", "default"),
+        ]
+        return "dedup:" + "|".join(fields)
+
+    def _dedup_events(self, events):
+        """Redis SETNX 去重：返回去重后的事件列表"""
+        if not DEDUP_ENABLED or self.redis_client is None:
+            return events
+
+        deduped = []
+        pipe = self.redis_client.pipeline()
+        keys = []
+        for ev in events:
+            key = self._build_dedup_key(ev)
+            keys.append(key)
+            pipe.set(key, "1", nx=True, ex=DEDUP_TTL)
+
+        try:
+            results = pipe.execute()
+        except Exception as e:
+            logger.warning(f"Redis dedup pipeline failed: {e}, skipping dedup")
+            return events  # 降级：去重失败则全量写入
+
+        for i, (ev, result) in enumerate(zip(events, results)):
+            if result:  # SETNX 返回 True = 新 key，首次写入
+                deduped.append(ev)
+            else:
+                EVENTS_DEDUPED_TOTAL.labels(
+                    tenant_id=ev.get("tenant_id", "default")
+                ).inc()
+
+        deduped_count = len(events) - len(deduped)
+        if deduped_count > 0:
+            logger.info(f"Deduplication removed {deduped_count}/{len(events)} duplicate events")
+        return deduped
+
     def _flush(self):
         if self.redis_client is None:
             # 尝试重连 Redis
@@ -378,6 +462,11 @@ class DataIngestService:
                     EVENTS_DROPPED_TOTAL.labels(reason="json_decode").inc()
                     continue
 
+            if not events:
+                return
+
+            # 幂等性保证：Redis SETNX 去重
+            events = self._dedup_events(events)
             if not events:
                 return
 
@@ -434,6 +523,10 @@ class DataIngestService:
                         status="success"
                     ).inc()
                 logger.info(f"Flushed {len(events)} events to ClickHouse in {duration:.3f}s")
+                # Track storage usage for quota
+                for ev in events:
+                    tenant_id = ev.get("tenant_id", "default")
+                    self.quota_manager.add_storage_usage(tenant_id, len(json.dumps(ev)))
             else:
                 FLUSH_DURATION.labels(status="failure").observe(duration)
                 for ev in events:

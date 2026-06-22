@@ -1,15 +1,19 @@
 // Package kafkaconsumer 提供 Kafka 消费者功能
 // P0: Flow Ingest Pipeline - Center 消费 Kafka 数据写入 TiDB
+// P1: 消息幂等性 - Redis SETNX 去重 + 手动提交 offset
 package kafkaconsumer
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/meinanzilinzhengying/cloudflow/center/internal/storage"
 	"github.com/meinanzilinzhengying/cloudflow/center/pkg/logger"
@@ -29,13 +33,27 @@ type Consumer struct {
 	wg            sync.WaitGroup
 	stopped       bool
 	stopMu        sync.Mutex
+
+	// 消息幂等性：Redis 去重
+	redisClient  *redis.Client
+	dedupEnabled bool
+	dedupTTL     time.Duration
+	dedupSkipped atomic.Int64  // 去重跳过的消息数
+	dedupErrors  atomic.Int64  // 去重错误数
 }
 
 // ConsumerGroupHandler 消费者组处理器
 type ConsumerGroupHandler struct {
-	storage storage.StorageEngine
-	logger  *logger.Logger
-	ready   chan bool
+	storage      storage.StorageEngine
+	logger       *logger.Logger
+	ready        chan bool
+
+	// 幂等性配置
+	redisClient  *redis.Client
+	dedupEnabled bool
+	dedupTTL     time.Duration
+	dedupSkipped *atomic.Int64
+	dedupErrors  *atomic.Int64
 }
 
 // New 创建 Kafka 消费者
@@ -48,12 +66,31 @@ func New(brokers []string, groupID string, topics []string, store storage.Storag
 	}
 
 	return &Consumer{
-		brokers: brokers,
-		groupID: groupID,
-		topics:  topics,
-		storage: store,
-		logger:  log,
+		brokers:     brokers,
+		groupID:     groupID,
+		topics:      topics,
+		storage:     store,
+		logger:      log,
+		dedupEnabled: false,
+		dedupTTL:    5 * time.Minute,
 	}, nil
+}
+
+// WithDedup 启用 Redis 消息去重
+func (c *Consumer) WithDedup(redisAddr string, ttl time.Duration) *Consumer {
+	if c == nil {
+		return nil
+	}
+	c.redisClient = redis.NewClient(&redis.Options{
+		Addr:         redisAddr,
+		DialTimeout:  3 * time.Second,
+		ReadTimeout:  2 * time.Second,
+		WriteTimeout: 2 * time.Second,
+	})
+	c.dedupEnabled = true
+	c.dedupTTL = ttl
+	c.logger.Infof("[kafkaconsumer] 消息幂等性已启用: Redis=%s, TTL=%v", redisAddr, ttl)
+	return c
 }
 
 // Start 启动消费者
@@ -68,8 +105,8 @@ func (c *Consumer) Start() error {
 	config.Version = sarama.V2_6_0_0
 	config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
-	config.Consumer.Offsets.AutoCommit.Enable = true
-	config.Consumer.Offsets.AutoCommit.Interval = 5 * time.Second
+	// P1修复: 改为手动提交，保证 at-least-once + 去重 = effectively-once
+	config.Consumer.Offsets.AutoCommit.Enable = false
 
 	consumerGroup, err := sarama.NewConsumerGroup(c.brokers, c.groupID, config)
 	if err != nil {
@@ -80,9 +117,14 @@ func (c *Consumer) Start() error {
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 
 	handler := &ConsumerGroupHandler{
-		storage: c.storage,
-		logger:  c.logger,
-		ready:   make(chan bool),
+		storage:      c.storage,
+		logger:       c.logger,
+		ready:        make(chan bool),
+		redisClient:  c.redisClient,
+		dedupEnabled: c.dedupEnabled,
+		dedupTTL:     c.dedupTTL,
+		dedupSkipped: &c.dedupSkipped,
+		dedupErrors:  &c.dedupErrors,
 	}
 
 	c.wg.Add(1)
@@ -100,7 +142,8 @@ func (c *Consumer) Start() error {
 	}()
 
 	<-handler.ready
-	c.logger.Infof("Kafka 消费者已启动 (brokers=%v, topics=%v, group=%s)", c.brokers, c.topics, c.groupID)
+	c.logger.Infof("Kafka 消费者已启动 (brokers=%v, topics=%v, group=%s, dedup=%v)",
+		c.brokers, c.topics, c.groupID, c.dedupEnabled)
 	return nil
 }
 
@@ -120,7 +163,21 @@ func (c *Consumer) Stop() {
 		c.consumerGroup.Close()
 	}
 	c.wg.Wait()
+
+	// 打印幂等性统计
+	if c.dedupEnabled {
+		c.logger.Infof("[kafkaconsumer] 幂等性统计: skipped=%d, errors=%d",
+			c.dedupSkipped.Load(), c.dedupErrors.Load())
+	}
+	if c.redisClient != nil {
+		c.redisClient.Close()
+	}
 	c.logger.Info("Kafka 消费者已停止")
+}
+
+// DedupStats 返回幂等性统计
+func (c *Consumer) DedupStats() (skipped, errors int64) {
+	return c.dedupSkipped.Load(), c.dedupErrors.Load()
 }
 
 // Setup 消费者组设置
@@ -130,27 +187,102 @@ func (h *ConsumerGroupHandler) Setup(sarama.ConsumerGroupSession) error {
 }
 
 // Cleanup 消费者组清理
-func (h *ConsumerGroupHandler) Cleanup(sarama.ConsumerGroupSession) error {
+func (h *ConsumerGroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
+	// 清理前提交 offset
+	session.Commit()
 	return nil
 }
 
-// ConsumeClaim 消费消息
+// ConsumeClaim 消费消息（幂等性保证）
 func (h *ConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	// 定时提交 offset（手动提交模式下防止大量未提交 offset 堆积）
+	commitTicker := time.NewTicker(10 * time.Second)
+	defer commitTicker.Stop()
+
 	for {
 		select {
 		case message := <-claim.Messages():
 			if message == nil {
 				return nil
 			}
+
+			// P1修复: 消息去重检查
+			if h.dedupEnabled && h.redisClient != nil {
+				dedupKey := h.buildDedupKey(message)
+				isDuplicate, err := h.checkDedup(dedupKey)
+				if err != nil {
+					h.dedupErrors.Add(1)
+					h.logger.Warnf("[kafkaconsumer] 去重检查失败, 降级处理: %v", err)
+				} else if isDuplicate {
+					h.dedupSkipped.Add(1)
+					session.MarkMessage(message, "")
+					continue
+				}
+			}
+
+			// 处理消息
 			if err := h.processMessage(message); err != nil {
 				h.logger.Errorf("处理 Kafka 消息失败 (topic=%s, partition=%d, offset=%d): %v",
 					message.Topic, message.Partition, message.Offset, err)
+				// P1修复: 处理失败不标记消息, 下次 rebalance 后重新消费
+				// 同时记录去重 key, 防止无限重试
+				if h.dedupEnabled && h.redisClient != nil {
+					h.markDedup(h.buildDedupKey(message))
+				}
+				continue
 			}
+
+			// P1修复: 只有成功处理才标记消息
 			session.MarkMessage(message, "")
+
+		case <-commitTicker.C:
+			// 定期提交已标记的 offset
+			session.Commit()
+
 		case <-session.Context().Done():
+			session.Commit()
 			return nil
 		}
 	}
+}
+
+// buildDedupKey 构建消息去重键
+// 使用 topic + partition + offset 组合生成唯一标识
+func (h *ConsumerGroupHandler) buildDedupKey(msg *sarama.ConsumerMessage) string {
+	// 如果有业务 key, 优先使用
+	if len(msg.Key) > 0 {
+		return fmt.Sprintf("kafka:dedup:%s:%s", msg.Topic, string(msg.Key))
+	}
+	// 否则使用 topic:partition:offset:timestamp hash
+	raw := fmt.Sprintf("%s:%d:%d:%d:%s", msg.Topic, msg.Partition, msg.Offset, msg.Timestamp.UnixNano(), string(msg.Value[:min(len(msg.Value), 128)]))
+	hash := sha256.Sum256([]byte(raw))
+	return fmt.Sprintf("kafka:dedup:%s:%x", msg.Topic, hash[:8])
+}
+
+// checkDedup 检查消息是否已处理（Redis SETNX）
+// 返回 (isDuplicate, error)
+func (h *ConsumerGroupHandler) checkDedup(key string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// SETNX: 如果 key 不存在则设置并返回 true（新消息）, 否则返回 false（重复消息）
+	result, err := h.redisClient.SetNX(ctx, key, "1", h.dedupTTL).Result()
+	if err != nil {
+		return false, err
+	}
+	// SetNX 返回 true 表示 key 不存在, 是新消息 => 不重复
+	// SetNX 返回 false 表示 key 已存在, 是重复消息 => 重复
+	return !result, nil
+}
+
+// markDedup 标记消息为已处理（用于失败消息防止无限重试）
+func (h *ConsumerGroupHandler) markDedup(key string) {
+	if h.redisClient == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	h.redisClient.Set(ctx, key, "failed", h.dedupTTL)
 }
 
 // processMessage 处理单条消息
