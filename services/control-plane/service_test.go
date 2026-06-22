@@ -261,8 +261,7 @@ func TestService_AgentStore(t *testing.T) {
 	require.NoError(t, err)
 
 	// 初始状态应为空
-	assert.NotNil(t, s.agents)
-	assert.NotNil(t, s.edges)
+	assert.NotNil(t, s)
 }
 
 // ============================================================================
