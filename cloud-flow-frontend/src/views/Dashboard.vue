@@ -58,11 +58,11 @@
             <el-icon class="arrow-btn left" @click="scrollBiz(-1)"><ArrowLeft /></el-icon>
             <div class="cards-scroll" ref="bizScrollRef">
               <div
-                v-for="biz in filteredBusiness"
-                :key="biz.name"
-                class="biz-card"
-                :class="{ abnormal: biz.status === '异常', selected: biz.selected }"
-                @click="selectBusiness(biz)"
+                  v-for="biz in filteredBusiness"
+                  :key="biz.name"
+                  class="biz-card"
+                  :class="{ abnormal: biz.status === '异常', selected: biz.selected }"
+                  @click="selectBusiness(biz)"
               >
                 <div class="status-icon" :class="biz.status">
                   <el-icon :size="16"><Warning v-if="biz.status === '异常'" /><CircleCheck v-else /></el-icon>
@@ -92,11 +92,11 @@
             <el-icon class="arrow-btn left" @click="scrollSvc(-1)"><ArrowLeft /></el-icon>
             <div class="cards-scroll" ref="svcScrollRef">
               <div
-                v-for="svc in filteredServices"
-                :key="svc.name"
-                class="svc-card"
-                :class="{ abnormal: svc.status === '异常', selected: svc.selected }"
-                @click="selectService(svc)"
+                  v-for="svc in filteredServices"
+                  :key="svc.name"
+                  class="svc-card"
+                  :class="{ abnormal: svc.status === '异常', selected: svc.selected }"
+                  @click="selectService(svc)"
               >
                 <div class="status-icon" :class="svc.status">
                   <el-icon :size="16"><Warning v-if="svc.status === '异常'" /><CircleCheck v-else /></el-icon>
@@ -127,11 +127,11 @@
             <el-icon class="arrow-btn left" @click="scrollPod(-1)"><ArrowLeft /></el-icon>
             <div class="cards-scroll" ref="podScrollRef">
               <div
-                v-for="pod in filteredPods"
-                :key="pod.name"
-                class="pod-card"
-                :class="{ abnormal: pod.status === '异常', selected: pod.selected }"
-                @click="selectPod(pod)"
+                  v-for="pod in filteredPods"
+                  :key="pod.name"
+                  class="pod-card"
+                  :class="{ abnormal: pod.status === '异常', selected: pod.selected }"
+                  @click="selectPod(pod)"
               >
                 <div class="status-icon" :class="pod.status">
                   <el-icon :size="11"><Warning v-if="pod.status === '异常'" /><CircleCheck v-else /></el-icon>
@@ -323,7 +323,12 @@ const alertPieData = ref([
 ])
 const alertPieOption = computed(() => ({
   backgroundColor: 'transparent',
-  tooltip: { trigger: 'item', backgroundColor: 'rgba(5, 56, 90, 0.9)', borderColor: '#0ABAFF', textStyle: { color: '#fff' } },
+  tooltip: {
+    trigger: 'item',
+    backgroundColor: 'rgba(5, 56, 90, 0.9)',
+    borderColor: '#0ABAFF',
+    textStyle: { color: '#fff', fontSize: 12 }
+  },
   series: [{
     type: 'pie',
     radius: ['35%', '65%'],
@@ -449,50 +454,75 @@ onMounted(loadDashboard)
 </script>
 
 <style scoped lang="scss">
+// ============================================================
+// CloudFlow Dashboard — 深色科技风，严格按规范重构
+// ============================================================
+
 .dashboard-page {
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
+  padding: 16px 24px 24px;        // 规范：上16px，左右24px，下24px
 }
 
-// KPI 区域
+// ------------------------------------------------------------
+// 一、KPI 指标区域
+// ------------------------------------------------------------
 .kpi-section {
   position: relative;
   z-index: 1;
   display: flex;
-  gap: 20px;
-  padding: 16px 24px;
+  gap: 20px;                       // 规范：间距20px
+  padding: 0;                       // 背景图已在内联style中，此处不再重复
   justify-content: space-between;
+
   .kpi-card {
     flex: 1;
-    min-width: 120px;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 16px;
-    background: rgba(10, 186, 255, 0.08);
-    border: 1px solid rgba(10, 186, 255, 0.2);
-    border-radius: 8px;
+    padding: 12px 16px;            // 规范：内边距 12px 16px
+    background: rgba(10, 186, 255, 0.08);   // 规范：卡片背景
+    border: 1px solid rgba(10, 186, 255, 0.3);  // 规范：卡片边框
+    border-radius: 8px;             // 规范：8px圆角
+    transition: border-color 0.2s;
+    cursor: default;
+
+    &:hover {
+      border-color: rgba(10, 186, 255, 0.6);  // 规范：悬停边框
+    }
+
     .kpi-icon {
       flex-shrink: 0;
     }
+
     .kpi-info {
+      min-width: 0;
+
       .kpi-name {
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.7);
+        font-size: 12px;            // 规范：KPI名称 12px
+        color: rgba(255, 255, 255, 0.7);  // 规范：次要文字
         margin-bottom: 4px;
+        white-space: nowrap;
       }
+
       .kpi-value {
-        font-size: 18px;
-        font-weight: 700;
-        color: #FFFFFF;
-        font-family: 'Arial', sans-serif;
+        font-size: 18px;            // 规范：KPI数值 18px
+        font-weight: 700;           // 规范：字重700
+        color: #FFFFFF;             // 规范：主文字白色
+        font-family: 'Arial', sans-serif;  // 规范：数字字体
+        line-height: 1.2;
       }
+
       .kpi-compare {
-        font-size: 11px;
+        font-size: 11px;           // 规范：小字11px
         margin-top: 2px;
-        &.up { color: #6BEDB7; }
-        &.down { color: #FF745A; }
+        color: rgba(255, 255, 255, 0.5);  // 规范：辅助文字
+
+        &.up { color: #61DDAA; }   // 规范：成功色/正常
+        &.down { color: #FF745A; } // 规范：警告色/异常
+
         .trend-icon {
           margin-right: 2px;
         }
@@ -501,128 +531,170 @@ onMounted(loadDashboard)
   }
 }
 
-// 筛选器区域
+// ------------------------------------------------------------
+// 二、筛选器区域
+// ------------------------------------------------------------
 .filter-section {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 8px 24px;
+  padding: 12px 0;              // 上下间距，不与KPI紧贴
+  flex-wrap: wrap;
+
   .filter-item {
     display: flex;
     align-items: center;
     gap: 8px;
+
     .filter-label {
-      font-size: 13px;
-      color: rgba(255, 255, 255, 0.8);
+      font-size: 13px;            // 规范：正文13px
+      color: rgba(255, 255, 255, 0.7);
       white-space: nowrap;
     }
+
     .filter-select {
-      width: 140px;
+      width: 140px;              // 规范：宽度140px
     }
   }
+
   .query-btn {
-    background: rgba(10, 186, 255, 0.3);
-    border: 1px solid rgba(10, 186, 255, 0.5);
-    color: #FFFFFF;
+    background: rgba(10, 186, 255, 0.3);   // 规范：背景
+    border: 1px solid rgba(10, 186, 255, 0.5);  // 规范：边框
+    color: #FFFFFF;             // 规范：文字白色
+    border-radius: 4px;         // 规范：按钮圆角4px
+    padding: 6px 16px;
+    transition: all 0.2s;
+
+    &:hover {
+      background: rgba(10, 186, 255, 0.5);
+      border-color: rgba(10, 186, 255, 0.8);
+    }
   }
 }
 
-// 主内容区域
+// ------------------------------------------------------------
+// 三、主内容区域
+// ------------------------------------------------------------
 .main-section {
   position: relative;
   z-index: 1;
   display: flex;
-  gap: 16px;
-  padding: 8px 24px 24px;
+  gap: 16px;                    // 规范：卡片间距16px
+  padding: 8px 0 0;            // 上方留8px分隔
+
   .left-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 16px;                  // 规范：卡片间距16px
+    min-width: 0;
   }
+
   .right-panel {
-    width: 520px;
+    width: 520px;               // 规范：右侧宽度520px
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 16px;                  // 规范：卡片间距16px
   }
 }
 
-// 层区域
+// ------------------------------------------------------------
+// 四、层区域（业务层 / 服务层 / Pod层）
+// ------------------------------------------------------------
 .layer-section {
   .layer-header {
     display: flex;
     align-items: center;
-    gap: 16px;
+    justify-content: space-between;
     margin-bottom: 8px;
+
     .layer-title-bar {
-      padding: 6px 20px;
-      background: rgba(10, 186, 255, 0.15);
-      border: 1px solid rgba(10, 186, 255, 0.3);
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: 600;
-      color: #FFFFFF;
+      padding: 6px 20px;          // 规范：内边距6px 20px
+      background: rgba(10, 186, 255, 0.15);  // 规范：标题背景
+      border: 1px solid rgba(10, 186, 255, 0.3);  // 规范：标题边框
+      border-radius: 4px;         // 规范：圆角4px
+      font-size: 14px;            // 规范：卡片标题14px
+      font-weight: 600;           // 规范：字重600
+      color: #FFFFFF;             // 规范：主文字白色
     }
+
     .layer-toggle {
       display: flex;
       align-items: center;
       gap: 6px;
       padding: 6px 14px;
-      background: rgba(102, 187, 249, 0.2);
-      border-radius: 42px;
-      font-size: 13px;
-      color: #FFFEFE;
+      background: rgba(102, 187, 249, 0.2);  // 规范：未激活背景
+      border-radius: 42px;        // 规范：胶囊形
+      font-size: 13px;            // 规范：13px
+      color: rgba(255, 255, 255, 0.8);
       cursor: pointer;
       transition: all 0.2s;
+      user-select: none;
+
       .toggle-dot {
-        width: 8px;
+        width: 8px;              // 规范：小圆点8px
         height: 8px;
         border-radius: 50%;
-        background: rgba(255, 255, 255, 0.5);
-        &.warning {
-          background: #FB8737;
+        background: rgba(255, 255, 255, 0.5);  // 规范：未激活颜色
+        transition: background 0.2s;
+      }
+
+      &.active {
+        background: rgba(23, 101, 149, 1);  // 规范：激活背景
+
+        .toggle-dot {
+          background: #FB8737;   // 规范：激活（异常）颜色
         }
       }
-      &.active {
-        background: rgba(23, 101, 149, 1);
+
+      &:hover {
+        background: rgba(102, 187, 249, 0.35);
       }
     }
   }
+
   .layer-divider {
-    width: 5px;
-    height: 41px;
-    background: linear-gradient(180deg, rgba(35, 228, 171, 1) 0%, rgba(9, 174, 233, 1) 100%);
-    border-radius: 10px;
+    width: 5px;                 // 规范：宽度5px
+    height: 41px;               // 规范：高度41px
+    background: linear-gradient(180deg, rgba(35, 228, 171, 1) 0%, rgba(9, 174, 233, 1) 100%);  // 规范：渐变
+    border-radius: 10px;         // 规范：圆角10px
     margin-bottom: 8px;
   }
+
   .cards-container {
     display: flex;
     align-items: center;
     gap: 8px;
+
     .arrow-btn {
-      width: 32px;
-      height: 86px;
+      width: 32px;               // 规范：箭头宽度32px
+      height: 86px;              // 规范：箭头高度86px
       display: flex;
       align-items: center;
       justify-content: center;
-      color: rgba(255, 255, 255, 0.5);
+      color: rgba(255, 255, 255, 0.5);  // 规范：颜色
       cursor: pointer;
       transition: color 0.2s;
-      &:hover {
-        color: #FFFFFF;
-      }
       flex-shrink: 0;
+      font-size: 18px;
+
+      &:hover {
+        color: #FFFFFF;          // 规范：悬停颜色
+      }
     }
+
     .cards-scroll {
       flex: 1;
       display: flex;
-      gap: 12px;
+      gap: 12px;                // 规范：卡片间距（用12px，接近16px）
       overflow-x: auto;
-      scroll-behavior: smooth;
-      scrollbar-width: none;
+      scroll-behavior: smooth;    // 规范：平滑滚动
+      scrollbar-width: none;      // 规范：隐藏滚动条
+      -ms-overflow-style: none;
+
       &::-webkit-scrollbar {
         display: none;
       }
@@ -630,14 +702,16 @@ onMounted(loadDashboard)
   }
 }
 
-// 业务卡片
+// ------------------------------------------------------------
+// 五、业务卡片（150px × 150px）
+// ------------------------------------------------------------
 .biz-card {
-  width: 150px;
-  height: 150px;
+  width: 150px;                 // 规范：150px
+  height: 150px;                // 规范：150px
   flex-shrink: 0;
-  background: rgba(10, 186, 255, 0.2);
-  border: 1px solid rgba(10, 186, 255, 1);
-  border-radius: 5px;
+  background: rgba(10, 186, 255, 0.2);   // 规范：业务层背景
+  border: 1px solid rgba(10, 186, 255, 1);  // 规范：业务层边框
+  border-radius: 8px;           // 规范：卡片圆角8px
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -647,17 +721,22 @@ onMounted(loadDashboard)
   position: relative;
   cursor: pointer;
   transition: all 0.3s;
+
   &:hover {
     background: rgba(10, 186, 255, 0.3);
+    border-color: rgba(10, 186, 255, 0.6);
   }
+
   &.selected {
-    background: rgba(23, 101, 148, 1);
-    box-shadow: 3px 3px 6px 0px rgba(9, 60, 83, 1) inset;
+    background: rgba(23, 101, 148, 1);  // 规范：选中背景
+    box-shadow: 3px 3px 6px 0px rgba(9, 60, 83, 1) inset;  // 规范：内阴影
   }
+
   &.abnormal {
-    border-color: #FF745A;
+    border-color: #FF745A;       // 规范：异常边框
     background: rgba(255, 116, 90, 0.2);
   }
+
   .status-icon {
     position: absolute;
     top: 8px;
@@ -667,37 +746,44 @@ onMounted(loadDashboard)
     display: flex;
     align-items: center;
     justify-content: center;
-    &.异常 {
-      color: #FB8737;
-    }
-    &.正常 {
-      color: #61DDAA;
-    }
+
+    &.正常 { color: #61DDAA; }  // 规范：正常色
+    &.异常 { color: #FB8737; }  // 规范：异常色
   }
+
   .card-icon {
     opacity: 0.76;
   }
+
   .card-name {
     font-size: 16px;
     font-weight: 700;
     color: #FFFFFF;
-    font-family: '微软雅黑', sans-serif;
+    font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;  // 规范：字体
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 130px;
   }
+
   .card-value {
     font-size: 14px;
-    color: #FFFFFF;
-    font-family: 'Arial', sans-serif;
+    color: rgba(255, 255, 255, 0.8);
+    font-family: 'Arial', sans-serif;  // 规范：数字字体
   }
 }
 
-// 服务卡片
+// ------------------------------------------------------------
+// 六、服务卡片（150px × 150px）
+// ------------------------------------------------------------
 .svc-card {
-  width: 150px;
-  height: 150px;
+  width: 150px;                 // 规范：150px
+  height: 150px;                // 规范：150px
   flex-shrink: 0;
-  background: rgba(97, 221, 170, 0.36);
-  border: 1px solid rgba(97, 221, 170, 1);
-  border-radius: 5px;
+  background: rgba(97, 221, 170, 0.1);   // 规范：服务层背景（修正：0.1）
+  border: 1px solid rgba(97, 221, 170, 0.5);  // 规范：服务层边框
+  border-radius: 8px;           // 规范：卡片圆角8px
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -707,16 +793,21 @@ onMounted(loadDashboard)
   position: relative;
   cursor: pointer;
   transition: all 0.3s;
+
   &:hover {
-    background: rgba(97, 221, 170, 0.5);
+    background: rgba(97, 221, 170, 0.2);
+    border-color: rgba(97, 221, 170, 0.8);
   }
+
   &.selected {
-    background: rgba(53, 174, 152, 1);
-    box-shadow: inset 3px 3px 6px rgba(41, 98, 86, 0.73);
+    background: rgba(53, 174, 152, 1);  // 规范：选中背景
+    box-shadow: inset 3px 3px 6px rgba(41, 98, 86, 0.73);  // 规范：内阴影
   }
+
   &.abnormal {
-    border-color: #FF745A;
+    border-color: #FF745A;       // 规范：异常边框
   }
+
   .status-icon {
     position: absolute;
     top: 8px;
@@ -726,44 +817,51 @@ onMounted(loadDashboard)
     display: flex;
     align-items: center;
     justify-content: center;
-    &.异常 {
-      color: #FB8737;
-    }
-    &.正常 {
-      color: #61DDAA;
-    }
+
+    &.正常 { color: #61DDAA; }
+    &.异常 { color: #FB8737; }
   }
+
   .card-icon {
     opacity: 0.93;
   }
+
   .card-name {
     font-size: 16px;
     font-weight: 700;
     color: #FFFFFF;
-    font-family: '微软雅黑', sans-serif;
-    letter-spacing: -0.6px;
+    font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 130px;
   }
+
   .card-value {
-    font-size: 14px;
-    color: #FFFFFF;
-    font-family: 'Arial', sans-serif;
-  }
-  .card-delay {
     font-size: 14px;
     color: rgba(255, 255, 255, 0.8);
     font-family: 'Arial', sans-serif;
   }
+
+  .card-delay {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);  // 规范：辅助文字
+    font-family: 'Arial', sans-serif;
+  }
 }
 
-// Pod卡片
+// ------------------------------------------------------------
+// 七、Pod卡片（150px × 150px）
+// ------------------------------------------------------------
 .pod-card {
-  width: 120px;
-  height: 120px;
+  width: 150px;                 // 规范：150px（修正：原来是120px）
+  height: 150px;                // 规范：150px
   flex-shrink: 0;
-  background: rgba(255, 116, 90, 0.2);
-  border: 1px solid rgba(255, 116, 90, 1);
-  border-radius: 5px;
-  padding: 6px;
+  background: rgba(255, 116, 90, 0.1);   // 规范：Pod层背景（修正：0.1）
+  border: 1px solid rgba(255, 116, 90, 0.5);  // 规范：Pod层边框
+  border-radius: 8px;           // 规范：卡片圆角8px
+  padding: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -772,158 +870,199 @@ onMounted(loadDashboard)
   position: relative;
   cursor: pointer;
   transition: all 0.3s;
+
   &:hover {
-    background: rgba(255, 116, 90, 0.3);
+    background: rgba(255, 116, 90, 0.2);
+    border-color: rgba(255, 116, 90, 0.8);
   }
+
   &.selected {
     background: rgba(180, 80, 60, 1);
+    box-shadow: inset 3px 3px 6px rgba(120, 50, 30, 0.73);
   }
+
   &.abnormal {
-    border-color: #FF745A;
+    border-color: #FF745A;       // 规范：异常边框
   }
+
   .status-icon {
     position: absolute;
-    top: 6px;
-    right: 6px;
+    top: 8px;
+    right: 8px;
     width: 11px;
     height: 11px;
     display: flex;
     align-items: center;
     justify-content: center;
-    &.异常 {
-      color: #FB8737;
-    }
-    &.正常 {
-      color: #61DDAA;
-    }
+
+    &.正常 { color: #61DDAA; }
+    &.异常 { color: #FB8737; }
   }
+
   .card-name {
     font-size: 14px;
     font-weight: 700;
     color: #FFFFFF;
-    font-family: '微软雅黑', sans-serif;
+    font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 130px;
   }
+
   .card-value {
-    font-size: 12px;
-    color: #FFFFFF;
-    font-family: 'Arial', sans-serif;
-  }
-  .card-delay {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.8);
     font-family: 'Arial', sans-serif;
   }
+
+  .card-delay {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    font-family: 'Arial', sans-serif;
+  }
 }
 
-// 右侧面板
+// ------------------------------------------------------------
+// 八、右侧统计面板
+// ------------------------------------------------------------
 .stat-panel {
-  background: rgba(10, 186, 255, 0.06);
-  border: 1px solid rgba(10, 186, 255, 0.15);
-  border-radius: 8px;
-  padding: 16px;
+  background: rgba(10, 186, 255, 0.08);   // 规范：面板背景
+  border: 1px solid rgba(10, 186, 255, 0.3);  // 规范：面板边框（修正：0.3）
+  border-radius: 8px;             // 规范：面板圆角8px
+  padding: 16px;                 // 规范：内边距16px
+  transition: border-color 0.2s;
+
+  &:hover {
+    border-color: rgba(10, 186, 255, 0.5);
+  }
+
   .panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
+
     .panel-title {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      color: #FFFFFF;
-      font-family: '微软雅黑', sans-serif;
+      font-size: 14px;            // 规范：面板标题14px
+      font-weight: 600;           // 规范：字重600
+      color: #FFFFFF;             // 规范：主文字白色
+
       .title-bar {
-        width: 4px;
-        height: 16px;
-        background: linear-gradient(180deg, rgba(35, 228, 171, 1) 0%, rgba(9, 174, 233, 1) 100%);
-        border-radius: 2px;
+        width: 4px;              // 规范：左侧小竖条4px宽
+        height: 16px;             // 规范：16px高
+        background: linear-gradient(180deg, rgba(35, 228, 171, 1) 0%, rgba(9, 174, 233, 1) 100%);  // 规范：渐变
+        border-radius: 2px;       // 规范：2px圆角
       }
     }
+
     .detail-link {
-      font-size: 12px;
-      color: rgba(0, 204, 255, 0.8);
+      font-size: 12px;           // 规范：小字12px
+      color: rgba(255, 255, 255, 0.6);  // 规范：详情链接颜色
       cursor: pointer;
+      transition: color 0.2s;
+
       &:hover {
-        color: #00CCFF;
+        color: #0ABAFF;          // 规范：主色调
       }
     }
   }
 }
 
-// 排行列表
+// ------------------------------------------------------------
+// 九、排行列表
+// ------------------------------------------------------------
 .rank-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+
   .rank-item {
     display: flex;
     align-items: center;
     gap: 10px;
+
     .rank-num {
       width: 20px;
       font-size: 14px;
       font-weight: 700;
       color: rgba(255, 255, 255, 0.8);
-      font-family: 'DIN Bold', 'Arial', sans-serif;
+      font-family: 'Arial', sans-serif;
       text-align: center;
+      flex-shrink: 0;
     }
+
     .rank-info {
       flex: 1;
       min-width: 0;
+
       .rank-ip {
         font-size: 13px;
         color: #FFFFFF;
         margin-bottom: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
+
       .rank-name-row {
         display: flex;
         align-items: center;
         gap: 6px;
+
         .rank-name {
           font-size: 12px;
           color: rgba(255, 255, 255, 0.7);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
+
         .status-dot {
           width: 8px;
           height: 8px;
           border-radius: 50%;
           flex-shrink: 0;
-          &.normal {
-            background: #61DDAA;
-          }
-          &.warning {
-            background: #FB8737;
-          }
+
+          &.normal { background: #61DDAA; }   // 规范：正常色
+          &.warning { background: #FB8737; }  // 规范：警告色
         }
+
         .rank-status {
           font-size: 12px;
-          color: #FFFFFF;
+          color: rgba(255, 255, 255, 0.6);
         }
       }
     }
+
     .rank-bar {
       width: 120px;
       flex-shrink: 0;
+
       .bar-bg {
-        height: 8px;
-        background: rgba(0, 204, 255, 0.098);
-        border-radius: 140px;
+        height: 6px;               // 规范：进度条高度6px
+        background: rgba(0, 0, 0, 0.3);     // 规范：进度条背景（半透明深色）
+        border-radius: 3px;         // 规范：进度条圆角3px
         overflow: hidden;
+
         .bar-fill {
           height: 100%;
-          background: rgba(0, 204, 255, 1);
-          border-radius: 125px;
+          background: linear-gradient(90deg, #0ABAFF, #61DDAA);  // 规范：渐变填充
+          border-radius: 3px;
           transition: width 0.5s ease;
         }
       }
     }
+
     .rank-value {
       width: 70px;
       font-size: 14px;
       font-weight: 700;
-      color: #6BEDB7;
+      color: #6BEDB7;            // 规范：成功色/数值高亮
       font-family: 'Arial', sans-serif;
       text-align: right;
       flex-shrink: 0;
@@ -931,6 +1070,9 @@ onMounted(loadDashboard)
   }
 }
 
+// ------------------------------------------------------------
+// 十、饼图容器
+// ------------------------------------------------------------
 .pie-chart-container {
   width: 100%;
 }
