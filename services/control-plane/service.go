@@ -44,6 +44,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
 )
 
 // ============================================================================
@@ -153,6 +154,9 @@ type Service struct {
 	// 运行状态
 	startTime time.Time
 	running   bool
+
+	resilienceClient *ControlPlaneResilienceClient
+	rateLimiter      *ratelimit.Middleware
 }
 
 // New 创建服务
@@ -217,6 +221,9 @@ func New(config *Config) (*Service, error) {
 	RegisterControlPlaneService(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
+	s.resilienceClient = NewControlPlaneResilienceClient()
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
+
 	return s, nil
 }
 
@@ -257,7 +264,9 @@ func (s *Service) Start() error {
 	// Agent 管理 API (11个接口)
 	mux.HandleFunc("/api/control-plane/agents", s.listAgentsHandler)
 	mux.HandleFunc("/api/control-plane/edges", s.listEdgesHandler)
-	protected := s.authMiddleware(mux)
+	var handler http.Handler = mux
+	handler = s.rateLimiter.Handler(handler)
+	protected := s.authMiddleware(handler)
 
 	s.httpServer = &http.Server{
 		Addr:    s.config.HttpAddr,

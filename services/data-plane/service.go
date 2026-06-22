@@ -42,6 +42,7 @@ import (
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/data-plane/sampling"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
@@ -200,6 +201,9 @@ type Service struct {
 
 	// P0-3 修复: 认证中间件
 	auth *auth.Authenticator
+
+	// 限流中间件
+	rateLimiter *ratelimit.Middleware
 }
 
 // New 创建服务
@@ -297,6 +301,8 @@ func New(config *Config) (*Service, error) {
 		s.auth = authMiddleware
 	}
 
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
+
 	return s, nil
 }
 
@@ -335,6 +341,7 @@ func (s *Service) Start() error {
 
 	// P0-3 修复: 应用认证中间件
 	var handler http.Handler = mux
+	handler = s.rateLimiter.Handler(handler)
 	if s.auth != nil {
 		handler = s.auth.Middleware("/health", "/metrics", "/api/system-metrics", "/api/v1/analysis", "/api/v1/analysis/events", "/api/v1/analysis/top")(handler)
 	}

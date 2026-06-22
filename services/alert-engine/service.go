@@ -32,6 +32,7 @@ import (
 
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
 	"github.com/meinanzilinzhengying/cloudflow/services/alert-engine/notifier"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
@@ -149,6 +150,8 @@ type Service struct {
 	// P0-7 修复: 多实例 Leader 选举
 	leaderElection *LeaderElection
 
+	rateLimiter *ratelimit.Middleware
+
 	startTime time.Time
 }
 
@@ -221,6 +224,8 @@ func New(config *Config) (*Service, error) {
 	s.grpcServer = grpc.NewServer(grpcOptions...)
 	svcproto.RegisterAlertServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
+
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
 
 	return s, nil
 }
@@ -444,6 +449,7 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/rules/delete", s.deleteRuleHTTPHandler)
 
 	var handler http.Handler = mux
+		handler = s.rateLimiter.Handler(handler)
 	// P0-3 修复: 应用共享认证中间件
 	if s.auth != nil {
 		handler = s.auth.Middleware("/healthz")(handler)

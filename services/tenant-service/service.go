@@ -31,6 +31,7 @@ import (
 	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
+	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
@@ -129,6 +130,9 @@ type Service struct {
 	// P0-2 修复: TLS 凭证
 	grpcCreds credentials.TransportCredentials
 
+	resilienceClient *TenantResilienceClient
+	rateLimiter      *ratelimit.Middleware
+
 	startTime time.Time
 }
 
@@ -192,6 +196,9 @@ func New(config *Config) (*Service, error) {
 	s.grpcServer = grpc.NewServer(grpcOptions...)
 	svcproto.RegisterTenantServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
+
+	s.resilienceClient = NewTenantResilienceClient()
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
 
 	return s, nil
 }
@@ -383,6 +390,7 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/api/quotas", s.quotasHandler)
 
 	var handler http.Handler = mux
+		handler = s.rateLimiter.Handler(handler)
 	// P0-3 修复: 应用共享认证中间件
 	if s.auth != nil {
 		handler = s.auth.Middleware("/healthz")(handler)
