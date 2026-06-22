@@ -156,7 +156,8 @@ func (e *EdgeClient) flush() {
 	e.mu.Unlock()
 
 	data, _ := json.Marshal(events)
-	resp, err := http.Post("http://"+e.addr+"/api/v1/ingest", "application/json", bytes.NewReader(data))
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Post("http://"+e.addr+"/api/v1/ingest", "application/json", bytes.NewReader(data))
 	if err != nil {
 		log.Printf("[EDGE] flush failed: %v, retrying later", err)
 		e.mu.Lock()

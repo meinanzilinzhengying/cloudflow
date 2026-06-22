@@ -1,23 +1,23 @@
 probe_id: node-probe
 interface: eth0
-clickhouse_addr: 127.0.0.1
+clickhouse_addr: 192.168.58.130
 clickhouse_user: default
 clickhouse_password: ""
 clickhouse_database: cloudflow
-api_port: "9090"
+api_port: "9091"
 
 # 采集器开关
 collectors:
   # P0 核心采集器（默认开启）
   network_flow: true
   process_exec: true
-  file_open: true
+  file_open: false
   tcp_connect: true
   host_metrics: true
-  # P1 扩展采集器（默认关闭）
+  # P1 扩展采集器（已启用）
   syscall: true
-  http_trace: false
-  dns_trace: false
+  http_trace: true
+  dns_trace: true
   db_trace: false
   # P2 高级采集器（默认关闭）
   sched_trace: false
@@ -30,3 +30,6 @@ filters:
   ignore_loopback: true
   ignore_ports: []
   ignore_ips: []
+
+# 日志级别 (debug/info/warn/error)
+log_level: warn

@@ -30,6 +30,7 @@ type Event struct {
 	Details   string `json:"details"`  
 	Tags      string `json:"tags"`  
 	TenantID  string `json:"tenant_id"`
+	ClusterID string `json:"cluster_id"`
 }
 
 func NewClickHouse(addr, user, password, database string) (*ClickHouse, error) {
@@ -47,7 +48,7 @@ func (c *ClickHouse) createTables() {
 		`CREATE TABLE IF NOT EXISTS cloudflow.ebpf_events (
 			timestamp DateTime, probe_id String, category String, event_type String,
 			src_ip String, dst_ip String, src_port UInt16, dst_port UInt16, protocol String,
-			bytes UInt64, packets UInt64, latency_ms Float64, service String, details String, tags String, tenant_id String DEFAULT 'default'
+			bytes UInt64, packets UInt64, latency_ms Float64, service String, details String, tags String, tenant_id String DEFAULT 'default', cluster_id String DEFAULT 'default'
 		) ENGINE = ReplacingMergeTree() ORDER BY (probe_id, category, event_type, src_ip, dst_ip, src_port, dst_port, protocol, timestamp) TTL timestamp + INTERVAL 30 DAY`,
 		`CREATE TABLE IF NOT EXISTS cloudflow.host_metrics (
 			timestamp DateTime, probe_id String, cpu_percent Float64, memory_percent Float64,
@@ -57,7 +58,7 @@ func (c *ClickHouse) createTables() {
 			timestamp DateTime, probe_id String, pid UInt32, ppid UInt32, comm String, exe String, args String, event_type String
 		) ENGINE = MergeTree() ORDER BY (probe_id, timestamp) TTL timestamp + INTERVAL 30 DAY`,
 		`CREATE TABLE IF NOT EXISTS cloudflow.file_events (
-			timestamp DateTime, probe_id String, pid UInt32, comm String, filename String, operation String, result Int32
+			timestamp DateTime, probe_id String, source String, category String, details String
 		) ENGINE = MergeTree() ORDER BY (probe_id, timestamp) TTL timestamp + INTERVAL 30 DAY`,
 		`CREATE TABLE IF NOT EXISTS cloudflow.syscall_events (
 			timestamp DateTime, probe_id String, pid UInt32, comm String, syscall_nr UInt64, latency_ns UInt64, count UInt64
@@ -87,10 +88,10 @@ func (c *ClickHouse) WriteBatch(events []*Event) error {
 	if len(events) == 0 {
 		return nil
 	}
-	query := "INSERT INTO cloudflow.ebpf_events (timestamp, probe_id, category, event_type, src_ip, dst_ip, src_port, dst_port, protocol, bytes, packets, latency_ms, service, details, tags, tenant_id) VALUES "
-	args := make([]interface{}, 0, len(events)*16)
+	query := "INSERT INTO cloudflow.ebpf_events (timestamp, probe_id, category, event_type, src_ip, dst_ip, src_port, dst_port, protocol, bytes, packets, latency_ms, service, details, tags, tenant_id, cluster_id) VALUES "
+	args := make([]interface{}, 0, len(events)*17)
 	for i := 0; i < len(events); i++ {
-		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),"
+		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),"
 	}
 	query = query[:len(query)-1]
 	for _, e := range events {
@@ -98,7 +99,11 @@ func (c *ClickHouse) WriteBatch(events []*Event) error {
 		if tenantID == "" {
 			tenantID = "default"
 		}
-		args = append(args, e.Timestamp, e.ProbeID, e.Category, e.EventType, e.SrcIP, e.DstIP, e.SrcPort, e.DstPort, e.Protocol, e.Bytes, e.Packets, e.LatencyMs, e.Service, e.Details, e.Tags, tenantID)
+		clusterID := e.ClusterID
+		if clusterID == "" {
+			clusterID = "default"
+		}
+		args = append(args, e.Timestamp, e.ProbeID, e.Category, e.EventType, e.SrcIP, e.DstIP, e.SrcPort, e.DstPort, e.Protocol, e.Bytes, e.Packets, e.LatencyMs, e.Service, e.Details, e.Tags, tenantID, clusterID)
 	}
 	_, err := c.db.Exec(query, args...)
 	return err
@@ -124,7 +129,7 @@ func (c *ClickHouse) WriteProcessEvent(ts time.Time, probeID string, pid, ppid u
 
 func (c *ClickHouse) WriteFileEvent(ts time.Time, probeID string, pid uint32, comm, filename, operation string, result int32) error {
 	_, err := c.db.Exec(
-		`INSERT INTO cloudflow.file_events (timestamp, probe_id, pid, comm, filename, operation, result)
+		`INSERT INTO cloudflow.file_events (timestamp, probe_id, source, category, details)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		ts, probeID, pid, comm, filename, operation, result,
 	)
