@@ -30,6 +30,7 @@ ch_errors_mock.ServerException = Exception
 sys.modules["clickhouse_driver.errors"] = ch_errors_mock
 
 # Load data-ingest-service.py as a module
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _MODULE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "data-ingest-service.py",
