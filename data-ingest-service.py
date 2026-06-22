@@ -479,13 +479,13 @@ class DataIngestService:
                 if isinstance(ts, str):
                     try:
                         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                        ts = int(dt.timestamp() * 1_000_000_000)
+                        ts = dt
                     except Exception:
-                        ts = int(datetime.now().timestamp() * 1_000_000_000)
+                        ts = datetime.now()
                 elif isinstance(ts, datetime):
-                    ts = int(ts.timestamp() * 1_000_000_000)
+                    ts = ts
                 elif not isinstance(ts, int):
-                    ts = int(datetime.now().timestamp() * 1_000_000_000)
+                    ts = datetime.now()
                 rows.append([
                     ts, ev.get("probe_id", ""), ev.get("category", ""),
                     ev.get("event_type", ""), ev.get("src_ip", ""),
