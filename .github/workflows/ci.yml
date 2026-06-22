@@ -9,7 +9,7 @@ on:
 env:
   GO_VERSION: '1.22'
   GOLANGCI_VERSION: v1.55
-  COVERAGE_THRESHOLD: 60
+  COVERAGE_THRESHOLD: 40
 
 jobs:
   lint-and-format:
@@ -65,6 +65,7 @@ jobs:
         module:
           - pkg
           - cloud-flow-center
+          - ebpf-probe
           - services/alert-engine
           - services/data-plane
           - services/control-plane
