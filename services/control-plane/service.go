@@ -180,7 +180,7 @@ type Service struct {
 // New 创建服务
 func New(config *Config) (*Service, error) {
 	if config == nil {
-		config = DefaultConfig()
+		config = LoadConfig()
 	}
 
 	s := &Service{

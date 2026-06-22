@@ -23,100 +23,100 @@ import (
 	"time"
 
 	_ "github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
+	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	"github.com/meinanzilinzhengying/cloudflow/pkg/metrics"
-	"github.com/meinanzilinzhengying/cloudflow/pkg/storage"
 
+	"github.com/meinanzilinzhengying/cloudflow/services/alert-engine/notifier"
 	svcproto "github.com/meinanzilinzhengying/cloudflow/services/proto"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/auth"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/ratelimit"
-	"github.com/meinanzilinzhengying/cloudflow/services/alert-engine/notifier"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tenant"
 	"github.com/meinanzilinzhengying/cloudflow/services/shared/tlsutil"
 )
 
 // Config 服务配置
 type Config struct {
-	ServiceName string
-	Version     string
-	GrpcAddr    string // :9009
-	HttpAddr    string // :8009
+	ServiceName string `mapstructure:"service_name"`
+	Version     string `mapstructure:"version"`
+	GrpcAddr    string `mapstructure:"grpc_addr"` // :9009
+	HttpAddr    string `mapstructure:"http_addr"` // :8009
 
 	// 关系型数据库配置
-	RelationalDBType     storage.DatabaseType
-	RelationalDBHost     string
-	RelationalDBPort     int
-	RelationalDBUser     string
-	RelationalDBPassword string
-	RelationalDBDatabase string
+	RelationalDBType     storage.DatabaseType `mapstructure:"relational_db_type"`
+	RelationalDBHost     string               `mapstructure:"relational_db_host"`
+	RelationalDBPort     int                  `mapstructure:"relational_db_port"`
+	RelationalDBUser     string               `mapstructure:"relational_db_user"`
+	RelationalDBPassword string               `mapstructure:"relational_db_password"`
+	RelationalDBDatabase string               `mapstructure:"relational_db_database"`
 
 	// Auth Service 地址
-	AuthAddr string
+	AuthAddr string `mapstructure:"auth_addr"`
 
-	DataPlaneAddr string
-	TenantAddr    string
+	DataPlaneAddr string `mapstructure:"data_plane_addr"`
+	TenantAddr    string `mapstructure:"tenant_addr"`
 
 	// 评估配置
-	EvalInterval time.Duration
-	MaxRules     int
+	EvalInterval time.Duration `mapstructure:"eval_interval"`
+	MaxRules     int           `mapstructure:"max_rules"`
 
 	// P0-19 修复: HTTP 和超时配置
-	HTTPReadTimeout         time.Duration
-	HTTPWriteTimeout        time.Duration
-	HTTPIdleTimeout         time.Duration
-	GracefulShutdownTimeout time.Duration
-	GRPCShutdownTimeout     time.Duration
-	DBPingTimeout           time.Duration
-	CHPingTimeout           time.Duration
-	NotificationTimeout     time.Duration
-	MetricsQueryTimeout     time.Duration
+	HTTPReadTimeout         time.Duration `mapstructure:"http_read_timeout"`
+	HTTPWriteTimeout        time.Duration `mapstructure:"http_write_timeout"`
+	HTTPIdleTimeout         time.Duration `mapstructure:"http_idle_timeout"`
+	GracefulShutdownTimeout time.Duration `mapstructure:"graceful_shutdown_timeout"`
+	GRPCShutdownTimeout     time.Duration `mapstructure:"grpc_shutdown_timeout"`
+	DBPingTimeout           time.Duration `mapstructure:"db_ping_timeout"`
+	CHPingTimeout           time.Duration `mapstructure:"ch_ping_timeout"`
+	NotificationTimeout     time.Duration `mapstructure:"notification_timeout"`
+	MetricsQueryTimeout     time.Duration `mapstructure:"metrics_query_timeout"`
 
 	// P0-2 修复: TLS 配置
-	TLSEnabled      bool
-	TLSCAFile       string
-	TLSCertFile     string
-	TLSKeyFile      string
-	TLSClientAuth   bool
-	TLSInsecureSkip bool
+	TLSEnabled      bool   `mapstructure:"tls_enabled"`
+	TLSCAFile       string `mapstructure:"tls_ca_file"`
+	TLSCertFile     string `mapstructure:"tls_cert_file"`
+	TLSKeyFile      string `mapstructure:"tls_key_file"`
+	TLSClientAuth   bool   `mapstructure:"tls_client_auth"`
+	TLSInsecureSkip bool   `mapstructure:"tls_insecure_skip"`
 
 	// ClickHouse 配置
-	ClickHouseHost     string
-	ClickHousePort     int
-	ClickHouseUser     string
-	ClickHousePassword string
-	ClickHouseDatabase string
+	ClickHouseHost     string `mapstructure:"clickhouse_host"`
+	ClickHousePort     int    `mapstructure:"clickhouse_port"`
+	ClickHouseUser     string `mapstructure:"clickhouse_user"`
+	ClickHousePassword string `mapstructure:"clickhouse_password"`
+	ClickHouseDatabase string `mapstructure:"clickhouse_database"`
 
 	// MockMetricsEnabled 是否使用模拟指标数据（仅用于开发测试）
 	// 生产环境应设置为 false，使用真实数据源 (VM + ClickHouse)
-	MockMetricsEnabled bool
+	MockMetricsEnabled bool `mapstructure:"mock_metrics_enabled"`
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		ServiceName:          "alert-engine",
-		Version:              "1.0.0",
-		GrpcAddr:             ":9009",
-		HttpAddr:             ":8009",
-		RelationalDBType:     storage.DatabaseOceanBase,
-		RelationalDBHost:     "mysql",
-		RelationalDBPort:     3306,
-		RelationalDBUser:     "root",
-		RelationalDBPassword: "",
-		RelationalDBDatabase: "cloudflow_alert",
-		AuthAddr:             "auth-service:9003",
-		ClickHouseHost:     "clickhouse",
-		ClickHousePort:     9000,
-		ClickHouseUser:     "default",
-		ClickHousePassword: "",
-		ClickHouseDatabase: "cloudflow",
-		EvalInterval:         15 * time.Second,
-		MaxRules:             10000,
-		TLSEnabled:           false,
-		TLSInsecureSkip:      false,
-		MockMetricsEnabled:   false,
+		ServiceName:             "alert-engine",
+		Version:                 "1.0.0",
+		GrpcAddr:                ":9009",
+		HttpAddr:                ":8009",
+		RelationalDBType:        storage.DatabaseOceanBase,
+		RelationalDBHost:        "mysql",
+		RelationalDBPort:        3306,
+		RelationalDBUser:        "root",
+		RelationalDBPassword:    "",
+		RelationalDBDatabase:    "cloudflow_alert",
+		AuthAddr:                "auth-service:9003",
+		ClickHouseHost:          "clickhouse",
+		ClickHousePort:          9000,
+		ClickHouseUser:          "default",
+		ClickHousePassword:      "",
+		ClickHouseDatabase:      "cloudflow",
+		EvalInterval:            15 * time.Second,
+		MaxRules:                10000,
+		TLSEnabled:              false,
+		TLSInsecureSkip:         false,
+		MockMetricsEnabled:      false,
 		HTTPReadTimeout:         30 * time.Second,
 		HTTPWriteTimeout:        30 * time.Second,
 		HTTPIdleTimeout:         120 * time.Second,
@@ -177,15 +177,15 @@ type Service struct {
 
 func New(config *Config) (*Service, error) {
 	if config == nil {
-		config = DefaultConfig()
+		config = LoadConfig()
 	}
 
 	s := &Service{
-		config:       config,
-		startTime:    time.Now(),
+		config:          config,
+		startTime:       time.Now(),
 		health:          health.NewServer(),
 		notifierFactory: notifier.NewFactory(),
-		evalStopChan: make(chan struct{}),
+		evalStopChan:    make(chan struct{}),
 	}
 
 	// P0-2 修复: 初始化 TLS 凭证
@@ -245,7 +245,7 @@ func New(config *Config) (*Service, error) {
 	svcproto.RegisterAlertServiceServer(s.grpcServer, s)
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
-	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS: 1000, GlobalBurst: 1500, IPQPS: 100, IPBurst: 150, UserQPS: 300, UserBurst: 500, AuthQPS: 5, AuthBurst: 10, StatusCode: 429})
 
 	return s, nil
 }
@@ -261,7 +261,7 @@ func (s *Service) initDatabase() error {
 		Database:     s.config.RelationalDBDatabase,
 		MaxOpenConns: 50,
 		MaxIdleConns: 10,
-		MaxLifetime: 300,
+		MaxLifetime:  300,
 	}
 
 	db, err := storage.OpenRelational(&cfg)
@@ -342,7 +342,7 @@ func (s *Service) initClickHouse() error {
 
 // loadActiveAlerts 从数据库加载活动告警
 func (s *Service) loadActiveAlerts() error {
-	rows, err := s.db.Query(context.Background(), 
+	rows, err := s.db.Query(context.Background(),
 		"SELECT alert_id, rule_id, tenant_id, starts_at FROM alerts WHERE status = 'firing'",
 	)
 	if err != nil {
@@ -469,7 +469,7 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/rules/delete", s.deleteRuleHTTPHandler)
 
 	var handler http.Handler = mux
-		handler = s.rateLimiter.Handler(handler)
+	handler = s.rateLimiter.Handler(handler)
 	// P0-3 修复: 应用共享认证中间件
 	if s.auth != nil {
 		handler = s.auth.Middleware("/healthz")(handler)
@@ -576,7 +576,7 @@ func (s *Service) runPeriodicEvaluation() {
 
 // evaluateAllRules 评估所有启用的规则
 func (s *Service) evaluateAllRules() {
-	rows, err := s.db.Query(context.Background(), 
+	rows, err := s.db.Query(context.Background(),
 		"SELECT rule_id, tenant_id, name, display_name, severity, expression, enabled, notify_interval FROM alert_rules WHERE enabled = true",
 	)
 	if err != nil {
@@ -647,7 +647,7 @@ func (s *Service) evaluateAllRules() {
 					"severity":  rule.severity,
 				})
 
-				_, err := s.db.Exec(context.Background(), 
+				_, err := s.db.Exec(context.Background(),
 					"INSERT INTO alerts (alert_id, rule_id, tenant_id, severity, title, message, status, annotations, labels) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					alertID, rule.ruleID, rule.tenantID, rule.severity, alertTitle, alertMessage, "firing", string(annotations), string(labels),
 				)
@@ -669,7 +669,7 @@ func (s *Service) evaluateAllRules() {
 			// 检查是否需要恢复告警
 			if v, exists := s.activeAlerts.Load(key); exists {
 				active := v.(*activeAlert)
-				_, err := s.db.Exec(context.Background(), 
+				_, err := s.db.Exec(context.Background(),
 					"UPDATE alerts SET status = 'resolved', ends_at = ? WHERE alert_id = ?",
 					time.Now(), active.alertID,
 				)
@@ -689,9 +689,9 @@ func (s *Service) evaluateAllRules() {
 func (s *Service) getLatestMetrics(tenantID string) map[string]float64 {
 	if s.config.MockMetricsEnabled {
 		return map[string]float64{
-			"cpu_usage":  45.5,
-			"mem_usage":  62.3,
-			"error_rate": 0.5,
+			"cpu_usage":   45.5,
+			"mem_usage":   62.3,
+			"error_rate":  0.5,
 			"req_per_sec": 1200,
 			"latency_p95": 150,
 		}
@@ -707,13 +707,13 @@ func (s *Service) getLatestMetrics(tenantID string) map[string]float64 {
 
 	// 查询各分类表最近1分钟的指标统计
 	queries := map[string]string{
-		"event_count":       "SELECT count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp/1000000000) >= toUnixTimestamp(now() - toIntervalMinute(1)) AND tenant_id = ?",
-		"network_events":    "SELECT count() FROM cloudflow.network_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
-		"security_events":   "SELECT count() FROM cloudflow.security_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
-		"process_events":    "SELECT count() FROM cloudflow.process_events WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
-		"file_events":       "SELECT count() FROM cloudflow.file_events WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
-		"host_cpu":          "SELECT avg(cpu_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
-		"host_mem":          "SELECT avg(memory_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"event_count":     "SELECT count() FROM cloudflow.ebpf_events WHERE toUInt64(timestamp/1000000000) >= toUnixTimestamp(now() - toIntervalMinute(1)) AND tenant_id = ?",
+		"network_events":  "SELECT count() FROM cloudflow.network_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"security_events": "SELECT count() FROM cloudflow.security_events WHERE toDateTime(intDiv(timestamp, 1000000000)) >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"process_events":  "SELECT count() FROM cloudflow.process_events WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"file_events":     "SELECT count() FROM cloudflow.file_events WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"host_cpu":        "SELECT avg(cpu_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
+		"host_mem":        "SELECT avg(memory_percent) FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 MINUTE AND tenant_id = ?",
 	}
 
 	for metric, query := range queries {
@@ -831,7 +831,7 @@ func (s *Service) createNotification(tenantID, ruleID, alertID, title, message s
 	// 释放通知器资源
 	for _, n := range notifiers {
 		_ = n.Close()
-}
+	}
 }
 
 // ============================================================================
@@ -870,7 +870,7 @@ func (s *Service) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequ
 func (s *Service) CreateRule(ctx context.Context, req *svcproto.CreateAlertRuleRequest) (*svcproto.CreateAlertRuleResponse, error) {
 	ruleID := fmt.Sprintf("rule-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(context.Background(), 
+	_, err := s.db.Exec(context.Background(),
 		"INSERT INTO alert_rules (rule_id, tenant_id, project_id, name, display_name, description, severity, expression, enabled, notify_channels, notify_interval) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		ruleID,
 		req.TenantId,
@@ -898,7 +898,7 @@ func (s *Service) CreateRule(ctx context.Context, req *svcproto.CreateAlertRuleR
 func (s *Service) GetRule(ctx context.Context, req *svcproto.GetAlertRuleRequest) (*svcproto.GetAlertRuleResponse, error) {
 	var rule svcproto.AlertRule
 	var tenantId string
-	err := s.db.QueryRow(context.Background(), 
+	err := s.db.QueryRow(context.Background(),
 		"SELECT rule_id, tenant_id, project_id, name, display_name, description, severity, expression, enabled, notify_channels, notify_interval, created_at, updated_at FROM alert_rules WHERE rule_id = ?",
 		req.RuleId,
 	).Scan(
@@ -938,7 +938,7 @@ func (s *Service) UpdateRule(ctx context.Context, req *svcproto.UpdateAlertRuleR
 		return &svcproto.UpdateAlertRuleResponse{Success: false, Message: err.Error()}, nil
 	}
 
-	result, err := s.db.Exec(context.Background(), 
+	result, err := s.db.Exec(context.Background(),
 		"UPDATE alert_rules SET display_name = ?, description = ?, severity = ?, expression = ?, enabled = ?, notify_channels = ?, notify_interval = ? WHERE rule_id = ?",
 		req.DisplayName,
 		req.Description,
@@ -1004,7 +1004,7 @@ func (s *Service) DeleteRule(ctx context.Context, req *svcproto.DeleteAlertRuleR
 
 // ListRules 列出告警规则
 func (s *Service) ListRules(ctx context.Context, req *svcproto.ListAlertRulesRequest) (*svcproto.ListAlertRulesResponse, error) {
-	rows, err := s.db.Query(context.Background(), 
+	rows, err := s.db.Query(context.Background(),
 		"SELECT rule_id, tenant_id, project_id, name, display_name, description, severity, enabled, created_at FROM alert_rules WHERE tenant_id = ?",
 		req.TenantId,
 	)
@@ -1039,7 +1039,7 @@ func (s *Service) ListRules(ctx context.Context, req *svcproto.ListAlertRulesReq
 func (s *Service) CreateAlert(ctx context.Context, req *svcproto.CreateAlertRequest) (*svcproto.CreateAlertResponse, error) {
 	alertID := fmt.Sprintf("alert-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(context.Background(), 
+	_, err := s.db.Exec(context.Background(),
 		"INSERT INTO alerts (alert_id, rule_id, tenant_id, project_id, severity, title, message, status, annotations, labels) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		alertID,
 		req.RuleId,
@@ -1065,7 +1065,7 @@ func (s *Service) CreateAlert(ctx context.Context, req *svcproto.CreateAlertRequ
 // GetAlert 获取告警信息
 func (s *Service) GetAlert(ctx context.Context, req *svcproto.GetAlertRequest) (*svcproto.GetAlertResponse, error) {
 	var alert svcproto.Alert
-	err := s.db.QueryRow(context.Background(), 
+	err := s.db.QueryRow(context.Background(),
 		"SELECT alert_id, rule_id, tenant_id, project_id, severity, title, message, status, starts_at, ends_at, annotations, labels, created_at, updated_at FROM alerts WHERE alert_id = ?",
 		req.AlertId,
 	).Scan(
@@ -1096,7 +1096,7 @@ func (s *Service) GetAlert(ctx context.Context, req *svcproto.GetAlertRequest) (
 
 // UpdateAlert 更新告警状态
 func (s *Service) UpdateAlert(ctx context.Context, req *svcproto.UpdateAlertRequest) (*svcproto.UpdateAlertResponse, error) {
-	result, err := s.db.Exec(context.Background(), 
+	result, err := s.db.Exec(context.Background(),
 		"UPDATE alerts SET status = ?, ends_at = ? WHERE alert_id = ?",
 		req.Status,
 		req.EndsAt,
@@ -1127,13 +1127,13 @@ func (s *Service) ListAlerts(ctx context.Context, req *svcproto.ListAlertsReques
 	var err error
 
 	if req.Status != "" {
-		rows, err = s.db.Query(context.Background(), 
+		rows, err = s.db.Query(context.Background(),
 			"SELECT alert_id, rule_id, tenant_id, project_id, severity, title, message, status, starts_at, annotations FROM alerts WHERE tenant_id = ? AND status = ? ORDER BY starts_at DESC",
 			req.TenantId,
 			req.Status,
 		)
 	} else {
-		rows, err = s.db.Query(context.Background(), 
+		rows, err = s.db.Query(context.Background(),
 			"SELECT alert_id, rule_id, tenant_id, project_id, severity, title, message, status, starts_at, annotations FROM alerts WHERE tenant_id = ? ORDER BY starts_at DESC",
 			req.TenantId,
 		)
@@ -1171,7 +1171,7 @@ func (s *Service) ListAlerts(ctx context.Context, req *svcproto.ListAlertsReques
 func (s *Service) CreateNotification(ctx context.Context, req *svcproto.CreateNotificationRequest) (*svcproto.CreateNotificationResponse, error) {
 	notificationID := fmt.Sprintf("notif-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(context.Background(), 
+	_, err := s.db.Exec(context.Background(),
 		"INSERT INTO alert_notifications (notification_id, alert_id, rule_id, tenant_id, channel_type, channel_config, status, message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		notificationID,
 		req.AlertId,
@@ -1191,7 +1191,7 @@ func (s *Service) CreateNotification(ctx context.Context, req *svcproto.CreateNo
 
 // UpdateNotification 更新通知状态
 func (s *Service) UpdateNotification(ctx context.Context, req *svcproto.UpdateNotificationRequest) (*svcproto.UpdateNotificationResponse, error) {
-	result, err := s.db.Exec(context.Background(), 
+	result, err := s.db.Exec(context.Background(),
 		"UPDATE alert_notifications SET status = ?, error_message = ?, attempts = ?, next_attempt_at = ? WHERE notification_id = ?",
 		req.Status,
 		req.ErrorMessage,
@@ -1209,7 +1209,7 @@ func (s *Service) UpdateNotification(ctx context.Context, req *svcproto.UpdateNo
 
 // ListNotifications 列出通知记录
 func (s *Service) ListNotifications(ctx context.Context, req *svcproto.ListNotificationsRequest) (*svcproto.ListNotificationsResponse, error) {
-	rows, err := s.db.Query(context.Background(), 
+	rows, err := s.db.Query(context.Background(),
 		"SELECT notification_id, alert_id, rule_id, tenant_id, channel_type, status, attempts, created_at FROM alert_notifications WHERE alert_id = ? ORDER BY created_at DESC",
 		req.AlertId,
 	)
@@ -1251,7 +1251,7 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 	var firedAlerts []*svcproto.Alert
 
 	// 获取该租户的所有启用规则
-	rows, err := s.db.Query(context.Background(), 
+	rows, err := s.db.Query(context.Background(),
 		"SELECT rule_id, tenant_id, name, display_name, severity, expression, project_id FROM alert_rules WHERE tenant_id = ? AND enabled = true",
 		req.TenantId,
 	)
@@ -1292,7 +1292,7 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 				}
 				labelsJSON, _ := json.Marshal(alertLabels)
 
-				_, err := s.db.Exec(context.Background(), 
+				_, err := s.db.Exec(context.Background(),
 					"INSERT INTO alerts (alert_id, rule_id, tenant_id, project_id, severity, title, message, status, annotations, labels) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 					alertID, ruleID, tenantID, projectID, severity, alertTitle, alertMessage, "firing", string(annotations), string(labelsJSON),
 				)
@@ -1307,16 +1307,16 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 
 					// 添加到响应
 					firedAlerts = append(firedAlerts, &svcproto.Alert{
-						AlertId:   alertID,
-						RuleId:    ruleID,
-						Title:     name,
-						TenantId:  tenantID,
-						Severity:  severity,
-						Message:   alertMessage,
-						StartsAt:  time.Now().Format(time.RFC3339),
-						EndsAt:    "",
-						Status:    "firing",
-						Labels:    alertLabels,
+						AlertId:  alertID,
+						RuleId:   ruleID,
+						Title:    name,
+						TenantId: tenantID,
+						Severity: severity,
+						Message:  alertMessage,
+						StartsAt: time.Now().Format(time.RFC3339),
+						EndsAt:   "",
+						Status:   "firing",
+						Labels:   alertLabels,
 					})
 
 					// 创建通知
@@ -1327,7 +1327,7 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 			// 检查是否需要恢复告警
 			if v, exists := s.activeAlerts.Load(key); exists {
 				active := v.(*activeAlert)
-				_, err := s.db.Exec(context.Background(), 
+				_, err := s.db.Exec(context.Background(),
 					"UPDATE alerts SET status = 'resolved', ends_at = ? WHERE alert_id = ?",
 					time.Now(), active.alertID,
 				)
@@ -1460,12 +1460,12 @@ func (s *Service) createRuleHTTPHandler(w http.ResponseWriter, r *http.Request) 
 		tenantID := tenant.MustHaveTenant(r.Context())
 		var req struct {
 			ProjectId      string `json:"project_id"`
-			Name          string `json:"name"`
-			DisplayName   string `json:"display_name"`
-			Description   string `json:"description"`
-			Severity      string `json:"severity"`
-			Expression    string `json:"expression"`
-			Enabled       bool   `json:"enabled"`
+			Name           string `json:"name"`
+			DisplayName    string `json:"display_name"`
+			Description    string `json:"description"`
+			Severity       string `json:"severity"`
+			Expression     string `json:"expression"`
+			Enabled        bool   `json:"enabled"`
 			NotifyChannels string `json:"notify_channels"`
 			NotifyInterval int32  `json:"notify_interval"`
 		}

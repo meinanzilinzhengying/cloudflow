@@ -42,40 +42,40 @@ import (
 
 // Config 服务配置
 type Config struct {
-	ServiceName string
-	Version     string
-	GrpcAddr    string // :9007
-	HttpAddr    string // :8007
+	ServiceName string `mapstructure:"service_name"`
+	Version     string `mapstructure:"version"`
+	GrpcAddr    string `mapstructure:"grpc_addr"` // :9007
+	HttpAddr    string `mapstructure:"http_addr"` // :8007
 
 	// 后端连接
-	DataPlaneAddr       string
-	TopologyAddr        string
-	AlertAddr           string
+	DataPlaneAddr string `mapstructure:"data_plane_addr"`
+	TopologyAddr  string `mapstructure:"topology_addr"`
+	AlertAddr     string `mapstructure:"alert_addr"`
 
 	// 时序数据库配置（支持ClickHouse/达梦时序版）
-	TimeSeriesDBType     storage.DatabaseType
-	TimeSeriesDBHost     string
-	TimeSeriesDBPort     int
-	TimeSeriesDBUser     string
-	TimeSeriesDBPassword string
-	TimeSeriesDBDatabase string
+	TimeSeriesDBType     storage.DatabaseType `mapstructure:"time_series_db_type"`
+	TimeSeriesDBHost     string               `mapstructure:"time_series_db_host"`
+	TimeSeriesDBPort     int                  `mapstructure:"time_series_db_port"`
+	TimeSeriesDBUser     string               `mapstructure:"time_series_db_user"`
+	TimeSeriesDBPassword string               `mapstructure:"time_series_db_password"`
+	TimeSeriesDBDatabase string               `mapstructure:"time_series_db_database"`
 
-	VictoriaMetricsAddr string
-	LokiAddr            string
+	VictoriaMetricsAddr string `mapstructure:"victoria_metrics_addr"`
+	LokiAddr            string `mapstructure:"loki_addr"`
 
 	// 查询配置
-	QueryTimeout         time.Duration
-	MaxConcurrentQueries int
+	QueryTimeout         time.Duration `mapstructure:"query_timeout"`
+	MaxConcurrentQueries int           `mapstructure:"max_concurrent_queries"`
 
-	AuthAddr string // e.g. "auth-service:9006"
+	AuthAddr string `mapstructure:"auth_addr"` // e.g. "auth-service:9006"
 
 	// P0-2 修复: TLS 配置
-	TLSEnabled      bool
-	TLSCAFile       string
-	TLSCertFile     string
-	TLSKeyFile      string
-	TLSClientAuth   bool
-	TLSInsecureSkip bool
+	TLSEnabled      bool   `mapstructure:"tls_enabled"`
+	TLSCAFile       string `mapstructure:"tls_ca_file"`
+	TLSCertFile     string `mapstructure:"tls_cert_file"`
+	TLSKeyFile      string `mapstructure:"tls_key_file"`
+	TLSClientAuth   bool   `mapstructure:"tls_client_auth"`
+	TLSInsecureSkip bool   `mapstructure:"tls_insecure_skip"`
 }
 
 func DefaultConfig() *Config {
@@ -149,7 +149,7 @@ type Service struct {
 
 func New(config *Config) (*Service, error) {
 	if config == nil {
-		config = DefaultConfig()
+		config = LoadConfig()
 	}
 
 	s := &Service{

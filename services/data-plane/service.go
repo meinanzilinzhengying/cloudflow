@@ -76,52 +76,52 @@ func httpMethodToString(method uint8) string {
 
 // Config 服务配置
 type Config struct {
-	ServiceName string
-	Version     string
+	ServiceName string `mapstructure:"service_name"`
+	Version     string `mapstructure:"version"`
 
-	GrpcAddr string // :9002
-	MetricsAddr string // :9102
+	GrpcAddr string `mapstructure:"grpc_addr"` // :9002
+	MetricsAddr string `mapstructure:"metrics_addr"` // :9102
 
 	// 批量写入
-	BatchSize     int
-	FlushInterval time.Duration
-	QueueSize     int
-	WorkerCount   int
+	BatchSize     int           `mapstructure:"batch_size"`
+	FlushInterval time.Duration `mapstructure:"flush_interval"`
+	QueueSize     int           `mapstructure:"queue_size"`
+	WorkerCount   int           `mapstructure:"worker_count"`
 
 	// 存储后端
-	TimeSeriesDBHost     string
-	TimeSeriesDBPort     int
-	TimeSeriesDBUser     string
-	TimeSeriesDBPassword string
-	TimeSeriesDBDatabase string
-	VictoriaMetricsAddr string
-	LokiAddr            string
+	TimeSeriesDBHost     string `mapstructure:"time_series_db_host"`
+	TimeSeriesDBPort     int    `mapstructure:"time_series_db_port"`
+	TimeSeriesDBUser     string `mapstructure:"time_series_db_user"`
+	TimeSeriesDBPassword string `mapstructure:"time_series_db_password"`
+	TimeSeriesDBDatabase string `mapstructure:"time_series_db_database"`
+	VictoriaMetricsAddr string `mapstructure:"victoria_metrics_addr"`
+	LokiAddr            string `mapstructure:"loki_addr"`
 
 	// 其他服务
-	ControlPlaneAddr string
-	TopologyAddr     string
-	AuthAddr         string // P0-3 修复: 认证服务地址
+	ControlPlaneAddr string `mapstructure:"control_plane_addr"`
+	TopologyAddr     string `mapstructure:"topology_addr"`
+	AuthAddr         string `mapstructure:"auth_addr"` // P0-3 修复: 认证服务地址
 
 	// 采样配置
-	Sampling *sampling.SamplingConfig
+	Sampling *sampling.SamplingConfig `mapstructure:"sampling"`
 
 	// P0-2 修复: TLS 配置
-	TLSEnabled      bool
-	TLSCAFile       string
-	TLSCertFile     string
-	TLSKeyFile      string
-	TLSClientAuth   bool
-	TLSInsecureSkip bool
+	TLSEnabled      bool   `mapstructure:"tls_enabled"`
+	TLSCAFile       string `mapstructure:"tls_ca_file"`
+	TLSCertFile     string `mapstructure:"tls_cert_file"`
+	TLSKeyFile      string `mapstructure:"tls_key_file"`
+	TLSClientAuth   bool   `mapstructure:"tls_client_auth"`
+	TLSInsecureSkip bool   `mapstructure:"tls_insecure_skip"`
 
 	// P0-19 修复: HTTP 和超时配置
-	HTTPReadTimeout         time.Duration
-	HTTPWriteTimeout        time.Duration
-	HTTPIdleTimeout         time.Duration
-	GracefulShutdownTimeout time.Duration
-	GRPCShutdownTimeout     time.Duration
-	ClientTimeout           time.Duration
-	ClientIdleConnTimeout   time.Duration
-	CHPingTimeout           time.Duration
+	HTTPReadTimeout         time.Duration `mapstructure:"http_read_timeout"`
+	HTTPWriteTimeout        time.Duration `mapstructure:"http_write_timeout"`
+	HTTPIdleTimeout         time.Duration `mapstructure:"http_idle_timeout"`
+	GracefulShutdownTimeout time.Duration `mapstructure:"graceful_shutdown_timeout"`
+	GRPCShutdownTimeout     time.Duration `mapstructure:"grpc_shutdown_timeout"`
+	ClientTimeout           time.Duration `mapstructure:"client_timeout"`
+	ClientIdleConnTimeout   time.Duration `mapstructure:"client_idle_conn_timeout"`
+	CHPingTimeout           time.Duration `mapstructure:"ch_ping_timeout"`
 }
 
 // DefaultConfig 默认配置
@@ -227,7 +227,7 @@ type Service struct {
 // New 创建服务
 func New(config *Config) (*Service, error) {
 	if config == nil {
-		config = DefaultConfig()
+		config = LoadConfig()
 	}
 	if config.Sampling == nil {
 		config.Sampling = sampling.NewSamplingConfig()

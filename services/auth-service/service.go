@@ -217,7 +217,7 @@ func (a *authBlacklistAdapter) ClearExpired(ctx context.Context) (int, error) {
 // New 创建服务
 func New(config *Config) (*Service, error) {
 	if config == nil {
-		config = DefaultConfig()
+		config = LoadConfig()
 	}
 
 	// P2-04: 初始化 Token 黑名单（优先 Redis，回退内存）

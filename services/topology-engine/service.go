@@ -152,7 +152,7 @@ type Service struct {
 // New 创建 Topology Engine 服务
 func New(config *Config) (*Service, error) {
 	if config == nil {
-		config = DefaultConfig()
+		config = LoadConfig()
 	}
 
 	// 初始化缓存

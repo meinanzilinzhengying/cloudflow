@@ -42,74 +42,74 @@ import (
 
 // Config 服务配置
 type Config struct {
-	ServiceName string
-	Version     string
-	GrpcAddr    string // :9010
-	HttpAddr    string // :8010
+	ServiceName string `mapstructure:"service_name"`
+	Version     string `mapstructure:"version"`
+	GrpcAddr    string `mapstructure:"grpc_addr"` // :9010
+	HttpAddr    string `mapstructure:"http_addr"` // :8010
 
 	// Auth Service 地址
-	AuthAddr string
+	AuthAddr string `mapstructure:"auth_addr"`
 
 	// P0-02 修复: 数据库配置（支持多数据库类型）
-	DBType         storage.DatabaseType // mysql / dameng / kingbase
-	DBHost         string
-	DBPort         int
-	DBUser         string
-	DBPassword     string
-	DBDatabase     string
-	DBMaxOpenConns int
-	DBMaxIdleConns int
+	DBType         storage.DatabaseType `mapstructure:"db_type"` // mysql / dameng / kingbase
+	DBHost         string               `mapstructure:"db_host"`
+	DBPort         int                  `mapstructure:"db_port"`
+	DBUser         string               `mapstructure:"db_user"`
+	DBPassword     string               `mapstructure:"db_password"`
+	DBDatabase     string               `mapstructure:"db_database"`
+	DBMaxOpenConns int                  `mapstructure:"db_max_open_conns"`
+	DBMaxIdleConns int                  `mapstructure:"db_max_idle_conns"`
 
 	// 双写配置（平滑迁移用）
-	DBEnableDualWrite bool
-	DBDualWriteMode   storage.DualWriteMode
+	DBEnableDualWrite bool                  `mapstructure:"db_enable_dual_write"`
+	DBDualWriteMode   storage.DualWriteMode `mapstructure:"db_dual_write_mode"`
 
-	DefaultRetentionDays   int
-	DefaultMaxAgents       int
-	DefaultMaxFlowsPerDay  int64
-	DefaultMaxStorageGB    int
-	DefaultMaxAlertRules   int
+	DefaultRetentionDays  int   `mapstructure:"default_retention_days"`
+	DefaultMaxAgents      int   `mapstructure:"default_max_agents"`
+	DefaultMaxFlowsPerDay int64 `mapstructure:"default_max_flows_per_day"`
+	DefaultMaxStorageGB   int   `mapstructure:"default_max_storage_gb"`
+	DefaultMaxAlertRules  int   `mapstructure:"default_max_alert_rules"`
 
 	// P0-2 修复: TLS 配置
-	TLSEnabled      bool
-	TLSCAFile       string
-	TLSCertFile     string
-	TLSKeyFile      string
-	TLSClientAuth   bool
-	TLSInsecureSkip bool
+	TLSEnabled      bool   `mapstructure:"tls_enabled"`
+	TLSCAFile       string `mapstructure:"tls_ca_file"`
+	TLSCertFile     string `mapstructure:"tls_cert_file"`
+	TLSKeyFile      string `mapstructure:"tls_key_file"`
+	TLSClientAuth   bool   `mapstructure:"tls_client_auth"`
+	TLSInsecureSkip bool   `mapstructure:"tls_insecure_skip"`
 
 	// P0-19 修复: HTTP 和超时配置
-	HTTPReadTimeout         time.Duration
-	HTTPWriteTimeout        time.Duration
-	HTTPIdleTimeout         time.Duration
-	GracefulShutdownTimeout time.Duration
-	GRPCShutdownTimeout     time.Duration
-	DBPingTimeout           time.Duration
+	HTTPReadTimeout         time.Duration `mapstructure:"http_read_timeout"`
+	HTTPWriteTimeout        time.Duration `mapstructure:"http_write_timeout"`
+	HTTPIdleTimeout         time.Duration `mapstructure:"http_idle_timeout"`
+	GracefulShutdownTimeout time.Duration `mapstructure:"graceful_shutdown_timeout"`
+	GRPCShutdownTimeout     time.Duration `mapstructure:"grpc_shutdown_timeout"`
+	DBPingTimeout           time.Duration `mapstructure:"db_ping_timeout"`
 }
 
 // DefaultConfig 默认配置
 func DefaultConfig() *Config {
 	return &Config{
-		ServiceName:        "tenant-service",
-		Version:            "1.0.0",
-		GrpcAddr:           ":9010",
-		HttpAddr:           ":8010",
-		AuthAddr:           "auth-service:9006",
-		DBType:             storage.DBMySQL, // 默认MySQL，兼容旧配置
-		DBHost:             "127.0.0.1",
-		DBPort:             3306,
-		DBDatabase:         "cloudflow_tenant",
-		DBMaxOpenConns:     50,
-		DBMaxIdleConns:     10,
-		DBEnableDualWrite:  false,
-		DBDualWriteMode:    storage.ModeOldOnly,
-		DefaultRetentionDays:  30,
-		DefaultMaxAgents:      100,
-		DefaultMaxFlowsPerDay: 10_000_000,
-		DefaultMaxStorageGB:   100,
-		DefaultMaxAlertRules:  100,
-		TLSEnabled:            false,
-		TLSInsecureSkip:       false,
+		ServiceName:             "tenant-service",
+		Version:                 "1.0.0",
+		GrpcAddr:                ":9010",
+		HttpAddr:                ":8010",
+		AuthAddr:                "auth-service:9006",
+		DBType:                  storage.DBMySQL, // 默认MySQL，兼容旧配置
+		DBHost:                  "127.0.0.1",
+		DBPort:                  3306,
+		DBDatabase:              "cloudflow_tenant",
+		DBMaxOpenConns:          50,
+		DBMaxIdleConns:          10,
+		DBEnableDualWrite:       false,
+		DBDualWriteMode:         storage.ModeOldOnly,
+		DefaultRetentionDays:    30,
+		DefaultMaxAgents:        100,
+		DefaultMaxFlowsPerDay:   10_000_000,
+		DefaultMaxStorageGB:     100,
+		DefaultMaxAlertRules:    100,
+		TLSEnabled:              false,
+		TLSInsecureSkip:         false,
 		HTTPReadTimeout:         30 * time.Second,
 		HTTPWriteTimeout:        30 * time.Second,
 		HTTPIdleTimeout:         120 * time.Second,
@@ -153,7 +153,7 @@ type Service struct {
 // New 创建服务
 func New(config *Config) (*Service, error) {
 	if config == nil {
-		config = DefaultConfig()
+		config = LoadConfig()
 	}
 
 	s := &Service{
@@ -212,7 +212,7 @@ func New(config *Config) (*Service, error) {
 	healthpb.RegisterHealthServer(s.grpcServer, s.health)
 
 	s.resilienceClient = NewTenantResilienceClient()
-	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS:1000, GlobalBurst:1500, IPQPS:100, IPBurst:150, UserQPS:300, UserBurst:500, AuthQPS:5, AuthBurst:10, StatusCode:429})
+	s.rateLimiter = ratelimit.NewMiddleware(&ratelimit.MiddlewareConfig{GlobalQPS: 1000, GlobalBurst: 1500, IPQPS: 100, IPBurst: 150, UserQPS: 300, UserBurst: 500, AuthQPS: 5, AuthBurst: 10, StatusCode: 429})
 
 	return s, nil
 }
@@ -220,16 +220,16 @@ func New(config *Config) (*Service, error) {
 // initDatabase P0-02 修复: 初始化数据库连接（支持多数据库类型）
 func (s *Service) initDatabase() error {
 	cfg := storage.Config{
-		Type:           s.config.DBType,
-		Host:           s.config.DBHost,
-		Port:           s.config.DBPort,
-		User:           s.config.DBUser,
-		Password:       s.config.DBPassword,
-		Database:       s.config.DBDatabase,
-		MaxOpenConns:   s.config.DBMaxOpenConns,
-		MaxIdleConns:   s.config.DBMaxIdleConns,
+		Type:            s.config.DBType,
+		Host:            s.config.DBHost,
+		Port:            s.config.DBPort,
+		User:            s.config.DBUser,
+		Password:        s.config.DBPassword,
+		Database:        s.config.DBDatabase,
+		MaxOpenConns:    s.config.DBMaxOpenConns,
+		MaxIdleConns:    s.config.DBMaxIdleConns,
 		EnableDualWrite: s.config.DBEnableDualWrite,
-		DualWriteMode:  s.config.DBDualWriteMode,
+		DualWriteMode:   s.config.DBDualWriteMode,
 	}
 
 	db, err := storage.OpenRelational(&cfg)
@@ -349,7 +349,7 @@ func (s *Service) createDefaultTenant(ctx context.Context) error {
 	}
 
 	if count == 0 {
-		_, err = s.db.Exec(ctx, 
+		_, err = s.db.Exec(ctx,
 			"INSERT INTO tenants (tenant_id, name, display_name, description, plan) VALUES (?, ?, ?, ?, ?)",
 			"default",
 			"default",
@@ -362,7 +362,7 @@ func (s *Service) createDefaultTenant(ctx context.Context) error {
 		}
 
 		// 创建默认租户的配额
-		_, err = s.db.Exec(ctx, 
+		_, err = s.db.Exec(ctx,
 			"INSERT INTO quotas (quota_id, tenant_id, max_agents, max_flows_per_day, max_storage_gb, max_alert_rules, retention_days) VALUES (?, ?, ?, ?, ?, ?, ?)",
 			"quota-default",
 			"default",
@@ -404,7 +404,7 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/api/quotas", s.quotasHandler)
 
 	var handler http.Handler = mux
-		handler = s.rateLimiter.Handler(handler)
+	handler = s.rateLimiter.Handler(handler)
 	// P0-3 修复: 应用共享认证中间件
 	if s.auth != nil {
 		handler = s.auth.Middleware("/healthz")(handler)
@@ -482,7 +482,7 @@ func (s *Service) HealthCheck(ctx context.Context, req *svcproto.HealthCheckRequ
 func (s *Service) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRequest) (*svcproto.CreateTenantResponse, error) {
 	tenantID := fmt.Sprintf("tenant-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(ctx, 
+	_, err := s.db.Exec(ctx,
 		"INSERT INTO tenants (tenant_id, name, display_name, description, plan) VALUES (?, ?, ?, ?, ?)",
 		tenantID,
 		req.Name,
@@ -495,7 +495,7 @@ func (s *Service) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRe
 	}
 
 	// 创建默认配额
-	_, err = s.db.Exec(ctx, 
+	_, err = s.db.Exec(ctx,
 		"INSERT INTO quotas (quota_id, tenant_id, max_agents, max_flows_per_day, max_storage_gb, max_alert_rules, retention_days) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		fmt.Sprintf("quota-%s", tenantID),
 		tenantID,
@@ -510,7 +510,7 @@ func (s *Service) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRe
 	}
 
 	return &svcproto.CreateTenantResponse{
-		Success: true,
+		Success:  true,
 		TenantId: tenantID,
 	}, nil
 }
@@ -518,7 +518,7 @@ func (s *Service) CreateTenant(ctx context.Context, req *svcproto.CreateTenantRe
 // GetTenant 获取租户信息
 func (s *Service) GetTenant(ctx context.Context, req *svcproto.GetTenantRequest) (*svcproto.GetTenantResponse, error) {
 	var tenant svcproto.Tenant
-	err := s.db.QueryRow(ctx, 
+	err := s.db.QueryRow(ctx,
 		"SELECT tenant_id, name, display_name, description, plan, status, created_at, updated_at FROM tenants WHERE tenant_id = ?",
 		req.TenantId,
 	).Scan(
@@ -543,7 +543,7 @@ func (s *Service) GetTenant(ctx context.Context, req *svcproto.GetTenantRequest)
 
 // UpdateTenant 更新租户信息
 func (s *Service) UpdateTenant(ctx context.Context, req *svcproto.UpdateTenantRequest) (*svcproto.UpdateTenantResponse, error) {
-	result, err := s.db.Exec(ctx, 
+	result, err := s.db.Exec(ctx,
 		"UPDATE tenants SET display_name = ?, description = ?, plan = ?, status = ? WHERE tenant_id = ?",
 		req.DisplayName,
 		req.Description,
@@ -640,7 +640,7 @@ func (s *Service) ListTenants(ctx context.Context, req *svcproto.ListTenantsRequ
 func (s *Service) CreateProject(ctx context.Context, req *svcproto.CreateProjectRequest) (*svcproto.CreateProjectResponse, error) {
 	projectID := fmt.Sprintf("project-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(ctx, 
+	_, err := s.db.Exec(ctx,
 		"INSERT INTO projects (project_id, tenant_id, name, display_name, description) VALUES (?, ?, ?, ?, ?)",
 		projectID,
 		req.TenantId,
@@ -653,7 +653,7 @@ func (s *Service) CreateProject(ctx context.Context, req *svcproto.CreateProject
 	}
 
 	return &svcproto.CreateProjectResponse{
-		Success:  true,
+		Success:   true,
 		ProjectId: projectID,
 	}, nil
 }
@@ -661,7 +661,7 @@ func (s *Service) CreateProject(ctx context.Context, req *svcproto.CreateProject
 // GetProject 获取项目信息
 func (s *Service) GetProject(ctx context.Context, req *svcproto.GetProjectRequest) (*svcproto.GetProjectResponse, error) {
 	var project svcproto.Project
-	err := s.db.QueryRow(ctx, 
+	err := s.db.QueryRow(ctx,
 		"SELECT project_id, tenant_id, name, display_name, description, status, created_at FROM projects WHERE project_id = ?",
 		req.ProjectId,
 	).Scan(
@@ -714,7 +714,7 @@ func (s *Service) ListProjects(ctx context.Context, req *svcproto.ListProjectsRe
 // GetQuota 获取配额信息
 func (s *Service) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (*svcproto.GetQuotaResponse, error) {
 	var quota svcproto.Quota
-	err := s.db.QueryRow(ctx, 
+	err := s.db.QueryRow(ctx,
 		"SELECT quota_id, tenant_id, project_id, max_agents, max_flows_per_day, max_storage_gb, max_alert_rules, retention_days FROM quotas WHERE tenant_id = ?",
 		req.TenantId,
 	).Scan(
@@ -731,12 +731,12 @@ func (s *Service) GetQuota(ctx context.Context, req *svcproto.GetQuotaRequest) (
 		// 返回默认配额
 		return &svcproto.GetQuotaResponse{
 			Quota: &svcproto.Quota{
-				TenantId:        req.TenantId,
-				MaxAgents:       int32(s.config.DefaultMaxAgents),
-				MaxFlowsPerDay:  s.config.DefaultMaxFlowsPerDay,
-				MaxStorageGb:    int32(s.config.DefaultMaxStorageGB),
-				MaxAlertRules:   int32(s.config.DefaultMaxAlertRules),
-				RetentionDays:   int32(s.config.DefaultRetentionDays),
+				TenantId:       req.TenantId,
+				MaxAgents:      int32(s.config.DefaultMaxAgents),
+				MaxFlowsPerDay: s.config.DefaultMaxFlowsPerDay,
+				MaxStorageGb:   int32(s.config.DefaultMaxStorageGB),
+				MaxAlertRules:  int32(s.config.DefaultMaxAlertRules),
+				RetentionDays:  int32(s.config.DefaultRetentionDays),
 			},
 		}, nil
 	}
@@ -753,7 +753,7 @@ func (s *Service) UpdateQuota(ctx context.Context, req *svcproto.UpdateTenantQuo
 		return &svcproto.UpdateTenantQuotaResponse{Success: false, Message: "quota is required"}, nil
 	}
 
-	result, err := s.db.Exec(ctx, 
+	result, err := s.db.Exec(ctx,
 		"UPDATE quotas SET max_agents = ?, max_flows_per_day = ?, max_storage_gb = ?, max_alert_rules = ?, retention_days = ? WHERE tenant_id = ?",
 		req.Quota.MaxAgents,
 		req.Quota.MaxFlowsPerDay,
@@ -774,7 +774,7 @@ func (s *Service) UpdateQuota(ctx context.Context, req *svcproto.UpdateTenantQuo
 func (s *Service) AddTenantMember(ctx context.Context, req *svcproto.AddTenantMemberRequest) (*svcproto.AddTenantMemberResponse, error) {
 	memberID := fmt.Sprintf("member-%d", time.Now().UnixNano())
 
-	_, err := s.db.Exec(ctx, 
+	_, err := s.db.Exec(ctx,
 		"INSERT INTO tenant_members (member_id, tenant_id, user_id, role) VALUES (?, ?, ?, ?)",
 		memberID,
 		req.TenantId,
@@ -790,7 +790,7 @@ func (s *Service) AddTenantMember(ctx context.Context, req *svcproto.AddTenantMe
 
 // RemoveTenantMember 移除租户成员
 func (s *Service) RemoveTenantMember(ctx context.Context, req *svcproto.RemoveTenantMemberRequest) (*svcproto.RemoveTenantMemberResponse, error) {
-	result, err := s.db.Exec(ctx, 
+	result, err := s.db.Exec(ctx,
 		"DELETE FROM tenant_members WHERE tenant_id = ? AND user_id = ?",
 		req.TenantId,
 		req.UserId,
