@@ -20,6 +20,7 @@ from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import redis
 from quota import QuotaManager
+import hashlib
 from clickhouse_driver import Client
 from clickhouse_driver.errors import NetworkError, SocketTimeoutError, ServerException
 
@@ -380,26 +381,29 @@ class DataIngestService:
                 pass
 
     def _build_dedup_key(self, ev):
-        """构建事件去重键，用于幂等性保证"""
+        """构建事件去重键（含 details 哈希 + 毫秒精度，避免同类事件碰撞）"""
         ts = ev.get("timestamp", "")
-        # 截断到秒级精度用于去重
         try:
             if isinstance(ts, str):
-                ts_int = int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp())
+                ts_int = int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp() * 1000)
             elif isinstance(ts, datetime):
-                ts_int = int(ts.timestamp())
+                ts_int = int(ts.timestamp() * 1000)
             elif isinstance(ts, int):
-                ts_int = ts // 1_000_000_000
+                ts_int = ts // 1_000_000
             else:
-                ts_int = int(time.time())
+                ts_int = int(time.time() * 1000)
         except Exception:
-            ts_int = int(time.time())
+            ts_int = int(time.time() * 1000)
+
+        details = ev.get("details", "") or ""
+        details_hash = hashlib.md5(details.encode()).hexdigest()[:8] if details else "00000000"
 
         fields = [
             ev.get("probe_id", ""),
             str(ts_int),
             ev.get("category", ""),
             ev.get("event_type", ""),
+            details_hash,
             ev.get("src_ip", ""),
             ev.get("dst_ip", ""),
             str(ev.get("src_port", 0) or 0),
