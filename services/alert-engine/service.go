@@ -146,6 +146,9 @@ type Service struct {
 	// P0-6: 通知渠道工厂
 	notifierFactory *notifier.Factory
 
+	// P0-7 修复: 多实例 Leader 选举
+	leaderElection *LeaderElection
+
 	startTime time.Time
 }
 
@@ -201,6 +204,9 @@ func New(config *Config) (*Service, error) {
 			return nil, fmt.Errorf("database init failed: %w", err)
 		}
 	}
+
+	// P0-7 修复: 初始化 Leader 选举
+	s.leaderElection = NewLeaderElection(s.db, "", "")
 
 	// 初始化 ClickHouse 连接
 	if err := s.initClickHouse(); err != nil {
@@ -458,6 +464,11 @@ func (s *Service) Start() error {
 	s.evalWG.Add(1)
 	go s.runPeriodicEvaluation()
 
+	// P0-7 修复: 启动 Leader 选举
+	if s.leaderElection != nil {
+		go s.leaderElection.Start(context.Background())
+	}
+
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_SERVING)
 	fmt.Printf("Alert Engine started: gRPC=%s, HTTP=%s (DB=%s:%d/%s)\n",
 		s.config.GrpcAddr, s.config.HttpAddr, s.config.RelationalDBHost, s.config.RelationalDBPort, s.config.RelationalDBDatabase)
@@ -466,6 +477,11 @@ func (s *Service) Start() error {
 
 func (s *Service) Stop() {
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_NOT_SERVING)
+
+	// P0-7 修复: 停止 Leader 选举
+	if s.leaderElection != nil {
+		s.leaderElection.Stop()
+	}
 
 	// P0-05 新增：停止周期性评估
 	close(s.evalStopChan)
@@ -521,7 +537,10 @@ func (s *Service) runPeriodicEvaluation() {
 	for {
 		select {
 		case <-ticker.C:
-			s.evaluateAllRules()
+			// P0-7 修复: 只有 Leader 才执行评估
+			if s.leaderElection == nil || s.leaderElection.IsLeader() {
+				s.evaluateAllRules()
+			}
 		case <-s.evalStopChan:
 			fmt.Println("Alert periodic evaluation stopped")
 			return

@@ -55,7 +55,7 @@ func New(brokers []string, groupID string, topics []string, store storage.Storag
 		topics:  topics,
 		storage: store,
 		logger:  log,
-		dedup:   &NoOpDedup{}, // P2-03: 默认空实现，不做去重
+		dedup:   NewMemoryDedup(24 * time.Hour), // P0-9 修复: 默认启用内存去重
 	}, nil
 }
 
