@@ -1,15 +1,31 @@
 import { NavLink } from "react-router-dom";
 
+const navItems = [
+  { to: "/", label: "平台概览", icon: "📊", end: true },
+  { to: "/probes", label: "探针管理", icon: "🔌" },
+  { to: "/services", label: "服务健康", icon: "💚" },
+  { to: "/alerts", label: "安全告警", icon: "🔔" },
+  { to: "/ai", label: "AI 分析", icon: "🤖" },
+  { to: "/tools", label: "外部工具", icon: "🔧" },
+];
+
 export default function Layout({ children }) {
   return (
     <div className="layout">
       <aside className="sidebar">
-        <div className="logo">CloudFlow Platform</div>
+        <div className="logo">☁️ CloudFlow Platform</div>
         <nav>
-          <NavLink to="/" end>平台概览</NavLink>
-          <NavLink to="/nodes">节点监控</NavLink>
-          <NavLink to="/alerts">平台告警</NavLink>
+          {navItems.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end}>
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
+        <div className="sidebar-footer">
+          <div style={{ fontSize: 12, color: '#475569' }}>v3.2.0</div>
+          <div style={{ fontSize: 12, color: '#475569' }}>平台自监控</div>
+        </div>
       </aside>
       <main className="main">{children}</main>
     </div>
