@@ -30,7 +30,7 @@ export default function AIAnalysis() {
     setError('');
 
     try {
-      const res = await axios.post('/api/ai/api/v1/analyze', {
+      const res = await axios.post('/api/ai/v1/analyze', {
         query: input,
         context: 'cloudflow 平台运维分析',
       }, { timeout: 30000 });

@@ -143,6 +143,8 @@ body {
 .badge-process { background: rgba(245,158,11,0.15); color: #f59e0b; }
 .badge-metrics { background: rgba(99,102,241,0.15); color: #6366f1; }
 .badge-critical { background: rgba(239,68,68,0.25); color: #fca5a5; border: 1px solid rgba(239,68,68,0.4); }
+.badge-warning { background: rgba(245,158,11,0.25); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); }
+.badge-info    { background: rgba(59,130,246,0.25); color: #93c5fd; border: 1px solid rgba(59,130,246,0.4); }
 
 /* Buttons */
 .btn-refresh {
