@@ -14,6 +14,11 @@ import (
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
 	"github.com/meinanzilinzhengying/ebpf-probe/pkg/platform"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
+	"time"
 )
 
 var (
@@ -82,6 +87,111 @@ func main() {
 	log.Printf("[OK] 所有采集器已启动")
 
 	go api.Start(apiPort, mgr, ch)
+	// 配置表轮询（每30秒检查前端下发的命令）
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[CONFIG] 轮询goroutine恢复: %v", r)
+			}
+		}()
+		log.Printf("[CONFIG] 启动配置表轮询 (每30秒), probe_id=%s", probeID)
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			// 查询未应用的配置命令
+			query := fmt.Sprintf(
+				"SELECT probe_id, command, config_json, toString(created_at) FROM cloudflow.probe_config WHERE applied = 0 AND probe_id = '%s' ORDER BY created_at LIMIT 10 FORMAT JSON",
+				probeID,
+			)
+
+			// 使用HTTP API查询ClickHouse
+			chQuery := fmt.Sprintf("http://%s:8123/?query=%s", clickHouseAddr, url.QueryEscape(query))
+			log.Printf("[CONFIG] 查询配置表: %s", chQuery[:min(len(chQuery), 100)])
+			resp, err := http.Get(chQuery)
+			if err != nil {
+				log.Printf("[CONFIG] 查询配置表失败: %v", err)
+				continue
+			}
+			log.Printf("[CONFIG] HTTP状态码: %d", resp.StatusCode)
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			log.Printf("[CONFIG] 响应体长度: %d, 完整响应: %s", len(body), string(body))
+
+			// 解析JSON响应
+			if len(body) == 0 {
+				log.Printf("[CONFIG] 配置表为空")
+				continue
+			}
+			var result map[string]interface{}
+			if err := json.Unmarshal(body, &result); err != nil {
+				log.Printf("[CONFIG] 解析响应失败: %v, body: %s", err, string(body)[:min(len(body), 200)])
+				continue
+				}
+
+			log.Printf("[CONFIG] JSON解析成功, rows=%v, data=%v", result["rows"], len(result["data"].([]interface{})))
+			rows, ok := result["data"].([]interface{})
+			if !ok {
+				log.Printf("[CONFIG] data字段类型错误: %T", result["data"])
+				continue
+				}
+			if len(rows) == 0 {
+				log.Printf("[CONFIG] 没有未处理的命令")
+				continue
+				}
+
+			for _, row := range rows {
+				record := row.(map[string]interface{})
+				if len(record) < 3 {
+					continue
+				}
+
+			cmd := record["command"].(string)
+				log.Printf("[CONFIG] 收到命令: %s", cmd)
+				switch cmd {
+				case "stop":
+					mgr.Stop()
+					log.Printf("[CONFIG] 已停止所有采集器（进程继续运行）")
+				case "start":
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					mgr.Start(ctx)
+					log.Printf("[CONFIG] 已启动所有采集器")
+				case "restart":
+					mgr.Stop()
+					time.Sleep(2 * time.Second)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					mgr.Start(ctx)
+					log.Printf("[CONFIG] 已重启所有采集器")
+				case "update_config":
+					if len(record) > 2 && record["config_json"] != nil {
+						configJSON := record["config_json"].(string)
+						// 解析并更新配置
+						log.Printf("[CONFIG] 更新配置: %s", configJSON)
+						// TODO: 解析configJSON并更新mgr配置
+					}
+				}
+
+				// 标记已应用（更新applied=1）
+				updateQuery := fmt.Sprintf(
+					"ALTER TABLE cloudflow.probe_config UPDATE applied = 1 WHERE probe_id = '%s' AND applied = 0",
+					probeID,
+				)
+				chUpdate := fmt.Sprintf("http://%s:8123/?query=%s", clickHouseAddr, url.QueryEscape(updateQuery))
+				log.Printf("[CONFIG] 标记已处理: %s", chUpdate[:min(len(chUpdate), 100)])
+				resp, err := http.Get(chUpdate)
+				if err != nil {
+					log.Printf("[CONFIG] 标记失败: %v", err)
+				} else {
+					log.Printf("[CONFIG] 标记响应: %d", resp.StatusCode)
+					resp.Body.Close()
+				}
+			}
+		}
+	}()
+
+
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
