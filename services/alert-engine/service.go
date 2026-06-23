@@ -98,7 +98,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		ServiceName:             "alert-engine",
 		Version:                 "1.0.0",
-		GrpcAddr:                ":9009",
+		GrpcAddr:                ":9010",
 		HttpAddr:                ":8009",
 		RelationalDBType:        storage.DatabaseOceanBase,
 		RelationalDBHost:        "mysql",

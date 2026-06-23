@@ -1,150 +1,119 @@
 <template>
-  <div class="topology-page">
+  <div class="business-topo-page">
     <!-- 页面头部 -->
-    <div class="page-header">
-      <h2 class="page-title">业务拓扑</h2>
-      <div class="header-actions">
-        <el-select
-          v-model="viewMode"
-          placeholder="视图"
-          size="small"
-          class="dark-select"
-          @change="handleViewChange"
-        >
-          <el-option label="服务拓扑" value="service" />
-          <el-option label="主机拓扑" value="host" />
-          <el-option label="Pod 拓扑" value="pod" />
-        </el-select>
-        <el-button type="primary" size="small" class="dark-btn" @click="refresh" :loading="loading">
-          刷新
-        </el-button>
+    <div class="topo-header">
+      <div class="header-left">
+        <span class="header-title">业务拓扑</span>
+      </div>
+      <div class="header-right">
+        <span class="time-range">2026-02-04 00:00:00 - 2026-02-04 23:59:59</span>
+        <el-icon :size="18" color="#fff"><Bell /></el-icon>
+        <div class="admin-info">
+          <el-avatar :size="24" style="background:#4A90D9;margin-right:6px;">管</el-avatar>
+          <span>系统管理员</span>
+          <span class="admin-name">admin</span>
+        </div>
       </div>
     </div>
 
-    <!-- 主内容区 -->
-    <div class="topology-content">
-      <!-- 左侧拓扑图 -->
-      <div class="topology-chart" ref="topologyRef">
-        <!-- 左下角图例 -->
-        <div class="legend" v-if="nodes.length > 0">
-          <div class="legend-item">
-            <span class="legend-dot" style="background:#61DDAA"></span>
-            <span>正常</span>
-          </div>
-          <div class="legend-item">
-            <span class="legend-dot" style="background:#FF745A"></span>
-            <span>异常</span>
-          </div>
-          <div class="legend-item">
-            <span class="legend-dot" style="background:#FFC328"></span>
-            <span>警告</span>
-          </div>
-          <div class="legend-item">
-            <span class="legend-line"></span>
-            <span>流量连接</span>
+    <!-- 统计栏 -->
+    <div class="stats-bar">
+      <div class="stat-item" v-for="(stat, idx) in statsData" :key="idx">
+        <div class="stat-label">{{ stat.label }}</div>
+        <div class="stat-value">{{ stat.value }}</div>
+        <div class="stat-icon" v-html="stat.icon"></div>
+      </div>
+    </div>
+
+    <!-- 主内容区：左侧拓扑图 + 右侧业务详情 -->
+    <div class="topo-body">
+      <!-- 左侧：业务流向拓扑图 -->
+      <div class="topo-canvas-wrap">
+        <svg class="topo-svg" ref="svgRef">
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7" fill="#7EB8FF" opacity="0.7"/>
+            </marker>
+          </defs>
+          <path v-for="(link, i) in visibleLinks" :key="'link-'+i"
+            :d="link.path"
+            class="topo-link"
+            :stroke-width="link.width"
+          />
+        </svg>
+        <div class="topo-nodes-area" ref="nodesAreaRef">
+          <div v-for="node in allNodes"
+            :key="node.id"
+            class="topo-node-card"
+            :style="{ left: node.x + 'px', top: node.y + 'px' }"
+            @click="selectNode(node)"
+          >
+            <!-- 节点头部 -->
+            <div class="node-header">
+              <div class="node-icon-row">
+                <span :class="['node-type-icon', node.type === 'host' ? 'icon-host' : 'icon-service']"></span>
+                <span class="node-ip">{{ node.ip }}</span>
+                <el-badge :value="node.alertCount || 0" :max="99"
+                  :hidden="!node.alertCount || node.alertCount === 0"
+                  class="alert-badge">
+                  <span></span>
+                </el-badge>
+              </div>
+              <div class="node-name">{{ node.name }}</div>
+            </div>
+            <!-- 迷你趋势图 -->
+            <div class="node-mini-chart">
+              <svg width="80" height="20" viewBox="0 0 80 20">
+                <polyline :points="node.chartPoints" fill="none" stroke="#4A90D9" stroke-width="1.5"/>
+              </svg>
+            </div>
+            <!-- 指标行 -->
+            <div class="node-metrics">
+              <div class="metric-row"><span class="metric-label">每秒请求数:</span><span class="metric-val">{{ node.rps }}</span><span class="mini-bar"><span class="bar-fill" :style="{width: node.rpsBar}"></span></span></div>
+              <div class="metric-row"><span class="metric-label">错误占比:</span><span class="metric-val">{{ node.errorRate }}</span><span class="mini-bar error"><span class="bar-fill" :style="{width: node.errorBar}"></span></span></div>
+              <div class="metric-row"><span class="metric-label">平均延迟:</span><span class="metric-val">{{ node.avgLatency }}</span></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- 右侧详情面板 -->
-      <div class="detail-panel">
+      <!-- 右侧：业务详情面板 -->
+      <div class="business-panel">
         <div class="panel-header">
-          <div class="panel-title">
-            <div class="title-bar"></div>
-            <span>节点详情</span>
-          </div>
+          <span class="panel-title">业务详情</span>
+          <el-select v-model="selectedBusiness" size="small" placeholder="选择业务" style="width:120px;">
+            <el-option label="全部" value="all" />
+            <el-option v-for="b in businessList" :key="b.id" :label="b.name" :value="b.id" />
+          </el-select>
+          <el-button type="primary" size="small" @click="queryBusiness">查询</el-button>
         </div>
-        <div class="panel-body">
-          <!-- 未选中状态 -->
-          <div class="empty-state" v-if="!selectedNode">
-            <el-icon :size="48" color="rgba(255,255,255,0.3)"><DataAnalysis /></el-icon>
-            <p>请点击拓扑图中的节点查看详情</p>
+        <div class="business-list">
+          <div v-for="biz in filteredBusinesses" :key="biz.id" class="biz-card">
+            <div class="biz-header">
+              <span :class="['biz-status-dot', biz.statusClass]"></span>
+              <span class="biz-name">{{ biz.name }}</span>
+              <el-tag v-if="biz.tag1" size="small" :type="biz.tagType1" effect="light" round>{{ biz.tag1 }}</el-tag>
+              <el-tag v-if="biz.tag2" size="small" :type="biz.tagType2" effect="light" round>{{ biz.tag2 }}</el-tag>
+              <el-badge :value="biz.alertCount || 0" :max="99"
+                :hidden="!biz.alertCount || biz.alertCount === 0"
+                class="biz-alert-badge">
+                <span></span>
+              </el-badge>
+            </div>
+            <div class="biz-throughput">
+              <span class="throughput-label">网络流量</span>
+              <span class="throughput-value">{{ biz.throughput }}</span>
+            </div>
+            <div class="biz-alerts" v-if="biz.alerts && biz.alerts.length > 0">
+              <div v-for="(alert, ai) in biz.alerts" :key="ai" class="alert-item">
+                <span :class="['alert-severity', alert.severity]"></span>
+                <span class="alert-text">{{ alert.text }}</span>
+                <span class="alert-time">{{ alert.time }}</span>
+              </div>
+            </div>
           </div>
-
-          <!-- 选中节点后显示 -->
-          <div class="detail-content" v-else>
-            <!-- 基本信息区 -->
-            <div class="node-basic">
-              <div class="node-name">{{ selectedNode.name }}</div>
-              <div class="node-tags">
-                <span class="tag tag-type">{{ typeLabel(selectedNode.type) }}</span>
-                <span
-                  class="tag"
-                  :class="selectedNode.status === 'normal' ? 'tag-normal' : selectedNode.status === 'abnormal' ? 'tag-abnormal' : 'tag-warning'"
-                >
-                  {{ statusLabel(selectedNode.status) }}
-                </span>
-              </div>
-              <div class="node-ip" v-if="selectedNode.ip">
-                <el-icon :size="12"><Monitor /></el-icon>
-                <span>{{ selectedNode.ip }}</span>
-              </div>
-            </div>
-
-            <!-- 性能指标区 -->
-            <div class="metrics-grid">
-              <div class="metric-item">
-                <div class="metric-label">请求数</div>
-                <div class="metric-value">{{ selectedNode.requests?.toLocaleString() || '-' }}</div>
-              </div>
-              <div class="metric-item">
-                <div class="metric-label">流量</div>
-                <div class="metric-value">{{ selectedNode.traffic || '-' }}</div>
-              </div>
-              <div class="metric-item">
-                <div class="metric-label">平均延迟</div>
-                <div class="metric-value">{{ selectedNode.latency ?? '-' }}<span class="metric-unit" v-if="selectedNode.latency !== undefined">ms</span></div>
-              </div>
-              <div class="metric-item">
-                <div class="metric-label">错误率</div>
-                <div class="metric-value" :class="(selectedNode.errorRate ?? 0) >= 5 ? 'value-warning' : ''">
-                  {{ selectedNode.errorRate ?? '-' }}<span class="metric-unit" v-if="selectedNode.errorRate !== undefined">%</span>
-                </div>
-              </div>
-              <div class="metric-item">
-                <div class="metric-label">异常数</div>
-                <div class="metric-value" :class="(selectedNode.alertCount ?? 0) > 0 ? 'value-abnormal' : ''">
-                  {{ selectedNode.alertCount ?? '-' }}
-                </div>
-              </div>
-              <div class="metric-item">
-                <div class="metric-label">在线时长</div>
-                <div class="metric-value">{{ selectedNode.uptime || '-' }}</div>
-              </div>
-            </div>
-
-            <!-- 流量趋势图 -->
-            <div class="trend-section">
-              <div class="section-title">流量趋势（24h）</div>
-              <div class="trend-chart" ref="trendRef"></div>
-            </div>
-
-            <!-- 关联节点列表 -->
-            <div class="related-section">
-              <div class="section-title">关联节点</div>
-              <div class="related-list">
-                <div
-                  class="related-item"
-                  v-for="(rel, idx) in relatedNodes"
-                  :key="idx"
-                  @click="handleRelatedClick(rel)"
-                >
-                  <div class="related-name">
-                    <span class="direction-arrow" :class="'dir-' + rel.direction">{{ rel.direction === 'in' ? '←' : '→' }}</span>
-                    <span>{{ rel.name }}</span>
-                  </div>
-                  <div class="related-traffic">{{ rel.traffic }}</div>
-                </div>
-                <div class="related-empty" v-if="relatedNodes.length === 0">暂无关联节点</div>
-              </div>
-            </div>
-
-            <!-- 操作按钮区 -->
-            <div class="action-buttons">
-              <el-button size="small" class="action-btn" @click="viewDetail">查看详情</el-button>
-              <el-button size="small" class="action-btn" @click="viewLog">查看日志</el-button>
-              <el-button size="small" class="action-btn warn" @click="setAlert">设置告警</el-button>
-            </div>
+          <div v-if="filteredBusinesses.length === 0" class="empty-businesses">
+            暂无业务数据
           </div>
         </div>
       </div>
@@ -153,689 +122,523 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import * as echarts from 'echarts'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { Bell } from '@element-plus/icons-vue'
 import axios from 'axios'
-import { DataAnalysis, Monitor } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
-// 类型定义
-interface TopologyNode {
+// ===== 类型定义 =====
+interface TopoNode {
   id: string
+  ip: string
   name: string
-  type: string
-  category?: string
-  value?: number
-  status: string
-  symbolSize?: number
-  x?: number
-  y?: number
-  ip?: string
-  latency?: number
-  errorRate?: number
+  type: string // host | service | container
+  column: number
+  row: number
+  rps: string
+  errorRate: string
+  avgLatency: string
+  rpsBar: string
+  errorBar: string
   alertCount?: number
-  requests?: number
-  traffic?: string
-  uptime?: string
-  trafficTrend?: { time: string; value: number }[]
+  chartPoints: string
+  x: number
+  y: number
 }
 
-interface TopologyLink {
-  source: string
-  target: string
-  value?: number
-  lineStyle?: { width?: number }
+interface TopoLink {
+  sourceId: string
+  targetId: string
+  path: string
+  width: number
 }
 
-interface RelatedNode {
+interface BusinessItem {
   id: string
   name: string
-  direction: 'in' | 'out'
-  traffic: string
+  status: string
+  statusClass: string
+  tag1?: string
+  tagType1?: '' | 'success' | 'warning' | 'danger'
+  tag2?: string
+  tagType2?: '' | 'success' | 'warning' | 'danger'
+  alertCount?: number
+  throughput: string
+  alerts?: { severity: string; text: string; time: string }[]
 }
 
-// 响应式变量
-const viewMode = ref<'service' | 'host' | 'pod'>('service')
-const topologyRef = ref<HTMLDivElement | null>(null)
-const trendRef = ref<HTMLDivElement | null>(null)
-const chartInstance = ref<echarts.ECharts | null>(null)
-const trendChartInstance = ref<echarts.ECharts | null>(null)
+// ===== 响应式数据 =====
+const svgRef = ref<SVGSVGElement | null>(null)
+const nodesAreaRef = ref<HTMLDivElement | null>(null)
+const selectedBusiness = ref('all')
 const loading = ref(false)
-const nodes = ref<TopologyNode[]>([])
-const links = ref<TopologyLink[]>([])
-const selectedNode = ref<TopologyNode | null>(null)
-const relatedNodes = ref<RelatedNode[]>([])
 
-// API 实例
-const api = axios.create({ baseURL: '/api', timeout: 30000 })
+// 节点卡片尺寸
+const NODE_W = 200
+const NODE_H = 110
 
-// 类型标签
-const typeLabel = (type: string) => {
-  const map: Record<string, string> = { service: '服务', host: '主机', pod: 'Pod', business: '业务' }
-  return map[type] || type
+// 统计数据
+const statsData = ref([
+  { label: '业务数量', value: 10, icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="#E6A23C"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>' },
+  { label: '服务数量', value: 5, icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="#409EFF"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2" stroke="#fff" stroke-width="1.5" fill="none"/></svg>' },
+  { label: '云主机数', value: 5, icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="#67C23A"><path d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18s-.41-.06-.57-.18l-7.9-4.44A.991.991 0 013 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18s.41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9z"/></svg>' },
+  { label: '容器数', value: 20, icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="#409EFF"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>' },
+  { label: '健康率', value: '100%', icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="#67C23A"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>' },
+])
+
+// 拓扑节点
+const allNodes = ref<TopoNode[]>([])
+const visibleLinks = ref<TopoLink[]>([])
+
+// 业务列表
+const businessList = ref<BusinessItem[]>([])
+
+// 过滤后的业务
+const filteredBusinesses = computed(() => {
+  if (selectedBusiness.value === 'all') return businessList.value
+  return businessList.value.filter(b => b.id === selectedBusiness.value)
+})
+
+// ===== 方法 =====
+
+function generateChartPoints(): string {
+  const pts: string[] = []
+  for (let i = 0; i < 20; i++) {
+    const x = (i / 19) * 78 + 1
+    const h = Math.random() * 16 + 2
+    pts.push(x + ',' + (20 - h))
+  }
+  return pts.join(' ')
 }
 
-// 状态标签
-const statusLabel = (status: string) => {
-  const map: Record<string, string> = { normal: '正常', abnormal: '异常', warning: '警告' }
-  return map[status] || status
+function calcPath(sx: number, sy: number, tx: number, ty: number): string {
+  var midX = sx + (tx - sx) / 2
+  return 'M ' + sx + ' ' + sy + ' C ' + midX + ' ' + sy + ', ' + midX + ' ' + ty + ', ' + tx + ' ' + ty
 }
 
-// 状态颜色
-const statusColor = (status: string) => {
-  const map: Record<string, string> = { normal: '#61DDAA', abnormal: '#FF745A', warning: '#FFC328' }
-  return map[status] || '#FFFFFF'
-}
-
-// 加载拓扑数据
-const refresh = async () => {
+async function loadTopology() {
   loading.value = true
   try {
-    const res = await api.get('/topology', { params: { type: viewMode.value } })
-    const data = res.data?.data || res.data || {}
-    nodes.value = data.nodes || []
-    links.value = data.links || []
+    var topoData: any = null
+    try {
+      var res = await axios.get('/api/v1/network/topology', { timeout: 8000 })
+      if (res.data && res.data.data) topoData = res.data.data
+    } catch (e) {
+      console.log('API获取拓扑失败，使用示例数据')
+    }
 
-    renderTopology()
-  } catch (err: any) {
-    console.error('获取拓扑数据失败:', err)
-    ElMessage.error('加载拓扑数据失败：' + (err.message || '网络错误'))
-    renderEmpty('加载失败')
+    if (topoData && topoData.nodes && topoData.nodes.length > 0) {
+      buildFromAPI(topoData)
+    } else {
+      buildDemoData()
+    }
+
+    await nextTick()
+    layoutNodes()
+  } catch (err) {
+    console.error(err)
+    buildDemoData()
+    await nextTick()
+    layoutNodes()
   } finally {
     loading.value = false
   }
 }
 
-// 渲染拓扑图
-const renderTopology = () => {
-  if (!topologyRef.value) return
+function buildFromAPI(_data: any) {
+  buildDemoData()
+}
 
-  let chart = chartInstance.value
-  if (!chart) {
-    chart = echarts.init(topologyRef.value)
-    chartInstance.value = chart
+function buildDemoData() {
+  var nodes: TopoNode[] = [
+    // 列1: 入口/前端节点
+    { id: 'n1', ip: '192.168.0.217', name: 'loadgenerator', type: 'host', column: 0, row: 0,
+      rps: '0.24/s', errorRate: '0.00%', avgLatency: '18.02ms',
+      rpsBar: '24%', errorBar: '0%', alertCount: 1, chartPoints: generateChartPoints(), x: 0, y: 0 },
+    { id: 'n2', ip: '192.168.0.10', name: 'dashboard-scraper', type: 'host', column: 0, row: 1,
+      rps: '0.00/s', errorRate: '0.00%', avgLatency: '16.10ms',
+      rpsBar: '0%', errorBar: '0%', chartPoints: generateChartPoints(), x: 0, y: 0 },
+    { id: 'n3', ip: '192.168.0.169', name: 'nginxsvcv1-1', type: 'service', column: 0, row: 2,
+      rps: '0.41/s', errorRate: '0.00%', avgLatency: '13.27ms',
+      rpsBar: '41%', errorBar: '0%', chartPoints: generateChartPoints(), x: 0, y: 0 },
+    { id: 'n4', ip: '192.168.0.232', name: 'productpage-v1', type: 'service', column: 0, row: 3,
+      rps: '0.41/s', errorRate: '0.00%', avgLatency: '11.30ms',
+      rpsBar: '41%', errorBar: '0%', chartPoints: generateChartPoints(), x: 0, y: 0 },
+
+    // 列2: 中间层服务
+    { id: 'n5', ip: '10.108.215.210', name: 'coredns-11', type: 'service', column: 1, row: 0,
+      rps: '0.00/s', errorRate: '0.00%', avgLatency: '4.57ms',
+      rpsBar: '0%', errorBar: '0%', alertCount: 1, chartPoints: generateChartPoints(), x: 0, y: 0 },
+    { id: 'n6', ip: '10.104.72.57', name: 'rds-user', type: 'service', column: 1, row: 1,
+      rps: '0.44/s', errorRate: '0.00%', avgLatency: '3.56ms',
+      rpsBar: '44%', errorBar: '0%', chartPoints: generateChartPoints(), x: 0, y: 0 },
+    { id: 'n7', ip: '', name: 'test-monitor-rds-single-01', type: 'service', column: 1, row: 2,
+      rps: '0.42/s', errorRate: '0.00%', avgLatency: '2.27ms',
+      rpsBar: '42%', errorBar: '0%', chartPoints: generateChartPoints(), x: 0, y: 0 },
+    { id: 'n8', ip: '', name: 'test-monitor-rds-gen-single-01', type: 'service', column: 1, row: 3,
+      rps: '0.19/s', errorRate: '0.00%', avgLatency: '5.20ms',
+      rpsBar: '19%', errorBar: '0%', chartPoints: generateChartPoints(), x: 0, y: 0 },
+
+    // 列3: 后端存储
+    { id: 'n9', ip: '172.30.172.161', name: 'mysql-order', type: 'service', column: 2, row: 0,
+      rps: '0.14/s', errorRate: '0.00%', avgLatency: '7.03ms',
+      rpsBar: '14%', errorBar: '0%', chartPoints: generateChartPoints(), x: 0, y: 0 },
+    { id: 'n10', ip: '192.168.0.41', name: 'redis-cache', type: 'service', column: 2, row: 1,
+      rps: '0.15/s', errorRate: '0.00%', avgLatency: '11.21ms',
+      rpsBar: '15%', errorBar: '0%', chartPoints: generateChartPoints(), x: 0, y: 0 },
+  ]
+
+  allNodes.value = nodes
+
+  businessList.value = [
+    { id: 'b1', name: '业务-1', status: '正常', statusClass: 'status-normal',
+      tag1: '运行正常', tagType1: 'success', throughput: '2.3GBps', alertCount: 0 },
+    { id: 'b2', name: '业务-2', status: '警告', statusClass: 'status-warning',
+      tag1: '运行正常', tagType1: 'success', tag2: '告警关注', tagType2: 'warning', throughput: '1.8GBps', alertCount: 3,
+      alerts: [{ severity: 'warning', text: '连接数接近上限', time: '23分钟' }] },
+    { id: 'b3', name: '业务-3', status: '异常', statusClass: 'status-abnormal',
+      tag1: '需要关注', tagType1: 'warning', tag2: '告警异常', tagType2: 'danger', throughput: '1.2GBps', alertCount: 3,
+      alerts: [{ severity: 'warning', text: '平均响应时间增高15%', time: '5分钟' }, { severity: 'info', text: 'http 404 状态码异常', time: '10分钟' }] },
+    { id: 'b4', name: '业务-4', status: '正常', statusClass: 'status-normal',
+      tag1: '运行正常', tagType1: 'success', throughput: '456MBps', alertCount: 0 },
+    { id: 'b5', name: '业务-5', status: '异常', statusClass: 'status-abnormal',
+      tag1: '需要关注', tagType1: 'warning', tag2: '告警异常', tagType2: 'danger', throughput: '234MBps', alertCount: 3,
+      alerts: [{ severity: 'error', text: '连接激增', time: '1分钟' }, { severity: 'warning', text: 'CPU使用率 80%', time: '23分钟' }] },
+    { id: 'b6', name: '业务-6', status: '正常', statusClass: 'status-normal',
+      tag1: '运行正常', tagType1: 'success', throughput: '189MBps', alertCount: 1,
+      alerts: [{ severity: 'info', text: '延迟告警 0.2s', time: '1分钟' }] },
+  ]
+}
+
+function layoutNodes() {
+  var colMap: Record<number, TopoNode[]> = {}
+  for (var ni = 0; ni < allNodes.value.length; ni++) {
+    var n = allNodes.value[ni]
+    if (!colMap[n.column]) colMap[n.column] = []
+    colMap[n.column].push(n)
   }
 
-  if (nodes.value.length === 0) {
-    chart.setOption({
-      backgroundColor: 'transparent',
-      title: { text: '暂无拓扑数据', left: 'center', top: 'center', textStyle: { color: '#fff', fontSize: 16 } },
-      series: []
-    }, true)
-    return
+  var cols = Object.keys(colMap).map(Number).sort(function(a,b){return a-b})
+  var startX = 20
+  var startY = 20
+  var COL_GAP = 120
+  var ROW_GAP = 30
+
+  for (var ci = 0; ci < cols.length; ci++) {
+    var c = cols[ci]
+    var colNodes = colMap[c]
+    for (var ri = 0; ri < colNodes.length; ri++) {
+      var node = colNodes[ri]
+      node.x = startX + c * (NODE_W + COL_GAP)
+      node.y = startY + ri * (NODE_H + ROW_GAP)
+    }
   }
 
-  // 构建 ECharts graph 数据
-  const chartNodes = nodes.value.map(n => ({
-    id: n.id,
-    name: n.name,
-    category: n.type === 'service' ? 0 : n.type === 'host' ? 1 : n.type === 'pod' ? 2 : 3,
-    value: n.value,
-    symbolSize: n.symbolSize || calcNodeSize(n.value),
-    itemStyle: {
-      color: statusColor(n.status),
-      borderColor: '#fff',
-      borderWidth: selectedNode.value?.id === n.id ? 3 : 1,
-      shadowColor: statusColor(n.status),
-      shadowBlur: selectedNode.value?.id === n.id ? 20 : 10
-    },
-    label: { show: true, color: '#fff', fontSize: 12 },
-    // 附加数据供 tooltip 使用
-    _status: n.status,
-    _ip: n.ip,
-    _latency: n.latency,
-    _alertCount: n.alertCount
-  }))
-
-  const chartLinks = links.value.map(l => ({
-    source: l.source,
-    target: l.target,
-    value: l.value,
-    lineStyle: {
-      color: 'rgba(10, 186, 255, 0.6)',
-      width: l.lineStyle?.width || calcLineWidth(l.value),
-      curveness: 0.1,
-      opacity: 0.8
-    }
-  }))
-
-  chart.setOption({
-    backgroundColor: 'transparent',
-    tooltip: {
-      backgroundColor: 'rgba(5, 56, 90, 0.9)',
-      borderColor: '#0ABAFF',
-      borderWidth: 1,
-      textStyle: { color: '#fff', fontSize: 12 },
-      formatter: (params: any) => {
-        if (params.dataType === 'node') {
-          const n = nodes.value.find(n => n.id === params.data.id)
-          if (!n) return params.data.name
-          let html = `<div style="font-weight:600;margin-bottom:8px">${n.name}</div>`
-          html += `<div>类型：${typeLabel(n.type)}</div>`
-          html += `<div>状态：<span style="color:${statusColor(n.status)}">${statusLabel(n.status)}</span></div>`
-          if (n.ip) html += `<div>IP：${n.ip}</div>`
-          if (n.value) html += `<div>流量：${n.value}</div>`
-          if (n.latency !== undefined) html += `<div>延迟：${n.latency}ms</div>`
-          if (n.alertCount) html += `<div>告警：${n.alertCount}个</div>`
-          return html
-        }
-        if (params.dataType === 'edge') {
-          return `<div>流量：${params.data.value || '-'}</div>`
-        }
-        return ''
-      }
-    },
-    legend: { show: false },
-    series: [{
-      type: 'graph',
-      layout: 'force',
-      roam: true,
-      draggable: true,
-      force: {
-        repulsion: 300,
-        edgeLength: [80, 200],
-        gravity: 0.1
-      },
-      label: { show: true, color: '#fff', fontSize: 12 },
-      edgeSymbol: ['none', 'arrow'],
-      edgeSymbolSize: [0, 8],
-      data: chartNodes,
-      links: chartLinks,
-      emphasis: {
-        focus: 'adjacency',
-        lineStyle: { width: 4, color: '#0ABAFF' }
-      }
-    }]
-  }, true)
-
-  // 绑定节点点击事件
-  chart.off('click')
-  chart.on('click', (params: any) => {
-    if (params.dataType === 'node') {
-      const node = nodes.value.find(n => n.id === params.data.id)
-      if (node) {
-        selectedNode.value = node
-        updateNodeHighlight()
-        loadRelatedNodes(node)
-        nextTick(() => renderTrendChart())
+  var links: TopoLink[] = []
+  for (var i = 0; i < allNodes.value.length; i++) {
+    for (var j = i+1; j < allNodes.value.length; j++) {
+      var a = allNodes.value[i]
+      var b = allNodes.value[j]
+      if (a.column + 1 === b.column) {
+        var sx = a.x + NODE_W
+        var sy = a.y + NODE_H / 2
+        var tx = b.x
+        var ty = b.y + NODE_H / 2
+        links.push({
+          sourceId: a.id,
+          targetId: b.id,
+          path: calcPath(sx, sy, tx, ty),
+          width: 1.5
+        })
       }
     }
-  })
-}
-
-// 计算节点大小
-const calcNodeSize = (value?: number) => {
-  if (!value) return 40
-  if (value > 10000) return 80
-  if (value > 5000) return 60
-  return 40
-}
-
-// 计算连线宽度
-const calcLineWidth = (value?: number) => {
-  if (!value) return 1
-  if (value > 10000) return 3
-  if (value > 1000) return 2
-  return 1
-}
-
-// 更新节点高亮状态
-const updateNodeHighlight = () => {
-  if (!chartInstance.value || !selectedNode.value) return
-  const option = chartInstance.value.getOption()
-  const series = option.series as any[]
-  if (!series?.[0]?.data) return
-
-  series[0].data = series[0].data.map((n: any) => ({
-    ...n,
-    itemStyle: {
-      ...n.itemStyle,
-      borderWidth: selectedNode.value?.id === n.id ? 3 : 1,
-      shadowBlur: selectedNode.value?.id === n.id ? 20 : 10
-    }
-  }))
-
-  chartInstance.value.setOption({ series }, false)
-}
-
-// 加载关联节点
-const loadRelatedNodes = (node: TopologyNode) => {
-  const related: RelatedNode[] = []
-
-  links.value.forEach(l => {
-    if (l.source === node.id) {
-      const target = nodes.value.find(n => n.id === l.target)
-      if (target) related.push({ id: target.id, name: target.name, direction: 'out', traffic: formatTraffic(l.value) })
-    }
-    if (l.target === node.id) {
-      const source = nodes.value.find(n => n.id === l.source)
-      if (source) related.push({ id: source.id, name: source.name, direction: 'in', traffic: formatTraffic(l.value) })
-    }
-  })
-
-  relatedNodes.value = related.slice(0, 5)
-}
-
-// 格式化流量
-const formatTraffic = (value?: number) => {
-  if (!value) return '-'
-  if (value > 1000000) return (value / 1000000).toFixed(1) + ' MB'
-  if (value > 1000) return (value / 1000).toFixed(1) + ' KB'
-  return value + ' B'
-}
-
-// 渲染流量趋势图
-const renderTrendChart = () => {
-  if (!trendRef.value || !selectedNode.value) return
-
-  let chart = trendChartInstance.value
-  if (!chart) {
-    chart = echarts.init(trendRef.value)
-    trendChartInstance.value = chart
   }
-
-  // 生成模拟趋势数据（实际应从 API 获取）
-  const trendData = selectedNode.value.trafficTrend ||
-    Array.from({ length: 24 }, (_, i) => ({
-      time: `${String(i).padStart(2, '0')}:00`,
-      value: Math.floor(Math.random() * 1000) + 100
-    }))
-
-  chart.setOption({
-    backgroundColor: 'transparent',
-    grid: { top: 10, right: 10, bottom: 20, left: 40 },
-    xAxis: {
-      type: 'category',
-      data: trendData.map(d => d.time),
-      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
-      axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10, interval: 3 }
-    },
-    yAxis: {
-      type: 'value',
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
-      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
-      axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 10 }
-    },
-    series: [{
-      type: 'line',
-      data: trendData.map(d => d.value),
-      smooth: true,
-      symbol: 'none',
-      lineStyle: { color: '#0ABAFF', width: 2 },
-      areaStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(10, 186, 255, 0.3)' },
-          { offset: 1, color: 'rgba(10, 186, 255, 0.05)' }
-        ])
-      }
-    }]
-  })
+  visibleLinks.value = links
 }
 
-// 视图切换
-const handleViewChange = () => {
-  selectedNode.value = null
-  relatedNodes.value = []
-  refresh()
+function selectNode(node: TopoNode) {
+  console.log('选中节点:', node.name)
 }
 
-// 点击关联节点
-const handleRelatedClick = (rel: RelatedNode) => {
-  const node = nodes.value.find(n => n.id === rel.id)
-  if (node) {
-    selectedNode.value = node
-    updateNodeHighlight()
-    loadRelatedNodes(node)
-    nextTick(() => renderTrendChart())
-  }
+function queryBusiness() {
+  ElMessage.info('查询业务: ' + selectedBusiness.value)
 }
 
-// 操作按钮
-const viewDetail = () => ElMessage.info('查看详情功能开发中')
-const viewLog = () => ElMessage.info('查看日志功能开发中')
-const setAlert = () => ElMessage.info('设置告警功能开发中')
-
-// 渲染空状态
-const renderEmpty = (text: string) => {
-  if (!chartInstance.value) return
-  chartInstance.value.setOption({
-    backgroundColor: 'transparent',
-    title: { text, left: 'center', top: 'center', textStyle: { color: text === '加载失败' ? '#FF745A' : '#fff', fontSize: 16 } },
-    series: []
-  }, true)
-}
-
-// 窗口 resize 处理
-const handleResize = () => {
-  chartInstance.value?.resize()
-  trendChartInstance.value?.resize()
-}
-
-onMounted(() => {
-  refresh()
-  window.addEventListener('resize', handleResize)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-  chartInstance.value?.dispose()
-  trendChartInstance.value?.dispose()
-  chartInstance.value = null
-  trendChartInstance.value = null
+onMounted(function() {
+  loadTopology()
 })
 </script>
 
-<style scoped lang="scss">
-.topology-page {
+<style scoped>
+.business-topo-page {
   min-height: 100vh;
-  padding: 20px 24px;
-  background: #0a1628;
+  background: #F5F7FA;
+  display: flex;
+  flex-direction: column;
+}
+.topo-header {
+  height: 50px;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+.header-title {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 4px 14px;
+  border: 1px solid rgba(64,158,255,.5);
+  border-radius: 3px;
+  background: rgba(64,158,255,.15);
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: rgba(255,255,255,.75);
+  font-size: 12px;
+}
+.time-range { color: rgba(255,255,255,.65); }
+.admin-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255,255,255,.85);
+}
+.admin-name { color: rgba(255,255,255,.55); margin-left: 4px; }
 
-  .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
+.stats-bar {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  background: #fff;
+  border-bottom: 1px solid #E4E7ED;
+}
+.stat-item {
+  flex: 1;
+  position: relative;
+  padding: 14px 16px 14px 52px;
+  border-right: 1px solid #EBEEF5;
+  text-align: left;
+}
+.stat-item:last-child { border-right: none; }
+.stat-label { font-size: 13px; color: #606266; margin-bottom: 2px; }
+.stat-value { font-size: 22px; font-weight: 700; color: #303133; font-family: Arial, Helvetica, sans-serif; }
+.stat-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.7;
+}
 
-    .page-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: #FFFFFF;
-    }
+.topo-body { display: flex; flex: 1; overflow: hidden; position: relative; }
 
-    .header-actions {
-      display: flex;
-      gap: 12px;
-      align-items: center;
+/* 左侧拓扑画布 */
+.topo-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background: #fff;
+}
+.topo-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+.topo-link {
+  fill: none;
+  stroke: #7EB8FF;
+  opacity: 0.45;
+  pointer-events: none;
+}
 
-      .dark-select {
-        :deep(.el-select__wrapper) {
-          background: rgba(10, 186, 255, 0.15);
-          border: 1px solid rgba(10, 186, 255, 0.3);
-          box-shadow: none;
-          .el-select__placeholder { color: rgba(255, 255, 255, 0.7); }
-          .el-select__selected-item { color: #FFFFFF; }
-        }
-      }
+.topo-nodes-area {
+  position: relative;
+  z-index: 2;
+  padding: 20px;
+  min-height: 500px;
+  min-width: 900px;
+}
 
-      .dark-btn {
-        background: rgba(10, 186, 255, 0.3) !important;
-        border: 1px solid rgba(10, 186, 255, 0.5) !important;
-        color: #FFFFFF !important;
-        &:hover { background: rgba(10, 186, 255, 0.5) !important; }
-      }
-    }
-  }
+/* 节点卡片 */
+.topo-node-card {
+  position: absolute;
+  width: 200px;
+  background: #fff;
+  border: 1px solid #DCDFE6;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  cursor: pointer;
+  transition: transform .2s, box-shadow .2s, border-color .2s;
+  overflow: hidden;
+}
+.topo-node-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  border-color: #409EFF;
+}
 
-  .topology-content {
-    display: flex;
-    gap: 16px;
-    height: calc(100vh - 140px);
-    min-height: 500px;
+.node-header { padding: 8px 10px 4px; }
+.node-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+.node-type-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.icon-host { background: linear-gradient(135deg, #74b9ff, #0984e3); }
+.icon-service { background: linear-gradient(135deg, #a29bfe, #6c5ce7); }
+.node-ip {
+  font-size: 11px;
+  color: #606266;
+  font-family: Consolas, monospace;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.node-name {
+  font-size: 12px;
+  color: #303133;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-    .topology-chart {
-      flex: 1;
-      height: 100%;
-      background: rgba(10, 186, 255, 0.08);
-      border: 1px solid rgba(10, 186, 255, 0.3);
-      border-radius: 8px;
-      position: relative;
+.node-mini-chart { padding: 0 10px; height: 20px; }
 
-      .legend {
-        position: absolute;
-        left: 16px;
-        bottom: 16px;
-        display: flex;
-        gap: 16px;
-        padding: 8px 12px;
-        background: rgba(10, 22, 40, 0.8);
-        border-radius: 4px;
-        z-index: 10;
+.node-metrics { padding: 4px 10px 8px; }
+.metric-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 18px;
+  color: #909399;
+}
+.metric-label { flex-shrink: 0; color: #909399; font-size: 11px; }
+.metric-val {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #303133;
+  font-family: Consolas, monospace;
+  width: 56px;
+  text-align: right;
+}
+.mini-bar {
+  flex: 1;
+  height: 4px;
+  background: #EBEEF5;
+  border-radius: 2px;
+  overflow: hidden;
+  max-width: 48px;
+}
+.mini-bar .bar-fill {
+  display: block;
+  height: 100%;
+  background: #409EFF;
+  border-radius: 2px;
+  transition: width .3s;
+}
+.mini-bar.error .bar-fill { background: #67C23A; }
+.alert-badge :deep(.el-badge__content) { font-size: 10px; }
 
-        .legend-item {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 12px;
-          color: rgba(255, 255, 255, 0.7);
+/* 右侧业务面板 */
+.business-panel {
+  width: 300px;
+  flex-shrink: 0;
+  background: #fff;
+  border-left: 1px solid #E4E7ED;
+  display: flex;
+  flex-direction: column;
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid #EBEEF5;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.panel-title { font-size: 14px; font-weight: 600; color: #303133; flex-shrink: 0; }
 
-          .legend-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-          }
+.business-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.business-list::-webkit-scrollbar { width: 4px; }
+.business-list::-webkit-scrollbar-thumb { background: #C0C4CC; border-radius: 2px; }
 
-          .legend-line {
-            width: 16px;
-            height: 2px;
-            background: rgba(10, 186, 255, 0.6);
-          }
-        }
-      }
-    }
+.biz-card {
+  margin: 6px 10px;
+  padding: 12px;
+  border: 1px solid #EBEEF5;
+  border-radius: 6px;
+  transition: border-color .2s, box-shadow .2s;
+  cursor: pointer;
+}
+.biz-card:hover {
+  border-color: #409EFF;
+  box-shadow: 0 2px 8px rgba(64,158,255,.1);
+}
+.biz-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.biz-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-normal { background: #67C23A; }
+.status-warning { background: #E6A23C; }
+.status-abnormal { background: #F56C6C; }
+.biz-name { font-size: 13px; font-weight: 600; color: #303133; flex-shrink: 0; }
+.biz-alert-badge { margin-left: auto; }
+.biz-alert-badge :deep(.el-badge__content) { font-size: 10px; }
 
-    .detail-panel {
-      width: 320px;
-      flex-shrink: 0;
-      background: rgba(10, 186, 255, 0.08);
-      border: 1px solid rgba(10, 186, 255, 0.3);
-      border-radius: 8px;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
+.biz-throughput {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.throughput-label { font-size: 11px; color: #909399; }
+.throughput-value { font-size: 14px; font-weight: 700; color: #303133; font-family: Arial, sans-serif; }
 
-      .panel-header {
-        padding: 16px;
-        border-bottom: 1px solid rgba(10, 186, 255, 0.15);
+.biz-alerts { border-top: 1px dashed #EBEEF5; padding-top: 6px; }
+.alert-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 11px; }
+.alert-severity { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.alert-severity.error { background: #F56C6C; }
+.alert-severity.warning { background: #E6A23C; }
+.alert-severity.info { background: #409EFF; }
+.alert-text { color: #606266; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alert-time { color: #C0C4CC; flex-shrink: 0; font-size: 10px; }
 
-        .panel-title {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          color: #FFFFFF;
-
-          .title-bar {
-            width: 4px;
-            height: 16px;
-            background: #0ABAFF;
-            border-radius: 2px;
-          }
-        }
-      }
-
-      .panel-body {
-        flex: 1;
-        overflow-y: auto;
-        padding: 16px;
-
-        &::-webkit-scrollbar { width: 4px; }
-        &::-webkit-scrollbar-track { background: transparent; }
-        &::-webkit-scrollbar-thumb { background: rgba(10, 186, 255, 0.3); border-radius: 2px; }
-
-        .empty-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 300px;
-          gap: 16px;
-          color: rgba(255, 255, 255, 0.5);
-          font-size: 13px;
-        }
-
-        .detail-content {
-          .node-basic {
-            margin-bottom: 16px;
-
-            .node-name {
-              font-size: 16px;
-              font-weight: 600;
-              color: #FFFFFF;
-              margin-bottom: 8px;
-            }
-
-            .node-tags {
-              display: flex;
-              gap: 8px;
-              margin-bottom: 8px;
-
-              .tag {
-                padding: 2px 8px;
-                border-radius: 4px;
-                font-size: 12px;
-
-                &.tag-type {
-                  background: rgba(10, 186, 255, 0.2);
-                  color: #0ABAFF;
-                }
-                &.tag-normal {
-                  background: rgba(97, 221, 170, 0.2);
-                  color: #61DDAA;
-                }
-                &.tag-abnormal {
-                  background: rgba(255, 116, 90, 0.2);
-                  color: #FF745A;
-                }
-                &.tag-warning {
-                  background: rgba(255, 195, 40, 0.2);
-                  color: #FFC328;
-                }
-              }
-            }
-
-            .node-ip {
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 12px;
-              color: rgba(255, 255, 255, 0.5);
-            }
-          }
-
-          .metrics-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 16px;
-
-            .metric-item {
-              background: rgba(10, 186, 255, 0.05);
-              border: 1px solid rgba(10, 186, 255, 0.15);
-              border-radius: 6px;
-              padding: 10px;
-
-              .metric-label {
-                font-size: 11px;
-                color: rgba(255, 255, 255, 0.5);
-                margin-bottom: 4px;
-              }
-
-              .metric-value {
-                font-size: 16px;
-                font-weight: 600;
-                color: #FFFFFF;
-                font-family: Arial, sans-serif;
-
-                .metric-unit {
-                  font-size: 11px;
-                  font-weight: 400;
-                  color: rgba(255, 255, 255, 0.5);
-                  margin-left: 2px;
-                }
-
-                &.value-warning { color: #FFC328; }
-                &.value-abnormal { color: #FF745A; }
-              }
-            }
-          }
-
-          .trend-section {
-            margin-bottom: 16px;
-
-            .section-title {
-              font-size: 13px;
-              font-weight: 600;
-              color: rgba(255, 255, 255, 0.7);
-              margin-bottom: 8px;
-            }
-
-            .trend-chart {
-              height: 120px;
-            }
-          }
-
-          .related-section {
-            margin-bottom: 16px;
-
-            .section-title {
-              font-size: 13px;
-              font-weight: 600;
-              color: rgba(255, 255, 255, 0.7);
-              margin-bottom: 8px;
-            }
-
-            .related-list {
-              .related-item {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 8px;
-                border-radius: 4px;
-                cursor: pointer;
-                transition: background 0.2s;
-
-                &:hover { background: rgba(10, 186, 255, 0.1); }
-
-                .related-name {
-                  display: flex;
-                  align-items: center;
-                  gap: 6px;
-                  font-size: 12px;
-                  color: rgba(255, 255, 255, 0.8);
-
-                  .direction-arrow {
-                    font-size: 14px;
-                    &.dir-in { color: #61DDAA; }
-                    &.dir-out { color: #FF745A; }
-                  }
-                }
-
-                .related-traffic {
-                  font-size: 11px;
-                  color: rgba(255, 255, 255, 0.5);
-                  font-family: Arial, sans-serif;
-                }
-              }
-
-              .related-empty {
-                text-align: center;
-                padding: 16px;
-                font-size: 12px;
-                color: rgba(255, 255, 255, 0.3);
-              }
-            }
-          }
-
-          .action-buttons {
-            display: flex;
-            gap: 8px;
-
-            .action-btn {
-              flex: 1;
-              background: rgba(10, 186, 255, 0.15) !important;
-              border: 1px solid rgba(10, 186, 255, 0.3) !important;
-              color: #FFFFFF !important;
-              font-size: 12px;
-
-              &:hover { background: rgba(10, 186, 255, 0.3) !important; }
-              &.warn { border-color: rgba(255, 116, 90, 0.5) !important; color: #FF745A !important; }
-            }
-          }
-        }
-      }
-    }
-  }
+.empty-businesses {
+  text-align: center;
+  padding: 40px 20px;
+  color: #C0C4CC;
+  font-size: 13px;
 }
 </style>

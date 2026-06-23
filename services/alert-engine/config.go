@@ -11,7 +11,7 @@ import (
 func LoadConfig() *Config {
 	viper.SetDefault("service_name", "alert-engine")
 	viper.SetDefault("version", "1.0.0")
-	viper.SetDefault("grpc_addr", ":9009")
+	viper.SetDefault("grpc_addr", ":9010")
 	viper.SetDefault("http_addr", ":8009")
 
 	viper.SetDefault("relational_db_type", "oceanbase")

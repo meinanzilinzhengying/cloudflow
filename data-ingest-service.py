@@ -54,6 +54,15 @@ except ImportError:
     class CollectorRegistry:
         def __init__(self): pass
 
+
+# Cluster mapping: probe_id -> cluster_id
+PROBE_CLUSTER_MAPPING = {
+    'node-probe': 'vm2-business',           # VM2 业务集群
+    'localhost.localdomain': 'vm2-business', # VM2 业务集群（实际 probe_id）
+    'vm1-probe': 'platform',                 # 平台集群
+    'default': 'default'
+}
+
 # 配置
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
@@ -260,11 +269,16 @@ class DataIngestService:
                 EVENTS_DROPPED_TOTAL.labels(reason="sampling").inc()
                 continue
 
-            # 补充 tenant_id 默认值
+            # 补充 tenant_id 和 cluster_id 默认值
             tenant_id = ev.get("tenant_id", "default")
             if not tenant_id:
                 ev["tenant_id"] = "default"
                 tenant_id = "default"
+            
+            # 根据 probe_id 设置 cluster_id（强制设置，确保正确）
+            probe_id = ev.get("probe_id", "default")
+            ev["cluster_id"] = PROBE_CLUSTER_MAPPING.get(probe_id, "default")
+            logger.info(f"Setting cluster_id={ev['cluster_id']} for probe_id={probe_id}")
 
             # Check tenant quota
             if self.quota_manager.is_disabled(tenant_id):
@@ -498,7 +512,8 @@ class DataIngestService:
                     int(ev.get("bytes", 0) or 0), int(ev.get("packets", 0) or 0),
                     int(ev.get("latency_ms", 0) or 0), ev.get("service", ""),
                     ev.get("details", ""), ev.get("tags", ""),
-                    ev.get("tenant_id", "default")
+                    ev.get("tenant_id", "default"),
+                    ev.get("cluster_id", "default")
                 ])
 
             start = time.time()
@@ -509,7 +524,7 @@ class DataIngestService:
                         if not self._reconnect_clickhouse():
                             raise Exception("ClickHouse not available")
                     self.ch_client.execute(
-                        "INSERT INTO ebpf_events (timestamp, probe_id, category, event_type, src_ip, dst_ip, src_port, dst_port, protocol, bytes, packets, latency_ms, service, details, tags, tenant_id) VALUES",
+                        "INSERT INTO ebpf_events (timestamp, probe_id, category, event_type, src_ip, dst_ip, src_port, dst_port, protocol, bytes, packets, latency_ms, service, details, tags, tenant_id, cluster_id) VALUES",
                         rows
                     )
                     success = True

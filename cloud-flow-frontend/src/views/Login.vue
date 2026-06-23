@@ -1,31 +1,39 @@
 <template>
   <div class="login-page">
     <div class="login-container">
+      <!-- 左侧品牌区 -->
       <div class="login-left">
         <div class="brand">
-          <el-icon size="64" color="#165DFF"><Connection /></el-icon>
+          <el-icon :size="64" color="#165DFF"><Connection /></el-icon>
           <h1 class="brand-title">CloudFlow</h1>
           <p class="brand-subtitle">网络可观测平台</p>
           <p class="brand-desc">新一代 eBPF 全栈流量分析系统</p>
         </div>
         <div class="features">
           <div class="feature-item">
-            <el-icon size="20" color="#165DFF"><Monitor /></el-icon>
+            <el-icon :size="20" color="#165DFF"><Monitor /></el-icon>
             <span>实时内核级流量采集</span>
           </div>
           <div class="feature-item">
-            <el-icon size="20" color="#165DFF"><DataAnalysis /></el-icon>
+            <el-icon :size="20" color="#165DFF"><DataAnalysis /></el-icon>
             <span>智能协议解析与异常检测</span>
           </div>
           <div class="feature-item">
-            <el-icon size="20" color="#165DFF"><Warning /></el-icon>
+            <el-icon :size="20" color="#165DFF"><Warning /></el-icon>
             <span>安全审计与威胁感知</span>
           </div>
         </div>
       </div>
+
+      <!-- 右侧登录表单区 -->
       <div class="login-right">
         <el-card class="login-card" shadow="never">
-          <h2 class="login-title">欢迎登录</h2>
+          <template #header>
+            <div class="card-header">
+              <h2 class="login-title">欢迎登录</h2>
+            </div>
+          </template>
+
           <el-form
             ref="formRef"
             :model="form"
@@ -68,6 +76,7 @@
         </el-card>
       </div>
     </div>
+
     <div class="login-footer">
       <p>© 2025 CloudFlow Team. All Rights Reserved.</p>
     </div>
@@ -112,7 +121,7 @@ const handleLogin = async () => {
     } else {
       ElMessage.error(res.message || '登录失败')
     }
-  } catch (e) {
+  } catch (e: any) {
     ElMessage.error('网络错误，请稍后重试')
   } finally {
     loading.value = false
@@ -128,13 +137,16 @@ const handleLogin = async () => {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #0a1f44 0%, #0e3a8a 50%, #165DFF 100%);
+  font-family: 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+
   .login-container {
     display: flex;
     width: 900px;
-    background: #fff;
+    background: #FFFFFF;
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+
     .login-left {
       flex: 1;
       padding: 48px;
@@ -142,67 +154,104 @@ const handleLogin = async () => {
       display: flex;
       flex-direction: column;
       justify-content: center;
+
       .brand {
         margin-bottom: 40px;
+
         .brand-title {
           font-size: 32px;
           font-weight: 700;
           color: #165DFF;
           margin-top: 16px;
+          margin-bottom: 0;
         }
+
         .brand-subtitle {
           font-size: 20px;
           font-weight: 600;
-          color: #FFFFFF;
+          color: #303133;
           margin-top: 8px;
+          margin-bottom: 0;
         }
+
         .brand-desc {
           font-size: 14px;
-          color: rgba(255, 255, 255, 0.6);
+          color: #606266;
           margin-top: 8px;
+          margin-bottom: 0;
         }
       }
+
       .features {
         display: flex;
         flex-direction: column;
         gap: 16px;
+
         .feature-item {
           display: flex;
           align-items: center;
           gap: 10px;
           font-size: 14px;
-          color: var(--el-text-color-regular);
+          color: #303133;
         }
       }
     }
+
     .login-right {
       width: 360px;
-      padding: 48px;
       display: flex;
       flex-direction: column;
       justify-content: center;
+
       .login-card {
         border: none;
-        .login-title {
-          font-size: 24px;
-          font-weight: 600;
-          color: #FFFFFF;
-          margin-bottom: 24px;
-          text-align: center;
+        height: 100%;
+
+        :deep(.el-card__header) {
+          background: linear-gradient(135deg, #165DFF 0%, #0e3a8a 100%);
+          padding: 24px 48px;
+          border-bottom: none;
         }
-      }
-      .login-btn {
-        width: 100%;
-        height: 44px;
-        font-size: 16px;
-        border-radius: 6px;
+
+        :deep(.el-card__body) {
+          padding: 48px 48px 32px 48px;
+        }
+
+        .card-header {
+          .login-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #FFFFFF;
+            margin: 0;
+            text-align: center;
+          }
+        }
+
+        .el-form {
+          .el-form-item {
+            margin-bottom: 22px;
+          }
+
+          .login-btn {
+            width: 100%;
+            height: 44px;
+            font-size: 16px;
+            border-radius: 6px;
+          }
+        }
       }
     }
   }
+
   .login-footer {
     margin-top: 24px;
     color: rgba(255, 255, 255, 0.6);
     font-size: 12px;
+    text-align: center;
+
+    p {
+      margin: 0;
+    }
   }
 }
 </style>
