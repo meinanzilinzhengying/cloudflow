@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"strings"
+
+	"github.com/google/uuid"
 
 	ebpfprobe "github.com/meinanzilinzhengying/ebpf-probe"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/api"
@@ -23,6 +26,9 @@ import (
 
 var (
 	probeID            = envOrDefault("PROBE_ID", platform.Hostname())
+	agentID            = "" // Global unique agent ID
+	startTime          time.Time
+	hostname           = platform.Hostname()
 	edgeAddr           = envOrDefault("EDGE_ADDR", "192.168.58.130:9104")
 	clickHouseAddr     = envOrDefault("CLICKHOUSE_ADDR", "192.168.58.130")
 	clickHouseUser     = envOrDefault("CLICKHOUSE_USER", "default")
@@ -39,7 +45,29 @@ func envOrDefault(key, def string) string {
 	return def
 }
 
+
+// loadOrCreateAgentID loads existing agent_id or generates a new UUID
+func loadOrCreateAgentID() string {
+	agentIDFile := "/opt/cloudflow/ebpf-probe/agent_id"
+	if data, err := os.ReadFile(agentIDFile); err == nil {
+		id := strings.TrimSpace(string(data))
+		if id != "" {
+			log.Printf("[AGENT] Loaded agent_id: %s", id)
+			return id
+		}
+	}
+	id := uuid.New().String()
+	os.MkdirAll("/opt/cloudflow/ebpf-probe", 0755)
+	if err := os.WriteFile(agentIDFile, []byte(id), 0644); err != nil {
+		log.Printf("[AGENT] Failed to save agent_id: %v", err)
+	} else {
+		log.Printf("[AGENT] Generated new agent_id: %s", id)
+	}
+	return id
+}
+
 func main() {
+	startTime = time.Now()
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	fmt.Println("═══════════════════════════════════════════")
 	fmt.Printf("[CloudFlow eBPF Probe v%s]\n", ebpfprobe.Version)
@@ -51,6 +79,9 @@ func main() {
 	fmt.Printf("  clickhouse: %s\n", clickHouseAddr)
 	fmt.Printf("  api_port:   %s\n", apiPort)
 	fmt.Println("═══════════════════════════════════════════")
+
+	// Initialize agent_id
+	agentID = loadOrCreateAgentID()
 
 	kernelCap := kernel.DetectCapabilities()
 	log.Printf("[KERNEL] 可用钩子: %+v", kernelCap.AvailableHooks)
@@ -148,6 +179,16 @@ func main() {
 
 			cmd := record["command"].(string)
 				log.Printf("[CONFIG] 收到命令: %s", cmd)
+				// Mark as applied first
+				upQ := fmt.Sprintf("ALTER TABLE cloudflow.probe_config UPDATE applied = 1 WHERE probe_id = '%s' AND applied = 0", probeID)
+				chUp := fmt.Sprintf("http://%s:8123/?query=%s", clickHouseAddr, url.QueryEscape(upQ))
+				respUp, errUp := http.Get(chUp)
+				if errUp != nil {
+					log.Printf("[CONFIG] Mark fail: %v", errUp)
+				} else {
+					respUp.Body.Close()
+					log.Printf("[CONFIG] Mark ok: %d", respUp.StatusCode)
+				}
 				switch cmd {
 				case "stop":
 					mgr.Stop()
@@ -173,25 +214,22 @@ func main() {
 					}
 				}
 
-				// 标记已应用（更新applied=1）
-				updateQuery := fmt.Sprintf(
-					"ALTER TABLE cloudflow.probe_config UPDATE applied = 1 WHERE probe_id = '%s' AND applied = 0",
-					probeID,
-				)
-				chUpdate := fmt.Sprintf("http://%s:8123/?query=%s", clickHouseAddr, url.QueryEscape(updateQuery))
-				log.Printf("[CONFIG] 标记已处理: %s", chUpdate[:min(len(chUpdate), 100)])
-				resp, err := http.Get(chUpdate)
-				if err != nil {
-					log.Printf("[CONFIG] 标记失败: %v", err)
-				} else {
-					log.Printf("[CONFIG] 标记响应: %d", resp.StatusCode)
-					resp.Body.Close()
-				}
 			}
 		}
 	}()
 
 
+
+	// Start heartbeat reporting (every 30 seconds)
+	go func() {
+		log.Printf("[HEARTBEAT] start, agent_id=%s", agentID)
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		reportHeartbeat(agentID, probeID, hostname, mgr)
+		for range ticker.C {
+			reportHeartbeat(agentID, probeID, hostname, mgr)
+		}
+	}()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
