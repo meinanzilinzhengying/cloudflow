@@ -17,6 +17,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"sync"
@@ -226,10 +227,9 @@ func New(config *Config) (*Service, error) {
 		if err := s.initDatabase(); err != nil {
 			return nil, fmt.Errorf("database init failed: %w", err)
 		}
+		// P0-7 修复: 仅在数据库可用时初始化 Leader 选举
+		s.leaderElection = NewLeaderElection(s.db, "", "")
 	}
-
-	// P0-7 修复: 初始化 Leader 选举
-	s.leaderElection = NewLeaderElection(s.db, "", "")
 
 	// 初始化 ClickHouse 连接
 	if err := s.initClickHouse(); err != nil {
@@ -463,6 +463,7 @@ func (s *Service) Start() error {
 	mux.HandleFunc("/alerts/create", s.createAlertHTTPHandler)
 	mux.HandleFunc("/alerts/update", s.updateAlertHTTPHandler)
 	mux.HandleFunc("/alerts/resolve", s.resolveAlertHTTPHandler)
+	mux.HandleFunc("/alerts/webhook", s.alertmanagerWebhookHandler)
 	mux.HandleFunc("/rules", s.listRulesHTTPHandler)
 	mux.HandleFunc("/rules/create", s.createRuleHTTPHandler)
 	mux.HandleFunc("/rules/update", s.updateRuleHTTPHandler)
@@ -472,7 +473,7 @@ func (s *Service) Start() error {
 	handler = s.rateLimiter.Handler(handler)
 	// P0-3 修复: 应用共享认证中间件
 	if s.auth != nil {
-		handler = s.auth.Middleware("/healthz")(handler)
+		handler = s.auth.Middleware("/healthz", "/alerts/webhook")(handler)
 	}
 	// 始终应用租户中间件（在认证后）
 	handler = tenant.HTTPMiddleware(handler)
@@ -576,6 +577,9 @@ func (s *Service) runPeriodicEvaluation() {
 
 // evaluateAllRules 评估所有启用的规则
 func (s *Service) evaluateAllRules() {
+	if s.db == nil {
+		return // 数据库未配置，跳过评估
+	}
 	rows, err := s.db.Query(context.Background(),
 		"SELECT rule_id, tenant_id, name, display_name, severity, expression, enabled, notify_interval FROM alert_rules WHERE enabled = true",
 	)
@@ -1037,6 +1041,9 @@ func (s *Service) ListRules(ctx context.Context, req *svcproto.ListAlertRulesReq
 
 // CreateAlert 创建告警
 func (s *Service) CreateAlert(ctx context.Context, req *svcproto.CreateAlertRequest) (*svcproto.CreateAlertResponse, error) {
+	if s.db == nil {
+		return &svcproto.CreateAlertResponse{Success: false, Message: "database not configured"}, nil
+	}
 	alertID := fmt.Sprintf("alert-%d", time.Now().UnixNano())
 
 	_, err := s.db.Exec(context.Background(),
@@ -1347,6 +1354,74 @@ func (s *Service) EvaluateAlerts(ctx context.Context, req *svcproto.EvaluateAler
 
 func (s *Service) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+// alertmanagerWebhookHandler 处理 Alertmanager 的 webhook 告警
+func (s *Service) alertmanagerWebhookHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		Status string `json:"status"`
+		Alerts []struct {
+			Status      string            `json:"status"`
+			Labels      map[string]string `json:"labels"`
+			Annotations map[string]string `json:"annotations"`
+			StartsAt    string            `json:"startsAt"`
+			EndsAt      string            `json:"endsAt"`
+			Fingerprint string            `json:"fingerprint"`
+		} `json:"alerts"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Printf("[WEBHOOK] Decode error: %v", err)
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	log.Printf("[WEBHOOK] Received %d alerts", len(payload.Alerts))
+
+	// 处理每个告警
+	for _, alert := range payload.Alerts {
+		severity := alert.Labels["severity"]
+		if severity == "" {
+			severity = "warning"
+		}
+
+		title := alert.Labels["alertname"]
+		if summary, ok := alert.Annotations["summary"]; ok {
+			title = summary
+		}
+
+		message := alert.Annotations["description"]
+		if message == "" {
+			message = alert.Annotations["summary"]
+		}
+
+		// 创建告警事件
+		tenantID := alert.Labels["tenant_id"]
+		if tenantID == "" {
+			tenantID = "default"
+		}
+
+		annotations := alert.Annotations["description"]
+		if annotations == "" {
+			annotations = alert.Annotations["summary"]
+		}
+
+		_, _ = s.CreateAlert(r.Context(), &svcproto.CreateAlertRequest{
+			TenantId:    tenantID,
+			Severity:    severity,
+			Title:       title,
+			Message:     message,
+			Annotations: annotations,
+			Labels:      alert.Labels,
+		})
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func (s *Service) listAlertsHTTPHandler(w http.ResponseWriter, r *http.Request) {

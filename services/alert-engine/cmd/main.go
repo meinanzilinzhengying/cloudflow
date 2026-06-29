@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	cfg := alertengine.DefaultConfig()
+	cfg := alertengine.LoadConfig()
 	flag.StringVar(&cfg.GrpcAddr, "grpc-addr", cfg.GrpcAddr, "gRPC listen address")
 	flag.StringVar(&cfg.HttpAddr, "http-addr", cfg.HttpAddr, "HTTP listen address")
 	flag.Parse()

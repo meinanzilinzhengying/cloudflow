@@ -1,6 +1,7 @@
 package alertengine
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -52,6 +53,18 @@ func LoadConfig() *Config {
 	viper.SetDefault("clickhouse_database", "cloudflow")
 
 	viper.SetDefault("mock_metrics_enabled", false)
+
+	// 尝试加载配置文件
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath("/etc/cloudflow/")
+	viper.AddConfigPath("./configs")
+	viper.AddConfigPath(".")
+	if err := viper.ReadInConfig(); err != nil {
+		log.Printf("[CONFIG] Warning: config file not found: %v", err)
+	} else {
+		log.Printf("[CONFIG] Loaded config file: %s", viper.ConfigFileUsed())
+	}
 
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix("CLOUDFLOW")
