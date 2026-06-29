@@ -480,6 +480,11 @@ func Load() (*Config, error) {
 			RetryBackoffMs:    viper.GetInt("kafka.retry_backoff_ms"),
 			ChannelBufferSize: viper.GetInt("kafka.channel_buffer_size"),
 		},
+		ClickHouseAddr:     viper.GetString("clickhouse_addr"),
+		ClickHousePort:     viper.GetInt("clickhouse_port"),
+		ClickHouseUser:     viper.GetString("clickhouse_user"),
+		ClickHousePassword: viper.GetString("clickhouse_password"),
+		ClickHouseDatabase: viper.GetString("clickhouse_database"),
 		Log: LogConfig{
 			Level:  viper.GetString("log.level"),
 			Format: viper.GetString("log.format"),

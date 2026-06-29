@@ -92,7 +92,7 @@ func main() {
 		log.Fatalf("[FATAL] EdgeClient 初始化失败: %v", err)
 	}
 	defer out.Close()
-	log.Printf("[OK] Edge 输出就绪")
+	log.Printf("[OK] Edge 输出就绪 (%s)", edgeAddr)
 
 	// ClickHouse 用于 API 查询（可选，连接失败不退出）
 	var ch *output.ClickHouse
