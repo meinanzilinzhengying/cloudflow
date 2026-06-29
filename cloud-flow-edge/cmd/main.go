@@ -68,6 +68,53 @@ func main() {
 	})
 	defer log.Sync()
 
+	log.Infof("边缘节点服务启动中... 配置: %s", localCfg.Summary())
+
+	// 3. 启动 Prometheus metrics
+	metricCollector := metrics.New(log)
+	metricsServer, metricsErrCh := metricCollector.StartServer(localCfg.MetricsPort)
+	go func() {
+		if err := <-metricsErrCh; err != nil {
+			log.Errorf("Prometheus metrics server 错误: %v", err)
+		}
+	}()
+
+	// 4. 创建探针管理器
+	manager := probemgr.NewManager(log)
+	manager.StartCleanup(30*time.Second, 60*time.Second)
+
+	// 初始设置探针数量指标
+	metricCollector.UpdateProbeCount(manager.GetProbeCount())
+
+	// 5. 初始化服务发现
+	var discovery servicediscovery.Discovery
+	centerAddr := localCfg.CenterAddr
+
+	// 创建中心服务客户端的函数
+	// 注意：更新引用和关闭旧连接的顺序很重要：
+	// 先更新 client 引用（加锁保护），再关闭旧连接。
+	// 这样可以避免在关闭旧连接期间，其他 goroutine 使用已关闭的连接。
+	// 闭包内从 atomic.Value 读取最新配置，确保热加载后 TLS/CenterAPIKey 能更新
+	createCenterClient := func(addr string) error {
+		currentCfg := loadCfg()
+		newClient, err := grpcclient.NewClient(addr, *currentCfg, log)
+		if err != nil {
+			return err
+		}
+		clientMu.Lock()
+		oldClient := client
+		client = newClient
+		if fwd != nil {
+			fwd.SetClient(client)
+		}
+		clientMu.Unlock()
+		// 关闭旧连接（如果有）
+		if oldClient != nil {
+			oldClient.Close()
+		}
+		return nil
+	}
+
 	// 3. 启动配置热加载
 	config.StartConfigWatch(func(newCfg *config.Config) {
 		log.Infof("配置已更新: %s", newCfg.Summary())
@@ -105,53 +152,6 @@ func main() {
 		log.Warnf("配置热加载提示：gRPC 监听端口和服务发现配置变更需要重启服务才能生效")
 	}, log)
 
-	log.Infof("边缘节点服务启动中... 配置: %s", localCfg.Summary())
-
-	// 3. 启动 Prometheus metrics
-	metricCollector := metrics.New(log)
-	metricsServer, metricsErrCh := metricCollector.StartServer(localCfg.MetricsPort)
-	go func() {
-		if err := <-metricsErrCh; err != nil {
-			log.Errorf("Prometheus metrics server 错误: %v", err)
-		}
-	}()
-
-	// 4. 创建探针管理器
-	manager := probemgr.NewManager(log)
-	manager.StartCleanup(30*time.Second, 60*time.Second)
-
-	// 初始设置探针数量指标
-	metricCollector.UpdateProbeCount(manager.GetProbeCount())
-
-	// 5. 初始化服务发现
-	var discovery servicediscovery.Discovery
-	centerAddr := localCfg.CenterAddr
-
-	// 创建中心服务客户端的函数
-	// 注意：更新引用和关闭旧连接的顺序很重要：
-	// 先更新 client 引用（加锁保护），再关闭旧连接。
-	// 这样可以避免在关闭旧连接期间，其他 goroutine 使用已关闭的连接。
-	// 闭包内从 atomic.Value 读取最新配置，确保热加载后 TLS/CenterAPIKey 能更新
-	createCenterClient := func(addr string) error {
-		currentCfg := loadCfg()
-		newClient, err := grpcclient.NewClient(addr, currentCfg, log)
-		if err != nil {
-			return err
-		}
-		clientMu.Lock()
-		oldClient := client
-		client = newClient
-		if fwd != nil {
-			fwd.SetClient(client)
-		}
-		clientMu.Unlock()
-		// 关闭旧连接（如果有）
-		if oldClient != nil {
-			oldClient.Close()
-		}
-		return nil
-	}
-
 	if localCfg.ServiceDiscovery.Enabled {
 		discovery, err = servicediscovery.NewDiscovery(localCfg.ServiceDiscovery, log)
 		if err != nil {
@@ -178,10 +178,14 @@ func main() {
 		}
 	}
 
-	// 6. 连接中心服务（支持 TLS + API Key）
-	if err := createCenterClient(centerAddr); err != nil {
-		log.Errorf("连接中心服务失败: %v", err)
-		os.Exit(1)
+	// 6. 连接中心服务（支持 TLS + API Key）— 仅在配置了中心地址时连接
+	if centerAddr != "" {
+		if err := createCenterClient(centerAddr); err != nil {
+			log.Errorf("连接中心服务失败: %v", err)
+			os.Exit(1)
+		}
+	} else {
+		log.Infof("中心服务地址为空，跳过中心连接（独立模式）")
 	}
 
 	// P0: Flow Ingest Pipeline - 根据配置选择 Kafka 或 gRPC 转发
@@ -304,7 +308,7 @@ func main() {
 						ProbeId:       p.ID,
 						HostIp:        p.HostIP,
 						Hostname:      p.Hostname,
-						Status:        p.Status,
+						Status:        edge.ProbeStatus(p.Status),
 						Version:       p.Version,
 						LastHeartbeat: p.LastHeartbeat.Unix(),
 					})

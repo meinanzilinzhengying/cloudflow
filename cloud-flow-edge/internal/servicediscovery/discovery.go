@@ -274,7 +274,8 @@ func (d *ConsulDiscovery) GetServiceAddress(serviceName string) (string, error) 
 	// 从consul中获取服务（带超时）
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	services, _, err := d.client.Catalog().Service(serviceName, "", &api.QueryOptions{WaitTime: 5 * time.Second, Context: ctx})
+	qOpts := &api.QueryOptions{WaitTime: 5 * time.Second}
+	services, _, err := d.client.Catalog().Service(serviceName, "", qOpts.WithContext(ctx))
 	if err != nil {
 		return "", fmt.Errorf("从consul获取服务失败: %w", err)
 	}
@@ -302,10 +303,7 @@ func (d *ConsulDiscovery) Start() {
 func (d *ConsulDiscovery) Stop() {
 	d.stopped.Do(func() {
 		close(d.stopCh)
-		if d.client != nil {
-			d.client.Close()
-		}
-		d.log.Info("consul服务发现已停止")
+		d.log.Infof("consul服务发现已停止")
 	})
 }
 

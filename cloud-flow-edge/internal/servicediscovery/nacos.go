@@ -495,7 +495,7 @@ func (nd *NacosDiscovery) hasChanged(old, new []EdgeInstance) bool {
 func (nd *NacosDiscovery) Stop() {
 	nd.stopped.Do(func() {
 		close(nd.stopCh)
-		nd.logger.Info("Nacos 服务发现已停止")
+		nd.logger.Infof("Nacos 服务发现已停止")
 	})
 }
 

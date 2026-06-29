@@ -7,7 +7,6 @@
 package whitelist
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"

@@ -13,6 +13,11 @@ import (
 // P19: 默认 worker 检查间隔
 const DefaultWorkerTick = 5 * time.Millisecond
 
+var (
+	ErrPoolStopped = fmt.Errorf("pool stopped")
+	ErrPoolFull    = fmt.Errorf("pool full")
+)
+
 
 // Task is a unit of work submitted to the pool.
 type Task func()

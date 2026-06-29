@@ -213,8 +213,6 @@ func (l *Limiter) GetStats() Stats {
 	var count int
 	var consumers []IPStat
 
-	now := time.Now()
-
 	l.ips.Range(func(key, value interface{}) bool {
 		count++
 		ip := key.(string)

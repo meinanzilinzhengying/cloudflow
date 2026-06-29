@@ -221,9 +221,9 @@ func ConnPoolInterceptor(pool *connpool.Pool, log *logger.Logger) grpc.UnaryServ
 		switch info.FullMethod {
 		case "/edge.ProbeService/RegisterProbe":
 			if probeID != "" {
-				if err := pool.Add(probeID, clientIP); err != nil {
+				if err := pool.Add(connpool.ConnectionInfo{ProbeID: probeID, IP: clientIP, ConnectedAt: time.Now(), LastActive: time.Now()}); err != nil {
 					log.Warnf("连接池拒绝: probeID=%s, ip=%s, err=%v", probeID, clientIP, err)
-					return nil, fmt.Errorf("连接池已满，最大连接数: %d", pool.MaxConnections())
+					return nil, fmt.Errorf("连接池已满，最大连接数: %d", pool.Capacity())
 				}
 			}
 		case "/edge.ProbeService/Heartbeat":
@@ -353,7 +353,7 @@ func extractIP(addr string) string {
 // 集成连接池、IP限流、goroutine池、熔断器
 func BuildServerOpts(
 	tlsCfg config.TLSConfig,
-	rateLimit config.RateLimit,
+	rateLimit config.RateLimitConfig,
 	apiKey string,
 	poolCfg config.ConnectionPoolConfig,
 	ipLimitCfg config.IPLimitConfig,
@@ -366,38 +366,36 @@ func BuildServerOpts(
 	var opts []grpc.ServerOption
 
 	// 1. 创建连接池
-	connPool := connpool.NewPool(
+	connPool := connpool.New(
 		connpool.WithMaxConnections(poolCfg.MaxConnections),
 		connpool.WithStaleTimeout(poolCfg.StaleTimeout),
 		connpool.WithCleanupInterval(poolCfg.CleanupInterval),
 	)
-	connPool.Start()
 	log.Infof("[连接池] 已启动: 最大连接数=%d, 过期超时=%v", poolCfg.MaxConnections, poolCfg.StaleTimeout)
 
 	// 2. 创建IP限流器
-	ipLimiter := iplimiter.NewLimiter(
-		iplimiter.WithMaxQPS(ipLimitCfg.MaxQPSPerIP),
-		iplimiter.WithBurstSize(ipLimitCfg.BurstSize),
-		iplimiter.WithCleanupInterval(ipLimitCfg.CleanupInterval),
-		iplimiter.WithStaleDuration(ipLimitCfg.StaleDuration),
-	)
-	ipLimiter.Start()
+	ipLimiter := iplimiter.New(iplimiter.Config{
+		MaxQPS:          int64(ipLimitCfg.MaxQPSPerIP),
+		BurstSize:       int64(ipLimitCfg.BurstSize),
+		CleanupInterval: ipLimitCfg.CleanupInterval,
+		StaleDuration:   ipLimitCfg.StaleDuration,
+	})
 	log.Infof("[IP限流] 已启动: 每IP %d QPS, 突发=%d", ipLimitCfg.MaxQPSPerIP, ipLimitCfg.BurstSize)
 
 	// 3. 创建goroutine池
-	goPool := gopool.NewPool(
+	goPool := gopool.New(
 		gopool.WithWorkers(goPoolCfg.Workers),
 		gopool.WithQueueCap(goPoolCfg.QueueCap),
 	)
 	log.Infof("[goroutine池] 已启动: workers=%d, 队列容量=%d", goPoolCfg.Workers, goPoolCfg.QueueCap)
 
 	// 4. 创建熔断器管理器
-	breakerMgr := circuitbreaker.NewManager(
-		circuitbreaker.WithFailureThreshold(breakerCfg.FailureThreshold),
-		circuitbreaker.WithMinRequests(breakerCfg.MinRequests),
-		circuitbreaker.WithRecoveryTimeout(breakerCfg.RecoveryTimeout),
-		circuitbreaker.WithHalfOpenMaxRequests(breakerCfg.HalfOpenMaxRequests),
-	)
+	breakerMgr := circuitbreaker.NewManager(circuitbreaker.Config{
+		FailureThreshold:    breakerCfg.FailureThreshold,
+		MinRequests:         int64(breakerCfg.MinRequests),
+		RecoveryTimeout:     breakerCfg.RecoveryTimeout,
+		HalfOpenMaxRequests: int64(breakerCfg.HalfOpenMaxRequests),
+	})
 	log.Infof("[熔断器] 已启动: 失败阈值=%.0f%%, 最小请求数=%d, 恢复超时=%v",
 		breakerCfg.FailureThreshold*100, breakerCfg.MinRequests, breakerCfg.RecoveryTimeout)
 
@@ -412,7 +410,6 @@ func BuildServerOpts(
 	}
 
 	connPoolInterceptor := ConnPoolInterceptor(connPool, log)
-	ipLimitInterceptor := IPLimitInterceptor(ipLimiter, log)
 	goPoolInterceptor := GoPoolInterceptor(goPool, log)
 	breakerInterceptor := CircuitBreakerInterceptor(breakerMgr, log)
 
@@ -433,13 +430,10 @@ func BuildServerOpts(
 		}
 
 		// 2. 连接池检查
-		ctx, resp, err = func() (context.Context, interface{}, error) {
-			return connPoolInterceptor(ctx, req, info, handler)
-		}()
+		resp, err = connPoolInterceptor(ctx, req, info, handler)
 		if err != nil {
 			return nil, err
 		}
-		_ = ctx // connPoolInterceptor不修改ctx
 
 		// 3. IP限流
 		if !ipLimiter.Allow(extractClientIP(ctx)) {
@@ -565,7 +559,6 @@ func (s *Server) RegisterProbe(ctx context.Context, req *edge.RegisterProbeReque
 		Version:      req.GetVersion(),
 		Region:       req.GetRegion(),
 		Zone:         req.GetZone(),
-		Cluster:      req.GetCluster(),
 		Metadata:     req.GetLabels(),
 	}
 	if err := s.sessionStore.CreateSession(probeSession); err != nil {
@@ -882,9 +875,9 @@ func (s *Server) GetResourceStats() map[string]interface{} {
 	if s.connPool != nil {
 		poolStats := s.connPool.GetStats()
 		stats["connection_pool"] = map[string]interface{}{
-			"total":       poolStats.Total,
-			"max":         poolStats.Max,
-			"ip_counts":   poolStats.IPCounts,
+			"total":       poolStats.TotalConnections,
+			"max":         poolStats.MaxConnections,
+			"ip_counts":   poolStats.PerIPCounts,
 		}
 	}
 
@@ -897,7 +890,7 @@ func (s *Server) GetResourceStats() map[string]interface{} {
 	}
 
 	if s.goPool != nil {
-		poolMetrics := s.goPool.Metrics()
+		poolMetrics := s.goPool.GetMetrics()
 		stats["goroutine_pool"] = map[string]interface{}{
 			"active_workers":  poolMetrics.ActiveWorkers,
 			"queued_tasks":    poolMetrics.QueuedTasks,
@@ -910,14 +903,13 @@ func (s *Server) GetResourceStats() map[string]interface{} {
 		breakers := s.breaker.GetAllBreakers()
 		breakerStats := make([]map[string]interface{}, 0, len(breakers))
 		for name, brk := range breakers {
-			state := brk.GetState()
 			breakerStats = append(breakerStats, map[string]interface{}{
 				"service":     name,
-				"state":       state.State.String(),
-				"total":       state.TotalRequests,
-				"success":     state.SuccessCount,
-				"failures":    state.FailureCount,
-				"error_rate":  state.ErrorRate,
+				"state":       brk.State,
+				"total":       brk.TotalRequests,
+				"success":     brk.SuccessCount,
+				"failures":    brk.FailureCount,
+				"error_rate":  brk.ErrorRate,
 			})
 		}
 		stats["circuit_breakers"] = breakerStats

@@ -409,7 +409,7 @@ func (cm *ClusterManager) AddWatchCallback(callback func([]EdgeInstance)) {
 func (cm *ClusterManager) Stop() {
 	cm.stopped.Do(func() {
 		close(cm.stopCh)
-		cm.logger.Info("集群管理器已停止")
+		cm.logger.Infof("集群管理器已停止")
 	})
 }
 
