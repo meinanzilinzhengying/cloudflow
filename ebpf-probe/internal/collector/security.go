@@ -3,113 +3,95 @@ package collector
 import (
 	"bytes"
 	"context"
-	_ "embed"
-	"encoding/binary"
 	"fmt"
 	"log"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
-	"github.com/cilium/ebpf/ringbuf"
+	"github.com/cilium/ebpf/perf"
 
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
 )
 
-//go:embed file_open.bpf.o
-var fileOpenBpfO []byte
-
-//go:embed tcp_connect.bpf.o
-var tcpConnectBpfO []byte
-
 type SecurityCollector struct {
-	output      output.Writer
-	probeID     string
-	running     bool
-	stopCh      chan struct{}
-	fileColl    *ebpf.Collection
-	tcpColl     *ebpf.Collection
-	fileLinks   []link.Link
-	tcpLinks    []link.Link
-	fileReader  *ringbuf.Reader
-	tcpReader   *ringbuf.Reader
+	output     output.Writer
+	probeID    string
+	running    bool
+	stopCh     chan struct{}
+	fileReader *perf.Reader
+	tcpReader  *perf.Reader
+	fileLinks  []link.Link
+	tcpLinks   []link.Link
+	tcpBpfPath string
 }
 
 func NewSecurityCollector(out output.Writer, probeID string) *SecurityCollector {
-	return &SecurityCollector{output: out, probeID: probeID, stopCh: make(chan struct{})}
+	return &SecurityCollector{output: out, probeID: probeID, stopCh: make(chan struct{}), tcpBpfPath: "/data/local/tmp/cloudflow/ebpf-probe/tcp_connect.bpf.o"}
 }
 
-func (s *SecurityCollector) Name() string   { return "security" }
+func (s *SecurityCollector) Name() string     { return "security" }
 func (s *SecurityCollector) Category() string { return "security" }
 
 func (s *SecurityCollector) Init(cap kernel.Capabilities) error {
-	if !cap.HasBPFLSM && !cap.HasBPFKprobe {
-		return fmt.Errorf("no lsm/kprobe support")
+	if !cap.HasBPFKprobe {
+		return fmt.Errorf("no kprobe support")
 	}
-	// 加载 file_open bpf
-	fileSpec, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(fileOpenBpfO))
+
+	// Read BPF program from file
+	bpfData, err := os.ReadFile(s.tcpBpfPath)
 	if err != nil {
-		return fmt.Errorf("load file_open spec: %w", err)
-	}
-	fileLoaded, err := ebpf.NewCollection(fileSpec)
-	if err != nil {
-		return fmt.Errorf("load file_open collection: %w", err)
-	}
-	s.fileColl = fileLoaded
-
-	if prog := fileLoaded.Programs["trace_do_filp_open"]; prog != nil {
-		l, err := link.Kprobe("do_filp_open", prog, nil)
-		if err != nil {
-			log.Printf("[SEC] attach do_filp_open: %v", err)
-		} else {
-			s.fileLinks = append(s.fileLinks, l)
-		}
-	}
-	if prog := fileLoaded.Programs["trace_vfs_write"]; prog != nil {
-		l, err := link.Kprobe("vfs_write", prog, nil)
-		if err != nil {
-			log.Printf("[SEC] attach vfs_write: %v", err)
-		} else {
-			s.fileLinks = append(s.fileLinks, l)
-		}
+		return fmt.Errorf("read tcp_connect bpf file: %w", err)
 	}
 
-	fileRb := fileLoaded.Maps["rb"]
-	if fileRb != nil {
-		s.fileReader, _ = ringbuf.NewReader(fileRb)
-	}
-
-	// 加载 tcp_connect bpf
-	tcpSpec, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(tcpConnectBpfO))
+	// Load tcp_connect BPF
+	tcpSpec, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(bpfData))
 	if err != nil {
 		return fmt.Errorf("load tcp_connect spec: %w", err)
 	}
-	tcpLoaded, err := ebpf.NewCollection(tcpSpec)
+	tcpColl, err := ebpf.NewCollection(tcpSpec)
 	if err != nil {
 		return fmt.Errorf("load tcp_connect collection: %w", err)
 	}
-	s.tcpColl = tcpLoaded
 
-	if prog := tcpLoaded.Programs["trace_tcp_v4_connect"]; prog != nil {
-		l, err := link.Kprobe("tcp_v4_connect", prog, nil)
-		if err != nil {
-			log.Printf("[SEC] attach tcp_v4_connect: %v", err)
-		} else {
-			s.tcpLinks = append(s.tcpLinks, l)
-		}
-	}
-	if prog := tcpLoaded.Programs["trace_tcp_v4_connect_exit"]; prog != nil {
-		l, err := link.Kretprobe("tcp_v4_connect", prog, nil)
-		if err != nil {
-			log.Printf("[SEC] attach tcp_v4_connect ret: %v", err)
-		} else {
-			s.tcpLinks = append(s.tcpLinks, l)
+	// Find perf map
+	for _, m := range tcpColl.Maps {
+		if m.Type() == ebpf.PerfEventArray {
+			reader, err := perf.NewReader(m, os.Getpagesize()*4)
+			if err != nil {
+				return fmt.Errorf("tcp_connect perf reader: %w", err)
+			}
+			s.tcpReader = reader
+			break
 		}
 	}
 
-	tcpRb := tcpLoaded.Maps["rb"]
-	if tcpRb != nil {
-		s.tcpReader, _ = ringbuf.NewReader(tcpRb)
+	// Attach programs
+	for name, prog := range tcpColl.Programs {
+		if prog == nil {
+			continue
+		}
+		log.Printf("[SEC] Program %s type: %v", name, prog.Type())
+		if prog.Type() != ebpf.Kprobe {
+			log.Printf("[SEC] Skip non-kprobe: %s (type: %v)", name, prog.Type())
+			continue
+		}
+
+		// Extract kernel function name from section name
+		// e.g., "kprobe/tcp_connect" -> "tcp_connect"
+		//       "kretprobe/tcp_connect" -> "tcp_connect"
+		kernelFunc := extractKernelFunc(name)
+
+		l, err := link.Kprobe(kernelFunc, prog, nil)
+		if err != nil {
+			log.Printf("[SEC] attach %s (kernel=%s) failed: %v", name, kernelFunc, err)
+			continue
+		}
+		s.tcpLinks = append(s.tcpLinks, l)
+		log.Printf("[SEC] Attached %s -> %s", name, kernelFunc)
 	}
 
 	return nil
@@ -117,69 +99,112 @@ func (s *SecurityCollector) Init(cap kernel.Capabilities) error {
 
 func (s *SecurityCollector) Start(ctx context.Context) error {
 	s.running = true
+
+	// Start file_open reader
 	if s.fileReader != nil {
-		go s.readLoop(s.fileReader, "file")
+		go s.readPerfLoop(s.fileReader, "file_open")
 	}
+
+	// Start tcp_connect reader
 	if s.tcpReader != nil {
-		go s.readLoop(s.tcpReader, "tcp")
+		go s.readPerfLoop(s.tcpReader, "tcp_connect")
 	}
+
+	log.Printf("[SEC] Started")
 	return nil
 }
 
-func (s *SecurityCollector) readLoop(reader *ringbuf.Reader, label string) {
+func (s *SecurityCollector) readPerfLoop(reader *perf.Reader, label string) {
 	defer reader.Close()
 	for s.running {
 		record, err := reader.Read()
 		if err != nil {
 			if s.running {
-				log.Printf("[SEC] %s ringbuf read: %v", label, err)
+				log.Printf("[SEC] %s perf read: %v", label, err)
 			}
 			continue
 		}
-		s.handleEvent(record.RawSample)
-	}
-}
 
-func (s *SecurityCollector) handleEvent(data []byte) {
-	if len(data) < 48 {
-		return
-	}
-	timestampNs := binary.LittleEndian.Uint64(data[0:8])
-	etype := binary.LittleEndian.Uint32(data[8:12])
-	pid := binary.LittleEndian.Uint32(data[12:16])
-	comm := string(bytes.Trim(data[72:88], "\x00"))
-	rawData := data[88:344]
-	nullIdx := bytes.IndexByte(rawData, 0)
-	if nullIdx >= 0 {
-		rawData = rawData[:nullIdx]
-	}
-	dataStr := string(rawData)
-	now := ebpfTimeToWallTime(timestampNs)
-
-	switch etype {
-	case 6: // EVENT_TYPE_FILE_OPEN
-		if err := s.output.WriteFileEvent(now, s.probeID, pid, comm, dataStr, "open", 0); err != nil { log.Printf("[SEC] WriteFileEvent failed: %v", err) }
-	case 7: // EVENT_TYPE_TCP_CONNECT
-		if err := s.output.WriteEvent(&output.Event{
-			Timestamp: now, ProbeID: s.probeID, Category: "security", EventType: "connect",
-			Details: fmt.Sprintf("pid=%d comm=%s", pid, comm),
-		}); err != nil {
-			log.Printf("[SEC] WriteEvent failed: %v", err)
+		// Parse event based on label
+		switch label {
+		case "file_open":
+			if len(record.RawSample) >= 80 {
+				pid := bytesToUint32(record.RawSample[0:4])
+				comm := string(record.RawSample[4:20])
+				filename := string(record.RawSample[20:80])
+				if err := s.output.WriteFileEvent(time.Now(), s.probeID, pid, comm, filename, "open", 0); err != nil {
+					log.Printf("[SEC] WriteFileEvent failed: %v", err)
+				}
+			}
+		case "tcp_connect":
+			if len(record.RawSample) >= 28 {
+				pid := bytesToUint32(record.RawSample[0:8])
+				latencyNs := bytesToUint64(record.RawSample[8:16])
+				comm := string(record.RawSample[16:32])
+				if err := s.output.WriteEvent(&output.Event{
+					Timestamp: time.Now(),
+					ProbeID:   s.probeID,
+					Category:  "security",
+					EventType: "tcp_connect",
+					LatencyMs: float64(latencyNs) / 1e6,
+					Service:   comm,
+					Details:   fmt.Sprintf(`{"pid":%d}`, pid),
+				}); err != nil {
+					log.Printf("[SEC] WriteEvent failed: %v", err)
+				}
+			}
 		}
 	}
 }
 
 func (s *SecurityCollector) Stop() {
-	close(s.stopCh)
 	s.running = false
-	if s.fileReader != nil { s.fileReader.Close() }
-	if s.tcpReader != nil { s.tcpReader.Close() }
-	for _, l := range s.fileLinks { l.Close() }
-	for _, l := range s.tcpLinks { l.Close() }
-	if s.fileColl != nil { s.fileColl.Close() }
-	if s.tcpColl != nil { s.tcpColl.Close() }
+	close(s.stopCh)
+	for _, l := range s.fileLinks {
+		l.Close()
+	}
+	for _, l := range s.tcpLinks {
+		l.Close()
+	}
 }
 
 func (s *SecurityCollector) Status() map[string]interface{} {
-	return map[string]interface{}{"name": s.Name(), "running": s.running, "category": s.Category()}
+	return map[string]interface{}{
+		"running": s.running,
+	}
+}
+
+// extractKernelFunc maps BPF program name to kernel function name
+func extractKernelFunc(sectionName string) string {
+	// First try to extract from section name (e.g., "kprobe/tcp_connect" -> "tcp_connect")
+	if idx := strings.LastIndex(sectionName, "/"); idx >= 0 {
+		return sectionName[idx+1:]
+	}
+	// Map BPF function names to kernel function names
+	knownFuncs := map[string]string{
+		"trace_connect_entry": "tcp_connect",
+		"trace_connect_exit":  "tcp_connect",
+		"trace_file_open":     "do_filp_open",
+		"trace_syscall_entry": "tcp_connect",
+		"trace_syscall_exit":  "tcp_connect",
+	}
+	if kf, ok := knownFuncs[sectionName]; ok {
+		return kf
+	}
+	return sectionName
+}
+
+func bytesToUint32(b []byte) uint32 {
+	if len(b) < 4 {
+		return 0
+	}
+	return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
+}
+
+func bytesToUint64(b []byte) uint64 {
+	if len(b) < 8 {
+		return 0
+	}
+	return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+		uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
 }

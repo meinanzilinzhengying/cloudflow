@@ -7,11 +7,14 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
-	"github.com/cilium/ebpf/ringbuf"
+	"github.com/cilium/ebpf/perf"
 
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
@@ -21,120 +24,154 @@ import (
 var processExecBpfO []byte
 
 type PerformanceCollector struct {
-	output   output.Writer
-	probeID  string
-	running  bool
-	stopCh   chan struct{}
-	coll     *ebpf.Collection
-	links    []link.Link
-	reader   *ringbuf.Reader
+	output  output.Writer
+	probeID string
+	running bool
+	stopCh  chan struct{}
+	reader  *perf.Reader
+	links   []link.Link
+	bpfPath string
 }
 
 func NewPerformanceCollector(out output.Writer, probeID string) *PerformanceCollector {
-	return &PerformanceCollector{output: out, probeID: probeID, stopCh: make(chan struct{})}
+	return &PerformanceCollector{output: out, probeID: probeID, stopCh: make(chan struct{}), bpfPath: "/data/local/tmp/cloudflow/ebpf-probe/process_exec.bpf.o"}
 }
 
-func (p *PerformanceCollector) Name() string   { return "performance" }
+func (p *PerformanceCollector) Name() string     { return "performance" }
 func (p *PerformanceCollector) Category() string { return "performance" }
 
 func (p *PerformanceCollector) Init(cap kernel.Capabilities) error {
-	if !cap.HasBPFKprobe && !cap.HasBPFTracepoint {
-		return fmt.Errorf("no kprobe/tracepoint support")
+	// Read BPF program from file
+	bpfData, err := os.ReadFile(p.bpfPath)
+	if err != nil {
+		return fmt.Errorf("read process_exec bpf file: %w", err)
 	}
-	// 加载 BPF 对象
-	spec, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(processExecBpfO))
+
+	spec, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(bpfData))
 	if err != nil {
 		return fmt.Errorf("load spec: %w", err)
 	}
-	loaded, err := ebpf.NewCollection(spec)
+
+	coll, err := ebpf.NewCollection(spec)
 	if err != nil {
 		return fmt.Errorf("load collection: %w", err)
 	}
-	p.coll = loaded
 
-	// attach tracepoint
-	if prog := loaded.Programs["tracepoint_sched_process_exec"]; prog != nil {
-		l, err := link.Tracepoint("sched", "sched_process_exec", prog, nil)
-		if err != nil {
-			log.Printf("[PERF] attach exec tracepoint: %v", err)
-		} else {
-			p.links = append(p.links, l)
-		}
-	}
-	if prog := loaded.Programs["tracepoint_sched_process_exit"]; prog != nil {
-		l, err := link.Tracepoint("sched", "sched_process_exit", prog, nil)
-		if err != nil {
-			log.Printf("[PERF] attach exit tracepoint: %v", err)
-		} else {
-			p.links = append(p.links, l)
+	// Find perf event array map
+	var perfMap *ebpf.Map
+	for _, m := range coll.Maps {
+		if m.Type() == ebpf.PerfEventArray {
+			perfMap = m
+			break
 		}
 	}
 
-	rbMap := loaded.Maps["rb"]
-	if rbMap == nil {
-		return fmt.Errorf("ringbuf map not found")
+	if perfMap == nil {
+		return fmt.Errorf("no perf event map found")
 	}
-	reader, err := ringbuf.NewReader(rbMap)
+
+	reader, err := perf.NewReader(perfMap, os.Getpagesize()*4)
 	if err != nil {
-		return fmt.Errorf("ringbuf reader: %w", err)
+		return fmt.Errorf("perf reader: %w", err)
 	}
 	p.reader = reader
+
+	// Attach kprobes
+	for name, prog := range coll.Programs {
+		if prog == nil || prog.Type() != ebpf.Kprobe {
+			continue
+		}
+
+		kernelFunc := name
+		if idx := strings.LastIndex(name, "/"); idx >= 0 {
+			kernelFunc = name[idx+1:]
+		}
+		// Map BPF function names to kernel function names
+		knownFuncs := map[string]string{
+			"trace_process_exec": "do_execve",
+			"trace_process_exit": "do_execve",
+			"trace_sched_exec":   "do_execve",
+			"trace_sched_exit":   "do_execve",
+			"trace_exec":         "do_execve",
+			"trace_exit":         "do_execve",
+		}
+		if kf, ok := knownFuncs[kernelFunc]; ok {
+			kernelFunc = kf
+		}
+
+		l, err := link.Kprobe(kernelFunc, prog, nil)
+		if err != nil {
+			log.Printf("[PERF] attach %s (kernel=%s) failed: %v", name, kernelFunc, err)
+			continue
+		}
+		p.links = append(p.links, l)
+		log.Printf("[PERF] Attached %s -> %s", name, kernelFunc)
+	}
+
 	return nil
 }
 
 func (p *PerformanceCollector) Start(ctx context.Context) error {
+	if p.reader == nil {
+		return fmt.Errorf("performance collector not initialized")
+	}
 	p.running = true
+
 	go func() {
 		defer p.reader.Close()
 		for p.running {
 			record, err := p.reader.Read()
 			if err != nil {
 				if p.running {
-					log.Printf("[PERF] ringbuf read: %v", err)
+					log.Printf("[PERF] perf read: %v", err)
 				}
 				continue
 			}
 			p.handleEvent(record.RawSample)
 		}
 	}()
+
+	log.Printf("[PERF] Started")
 	return nil
 }
 
 func (p *PerformanceCollector) handleEvent(data []byte) {
-	if len(data) < 48 {
+	if len(data) < 4 {
 		return
 	}
-	timestampNs := binary.LittleEndian.Uint64(data[0:8])
-	etype := binary.LittleEndian.Uint32(data[8:12])
-	pid := binary.LittleEndian.Uint32(data[12:16])
-	ppid := binary.LittleEndian.Uint32(data[16:20])
-	comm := string(bytes.Trim(data[72:88], "\x00"))
-	argData := string(bytes.Trim(data[88:344], "\x00"))
 
-	_ = timestampNs
-	now := time.Now()
-	switch etype {
-	case 4: // EVENT_TYPE_EXEC
-		if err := p.output.WriteProcessEvent(now, p.probeID, pid, ppid, comm, "", argData, "execve"); err != nil { log.Printf("[PERF] WriteProcessEvent failed: %v", err) }
-	case 5: // EVENT_TYPE_EXIT
-		if err := p.output.WriteProcessEvent(now, p.probeID, pid, ppid, comm, "", "", "exit"); err != nil { log.Printf("[PERF] WriteProcessEvent failed: %v", err) }
+	pid := binary.LittleEndian.Uint32(data[0:4])
+	comm := ""
+	if len(data) >= 20 {
+		comm = string(data[4:20])
+	}
+
+	ev := &output.Event{
+		Timestamp: time.Now(),
+		ProbeID:   p.probeID,
+		Category:  "process",
+		EventType: "exec",
+		Service:   comm,
+		Details:   fmt.Sprintf(`{"pid":%d}`, pid),
+	}
+
+	if err := p.output.WriteEvent(ev); err != nil {
+		log.Printf("[PERF] write event: %v", err)
 	}
 }
 
 func (p *PerformanceCollector) Stop() {
-	close(p.stopCh)
 	p.running = false
-	if p.reader != nil {
-		p.reader.Close()
-	}
+	close(p.stopCh)
 	for _, l := range p.links {
 		l.Close()
-	}
-	if p.coll != nil {
-		p.coll.Close()
 	}
 }
 
 func (p *PerformanceCollector) Status() map[string]interface{} {
-	return map[string]interface{}{"name": p.Name(), "running": p.running, "category": p.Category()}
+	return map[string]interface{}{
+		"running": p.running,
+	}
 }
+
+var _ = unsafe.Sizeof(0)

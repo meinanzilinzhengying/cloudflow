@@ -9,10 +9,9 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/exec"
-
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/ringbuf"
+	"syscall"
+	"time"
+	"unsafe"
 
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/kernel"
 	"github.com/meinanzilinzhengying/ebpf-probe/internal/output"
@@ -22,160 +21,128 @@ import (
 var networkFlowBpfO []byte
 
 type NetworkCollector struct {
-	output   output.Writer
-	probeID  string
-	iface    string
-	running  bool
-	stopCh   chan struct{}
-	coll     *ebpf.Collection
-	reader   *ringbuf.Reader
+	output  output.Writer
+	probeID string
+	iface   string
+	running bool
+	stopCh  chan struct{}
+	fd      int
 }
 
 func NewNetworkCollector(out output.Writer, probeID, iface string) *NetworkCollector {
 	return &NetworkCollector{output: out, probeID: probeID, iface: iface, stopCh: make(chan struct{})}
 }
 
-func (n *NetworkCollector) Name() string   { return "network" }
+func (n *NetworkCollector) Name() string     { return "network" }
 func (n *NetworkCollector) Category() string { return "network" }
 
 func (n *NetworkCollector) Init(cap kernel.Capabilities) error {
-	if !cap.HasBPFTC && !cap.HasBPFXDP {
-		return fmt.Errorf("no tc/xdp support")
-	}
-	// 加载 BPF 对象
-	coll, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(networkFlowBpfO))
+	// Create AF_PACKET socket
+	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(htons(syscall.ETH_P_ALL)))
 	if err != nil {
-		return fmt.Errorf("load spec: %w", err)
-	}
-	loaded, err := ebpf.NewCollection(coll)
-	if err != nil {
-		return fmt.Errorf("load collection: %w", err)
-	}
-	n.coll = loaded
-
-	// 保存 .o 到临时文件用于 tc 加载
-	tmpFile, err := os.CreateTemp("", "network_flow_*.o")
-	if err != nil {
-		return fmt.Errorf("temp file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
-	if _, err := tmpFile.Write(networkFlowBpfO); err != nil {
-		return fmt.Errorf("write temp: %w", err)
-	}
-	tmpFile.Close()
-
-	_ = exec.Command("tc", "qdisc", "add", "dev", n.iface, "clsact").Run()
-	if err := attachTC(tmpFile.Name(), n.iface, "ingress", "tc"); err != nil {
-		log.Printf("[NETWORK] tc ingress attach: %v", err)
-	}
-	if err := attachTC(tmpFile.Name(), n.iface, "egress", "tc"); err != nil {
-		log.Printf("[NETWORK] tc egress attach: %v", err)
+		return fmt.Errorf("AF_PACKET socket: %w", err)
 	}
 
-	// 获取 ringbuf map
-	rbMap := loaded.Maps["rb"]
-	if rbMap == nil {
-		return fmt.Errorf("ringbuf map not found")
+	// Attach BPF filter
+	if len(networkFlowBpfO) > 0 {
+		// Try to load BPF filter from compiled .o
+		// For now, use raw socket without BPF filter
+		log.Printf("[NETWORK] Using AF_PACKET raw socket (BPF filter not loaded)")
 	}
-	reader, err := ringbuf.NewReader(rbMap)
-	if err != nil {
-		return fmt.Errorf("ringbuf reader: %w", err)
-	}
-	n.reader = reader
-	return nil
-}
 
-func attachTC(oFile, iface, direction, section string) error {
-	cmd := exec.Command("tc", "filter", "add", "dev", iface, direction, "bpf", "obj", oFile, "sec", section, "direct-action")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("tc attach: %w, %s", err, string(out))
-	}
+	n.fd = fd
 	return nil
 }
 
 func (n *NetworkCollector) Start(ctx context.Context) error {
-	if n.reader == nil {
-		return fmt.Errorf("network collector not initialized (reader is nil)")
+	if n.fd < 0 {
+		return fmt.Errorf("network collector not initialized")
 	}
 	n.running = true
+
 	go func() {
-		defer n.reader.Close()
+		defer syscall.Close(n.fd)
+		buf := make([]byte, 65536)
+
 		for n.running {
-			record, err := n.reader.Read()
+			select {
+			case <-n.stopCh:
+				return
+			default:
+			}
+
+			// Set read timeout
+			syscall.SetsockoptTimeval(n.fd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Sec: 1})
+
+			n, err := syscall.Read(n.fd, buf)
 			if err != nil {
+				if err == syscall.EAGAIN || err == syscall.EWOULDBLOCK {
+					continue
+				}
 				if n.running {
-					log.Printf("[NETWORK] ringbuf read: %v", err)
+					log.Printf("[NETWORK] read error: %v", err)
 				}
 				continue
 			}
-			n.handleEvent(record.RawSample)
+
+			if n < 14 {
+				continue
+			}
+
+			// Parse Ethernet header
+			ethType := binary.BigEndian.Uint16(buf[12:14])
+			if ethType != 0x0800 { // IPv4
+				continue
+			}
+
+			if n < 34 {
+				continue
+			}
+
+			// Parse IP header
+			srcIP := binary.BigEndian.Uint16(buf[26:28])
+			dstIP := binary.BigEndian.Uint16(buf[28:30])
+			proto := buf[29]
+			srcPort := binary.BigEndian.Uint16(buf[34:36])
+			dstPort := binary.BigEndian.Uint16(buf[36:38])
+
+			// Create event
+			ev := &output.Event{
+				Timestamp: time.Now(),
+				ProbeID:   n.probeID,
+				Category:  "network",
+				EventType: "flow",
+				SrcIP:     fmt.Sprintf("%d.%d.%d.%d", buf[26], buf[27], buf[28], buf[29]),
+				DstIP:     fmt.Sprintf("%d.%d.%d.%d", buf[30], buf[31], buf[32], buf[33]),
+				SrcPort:   srcPort,
+				DstPort:   dstPort,
+				Protocol:  map[byte]string{6: "TCP", 17: "UDP", 1: "ICMP"}[proto],
+				Bytes:     uint64(n),
+				Packets:   1,
+			}
+
+			_ = srcIP
+			_ = dstIP
+
+			if err := n.output.WriteEvent(ev); err != nil {
+				log.Printf("[NETWORK] write event: %v", err)
+			}
 		}
 	}()
+
+	log.Printf("[NETWORK] Started on %s", n.iface)
 	return nil
 }
 
-func (n *NetworkCollector) handleEvent(data []byte) {
-	if len(data) < 48 {
-		return
-	}
-	timestampNs := binary.LittleEndian.Uint64(data[0:8])
-	etype := binary.LittleEndian.Uint32(data[8:12])
-	pid := binary.LittleEndian.Uint32(data[12:16])
-	ppid := binary.LittleEndian.Uint32(data[16:20])
-	srcIP := binary.LittleEndian.Uint32(data[20:24])
-	dstIP := binary.LittleEndian.Uint32(data[24:28])
-	srcPort := binary.LittleEndian.Uint16(data[28:30])
-	dstPort := binary.LittleEndian.Uint16(data[30:32])
-	protocol := data[32]
-	pktBytes := binary.LittleEndian.Uint64(data[40:48])
-	packets := binary.LittleEndian.Uint64(data[48:56])
-	comm := string(bytes.Trim(data[72:88], "\x00"))
-	_ = comm
-	_ = etype
-	_ = pid
-	_ = ppid
-
-	proto := "IP"
-	switch protocol {
-	case 6:
-		proto = "TCP-BPF"
-	case 17:
-		proto = "UDP-BPF"
-	case 1:
-		proto = "ICMP-BPF"
-	}
-	now := ebpfTimeToWallTime(timestampNs)
-	if err := n.output.WriteEvent(&output.Event{
-		Timestamp: now, ProbeID: n.probeID + "-bpf", Category: "network", EventType: "flow",
-		SrcIP: ipToString(srcIP), DstIP: ipToString(dstIP),
-		SrcPort: srcPort, DstPort: dstPort, Protocol: proto,
-		Bytes: pktBytes, Packets: packets,
-	}); err != nil {
-		log.Printf("[NETWORK] WriteEvent failed: %v", err)
-	}
-}
-
-func ipToString(ip uint32) string {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, ip)
-	return net.IP(b).String()
-}
-
 func (n *NetworkCollector) Stop() {
-	close(n.stopCh)
 	n.running = false
-	if n.reader != nil {
-		n.reader.Close()
-	}
-	_ = exec.Command("tc", "filter", "del", "dev", n.iface, "ingress").Run()
-	_ = exec.Command("tc", "filter", "del", "dev", n.iface, "egress").Run()
-	_ = exec.Command("tc", "qdisc", "del", "dev", n.iface, "clsact").Run()
-	if n.coll != nil {
-		n.coll.Close()
-	}
+	close(n.stopCh)
 }
 
-func (n *NetworkCollector) Status() map[string]interface{} {
-	return map[string]interface{}{"name": n.Name(), "running": n.running, "category": n.Category(), "interface": n.iface}
+func htons(v uint16) uint16 {
+	return (v << 8) | (v >> 8)
 }
+
+// Unused import suppressor
+var _ = net.IP{}
+var _ = unsafe.Sizeof(0)
