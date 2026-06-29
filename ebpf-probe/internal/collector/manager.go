@@ -116,6 +116,11 @@ func (m *Manager) Init(cap kernel.Capabilities) error {
 		m.collectors = append(m.collectors, NewOnCPUCollector(m.output, m.probeID))
 	}
 
+	// P3 网络质量采集器
+	if cap.HasBPFKprobe {
+		m.collectors = append(m.collectors, NewNetQualityCollector(m.output, m.probeID))
+	}
+
 	// 主机指标（始终可用）
 	if m.config.HostMetrics {
 		m.collectors = append(m.collectors, NewHostMetricsCollector(m.output, m.probeID))

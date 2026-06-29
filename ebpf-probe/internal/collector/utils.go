@@ -23,6 +23,8 @@ func extractKernelFunc(sectionName string) string {
 		"trace_close_exit":       "__arm64_sys_close",
 		"trace_schedule":         "__schedule",
 		"trace_schedule_ret":     "__schedule",
+		"trace_retransmit":       "tcp_retransmit_skb",
+		"trace_udp_send":         "udp_sendmsg",
 	}
 	if kf, ok := knownFuncs[sectionName]; ok {
 		return kf
