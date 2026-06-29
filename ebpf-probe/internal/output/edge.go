@@ -12,11 +12,16 @@ import (
 )
 
 type EdgeClient struct {
-	addr   string
-	batch  []*Event
-	mu     sync.Mutex
-	ticker *time.Ticker
-	stopCh chan struct{}
+	addr       string
+	batch      []*Event
+	mu         sync.Mutex
+	ticker     *time.Ticker
+	stopCh     chan struct{}
+	client     *http.Client
+	retryCount int
+	maxRetries int
+	baseInterval time.Duration
+	closed     bool
 }
 
 // 按类别采样率：在探针端直接过滤，减少网络传输和Redis压力
@@ -41,10 +46,14 @@ func shouldSample(category string) bool {
 
 func NewEdgeClient(addr string) (*EdgeClient, error) {
 	e := &EdgeClient{
-		addr:   addr,
-		batch:  make([]*Event, 0, 2000),
-		ticker: time.NewTicker(5 * time.Second),
-		stopCh: make(chan struct{}),
+		addr:       addr,
+		batch:      make([]*Event, 0, 2000),
+		ticker:     time.NewTicker(5 * time.Second),
+		stopCh:     make(chan struct{}),
+		client:     &http.Client{Timeout: 30 * time.Second},
+		retryCount: 0,
+		maxRetries: 100,
+		baseInterval: 5 * time.Second,
 	}
 	go e.flushLoop()
 	return e, nil
@@ -156,37 +165,71 @@ func (e *EdgeClient) flush() {
 	e.mu.Unlock()
 
 	data, _ := json.Marshal(events)
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Post("http://"+e.addr+"/api/v1/ingest", "application/json", bytes.NewReader(data))
+	resp, err := e.client.Post("http://"+e.addr+"/api/v1/ingest", "application/json", bytes.NewReader(data))
 	if err != nil {
-		log.Printf("[EDGE] flush failed: %v, retrying later", err)
 		e.mu.Lock()
+		e.retryCount++
+		if e.retryCount > e.maxRetries {
+			log.Printf("[EDGE] max retries (%d) reached, dropping %d events", e.maxRetries, len(events))
+			e.retryCount = 0
+			e.mu.Unlock()
+			return
+		}
 		e.batch = append(events, e.batch...)
 		if len(e.batch) > 10000 {
 			e.batch = e.batch[:10000]
 		}
+		backoff := e.baseInterval * time.Duration(1<<uint(e.retryCount-1))
+		if backoff > 60*time.Second {
+			backoff = 60 * time.Second
+		}
+		e.ticker.Reset(backoff)
 		e.mu.Unlock()
+		log.Printf("[EDGE] flush failed: %v, retry %d/%d, backoff %v", err, e.retryCount, e.maxRetries, backoff)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		log.Printf("[EDGE] server returned %d, retrying later", resp.StatusCode)
 		e.mu.Lock()
+		e.retryCount++
+		if e.retryCount > e.maxRetries {
+			log.Printf("[EDGE] max retries (%d) reached, dropping %d events", e.maxRetries, len(events))
+			e.retryCount = 0
+			e.mu.Unlock()
+			return
+		}
 		e.batch = append(events, e.batch...)
 		if len(e.batch) > 10000 {
 			e.batch = e.batch[:10000]
 		}
+		backoff := e.baseInterval * time.Duration(1<<uint(e.retryCount-1))
+		if backoff > 60*time.Second {
+			backoff = 60 * time.Second
+		}
+		e.ticker.Reset(backoff)
 		e.mu.Unlock()
+		log.Printf("[EDGE] server returned %d, retry %d/%d, backoff %v", resp.StatusCode, e.retryCount, e.maxRetries, backoff)
 		return
 	}
 
 	// 只有 200 才认为成功
+	e.mu.Lock()
+	e.retryCount = 0
+	e.ticker.Reset(e.baseInterval)
+	e.mu.Unlock()
 	io.Copy(io.Discard, resp.Body)
 	log.Printf("[EDGE] flushed %d events", len(events))
 }
 
 func (e *EdgeClient) Close() error {
+	e.mu.Lock()
+	if e.closed {
+		e.mu.Unlock()
+		return nil
+	}
+	e.closed = true
+	e.mu.Unlock()
 	close(e.stopCh)
 	e.ticker.Stop()
 	e.flush()

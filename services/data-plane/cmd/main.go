@@ -25,7 +25,7 @@ func main() {
 			cfg.TimeSeriesDBPort = p
 		}
 	} else {
-		cfg.TimeSeriesDBPort = 8123
+		cfg.TimeSeriesDBPort = 9000
 	}
 	if user := os.Getenv("CLICKHOUSE_USER"); user != "" {
 		cfg.TimeSeriesDBUser = user

@@ -1,0 +1,97 @@
+worker_processes 1;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    sendfile        on;
+    keepalive_timeout  65;
+
+    server {
+        listen       80;
+        server_name  localhost;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # SPA 路由支持 - 所有路径回退到 index.html
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        # 认证服务 API
+        location /api/auth/ {
+            proxy_pass http://192.168.58.130:8006/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # 租户服务 API
+        location /api/tenant/ {
+            proxy_pass http://192.168.58.130:8010/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # 控制面 API
+        location /api/control/ {
+            proxy_pass http://192.168.58.130:8001/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # 查询服务 API
+        location /api/query/ {
+            proxy_pass http://192.168.58.130:8007/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # 告警服务 API
+        location /api/alert/ {
+            proxy_pass http://192.168.58.130:8009/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # 拓扑服务 API
+        location /api/topology/ {
+            proxy_pass http://192.168.58.130:8008/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # 数据面 API
+        location /api/dataplane/ {
+            proxy_pass http://192.168.58.130:8002/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # eBPF 探针 API 代理 (v1)
+        location /api/v1/ {
+            proxy_pass http://192.168.58.131:9090/api/v1/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 30s;
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   /usr/share/nginx/html;
+        }
+    }
+}

@@ -402,7 +402,9 @@ func (s *Service) Start() error {
 // Stop 停止服务
 func (s *Service) Stop() {
 	s.running.Store(false)
-	s.analysisEngine.Stop()
+	if s.analysisEngine != nil {
+		s.analysisEngine.Stop()
+	}
 	s.health.SetServingStatus(s.config.ServiceName, healthpb.HealthCheckResponse_NOT_SERVING)
 
 	// P1-04 修复: 使用优雅关闭等待请求完成
@@ -475,6 +477,7 @@ func (s *Service) initClickHouse() error {
 
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	// 测试连接
 	ctx, cancel := context.WithTimeout(context.Background(), s.config.CHPingTimeout)
@@ -798,7 +801,17 @@ func (s *Service) flowWorker() {
 		}
 	}
 
-	// 优雅退出：刷新剩余数据
+	// 优雅退出：排空 channel 中剩余数据
+	for {
+		select {
+		case item := <-s.flowQueue:
+			batch = append(batch, item)
+		default:
+			goto flush
+		}
+	}
+flush:
+	// 刷新剩余数据
 	if len(batch) > 0 {
 		s.flushFlows(batch)
 	}

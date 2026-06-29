@@ -93,7 +93,10 @@ func NewResilientHTTPClient(config ResilienceConfig) *ResilientHTTPClient {
 }
 
 func (c *ResilientHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	var lastErr error
+	var (
+		lastErr error
+		lastResp *http.Response
+	)
 
 	err := c.resilience.ExecuteWithContext(req.Context(), func(ctx context.Context) error {
 		req = req.WithContext(ctx)
@@ -113,6 +116,7 @@ func (c *ResilientHTTPClient) Do(req *http.Request) (*http.Response, error) {
 			return nil
 		}
 
+		lastResp = resp
 		return nil
 	})
 
@@ -120,12 +124,7 @@ func (c *ResilientHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+	return lastResp, nil
 }
 
 func (c *ResilientHTTPClient) Get(url string) (*http.Response, error) {

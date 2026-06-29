@@ -356,7 +356,16 @@ func (s *Service) Stop() {
 	}
 
 	if s.grpcServer != nil {
-		s.grpcServer.GracefulStop()
+		done := make(chan struct{})
+		go func() {
+			s.grpcServer.GracefulStop()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			s.grpcServer.Stop()
+		}
 	}
 
 	if s.tsDB != nil {
@@ -425,6 +434,8 @@ func (s *Service) QueryFlows(ctx context.Context, req *svcproto.QueryFlowRequest
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
 
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	rows, err := s.tsDB.Query(ctx, query, args...)
 	if err != nil {
 		s.statsMu.Lock()
@@ -513,6 +524,8 @@ func (s *Service) QueryMetrics(ctx context.Context, req *svcproto.QueryFlowReque
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
 
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	rows, err := s.tsDB.Query(ctx, query, args...)
 	if err != nil {
 		s.statsMu.Lock()
@@ -601,6 +614,8 @@ func (s *Service) QueryTraces(ctx context.Context, req *svcproto.QueryFlowReques
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
 
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	rows, err := s.tsDB.Query(ctx, query, args...)
 	if err != nil {
 		s.statsMu.Lock()
@@ -685,9 +700,9 @@ func (s *Service) QueryDashboard(ctx context.Context, req *svcproto.QueryFlowReq
 			name: "error_rate",
 			query: `SELECT 
 				service,
-				sum(case when category = 'security' then 1 else 0 end) as error_count,
+				sum(if(category = 'security', 1, 0)) as error_count,
 				count() as total_count,
-				(sum(case when category = 'security' then 1 else 0 end) / count()) * 100 as error_rate
+				(sum(if(category = 'security', 1, 0)) / count()) * 100 as error_rate
 			FROM ebpf_events
 			WHERE 1=1`,
 			args: []interface{}{},
@@ -960,7 +975,8 @@ func (s *Service) overviewHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
 
 	if s.tsDB == nil {
 		writeJSON(w, map[string]interface{}{
@@ -1152,7 +1168,7 @@ func (s *Service) metricsDataHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	query := "SELECT timestamp, probe_id, cpu_percent, memory_percent, disk_percent, net_rx_bytes, net_tx_bytes, disk_read_bytes, disk_write_bytes FROM cloudflow.host_metrics ORDER BY timestamp DESC LIMIT 100"
+	query := "SELECT timestamp, probe_id, cpu_percent, memory_percent, disk_percent, net_rx_bytes, net_tx_bytes, disk_read_bytes, disk_write_bytes FROM cloudflow.host_metrics WHERE timestamp >= now() - INTERVAL 1 DAY ORDER BY timestamp DESC LIMIT 100"
 	rows, err := s.tsDB.Query(ctx, query)
 	if err != nil {
 		writeJSON(w, map[string]interface{}{
