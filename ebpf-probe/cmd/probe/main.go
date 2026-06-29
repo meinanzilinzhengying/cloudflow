@@ -94,13 +94,16 @@ func main() {
 	defer out.Close()
 	log.Printf("[OK] Edge 输出就绪")
 
-	// ClickHouse 用于 API 查询
-	ch, err := output.NewClickHouse(clickHouseAddr, clickHouseUser, clickHousePassword, clickHouseDB)
+	// ClickHouse 用于 API 查询（可选，连接失败不退出）
+	var ch *output.ClickHouse
+	ch, err = output.NewClickHouse(clickHouseAddr, clickHouseUser, clickHousePassword, clickHouseDB)
 	if err != nil {
-		log.Fatalf("[FATAL] ClickHouse 查询客户端初始化失败: %v", err)
+		log.Printf("[WARN] ClickHouse 查询客户端初始化失败（将仅使用 Edge 输出）: %v", err)
+		ch = nil
+	} else {
+		defer ch.Close()
+		log.Printf("[OK] ClickHouse 查询就绪")
 	}
-	defer ch.Close()
-	log.Printf("[OK] ClickHouse 查询就绪")
 
 	// 使用默认配置（所有扩展功能默认关闭）
 	cfg := collector.DefaultConfig()
@@ -118,13 +121,17 @@ func main() {
 	log.Printf("[OK] 所有采集器已启动")
 
 	go api.Start(apiPort, mgr, ch)
-	// 配置表轮询（每30秒检查前端下发的命令）
+	// 配置表轮询（每30秒检查前端下发的命令，仅在 ClickHouse 可用时启用）
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("[CONFIG] 轮询goroutine恢复: %v", r)
 			}
 		}()
+		if ch == nil {
+			log.Printf("[CONFIG] ClickHouse 不可用，跳过配置表轮询")
+			return
+		}
 		log.Printf("[CONFIG] 启动配置表轮询 (每30秒), probe_id=%s", probeID)
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()

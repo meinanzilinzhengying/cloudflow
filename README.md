@@ -1,588 +1,138 @@
-# CloudFlow 云原生网络流量分析平台
+# CloudFlow Web - eBPF 网络可观测平台前端
 
-<div align="center">
-
-![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
-![Go Version](https://img.shields.io/badge/go-1.22+-00ADD8.svg?logo=go)
-![Docker](https://img.shields.io/badge/docker-ready-2496ED.svg?logo=docker)
-![Vue](https://img.shields.io/badge/vue-3.4-4FC08D.svg?logo=vue.js)
-
-**高性能云原生网络流量分析平台 | 基于 eBPF 实现 L3-L7 全栈可观测性**
-
-*CloudFlow is a high-performance cloud-native network traffic analysis platform for L3-L7 full-stack observability based on eBPF*
-
-[English](README.md) | [简体中文](README.md)
-
-</div>
+> Vue 3 + TypeScript + Vite + Element Plus + ECharts
 
 ---
 
-## 🌟 核心特性
-### 🇨🇳 国产化支持
-- **全栈国产化**: 支持达梦DM8、人大金仓KingBaseES、高斯GaussDB等国产数据库
-- **零中断迁移**: 5级双写模式渐进式迁移，随时可回滚
-- **SQL自动转换**: 驱动层自动处理SQL方言差异，业务代码零修改
-- **信创适配**: 支持麒麟、欧拉等国产操作系统，x86/ARM双架构
-
-### 🚀 高性能架构
-- **超高性能**: 支持 100K+ flows/sec 采集，<1% CPU 开销
-- **微服务架构**: 所有后端模块容器化，Docker Compose 一键部署
-- **全栈可视**: L3-L7 协议全覆盖，从网络层到应用层
-
-### 🔍 三大探针部署方式
-- **ECS 直接安装**: SSH 远程安装到目标服务器
-- **K8s Node 节点**: DaemonSet 自动部署到集群所有节点
-- **K8s Pod 探针**: 通过 API + Token 获取集群配置信息
-
-### 🤖 AI 智能分析
-- **多模型支持**: DeepSeek / Qwen / OpenAI GPT-4
-- **智能问答**: AI 协助分析监控数据
-- **自动诊断**: 智能识别异常和性能瓶颈
-
-### 📊 双前端设计
-- **业务监控前端** (`:8080`): 流量分析、服务拓扑、链路追踪、告警管理、用户与租户管理
-- **平台自监控前端** (`:3003`): 平台自身监控、探针管理、AI 智能分析
-
----
-
-## 🏗️ 系统架构
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         CloudFlow 微服务架构                          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    前端层 (容器化)                            │   │
-│  │        ┌─────────────┐              ┌─────────────┐          │   │
-│  │        │ 业务监控前端 │              │ 平台监控前端 │          │   │
-│  │        │   (:8080)   │              │   (:3003)   │          │   │
-│  │        └─────────────┘              └─────────────┘          │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                    │                                 │
-│  ┌────────────────────────────────────────────────────────────────┐│
-│  │                     微服务层 (容器化)                            ││
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            ││
-│  │  │ Auth Service│  │Tenant Service│  │Control Plane│            ││
-│  │  │   (:8006)   │  │   (:8010)   │  │   (:8001)   │            ││
-│  │  └─────────────┘  └─────────────┘  └─────────────┘            ││
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            ││
-│  │  │ Data Plane  │  │Query Service │  │ AI Service │            ││
-│  │  │   (:9002)   │  │   (:8007)   │  │   (:8082)   │            ││
-│  │  └─────────────┘  └─────────────┘  └─────────────┘            ││
-│  │  ┌─────────────┐  ┌─────────────┐                            ││
-│  │  │Topology Eng.│  │ Alert Engine│                            ││
-│  │  │   (:8008)   │  │   (:8009)   │                            ││
-│  │  └─────────────┘  └─────────────┘                            ││
-│  └────────────────────────────────────────────────────────────────┘│
-│                                    │                                 │
-│  ┌────────────────────────────────────────────────────────────────┐│
-│  │                    存储层 (容器化)                               ││
-│  │  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐  ││
-│  │  │  TiDB  │  │ Redis  │  │  etcd  │  │ClickHouse│ │ Kafka  │  ││
-│  │  │:4000  │  │:6379  │  │:2379  │  │ :8123  │  │ :9092  │  ││
-│  │  └────────┘  └────────┘  └────────┘  └────────┘  └────────┘  ││
-│  └────────────────────────────────────────────────────────────────┘│
-│                                                                      │
-│  ┌────────────────────────────────────────────────────────────────┐│
-│  │                  监控与可观测性 (容器化)                          ││
-│  │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌────────────┐  ││
-│  │  │Prometheus│  │  Grafana  │  │   Loki    │  │   Jaeger   │  ││
-│  │  │  (:9091)  │  │  (:3001)  │  │  (:3100)  │  │  (:16686)  │  ││
-│  │  └───────────┘  └───────────┘  └───────────┘  └────────────┘  ││
-│  └────────────────────────────────────────────────────────────────┘│
-│                                                                      │
-│  ═══════════════════════════════════════════════════════════════════ │
-│                           探针层 (独立部署)                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │   ECS 探针   │  │ K8s Node 探针│  │ K8s Pod 探针│              │
-│  │  (SSH 安装)   │  │ (DaemonSet)  │  │(API+Token)  │              │
-│  └──────────────┘  └──────────────┘  └──────────────┘              │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📦 支持的操作系统
-
-### 🖥️ 一键部署支持
-- ✅ **CentOS** 7/8/9
-- ✅ **Red Hat Enterprise Linux** 7/8/9
-- ✅ **Rocky Linux** 8/9
-- ✅ **AlmaLinux** 8/9
-- ✅ **麒麟 V10** (Kylin)
-- ✅ **欧拉 openEuler** 20/21/22
-- ✅ **华为 EulerOS**
-- ✅ **Debian** 10/11/12
-- ✅ **Ubuntu** 18/20/22/24 LTS
-- ✅ **Fedora** 36/37/38
-
-### 🔧 探针支持
-- ✅ **x86_64** (Intel/AMD/海光)
-- ✅ **aarch64** (ARM64/鲲鹏)
-
----
-
-## 🚀 快速开始
-
-### 一键部署（推荐）
+## 快速开始
 
 ```bash
-# 下载并运行一键部署脚本
-curl -fsSL https://raw.githubusercontent.com/meinanzilinzhengying/cloudflow/main/scripts/install.sh | bash
+# 安装依赖
+npm install
 
-# 或下载脚本后运行
-wget https://raw.githubusercontent.com/meinanzilinzhengying/cloudflow/main/scripts/install.sh
-chmod +x install.sh
-sudo ./install.sh
-```
+# 开发模式（端口8080，代理到后端9090）
+npm run dev
 
-### 手动部署
+# 生产构建
+npm run build
 
-```bash
-# 1. 克隆代码
-git clone https://github.com/meinanzilinzhengying/cloudflow.git
-cd cloudflow
-
-# 2. 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件设置密码和配置
-
-# 3. 启动所有服务
-docker compose up -d
-
-# 4. 检查服务状态
-docker compose ps
-
-# 5. 查看日志
-docker compose logs -f
-```
-
-### 部署选项
-
-```bash
-# 跳过 Docker 安装（已安装 Docker）
-sudo ./install.sh --skip-docker
-
-# 跳过 Git 克隆（已克隆代码）
-sudo ./install.sh --skip-git
-
-# 调试模式
-sudo ./install.sh --debug
+# 预览构建产物
+npm run preview
 ```
 
 ---
 
-## 🌐 访问地址
+## 技术栈
 
-部署完成后，访问以下地址：
-
-| 服务 | 地址 | 说明 |
+| 技术 | 版本 | 用途 |
 |------|------|------|
-| 业务监控前端 | http://服务器IP:8080 | 流量分析、服务拓扑、链路追踪、告警管理 |
-| 平台自监控前端 | http://服务器IP:3003 | 平台自监控、探针管理、AI 分析 |
-| Grafana | http://服务器IP:3001 | 监控仪表盘 |
-| Prometheus | http://服务器IP:9091 | 指标查询 |
-| AI 服务 | http://服务器IP:8082 | AI 分析 API |
-
-### 默认凭证
-
-- **Grafana**: `admin` / `admin`
-- **TiDB**: `root` / (见 .env 中的 `CLOUD_FLOW_DB_PASSWORD`)
-- **ClickHouse**: `default` / `ClickHouse2024Secure`
+| Vue 3 | ^3.4 | 核心框架 |
+| TypeScript | ^5.4 | 类型安全 |
+| Vite | ^5.2 | 构建工具 |
+| Element Plus | ^2.7 | UI 组件库 |
+| Pinia | ^2.1 | 状态管理 |
+| Vue Router | ^4.2 | 路由 |
+| Axios | ^1.7 | HTTP 请求 |
+| ECharts | ^5.4 | 数据可视化 |
+| vue-echarts | ^6.6 | ECharts Vue 封装 |
 
 ---
 
-## 🔍 探针部署
+## 页面清单
 
-### 方式一：ECS 直接安装
-
-```bash
-# 在目标服务器上执行
-curl -fsSL https://raw.githubusercontent.com/meinanzilinzhengying/cloudflow/main/cloud-flow-agent/scripts/install.sh | bash
-
-# 或下载安装脚本
-wget https://raw.githubusercontent.com/meinanzilinzhengying/cloudflow/main/cloud-flow-agent/scripts/install.sh
-chmod +x install.sh
-sudo ./install.sh
-```
-
-### 方式二：K8s Node 节点部署
-
-```bash
-# 通过前端页面部署
-# 访问平台监控前端 → 探针管理 → K8s 部署
-# 填写 K8s 集群信息即可自动部署 DaemonSet
-```
-
-### 方式三：K8s Pod 探针
-
-```bash
-# 通过前端页面配置
-# 访问平台监控前端 → 探针管理 → K8s 部署
-# 填写 API Server 地址和 Token
-# 系统自动获取集群配置信息（Pod、命名空间、服务等）
-```
+| 页面 | 路由 | 说明 |
+|------|------|------|
+| 登录 | `/login` | 深蓝渐变背景，品牌展示 + 表单 |
+| 总览仪表盘 | `/dashboard` | 4指标卡片 + 流量趋势 + 协议分布 + TOP主机 + 告警 |
+| 探针管理 | `/probes` | 探针表格 + 详情弹窗(5Tab) |
+| 网络流量 | `/network` | 流量趋势 + 通信矩阵 + 拓扑 + 流日志 |
+| L7协议 | `/protocol` | HTTP/DNS Tab + 指标卡片 + 日志表格 |
+| 系统性能 | `/performance` | CPU/内存/IO/进程 2×2网格 |
+| 安全审计 | `/security` | 事件时间线 + 详情面板 |
 
 ---
 
-## 🤖 AI 分析配置
+## 目录结构
 
-### 配置 API Key
-
-```bash
-# 编辑 .env 文件
-vim .env
-
-# 添加以下配置
-DEEPSEEK_API_KEY=your_deepseek_api_key
-QWEN_API_KEY=your_qwen_api_key
-OPENAI_API_KEY=your_openai_api_key
-
-# 重启 AI 服务
-docker compose restart ai-service
 ```
-
-### API 调用示例
-
-```bash
-# 健康检查
-curl http://localhost:8082/health
-
-# 获取可用模型
-curl http://localhost:8082/api/models
-
-# 发送分析请求
-curl -X POST http://localhost:8082/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "deepseek-chat",
-    "session_id": "user123",
-    "messages": [
-      {"role": "user", "content": "帮我分析今天的服务器监控数据"}
-    ]
-  }'
+cloudflow-web/
+├── src/
+│   ├── api/          # API 接口封装
+│   ├── components/   # 公共组件
+│   ├── views/        # 页面组件
+│   ├── router/       # 路由配置
+│   ├── stores/       # Pinia 状态
+│   ├── utils/        # 工具函数
+│   ├── styles/       # 全局样式
+│   ├── App.vue
+│   └── main.ts
+├── index.html
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+└── README.md
 ```
 
 ---
 
-## 📂 项目结构
+## 部署
 
-```
-cloudflow/
-├── cloud-flow-agent/              # 探针模块 (独立部署)
-│   ├── cmd/                      # 入口点
-│   ├── internal/
-│   │   ├── ebpfcollector/        # eBPF 数据采集
-│   │   ├── l7parser/             # L7 协议解析
-│   │   └── collector/            # 指标收集器
-│   ├── deployments/
-│   │   ├── k8s/                  # K8s 部署配置
-│   │   │   ├── 00-namespace.yaml
-│   │   │   ├── 01-serviceaccount.yaml
-│   │   │   ├── 02-rbac.yaml
-│   │   │   ├── 03-configmap.yaml
-│   │   │   ├── 04-secret.yaml
-│   │   │   └── 05-daemonset.yaml
-│   │   └── Dockerfile
-│   └── scripts/
-│       └── install.sh            # 安装脚本
-│
-├── cloud-flow-ai/                # AI 服务 (容器化)
-│   ├── cmd/main.go              # 服务入口
-│   ├── configs/config.yaml      # 配置文件
-│   ├── deployments/Dockerfile
-│   └── internal/
-│       ├── config/              # 配置管理
-│       ├── llm/                 # LLM 客户端
-│       └── server/              # HTTP 服务
-│
-├── services/                     # 微服务模块 (容器化)
-│   ├── auth-service/            # 认证服务
-│   ├── tenant-service/         # 租户服务
-│   ├── control-plane/          # 控制平面
-│   ├── data-plane/             # 数据平面
-│   ├── query-service/          # 查询服务
-│   ├── topology-engine/        # 拓扑引擎
-│   ├── alert-engine/           # 告警引擎
-│   ├── deployments/migrations/ # 数据库迁移
-│   └── shared/                 # 共享库
-│
-├── cloud-flow-frontend/         # 业务监控前端 (容器化, :8080)
-│   ├── src/
-│   │   ├── components/         # 组件 (Dashboard、流量分析、拓扑、追踪、告警、管理等)
-│   │   ├── api/index.js       # API 配置 (相对路径 + nginx 代理)
-│   │   └── App.vue            # 入口
-│   ├── nginx.conf             # 多服务代理配置 (auth/tenant/control/query/alert/dataplane)
-│   └── Dockerfile
-│
-├── cloud-flow-platform/         # 平台自监控前端 (容器化, :3003)
-│   ├── src/
-│   │   ├── components/modules/ # 组件 (Dashboard、探针管理、健康检查、AI 分析、配置管理、告警)
-│   │   ├── api/index.js       # API 配置 (相对路径 + nginx 代理)
-│   │   └── App.vue           # 入口
-│   ├── nginx.conf             # 代理配置 (control/prometheus/loki/alert)
-│   └── Dockerfile
-│
-├── monitoring/                  # 监控配置
-│   ├── prometheus/             # Prometheus
-│   ├── grafana/                # Grafana
-│   ├── promtail/              # 日志采集
-│   └── alertmanager/          # 告警管理
-│
-├── scripts/
-│   └── install.sh              # ⭐ 一键部署脚本
-│
-├── docker-compose.yml           # ⭐ Docker Compose 配置
-├── .env.example                # 环境变量模板
-└── README.md                   # 本文档
-```
-
----
-
-## 🔧 配置说明
-
-### 环境变量 (.env)
+### 独立部署（Nginx）
 
 ```bash
-# 数据库配置
-CLOUD_FLOW_DB_PASSWORD=your_secure_password
-
-# Grafana
-GRAFANA_ADMIN_PASSWORD=your_grafana_password
-
-# ClickHouse
-CLICKHOUSE_USER=default
-CLICKHOUSE_PASSWORD=ClickHouse2024Secure
-
-# AI 服务 (可选)
-DEEPSEEK_API_KEY=
-QWEN_API_KEY=
-OPENAI_API_KEY=
-
-# JWT 密钥
-CLOUDFLOW_JWT_SECRET_KEY=your_jwt_secret_key
+npm run build
+# 将 dist/ 目录复制到 nginx 的 html 目录
+cp -r dist/* /usr/share/nginx/html/
 ```
 
-### 探针配置
+### 嵌入 Go 后端（go:embed）
 
-```yaml
-# cloud-flow-agent/configs/config.yaml
-collector:
-  enabled: true
-  sample_rate: 1.0
-  max_flows_per_second: 100000
+```go
+//go:embed dist
+var webFS embed.FS
 
-ebpf:
-  buffer_size: 8388608
-  perf_ring_size: 65536
-
-l7:
-  parsers:
-    - http
-    - grpc
-    - mysql
-    - redis
-    - kafka
-    - dns
-
-kubernetes:
-  enabled: true
-  kubeconfig: ~/.kube/config
-```
-
----
-
-## 📊 功能特性
-
-### 业务监控前端 (`:8080`)
-- 🌐 **流量分析**: 实时业务流量监控和分析
-- 🔗 **服务拓扑**: 服务依赖关系可视化
-- 📈 **链路追踪**: 分布式调用链追踪与分析
-- 🚨 **告警管理**: 智能告警规则和通知
-- 👥 **用户与租户管理**: 多租户、用户权限、API Key 管理
-
-### 平台自监控前端 (`:3003`)
-- 🖥️ **探针管理**: 三种部署方式一键下发
-  - ECS 直接安装 (SSH)
-  - K8s Node 节点 (DaemonSet)
-  - K8s Pod 探针 (API + Token)
-- 📊 **平台自监控**: 平台自身健康状态
-- 🤖 **AI 分析**: AI 智能分析和诊断
-- ⚙️ **系统设置**: 配置管理和用户管理
-
-### AI 服务
-- 💬 **智能问答**: 自然语言查询监控数据
-- 🔍 **异常诊断**: AI 自动识别异常
-- 📋 **分析报告**: 自动生成分析报告
-- 🔄 **多模型切换**: 支持 DeepSeek/Qwen/GPT-4
-
----
-
-## 🐛 故障排查
-
-### 服务无法启动
-
-```bash
-# 查看所有服务日志
-docker compose logs -f
-
-# 查看特定服务
-docker compose logs -f auth-service
-
-# 重启所有服务
-docker compose restart
-
-# 完全重建
-docker compose down -v
-docker compose up -d
-```
-
-### 探针无法连接
-
-```bash
-# 检查探针状态
-docker exec -it cloudflow-control-plane curl http://localhost:8001/healthz
-
-# 检查网络连通性
-docker exec -it cloudflow-control-plane ping cloudflow-agent
-
-# 查看探针日志
-docker compose logs -f cloudflow-agent
-```
-
-### 前端无法访问
-
-```bash
-# 检查前端服务
-docker compose ps frontend
-
-# 检查 Nginx 配置
-docker exec -it cloudflow-business-frontend cat /etc/nginx/nginx.conf
-
-# 重启前端
-docker compose restart business-frontend platform-frontend
-```
-
----
-
-## 🔐 安全建议
-
-### 生产环境部署
-
-1. **修改默认密码**: 立即修改所有默认密码
-2. **配置 HTTPS**: 使用反向代理配置 SSL/TLS
-3. **网络隔离**: 使用 Docker 网络隔离
-4. **防火墙**: 限制端口访问
-5. **定期更新**: 保持镜像最新版本
-
-### Docker 安全
-
-```bash
-# 使用 Docker 网络
-docker network create cloudflow-net
-
-# 配置资源限制
-docker update --memory 2G --cpus 2 <container_id>
-
-# 启用 Docker 日志轮转
-sudo tee /etc/docker/daemon.json <<EOF
-{
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m",
-    "max-file": "3"
-  }
+func serveWeb() {
+    sub, _ := fs.Sub(webFS, "dist")
+    http.Handle("/", http.FileServer(http.FS(sub)))
+    http.ListenAndServe(":8080", nil)
 }
-EOF
-sudo systemctl restart docker
 ```
 
 ---
 
-## 📈 性能优化
+## 后端 API 对接
 
-### 推荐配置
+所有接口前缀 `/api/v1`，代理到 `http://localhost:9090`（开发模式）。
 
-| 组件 | CPU | 内存 | 磁盘 |
-|------|-----|------|------|
-| TiDB | 4 核 | 8GB | 100GB SSD |
-| ClickHouse | 8 核 | 16GB | 200GB SSD |
-| Kafka | 4 核 | 8GB | 100GB |
-| Redis | 2 核 | 4GB | 10GB |
-| 微服务 (x7) | 2 核 x7 | 2GB x7 | - |
-
-### 高可用配置
-
-生产环境建议：
-- TiDB: 3 节点集群
-- Kafka: 3 节点集群，副本因子 3
-- ClickHouse: 3 节点集群
-- Redis: 主从 + Sentinel
+核心接口：
+- `POST /api/v1/auth/login` - 登录
+- `GET /api/v1/probes` - 探针列表
+- `GET /api/v1/dashboard/overview` - 仪表盘数据
+- `GET /api/v1/network/flows` - 网络流
+- `GET /api/v1/protocol/http` - HTTP 日志
+- `GET /api/v1/protocol/dns` - DNS 日志
+- `GET /api/v1/performance/:host` - 性能数据
+- `GET /api/v1/security/events` - 安全事件
 
 ---
 
-## 🤝 贡献指南
+## 设计规范
 
-欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解更多。
-
-### 开发环境
-
-```bash
-# 克隆代码
-git clone https://github.com/meinanzilinzhengying/cloudflow.git
-cd cloudflow
-
-# 安装 Go 依赖
-go mod download
-
-# 安装前端依赖
-cd cloud-flow-platform && npm install
-cd ../cloud-flow-business && npm install
-
-# 运行测试
-go test ./...
-npm test
-```
+- 主色: `#165DFF`
+- 成功: `#00B42A`, 警告: `#FF7D00`, 危险: `#F53F3F`
+- 卡片圆角: `8px`, 阴影: `0 2px 8px rgba(0,0,0,0.08)`
+- 页面边距: `20px 24px`
+- 字体: 标题 `18px 600`, 卡片标题 `16px 600`, 正文 `14px 400`
 
 ---
 
-## 📜 许可证
+## 响应式适配
 
-本项目采用 **Apache License 2.0** 开源许可证。
-
-详见 [LICENSE](LICENSE) 文件。
-
----
-
-## 🙏 致谢
-
-感谢以下开源项目：
-
-- [cilium/ebpf](https://github.com/cilium/ebpf) - eBPF Go 库
-- [ClickHouse](https://clickhouse.com/) - 高性能列式数据库
-- [TiDB](https://tidb.io/) - 分布式 NewSQL 数据库
-- [Kafka](https://kafka.apache.org/) - 分布式流处理平台
-- [Prometheus](https://prometheus.io/) - 监控系统
-- [Grafana](https://grafana.com/) - 可视化平台
-- [Vue.js](https://vuejs.org/) - 前端框架
-- [Go](https://go.dev/) - 编程语言
+- 1920×1080: 完整布局
+- 1366×768: 表格横向滚动，图表自适应
 
 ---
 
-## 📞 联系方式
+## 许可证
 
-- 📧 邮件: [cloudflow@meinanzilinzhengying.com](mailto:cloudflow@meinanzilinzhengying.com)
-- 💬 Issues: [GitHub Issues](https://github.com/meinanzilinzhengying/cloudflow/issues)
-- 📖 文档: [Wiki](https://github.com/meinanzilinzhengying/cloudflow/wiki)
-
----
-
-<div align="center">
-
-**如果 CloudFlow 对您有帮助，请给我们一个 ⭐ Star！**
-
-Made with ❤️ by CloudFlow Team
-
-</div>
+MIT © 2025 CloudFlow Team

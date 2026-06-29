@@ -410,6 +410,8 @@ class DataIngestService:
             ts_int = int(time.time() * 1000)
 
         details = ev.get("details", "") or ""
+        if not isinstance(details, str):
+            details = str(details)
         details_hash = hashlib.md5(details.encode()).hexdigest()[:8] if details else "00000000"
 
         fields = [

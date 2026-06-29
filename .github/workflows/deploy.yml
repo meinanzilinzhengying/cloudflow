@@ -1,0 +1,216 @@
+# =============================================================================
+# Cloud Flow Deploy CD Workflow
+# =============================================================================
+# Triggers on push to main/master or manual dispatch
+# =============================================================================
+
+name: Deploy CD
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'cloud-flow-frontend/**'
+      - 'cloud-flow-agent/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+# Cancel duplicate runs on the same branch
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  GO_VERSION: '1.22'
+  REGISTRY: ghcr.io
+  FRONTEND_IMAGE_NAME: ${{ github.repository }}/cloud-flow-frontend
+  AGENT_IMAGE_NAME: ${{ github.repository }}/cloud-flow-agent
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build Images Job - Docker buildx for frontend and agent
+  # ---------------------------------------------------------------------------
+  build-images:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      frontend-tag: ${{ steps.frontend-meta.outputs.tags }}
+      agent-tag: ${{ steps.agent-meta.outputs.tags }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate version tag
+        id: version
+        run: echo "version=v${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      # -----------------------------------------------------------------------
+      # Docker Buildx Setup with GitHub Actions Cache
+      # -----------------------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # -----------------------------------------------------------------------
+      # Frontend Image Build & Push
+      # -----------------------------------------------------------------------
+      - name: Extract frontend metadata
+        id: frontend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
+          tags: |
+            type=raw,value=v${{ github.sha }}
+            type=ref,event=branch
+            type=sha,prefix=
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./cloud-flow-frontend
+          file: ./cloud-flow-frontend/deployments/Dockerfile
+          push: true
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VITE_API_BASE_URL=/api
+
+      # -----------------------------------------------------------------------
+      # Agent Image Build & Push
+      # -----------------------------------------------------------------------
+      - name: Extract agent metadata
+        id: agent-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}
+          tags: |
+            type=raw,value=v${{ github.sha }}
+            type=ref,event=branch
+            type=sha,prefix=
+
+      - name: Build and push agent image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./cloud-flow-agent
+          file: ./cloud-flow-agent/deployments/Dockerfile
+          push: true
+          tags: ${{ steps.agent-meta.outputs.tags }}
+          labels: ${{ steps.agent-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## Build & Push Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Images Built" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** \`${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:v${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Agent:** \`${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}:v${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Version" >> $GITHUB_STEP_SUMMARY
+          echo "\`v${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # ---------------------------------------------------------------------------
+  # Deploy Staging Job - SSH deploy (template, commented out)
+  # ---------------------------------------------------------------------------
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging.example.com
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy Summary
+        run: |
+          echo "## Staging Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** staging" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** v${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend Image:** ${{ needs.build-images.outputs.frontend-tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Agent Image:** ${{ needs.build-images.outputs.agent-tag }}" >> $GITHUB_STEP_SUMMARY
+
+      # -----------------------------------------------------------------------
+      # SSH Deploy (Template - Uncomment and configure as needed)
+      # -----------------------------------------------------------------------
+      # - name: Deploy via SSH
+      #   uses: appleboy/ssh-action@v1.0.3
+      #   with:
+      #     host: ${{ secrets.STAGING_HOST }}
+      #     username: ${{ secrets.STAGING_USER }}
+      #     key: ${{ secrets.STAGING_SSH_KEY }}
+      #     script: |
+      #       cd /opt/cloud-flow
+      #       docker-compose pull
+      #       docker-compose up -d
+      #       docker image prune -f
+
+      - name: Deployment placeholder
+        run: |
+          echo "⚠️ SSH deployment is commented out. Please configure SSH secrets and uncomment the deployment step."
+          echo ""
+          echo "Required secrets:"
+          echo "- STAGING_HOST: Staging server hostname"
+          echo "- STAGING_USER: SSH username"
+          echo "- STAGING_SSH_KEY: SSH private key"
+
+  # ---------------------------------------------------------------------------
+  # Deploy Production Job - Manual dispatch only (template, commented out)
+  # ---------------------------------------------------------------------------
+  # deploy-production:
+  #   name: Deploy to Production
+  #   runs-on: ubuntu-latest
+  #   needs: build-images
+  #   if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+  #   environment:
+  #     name: production
+  #     url: https://production.example.com
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Deploy via SSH
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ secrets.PRODUCTION_HOST }}
+  #         username: ${{ secrets.PRODUCTION_USER }}
+  #         key: ${{ secrets.PRODUCTION_SSH_KEY }}
+  #         script: |
+  #           cd /opt/cloud-flow
+  #           docker-compose pull
+  #           docker-compose up -d
+  #           docker image prune -f
+  #
+  #     - name: Deploy Summary
+  #       if: always()
+  #       run: |
+  #         echo "## Production Deployment" >> $GITHUB_STEP_SUMMARY
+  #         echo "- **Environment:** production" >> $GITHUB_STEP_SUMMARY
+  #         echo "- **Version:** v${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

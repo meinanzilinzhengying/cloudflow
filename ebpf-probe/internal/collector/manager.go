@@ -113,13 +113,16 @@ func (m *Manager) Init(cap kernel.Capabilities) error {
 		m.collectors = append(m.collectors, NewHostMetricsCollector(m.output, m.probeID))
 	}
 
+	var initialized []Collector
 	for _, c := range m.collectors {
 		if err := c.Init(cap); err != nil {
 			log.Printf("[COLLECTOR] %s 初始化失败: %v", c.Name(), err)
 		} else {
 			log.Printf("[COLLECTOR] %s 已就绪", c.Name())
+			initialized = append(initialized, c)
 		}
 	}
+	m.collectors = initialized
 	return nil
 }
 

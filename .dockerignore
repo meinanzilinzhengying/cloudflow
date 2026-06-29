@@ -1,0 +1,9 @@
+.git
+.github
+node_modules
+src
+public
+*.md
+*.log
+.vscode
+.idea

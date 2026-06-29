@@ -95,6 +95,9 @@ func attachTC(oFile, iface, direction, section string) error {
 }
 
 func (n *NetworkCollector) Start(ctx context.Context) error {
+	if n.reader == nil {
+		return fmt.Errorf("network collector not initialized (reader is nil)")
+	}
 	n.running = true
 	go func() {
 		defer n.reader.Close()
